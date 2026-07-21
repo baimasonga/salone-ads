@@ -17,6 +17,7 @@ export interface OpportunityListItem {
   isFeatured: boolean;
   sector: string | null;
   district: string | null;
+  country: string | null;
   opportunityType: string | null;
   statusCode: string;
   statusLabel: string;
@@ -28,7 +29,6 @@ export interface OpportunityDetail extends OpportunityListItem {
   summary: string | null;
   description: string | null;
   procurementMethod: string | null;
-  country: string | null;
   city: string | null;
   fundingAgency: string | null;
   publicationDate: string | null;
@@ -53,7 +53,7 @@ export interface OpportunityDocument {
 
 const LIST_SELECT = `
   id, slug, title, buyer_name, submission_deadline, estimated_value, currency_code, is_featured, review_note,
-  sectors(name), districts(name), opportunity_types(label), opportunity_statuses(code, label)
+  sectors(name), districts(name), countries(name), opportunity_types(label), opportunity_statuses(code, label)
 `;
 
 const DETAIL_SELECT = `
@@ -62,7 +62,7 @@ const DETAIL_SELECT = `
   publication_date, clarification_deadline, opening_date,
   eligibility_requirements, bid_security, application_fee, contact_details, submission_instructions,
   source_name, source_url,
-  procurement_methods(label), countries(name), funding_agencies(name)
+  procurement_methods(label), funding_agencies(name)
 `;
 
 function mapListItem(row: any): OpportunityListItem {
@@ -77,6 +77,7 @@ function mapListItem(row: any): OpportunityListItem {
     isFeatured: row.is_featured,
     sector: row.sectors?.name ?? null,
     district: row.districts?.name ?? null,
+    country: row.countries?.name ?? null,
     opportunityType: row.opportunity_types?.label ?? null,
     statusCode: row.opportunity_statuses?.code ?? 'published',
     statusLabel: row.opportunity_statuses?.label ?? 'Published',
@@ -91,7 +92,6 @@ function mapDetail(row: any): OpportunityDetail {
     summary: row.summary ?? null,
     description: row.description ?? null,
     procurementMethod: row.procurement_methods?.label ?? null,
-    country: row.countries?.name ?? null,
     city: row.city ?? null,
     fundingAgency: row.funding_agencies?.name ?? null,
     publicationDate: row.publication_date ?? null,
@@ -111,6 +111,7 @@ function mapDetail(row: any): OpportunityDetail {
 export interface OpportunitySearchFilters {
   keyword?: string;
   sectorId?: string;
+  countryId?: string;
   districtId?: string;
   opportunityTypeId?: string;
 }
@@ -125,6 +126,7 @@ export async function searchOpportunities(filters: OpportunitySearchFilters): Pr
 
   if (filters.keyword) query = query.ilike('title', `%${filters.keyword}%`);
   if (filters.sectorId) query = query.eq('sector_id', filters.sectorId);
+  if (filters.countryId) query = query.eq('country_id', filters.countryId);
   if (filters.districtId) query = query.eq('district_id', filters.districtId);
   if (filters.opportunityTypeId) query = query.eq('opportunity_type_id', filters.opportunityTypeId);
 
@@ -194,8 +196,28 @@ export async function fetchSectors(): Promise<TaxonomyOption[]> {
   return data ?? [];
 }
 
-export async function fetchDistricts(): Promise<TaxonomyOption[]> {
-  const { data, error } = await supabase.from('districts').select('id, name').eq('is_active', true).order('sort_order');
+export async function fetchDistricts(countryId?: string): Promise<TaxonomyOption[]> {
+  let query = supabase.from('districts').select('id, name').eq('is_active', true).order('sort_order');
+  if (countryId) query = query.eq('country_id', countryId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchCountries(): Promise<TaxonomyOption[]> {
+  const { data, error } = await supabase.from('countries').select('id, name, code').eq('is_active', true).order('sort_order');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export interface CurrencyOption {
+  code: string;
+  name: string;
+  symbol: string;
+}
+
+export async function fetchCurrencies(): Promise<CurrencyOption[]> {
+  const { data, error } = await supabase.from('currencies').select('code, name, symbol').eq('is_active', true).order('code');
   if (error) throw error;
   return data ?? [];
 }
@@ -233,7 +255,10 @@ export interface CreateOpportunityInput {
   description: string;
   opportunityTypeId: string;
   sectorId: string;
+  countryId: string;
   districtId: string;
+  estimatedValue?: number;
+  currencyCode?: string;
   submissionDeadline: string;
   contactDetails: string;
 }
@@ -268,7 +293,10 @@ export async function createOpportunity(orgId: string, orgName: string, input: C
       description: input.description,
       opportunity_type_id: input.opportunityTypeId || null,
       sector_id: input.sectorId || null,
+      country_id: input.countryId || null,
       district_id: input.districtId || null,
+      estimated_value: input.estimatedValue ?? null,
+      currency_code: input.currencyCode ?? null,
       submission_deadline: input.submissionDeadline,
       contact_details: input.contactDetails,
       buyer_org_id: orgId,

@@ -386,12 +386,77 @@ were all verified against the real schema with real probes, then cleaned up. No 
 likely because the sibling-FK lesson from Phase 5 was applied proactively (`fetchPipeline`'s embed uses
 `opportunities(...)`, a genuine direct FK, not another `organization_members`-style sibling-FK mistake).
 
-## 10. Where this leaves the platform
+## 10. Phase 7: Regional Expansion — implemented (partial, 2026-07-21)
 
-Six phases in: Foundations, Tender Discovery, Publishing/Administration, Suppliers/Alerts, Commercial Features,
-and Intelligence are all implemented against the real schema with RLS as the actual security boundary, not
-just UI conventions. What's left per the original spec is Phase 7 (Regional Expansion — additional West African
-countries, French-language support, multi-currency, region-specific sources) and the deliberately-deferred
-items called out across these phases (outbound email, cron-scheduled reminders, API-key management, document
-upload/extraction, researcher ingestion tooling, admin-entered/website-ingested tenders). Say the word on any
-of these, or on Phase 7, when you're ready.
+Admin: `baimasonga@gmail.com` still hasn't signed up. Same offer stands.
+
+**Decisions confirmed for this pass**: add **Liberia** as the second country (Sierra Leone remains the only
+other one seeded); French-language support scoped to **public tender pages only** (search + detail), not the
+authenticated dashboard; full West-Africa-wide source ingestion and additional countries (Guinea, Ghana,
+Nigeria) explicitly left for a future pass.
+
+**What this closed, that wasn't actually built before**: the `opportunities` table has had `country_id` and
+`currency_code` columns since Phase 1/2, but nothing ever wrote to them — every tender published so far has a
+`null` country and `null` currency, and the buyer publishing form never collected a currency or estimated value
+at all. That's fixed now, not just extended for Liberia: buyers pick a country (cascading the district/county
+list), enter an estimated value, and pick a currency when publishing.
+
+**Database**: seeded `countries` (Liberia, code `LR`), `currencies` (Liberian Dollar, `LRD`), and `districts`
+(Liberia's 15 counties, scoped to Liberia's `country_id` — confirmed with a real count query: 16 Sierra Leone
+districts, 15 Liberia counties, no cross-contamination). Purely additive data via `on conflict do nothing`
+seeding, no schema or RLS changes — the existing `Public can view active countries/districts/currencies`
+policies already cover the new rows.
+
+**API** (`procurementApi.ts`): `fetchCountries()` and `fetchCurrencies()` are new. `fetchDistricts()` now takes
+an optional `countryId` to scope the list (previously returned every district regardless of country, which
+would have silently mixed Sierra Leone and Liberia locations together in one flat dropdown). `searchOpportunities`
+gained a `countryId` filter. `CreateOpportunityInput`/`createOpportunity` now actually set `country_id`,
+`estimated_value`, and `currency_code` on insert — previously silently omitted.
+
+**Buyer publishing form** (Workspaces.tsx Tenders tab): added Country (cascades District/County options),
+Estimated Value, and Currency fields, defaulting to the first configured country.
+
+**Public tender pages**: `TenderSearchPage` gained a Country filter (cascades the district dropdown, mirrors
+the buyer form) and now shows estimated value (currency-symbol formatted) and country in results. `TenderDetailPage`
+shows estimated value the same way, and the contract-award currency display now resolves a real symbol via
+`fetchCurrencies()` instead of printing the raw currency code.
+
+**French-language support** (`src/lib/i18n.ts`): a small hand-rolled dictionary + `useLanguage()` hook
+(localStorage-persisted, no new dependency — consistent with how `react-router-dom` was the only prior
+justified addition) wired into `TenderSearchPage` and `TenderDetailPage` via an EN/FR toggle in each page's
+header. Covers all static UI strings on both pages (labels, buttons, empty/loading states, AI-explanation
+disclaimer). **Does not** translate database content — sector names, district/county names, opportunity types,
+and buyer-entered titles/descriptions stay in whatever language they were entered in, since translating
+taxonomy and free-text tender content would require either translated columns or a live translation call per
+tender, neither of which was in scope for this pass. The dashboard (Workspaces.tsx) remains English-only, per
+the confirmed decision.
+
+**Known simplifications / explicitly deferred**:
+- Only Liberia added, not Guinea/Ghana/Nigeria — French support exists as infrastructure but Liberia itself is
+  English-speaking, so there's no French-speaking country's tenders to actually exercise it against yet.
+- `organizations.country` (used by the ad-platform onboarding flow for diaspora ad targeting) is untouched —
+  buyers pick a tender's country explicitly on the publish form rather than inheriting it from org profile,
+  keeping this change additive and isolated from the unrelated ad-platform code path.
+- Saved searches (`saved_searches` table) don't have a `country_id` column, so "save this search & get alerts"
+  doesn't capture the new country filter — adding that would mean touching the Phase 4 alert-matching trigger
+  too, which felt like scope creep for a data-seeding-plus-UI pass.
+- Region-specific *source ingestion* (the other half of the Phase 7 spec item) still has no tooling behind it —
+  this was already true before this pass (no admin/researcher ingestion UI exists at all, per Phase 3's notes)
+  and adding it per-country doesn't change that gap.
+- No currency conversion/exchange-rate logic — each tender's value displays in whatever currency it was
+  entered in, with no cross-currency comparison.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Liberia seed data verified with a real count
+query against the schema (16 SL districts / 15 Liberia counties, correctly scoped by `country_id`). No RLS or
+trigger changes were made this phase, so no new security-boundary probes were needed — verification for this
+pass was correctness of the new data and the read/write paths that consume it.
+
+## 11. Where this leaves the platform
+
+Seven phases in: Foundations, Tender Discovery, Publishing/Administration, Suppliers/Alerts, Commercial
+Features, Intelligence, and a first slice of Regional Expansion are all implemented against the real schema
+with RLS as the actual security boundary, not just UI conventions. What's left per the original spec: further
+Phase 7 depth (more countries, dashboard-wide French, taxonomy translation, actual region-specific source
+ingestion) and the deliberately-deferred items called out across earlier phases (outbound email, cron-scheduled
+reminders, API-key management, document upload/extraction, researcher ingestion tooling, admin-entered/
+website-ingested tenders). Say the word on any of these when you're ready.

@@ -28,6 +28,9 @@ import {
   recordAward,
   fetchSectors,
   fetchDistricts,
+  fetchCountries,
+  fetchCurrencies,
+  CurrencyOption,
   fetchOpportunityTypes,
   fetchOpportunitiesForReview,
   findSimilarTitledOpportunities,
@@ -463,14 +466,19 @@ export function Workspaces({
   const [tendersFeedback, setTendersFeedback] = useState('');
   const [enablingBuyer, setEnablingBuyer] = useState(false);
   const [tenderSectors, setTenderSectors] = useState<TaxonomyOption[]>([]);
+  const [tenderCountries, setTenderCountries] = useState<TaxonomyOption[]>([]);
   const [tenderDistricts, setTenderDistricts] = useState<TaxonomyOption[]>([]);
+  const [tenderCurrencies, setTenderCurrencies] = useState<CurrencyOption[]>([]);
   const [tenderTypes, setTenderTypes] = useState<TaxonomyOption[]>([]);
   const [tenderTitle, setTenderTitle] = useState('');
   const [tenderSummary, setTenderSummary] = useState('');
   const [tenderDescription, setTenderDescription] = useState('');
   const [tenderTypeId, setTenderTypeId] = useState('');
   const [tenderSectorId, setTenderSectorId] = useState('');
+  const [tenderCountryId, setTenderCountryId] = useState('');
   const [tenderDistrictId, setTenderDistrictId] = useState('');
+  const [tenderValue, setTenderValue] = useState('');
+  const [tenderCurrencyCode, setTenderCurrencyCode] = useState('');
   const [tenderDeadline, setTenderDeadline] = useState('');
   const [tenderContact, setTenderContact] = useState('');
   const [tenderSubmitting, setTenderSubmitting] = useState(false);
@@ -506,18 +514,31 @@ export function Workspaces({
     Promise.all([
       fetchMyOpportunities(activeOrg.id),
       fetchSectors(),
-      fetchDistricts(),
+      fetchCountries(),
+      fetchCurrencies(),
       fetchOpportunityTypes(),
     ])
-      .then(([opps, sectors, districts, types]) => {
+      .then(([opps, sectors, countries, currencies, types]) => {
         setMyOpportunities(opps);
         setTenderSectors(sectors);
-        setTenderDistricts(districts);
+        setTenderCountries(countries);
+        setTenderCurrencies(currencies);
         setTenderTypes(types);
+        if (countries.length > 0) setTenderCountryId((prev) => prev || countries[0].id);
       })
       .catch((err: any) => setTendersFeedback(`Error: ${err.message || 'Could not load tenders.'}`))
       .finally(() => setTendersLoading(false));
   }, [activeTab, activeOrg.id]);
+
+  useEffect(() => {
+    if (!tenderCountryId) return;
+    fetchDistricts(tenderCountryId)
+      .then((districts) => {
+        setTenderDistricts(districts);
+        setTenderDistrictId((prev) => (districts.some((d) => d.id === prev) ? prev : ''));
+      })
+      .catch(() => {});
+  }, [tenderCountryId]);
 
   const handleEnableBuyerMode = async () => {
     setEnablingBuyer(true);
@@ -540,7 +561,10 @@ export function Workspaces({
         description: tenderDescription,
         opportunityTypeId: tenderTypeId,
         sectorId: tenderSectorId,
+        countryId: tenderCountryId,
         districtId: tenderDistrictId,
+        estimatedValue: tenderValue ? Number(tenderValue) : undefined,
+        currencyCode: tenderCurrencyCode || undefined,
         submissionDeadline: tenderDeadline,
         contactDetails: tenderContact,
       });
@@ -548,6 +572,7 @@ export function Workspaces({
       setTenderTitle('');
       setTenderSummary('');
       setTenderDescription('');
+      setTenderValue('');
       setTenderDeadline('');
       setTenderContact('');
       setTendersFeedback('Tender submitted for admin review. It will go live once approved.');
@@ -1199,7 +1224,7 @@ export function Workspaces({
                     className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
                   />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase">Notice Type</label>
                     <select
@@ -1228,6 +1253,16 @@ export function Workspaces({
                     </select>
                   </div>
                   <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase">Country</label>
+                    <select
+                      value={tenderCountryId}
+                      onChange={(e) => setTenderCountryId(e.target.value)}
+                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                    >
+                      {tenderCountries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase">District</label>
                     <select
                       value={tenderDistrictId}
@@ -1239,7 +1274,28 @@ export function Workspaces({
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase">Estimated Value</label>
+                    <input
+                      type="number" min="0" step="any"
+                      placeholder="Optional"
+                      value={tenderValue}
+                      onChange={(e) => setTenderValue(e.target.value)}
+                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase">Currency</label>
+                    <select
+                      value={tenderCurrencyCode}
+                      onChange={(e) => setTenderCurrencyCode(e.target.value)}
+                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                    >
+                      <option value="">Select currency</option>
+                      {tenderCurrencies.map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase">Submission Deadline</label>
                     <input
@@ -1249,6 +1305,8 @@ export function Workspaces({
                       className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
                     />
                   </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase">Contact Details</label>
                     <input
