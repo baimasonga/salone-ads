@@ -451,12 +451,50 @@ query against the schema (16 SL districts / 15 Liberia counties, correctly scope
 trigger changes were made this phase, so no new security-boundary probes were needed — verification for this
 pass was correctness of the new data and the read/write paths that consume it.
 
-## 11. Where this leaves the platform
+## 11. Document upload/extraction (upload half) — implemented (2026-07-21)
+
+Closes one of the deferred items from Phase 2/3: the `opportunity_documents` table and the `public-assets`/
+`private-documents` storage buckets have existed since Phase 1, with RLS already scoped correctly
+(`{org_id}/...` path convention, buyer-org-member-or-admin write access, public read gated on both `is_public`
+and the opportunity's own visibility) — but nothing ever wrote to them. This pass wires up the write and read
+paths against that existing, unchanged RLS; no new policies or triggers were added.
+
+**API** (`procurementApi.ts`): `uploadOpportunityDocument()` uploads to whichever bucket matches the document's
+`is_public` flag (public docs → `public-assets`, restricted docs → `private-documents`), then inserts the
+`opportunity_documents` row, rolling back the storage object if the insert fails. `deleteOpportunityDocument()`
+removes storage first, then the DB row (so a partial failure never leaves a DB row pointing at a deleted file).
+`getOpportunityDocumentUrl()` returns a plain public URL for public documents or a 5-minute signed URL for
+restricted ones — signed-URL creation itself is RLS-gated, so a non-member can't mint one even if they had a
+document's ID. Client-side 10MB cap on uploads, matching the PRD's low-bandwidth guidance.
+
+**Buyer UI** (Workspaces.tsx Tenders tab): each of a buyer's own tenders now has a "Documents" toggle that
+loads/uploads/deletes files for that tender, with a Public/Private checkbox per upload.
+
+**Public UI** (TenderDetailPage.tsx): the existing (previously inert) documents list is now clickable — resolves
+a real (public or signed) URL on click and opens it.
+
+**Known simplifications / deferred**: this is the *upload* half of "document upload/extraction" only — no AI
+document-content extraction (e.g. auto-filling tender fields from an uploaded notice) was attempted, consistent
+with Phase 6's note that this needs an upload pipeline to exist first, which it now does, but extraction itself
+is separate scope. No file-type restriction beyond the size cap (no virus/malware scanning — mirrors the trust
+boundary of every other user-supplied text field in this schema, not a new gap). No thumbnail/preview generation.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. No new RLS or triggers were introduced, so the
+existing Phase 1 storage/table policies (re-read and confirmed unchanged: bucket path-convention enforcement,
+`is_public`-plus-opportunity-visibility gating on `opportunity_documents` SELECT) are what's actually being
+exercised for the first time here. A live authenticated end-to-end probe (upload as a real buyer, confirm a
+non-member is rejected, confirm a public visitor only ever sees `is_public = true` rows) wasn't possible this
+pass — `auth.users` currently has zero rows, i.e. nobody has signed up yet, so there's no real session to test
+with, on top of the sandbox's existing `*.supabase.co` egress block. This should be exercised for real as soon
+as an account exists.
+
+## 12. Where this leaves the platform
 
 Seven phases in: Foundations, Tender Discovery, Publishing/Administration, Suppliers/Alerts, Commercial
 Features, Intelligence, and a first slice of Regional Expansion are all implemented against the real schema
-with RLS as the actual security boundary, not just UI conventions. What's left per the original spec: further
-Phase 7 depth (more countries, dashboard-wide French, taxonomy translation, actual region-specific source
-ingestion) and the deliberately-deferred items called out across earlier phases (outbound email, cron-scheduled
-reminders, API-key management, document upload/extraction, researcher ingestion tooling, admin-entered/
-website-ingested tenders). Say the word on any of these when you're ready.
+with RLS as the actual security boundary, not just UI conventions. Document upload (§11) closes one long-standing
+deferred item. What's left per the original spec: further Phase 7 depth (more countries, dashboard-wide French,
+taxonomy translation, actual region-specific source ingestion), document *extraction* (as opposed to upload),
+and the remaining deliberately-deferred items called out across earlier phases (outbound email, cron-scheduled
+reminders, API-key management, researcher ingestion tooling, admin-entered/website-ingested tenders). Say the
+word on any of these when you're ready.

@@ -32,6 +32,11 @@ import {
   fetchCurrencies,
   CurrencyOption,
   fetchOpportunityTypes,
+  fetchOpportunityDocuments,
+  uploadOpportunityDocument,
+  deleteOpportunityDocument,
+  getOpportunityDocumentUrl,
+  OpportunityDocument,
   fetchOpportunitiesForReview,
   findSimilarTitledOpportunities,
   approveOpportunity,
@@ -589,6 +594,64 @@ export function Workspaces({
       setMyOpportunities(await fetchMyOpportunities(activeOrg.id));
     } catch (err: any) {
       setTendersFeedback(`Error: ${err.message || 'Could not refresh tenders.'}`);
+    }
+  };
+
+  // --- Tender Document States ---
+  const [expandedDocsId, setExpandedDocsId] = useState<string | null>(null);
+  const [docsByOpportunity, setDocsByOpportunity] = useState<Record<string, OpportunityDocument[]>>({});
+  const [docIsPublic, setDocIsPublic] = useState(true);
+  const [uploadingDocFor, setUploadingDocFor] = useState<string | null>(null);
+
+  const toggleDocsPanel = async (opportunityId: string) => {
+    if (expandedDocsId === opportunityId) {
+      setExpandedDocsId(null);
+      return;
+    }
+    setExpandedDocsId(opportunityId);
+    if (!docsByOpportunity[opportunityId]) {
+      try {
+        const docs = await fetchOpportunityDocuments(opportunityId);
+        setDocsByOpportunity((prev) => ({ ...prev, [opportunityId]: docs }));
+      } catch (err: any) {
+        setTendersFeedback(`Error: ${err.message || 'Could not load documents.'}`);
+      }
+    }
+  };
+
+  const handleUploadDocument = async (opportunityId: string, file: File | undefined) => {
+    if (!file) return;
+    setUploadingDocFor(opportunityId);
+    try {
+      const doc = await uploadOpportunityDocument(activeOrg.id, opportunityId, file, docIsPublic);
+      setDocsByOpportunity((prev) => ({ ...prev, [opportunityId]: [...(prev[opportunityId] ?? []), doc] }));
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'Could not upload document.'}`);
+    } finally {
+      setUploadingDocFor(null);
+      setTimeout(() => setTendersFeedback(''), 5000);
+    }
+  };
+
+  const handleDeleteDocument = async (opportunityId: string, doc: OpportunityDocument) => {
+    const previous = docsByOpportunity[opportunityId] ?? [];
+    setDocsByOpportunity((prev) => ({ ...prev, [opportunityId]: previous.filter((d) => d.id !== doc.id) }));
+    try {
+      await deleteOpportunityDocument(doc);
+    } catch (err: any) {
+      setDocsByOpportunity((prev) => ({ ...prev, [opportunityId]: previous }));
+      setTendersFeedback(`Error: ${err.message || 'Could not delete document.'}`);
+      setTimeout(() => setTendersFeedback(''), 5000);
+    }
+  };
+
+  const handleDownloadDocument = async (doc: OpportunityDocument) => {
+    try {
+      const url = await getOpportunityDocumentUrl(doc);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'Could not open document.'}`);
+      setTimeout(() => setTendersFeedback(''), 5000);
     }
   };
 
@@ -1374,7 +1437,47 @@ export function Workspaces({
                           {op.statusCode === 'closed' && (
                             <button onClick={() => handleRecordAward(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Record Award</button>
                           )}
+                          <button onClick={() => toggleDocsPanel(op.id)} className="text-xs text-slate-500 hover:underline cursor-pointer flex items-center gap-1">
+                            <FileText className="h-3 w-3" /> Documents ({docsByOpportunity[op.id]?.length ?? '…'})
+                          </button>
                         </div>
+
+                        {expandedDocsId === op.id && (
+                          <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
+                            {(docsByOpportunity[op.id] ?? []).map((doc) => (
+                              <div key={doc.id} className="flex items-center justify-between gap-2 text-xs bg-slate-50 rounded-lg px-3 py-2">
+                                <button onClick={() => handleDownloadDocument(doc)} className="flex items-center gap-2 text-slate-700 hover:underline cursor-pointer truncate">
+                                  <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                  <span className="truncate">{doc.fileName}</span>
+                                  {!doc.isPublic && <span className="text-[9px] uppercase text-amber-600 font-bold shrink-0">Private</span>}
+                                </button>
+                                <button onClick={() => handleDeleteDocument(op.id, doc)} className="text-slate-400 hover:text-red-600 cursor-pointer shrink-0">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                            <div className="flex items-center gap-3 pt-1">
+                              <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer">
+                                <input type="checkbox" checked={docIsPublic} onChange={(e) => setDocIsPublic(e.target.checked)} />
+                                Public (visible to anyone viewing this tender)
+                              </label>
+                            </div>
+                            <label className="flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:underline cursor-pointer w-fit">
+                              <Upload className="h-3.5 w-3.5" />
+                              {uploadingDocFor === op.id ? 'Uploading…' : 'Upload Document'}
+                              <input
+                                type="file"
+                                className="hidden"
+                                disabled={uploadingDocFor === op.id}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  handleUploadDocument(op.id, file);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
