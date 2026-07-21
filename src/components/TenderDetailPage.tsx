@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Bookmark, BookmarkCheck, FileText, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Loader2, Bookmark, BookmarkCheck, FileText, ExternalLink, Trophy, History } from 'lucide-react';
 import {
   fetchOpportunityBySlug,
   fetchOpportunityDocuments,
+  fetchAward,
+  fetchAmendments,
   isOpportunitySaved,
   setOpportunitySaved,
   OpportunityDetail,
   OpportunityDocument,
+  OpportunityAward,
+  OpportunityAmendment,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
 
@@ -29,6 +33,8 @@ export function TenderDetailPage() {
   const [saved, setSaved] = useState(false);
   const [savingToggle, setSavingToggle] = useState(false);
   const [isAuthed, setIsAuthed] = useState(false);
+  const [award, setAward] = useState<OpportunityAward | null>(null);
+  const [amendments, setAmendments] = useState<OpportunityAmendment[]>([]);
 
   useEffect(() => {
     if (!slug) return;
@@ -41,11 +47,15 @@ export function TenderDetailPage() {
           return;
         }
         setOpportunity(op);
-        const [docs, session] = await Promise.all([
+        const [docs, session, awardInfo, amendmentHistory] = await Promise.all([
           fetchOpportunityDocuments(op.id),
           supabase.auth.getSession(),
+          fetchAward(op.id),
+          fetchAmendments(op.id),
         ]);
         setDocuments(docs);
+        setAward(awardInfo);
+        setAmendments(amendmentHistory);
         const authed = !!session.data.session;
         setIsAuthed(authed);
         if (authed) {
@@ -181,6 +191,37 @@ export function TenderDetailPage() {
                   {documents.map((doc) => (
                     <li key={doc.id} className="flex items-center gap-2 text-sm text-slate-700">
                       <FileText className="h-4 w-4 text-slate-400" /> {doc.fileName}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {award && (
+              <div className="bg-purple-50 border border-purple-200 p-6 space-y-2">
+                <h2 className="font-display font-bold text-purple-900 text-sm uppercase flex items-center gap-2">
+                  <Trophy className="h-4 w-4" /> Contract Award
+                </h2>
+                <p className="text-sm text-purple-900"><strong>{award.winningSupplierName}</strong></p>
+                {award.awardedValue !== undefined && (
+                  <p className="text-xs text-purple-700 font-mono">
+                    Awarded Value: {award.currencyCode || ''} {award.awardedValue.toLocaleString()}
+                  </p>
+                )}
+                {award.awardDate && <p className="text-xs text-purple-700 font-mono">Award Date: {formatDate(award.awardDate)}</p>}
+                {award.notes && <p className="text-sm text-purple-800">{award.notes}</p>}
+              </div>
+            )}
+
+            {amendments.length > 0 && (
+              <div className="bg-white border border-slate-200 p-6">
+                <h2 className="font-display font-bold text-slate-900 text-sm uppercase mb-3 flex items-center gap-2">
+                  <History className="h-4 w-4" /> Amendment History
+                </h2>
+                <ul className="space-y-2">
+                  {amendments.map((a) => (
+                    <li key={a.id} className="text-xs text-slate-600 border-l-2 border-slate-200 pl-3">
+                      <span className="font-mono text-slate-400">{formatDate(a.createdAt)}:</span> {a.summary}
                     </li>
                   ))}
                 </ul>

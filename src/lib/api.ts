@@ -162,6 +162,16 @@ export async function fetchMyOrganization(): Promise<Organization | null> {
   return mapOrganization(data.organizations);
 }
 
+export async function fetchMyPlatformRole(): Promise<'user' | 'researcher' | 'admin'> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return 'user';
+  const { data, error } = await supabase.from('profiles').select('platform_role').eq('id', user.id).maybeSingle();
+  if (error) throw error;
+  return (data?.platform_role as 'user' | 'researcher' | 'admin') ?? 'user';
+}
+
 export async function fetchOrgBundle(orgId: string): Promise<OrgBundle> {
   const [orgRes, brandKitRes, campaignsRes, contentRes, leadsRes, socialRes] = await Promise.all([
     supabase.from('organizations').select('*').eq('id', orgId).single(),

@@ -17,7 +17,7 @@ import { Workspaces } from './components/Workspaces';
 import { TenderSearchPage } from './components/TenderSearchPage';
 import { TenderDetailPage } from './components/TenderDetailPage';
 import { supabase } from './lib/supabaseClient';
-import { fetchMyOrganization, fetchOrgBundle, fetchDirectoryProfiles, fetchInfluencerProfiles } from './lib/api';
+import { fetchMyOrganization, fetchOrgBundle, fetchDirectoryProfiles, fetchInfluencerProfiles, fetchMyPlatformRole } from './lib/api';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
 
 type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
@@ -47,6 +47,7 @@ function MainApp() {
   const [influencerProfiles, setInfluencerProfiles] = useState<InfluencerProfile[]>([]);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
   // --- DASHBOARD NAVIGATION STATES ---
   const [activeTab, setActiveTab] = useState('overview');
@@ -62,6 +63,7 @@ function MainApp() {
       setSocialConnections([]);
       setDirectoryProfiles([]);
       setInfluencerProfiles([]);
+      setIsPlatformAdmin(false);
       setWorkspaceLoading(false);
       setView((v) => (v === 'dashboard' || v === 'onboarding' ? 'landing' : v));
       return;
@@ -75,10 +77,11 @@ function MainApp() {
         setView('onboarding');
         return;
       }
-      const [bundle, directory, influencers] = await Promise.all([
+      const [bundle, directory, influencers, platformRole] = await Promise.all([
         fetchOrgBundle(org.id),
         fetchDirectoryProfiles(),
         fetchInfluencerProfiles(),
+        fetchMyPlatformRole(),
       ]);
       setActiveOrg(bundle.organization);
       setBrandKit(bundle.brandKit);
@@ -88,6 +91,7 @@ function MainApp() {
       setSocialConnections(bundle.socialConnections);
       setDirectoryProfiles(directory);
       setInfluencerProfiles(influencers);
+      setIsPlatformAdmin(platformRole === 'admin');
       setView('dashboard');
     } catch (err: any) {
       setWorkspaceError(err.message || 'Failed to load your workspace from the server.');
@@ -193,6 +197,12 @@ function MainApp() {
         { id: 'tourism', label: 'Tourism Excursions', icon: Compass },
       ]
     },
+    ...(isPlatformAdmin ? [{
+      group: "Platform Admin",
+      items: [
+        { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
+      ]
+    }] : []),
     {
       group: "Workspace Settings",
       items: [
@@ -217,6 +227,7 @@ function MainApp() {
       <Workspaces
         activeTab={activeTab}
         activeOrg={activeOrg}
+        isPlatformAdmin={isPlatformAdmin}
         campaigns={campaigns}
         setCampaigns={setCampaigns}
         contentItems={contentItems}

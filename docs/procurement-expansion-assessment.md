@@ -200,8 +200,46 @@ this sandbox by the same `*.supabase.co` egress policy noted in the Phase 0 pass
 via direct RLS probes against the real schema (see above) and by cross-checking every column name the frontend
 queries against `information_schema.columns` for the actual tables.
 
-## 6. What's next (Phase 3 — not started)
+## 6. Phase 3: Publishing and Administration — implemented (2026-07-21)
 
-Phase 3 (Publishing and Administration) is the natural next slice: buyer draft/review workflow with an actual
-admin approval queue, amendments, deadline extensions, contract awards, and duplicate detection — closing the
-gap this pass deliberately left open (self-publish). Say the word when you want it scoped.
+Admin: `baimasonga@gmail.com` still has no account as of this pass. Sign up with that email and let me know —
+I'll promote it. (Side note for future reference: `profiles.platform_role` is guarded by a trigger that blocks
+self-escalation, which turned out to also block a plain `UPDATE` run outside of a real user session — even
+project-owner SQL access has no `auth.uid()` context. Promoting the first admin requires briefly disabling that
+one trigger, updating the row, and re-enabling it — not a bug, just the bootstrap cost of the safeguard working
+as designed.)
+
+**The core gap from Phase 2 is closed**: buyer submissions no longer publish directly. A `protect_opportunity_transition`
+trigger enforces the status state machine at the database layer — verified with real probes: a buyer inserting
+with `status = published` is silently forced to `awaiting_review`; a buyer attempting to update their own
+`awaiting_review` tender to `published` is reverted; an admin performing the same update succeeds. This is
+enforced independently of any UI — it cannot be bypassed by calling the API directly.
+
+**Buyer self-service transitions** (no review needed, since the buyer already owns an approved notice):
+extend deadline, amend content, close, cancel, record a contract award. Each of these is a specific allowed edge
+in the trigger's state machine; anything else a non-admin attempts is silently reverted rather than erroring.
+
+**Admin Tender Review** (new "Platform Admin" nav section, visible only when `profiles.platform_role = 'admin'`):
+a queue of `awaiting_review`/`needs_correction` tenders, a lightweight duplicate warning (title-similarity check
+against other opportunities), and Approve / Request Correction / Reject actions. Rejection and correction
+requests carry a note the buyer sees on their own Tenders tab, with a "Resubmit for Review" action once fixed.
+
+**Public detail page** now shows contract award info and amendment history when present.
+
+**Known simplifications, to revisit later**: no dedicated "edit tender content" form yet (the `amendOpportunity`
+API function exists but isn't wired to a UI — buyers can extend deadlines and record awards, but not yet edit
+title/description through a form); duplicate detection is a simple title-keyword match, not fuzzy/semantic;
+no researcher role UI yet (researchers can be assigned `platform_role = 'researcher'` in the data model, but
+there's no admin-entry-from-external-source form for them to use — buyer-submitted tenders are the only
+ingestion path so far).
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Full lifecycle verified via direct SQL probes against
+the real schema: draft → awaiting_review → published (admin-only) → deadline_extended → awarded, with amendment
+logging and award upsert behaving exactly as the client code expects. Live browser testing remains blocked by
+this sandbox's `*.supabase.co` egress policy.
+
+## 7. What's next (Phase 4 — not started)
+
+Phase 4 (Suppliers and Alerts) is next per the spec: supplier profiles, saved-search-driven alerts, followed
+buyers/sectors, and the email notification adapter (the `notifications`/`notification_preferences` schema from
+Phase 1 is ready but nothing dispatches to it yet). Say the word when you want it scoped.

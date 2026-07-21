@@ -22,10 +22,20 @@ import {
   enableBuyerMode,
   createOpportunity,
   closeOpportunity,
+  cancelOpportunity,
+  resubmitForReview,
+  extendDeadline,
+  recordAward,
   fetchSectors,
   fetchDistricts,
   fetchOpportunityTypes,
+  fetchOpportunitiesForReview,
+  findSimilarTitledOpportunities,
+  approveOpportunity,
+  requestCorrection,
+  rejectOpportunity,
   OpportunityListItem,
+  ReviewQueueItem,
   TaxonomyOption,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
@@ -33,6 +43,7 @@ import { supabase } from '../lib/supabaseClient';
 interface WorkspacesProps {
   activeTab: string;
   activeOrg: Organization;
+  isPlatformAdmin: boolean;
   campaigns: Campaign[];
   setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>;
   contentItems: ContentItem[];
@@ -51,6 +62,7 @@ interface WorkspacesProps {
 export function Workspaces({
   activeTab,
   activeOrg,
+  isPlatformAdmin,
   campaigns,
   setCampaigns,
   contentItems,
@@ -378,12 +390,20 @@ export function Workspaces({
       setTenderDescription('');
       setTenderDeadline('');
       setTenderContact('');
-      setTendersFeedback('Tender published! It is now publicly searchable on the Tenders page.');
+      setTendersFeedback('Tender submitted for admin review. It will go live once approved.');
     } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not publish tender.'}`);
+      setTendersFeedback(`Error: ${err.message || 'Could not submit tender.'}`);
     } finally {
       setTenderSubmitting(false);
       setTimeout(() => setTendersFeedback(''), 5000);
+    }
+  };
+
+  const refreshMyOpportunities = async () => {
+    try {
+      setMyOpportunities(await fetchMyOpportunities(activeOrg.id));
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'Could not refresh tenders.'}`);
     }
   };
 
@@ -394,6 +414,119 @@ export function Workspaces({
       await closeOpportunity(id);
     } catch {
       setMyOpportunities(previous);
+    }
+  };
+
+  const handleCancelOpportunity = async (id: string) => {
+    const reason = prompt('Reason for cancelling this tender:') || '';
+    try {
+      await cancelOpportunity(id, reason);
+      await refreshMyOpportunities();
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'Could not cancel tender.'}`);
+    }
+  };
+
+  const handleResubmit = async (id: string) => {
+    try {
+      await resubmitForReview(id);
+      await refreshMyOpportunities();
+      setTendersFeedback('Resubmitted for admin review.');
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'Could not resubmit tender.'}`);
+    } finally {
+      setTimeout(() => setTendersFeedback(''), 4000);
+    }
+  };
+
+  const handleExtendDeadline = async (id: string) => {
+    const newDeadline = prompt('New submission deadline (YYYY-MM-DD):');
+    if (!newDeadline) return;
+    try {
+      await extendDeadline(id, new Date(newDeadline).toISOString(), '');
+      await refreshMyOpportunities();
+      setTendersFeedback('Deadline extended.');
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'Could not extend deadline.'}`);
+    } finally {
+      setTimeout(() => setTendersFeedback(''), 4000);
+    }
+  };
+
+  const handleRecordAward = async (id: string) => {
+    const winningSupplierName = prompt('Winning supplier / contractor name:');
+    if (!winningSupplierName) return;
+    const awardedValueStr = prompt('Awarded value (optional, numbers only):') || '';
+    try {
+      await recordAward(id, {
+        winningSupplierName,
+        awardedValue: awardedValueStr ? Number(awardedValueStr) : undefined,
+      });
+      await refreshMyOpportunities();
+      setTendersFeedback('Contract award published.');
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'Could not record award.'}`);
+    } finally {
+      setTimeout(() => setTendersFeedback(''), 4000);
+    }
+  };
+
+  // --- Admin Tender Review States ---
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewFeedback, setReviewFeedback] = useState('');
+  const [duplicateWarnings, setDuplicateWarnings] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    if (activeTab !== 'admin-tender-review' || !isPlatformAdmin) return;
+    setReviewLoading(true);
+    fetchOpportunitiesForReview()
+      .then(async (items) => {
+        setReviewQueue(items);
+        const warnings: Record<string, string[]> = {};
+        for (const item of items) {
+          warnings[item.id] = await findSimilarTitledOpportunities(item.title, item.id);
+        }
+        setDuplicateWarnings(warnings);
+      })
+      .catch((err: any) => setReviewFeedback(`Error: ${err.message || 'Could not load review queue.'}`))
+      .finally(() => setReviewLoading(false));
+  }, [activeTab, isPlatformAdmin]);
+
+  const handleApprove = async (id: string) => {
+    const previous = reviewQueue;
+    setReviewQueue(reviewQueue.filter((o) => o.id !== id));
+    try {
+      await approveOpportunity(id);
+    } catch (err: any) {
+      setReviewQueue(previous);
+      setReviewFeedback(`Error: ${err.message || 'Could not approve tender.'}`);
+    }
+  };
+
+  const handleRequestCorrection = async (id: string) => {
+    const note = prompt('What needs to be corrected?');
+    if (!note) return;
+    const previous = reviewQueue;
+    setReviewQueue(reviewQueue.filter((o) => o.id !== id));
+    try {
+      await requestCorrection(id, note);
+    } catch (err: any) {
+      setReviewQueue(previous);
+      setReviewFeedback(`Error: ${err.message || 'Could not request correction.'}`);
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    const note = prompt('Reason for rejecting this tender:');
+    if (!note) return;
+    const previous = reviewQueue;
+    setReviewQueue(reviewQueue.filter((o) => o.id !== id));
+    try {
+      await rejectOpportunity(id, note);
+    } catch (err: any) {
+      setReviewQueue(previous);
+      setReviewFeedback(`Error: ${err.message || 'Could not reject tender.'}`);
     }
   };
 
@@ -621,32 +754,126 @@ export function Workspaces({
             </div>
 
             <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-              <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Published Tenders</h4>
+              <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Tenders</h4>
               {tendersLoading ? (
                 <p className="text-xs text-slate-400">Loading…</p>
               ) : myOpportunities.length === 0 ? (
-                <p className="text-xs text-slate-400">No tenders published yet.</p>
+                <p className="text-xs text-slate-400">No tenders submitted yet.</p>
               ) : (
                 <div className="space-y-3">
-                  {myOpportunities.map((op) => (
-                    <div key={op.id} className="border border-slate-100 rounded-xl p-4 flex items-center justify-between gap-4">
-                      <div>
-                        <Link to={`/tenders/${op.slug}`} target="_blank" className="font-semibold text-slate-800 text-sm hover:underline">{op.title}</Link>
-                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">Deadline: {new Date(op.submissionDeadline).toLocaleDateString('en-GB')}</p>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-slate-100 text-slate-600">{op.statusLabel}</span>
-                        {op.statusCode !== 'closed' && (
-                          <button onClick={() => handleCloseOpportunity(op.id)} className="text-xs text-red-600 hover:underline cursor-pointer">Close</button>
+                  {myOpportunities.map((op) => {
+                    const canManage = ['published', 'amended', 'deadline_extended'].includes(op.statusCode);
+                    return (
+                      <div key={op.id} className="border border-slate-100 rounded-xl p-4">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <Link to={`/tenders/${op.slug}`} target="_blank" className="font-semibold text-slate-800 text-sm hover:underline">{op.title}</Link>
+                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">Deadline: {new Date(op.submissionDeadline).toLocaleDateString('en-GB')}</p>
+                          </div>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                            op.statusCode === 'awaiting_review' ? 'bg-blue-100 text-blue-800' :
+                            op.statusCode === 'needs_correction' || op.statusCode === 'rejected' ? 'bg-red-100 text-red-800' :
+                            op.statusCode === 'awarded' ? 'bg-purple-100 text-purple-800' :
+                            op.statusCode === 'cancelled' || op.statusCode === 'closed' ? 'bg-slate-200 text-slate-600' :
+                            'bg-emerald-100 text-emerald-800'
+                          }`}>{op.statusLabel}</span>
+                        </div>
+
+                        {op.reviewNote && (op.statusCode === 'needs_correction' || op.statusCode === 'rejected') && (
+                          <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg p-2 mt-2">
+                            Admin feedback: {op.reviewNote}
+                          </p>
                         )}
+
+                        <div className="flex flex-wrap items-center gap-4 mt-3">
+                          {op.statusCode === 'needs_correction' && (
+                            <button onClick={() => handleResubmit(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Resubmit for Review</button>
+                          )}
+                          {canManage && (
+                            <>
+                              <button onClick={() => handleExtendDeadline(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Extend Deadline</button>
+                              <button onClick={() => handleRecordAward(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Record Award</button>
+                              <button onClick={() => handleCloseOpportunity(op.id)} className="text-xs text-slate-500 hover:underline cursor-pointer">Close</button>
+                              <button onClick={() => handleCancelOpportunity(op.id)} className="text-xs text-red-600 hover:underline cursor-pointer">Cancel</button>
+                            </>
+                          )}
+                          {op.statusCode === 'closed' && (
+                            <button onClick={() => handleRecordAward(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Record Award</button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           </>
         )}
+      </div>
+    );
+  }
+
+  // ADMIN TENDER REVIEW WORKSPACE (platform admins only)
+  if (activeTab === 'admin-tender-review') {
+    if (!isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          You do not have platform admin access.
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-emerald-600" /> Tender Review Queue
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Approve, request corrections, or reject tenders submitted by buyers before they go public.</p>
+        </div>
+
+        {reviewFeedback && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{reviewFeedback}</div>
+        )}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {reviewLoading ? (
+            <p className="text-xs text-slate-400">Loading review queue…</p>
+          ) : reviewQueue.length === 0 ? (
+            <p className="text-xs text-slate-400">No tenders awaiting review. Nice and clear.</p>
+          ) : (
+            <div className="space-y-4">
+              {reviewQueue.map((op) => (
+                <div key={op.id} className="border border-slate-100 rounded-xl p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h4 className="font-semibold text-slate-800 text-sm">{op.title}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">{op.buyerName} · Submitted {new Date(op.createdAt).toLocaleDateString('en-GB')}</p>
+                    </div>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${op.statusCode === 'needs_correction' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                      {op.statusLabel}
+                    </span>
+                  </div>
+
+                  {duplicateWarnings[op.id]?.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-800 flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <span>Possibly similar to: {duplicateWarnings[op.id].join('; ')}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-4">
+                    <button onClick={() => handleApprove(op.id)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1">
+                      <Check className="h-3.5 w-3.5" /> Approve
+                    </button>
+                    <button onClick={() => handleRequestCorrection(op.id)} className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer">Request Correction</button>
+                    <button onClick={() => handleReject(op.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
+                    <Link to={`/tenders/${op.slug}`} target="_blank" className="text-xs text-slate-400 hover:underline ml-auto">Preview</Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
