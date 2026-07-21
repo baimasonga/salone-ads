@@ -334,8 +334,64 @@ customer-visible note, never the internal one added by an admin on the same requ
 activation → invite unlock sequence, the fixed team-roster query, and the internal/customer note RLS split were
 all verified against the real schema with real probes, then cleaned up.
 
-## 9. What's next (Phase 6 — not started)
+## 9. Phase 6: Intelligence — implemented (2026-07-21)
 
-Phase 6 (Intelligence) is next per the spec: the supplier opportunity pipeline (save → pursue → won/lost),
-award-history analytics, buyer intelligence, data exports, and AI-assisted tender summaries/matching using the
-existing Gemini proxy. Say the word when you want it scoped.
+Admin: `baimasonga@gmail.com` still hasn't signed up. Same offer stands.
+
+**Supplier opportunity pipeline — the strictest privacy rule in the whole spec, and the only table with no
+admin bypass.** `pipeline_records`/`pipeline_tasks` track a supplier's private bid strategy (stage, bid value,
+probability, notes) per tender. Every other table in this schema gives platform admins a support-access
+carve-out; these two deliberately don't, because the spec is explicit that pipeline data "must never be visible
+to buyers, other suppliers, or public users." Verified directly: a platform admin querying another org's
+pipeline record by its exact ID gets zero rows back, not a permission error — the row simply isn't there as far
+as their session is concerned.
+
+**Sector-based matching — real, not AI-flavored guessing.** The `supplier_sectors` table has existed since
+Phase 4 with no UI ever wired to it. Suppliers now tag sectors on their profile, and a "Recommended For You"
+list on the Pipeline tab is a plain structured query (opportunities whose sector matches the supplier's tagged
+sectors) — not a Gemini call. Deliberately: this is a case where AI would add cost and unreliability to
+something a database query already does correctly and cheaply. Verified end-to-end with real data: a supplier
+tagged "Mining & Extractives," a matching tender appeared in their recommendations, and adding it to their
+pipeline worked through the same upsert path the UI uses.
+
+**Admin analytics dashboard**: opportunities by status/sector/district, most-viewed and most-saved tenders,
+most-followed buyers, active subscriptions by plan, and contract awards by sector — all from a single
+`get_admin_analytics_summary()` RPC, admin-gated (verified: rejected for a non-admin caller). View counts are
+now real — `opportunities.view_count` existed since Phase 2 but nothing incremented it until now; every detail
+page load calls a public, RLS-respecting `increment_opportunity_view()` (verified it only affects publicly
+visible tenders, never drafts).
+
+**Two disclosed AI features**, both on a new `/api/gemini/procurement-assist` endpoint (separate system
+instruction and separate route from the ad-copywriting endpoint, same auth+rate-limit pattern, same mock
+fallback when no `GEMINI_API_KEY` is configured):
+- "Suggest sector" during tender creation — buyer types a title, AI matches it to one of the configured
+  sectors.
+- "Explain this tender in simple language" on the public detail page — plainly labeled AI-generated, with a
+  visible disclaimer that it may contain errors, per the spec's AI rules.
+
+**Data export**: CSV export of a supplier's pipeline, gated behind a new `data_export` plan feature (Free/
+Professional: off, Business/Enterprise: on) using the same entitlement pattern from Phase 5.
+
+**Explicitly deferred, not attempted**: real API-key/external-access management for the Enterprise "API access"
+feature. Issuing and validating API keys, rate-limiting external callers, and scoping what an API key can touch
+is a distinct security surface — building it in the time remaining in this pass would mean rushing exactly the
+kind of access-control code that has needed the most scrutiny in every phase so far (see the Phase 4 and Phase
+5 bugs below). It deserves its own pass. Also deferred: historical trend/competitor analysis (not enough data
+volume yet to be meaningful, and the spec explicitly warns against presenting predictions as fact) and document
+AI extraction (no document upload pipeline exists to feed it).
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Pipeline privacy (including the no-admin-bypass
+design), sector matching end-to-end, the view counter's visibility guard, and the analytics RPC's admin gate
+were all verified against the real schema with real probes, then cleaned up. No bugs found this phase —
+likely because the sibling-FK lesson from Phase 5 was applied proactively (`fetchPipeline`'s embed uses
+`opportunities(...)`, a genuine direct FK, not another `organization_members`-style sibling-FK mistake).
+
+## 10. Where this leaves the platform
+
+Six phases in: Foundations, Tender Discovery, Publishing/Administration, Suppliers/Alerts, Commercial Features,
+and Intelligence are all implemented against the real schema with RLS as the actual security boundary, not
+just UI conventions. What's left per the original spec is Phase 7 (Regional Expansion — additional West African
+countries, French-language support, multi-currency, region-specific sources) and the deliberately-deferred
+items called out across these phases (outbound email, cron-scheduled reminders, API-key management, document
+upload/extraction, researcher ingestion tooling, admin-entered/website-ingested tenders). Say the word on any
+of these, or on Phase 7, when you're ready.

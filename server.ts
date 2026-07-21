@@ -175,6 +175,71 @@ Format with clear separators.`;
     }
   });
 
+  // Procurement AI Assist Handler (separate from the ad-copywriting endpoint
+  // above — different domain, different system instruction, same auth +
+  // rate-limit pattern).
+  app.post("/api/gemini/procurement-assist", requireUser, aiRateLimiter, async (req, res) => {
+    const { mode, text, sectorNames } = req.body;
+
+    if (typeof mode !== "string" || !["suggest_sector", "explain_tender"].includes(mode)) {
+      res.status(400).json({ error: { message: "mode must be 'suggest_sector' or 'explain_tender'." } });
+      return;
+    }
+    if (typeof text !== "string" || text.trim().length === 0) {
+      res.status(400).json({ error: { message: "text is required" } });
+      return;
+    }
+    if (text.length > MAX_PROMPT_LENGTH) {
+      res.status(400).json({ error: { message: `text must be under ${MAX_PROMPT_LENGTH} characters.` } });
+      return;
+    }
+    if (mode === "suggest_sector" && (!Array.isArray(sectorNames) || sectorNames.length === 0)) {
+      res.status(400).json({ error: { message: "sectorNames is required for suggest_sector" } });
+      return;
+    }
+
+    try {
+      const hasKey = process.env.GEMINI_API_KEY &&
+                     process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" &&
+                     process.env.GEMINI_API_KEY.trim() !== "";
+
+      if (!hasKey) {
+        res.json({ text: getMockProcurementAIResponse(mode, text, sectorNames) });
+        return;
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+      });
+
+      let systemInstruction: string;
+      let targetedPrompt: string;
+
+      if (mode === "suggest_sector") {
+        systemInstruction = "You are a procurement classification assistant. Given a tender title and description, respond with ONLY the single best-matching sector name from the provided list, and nothing else.";
+        targetedPrompt = `Sectors: ${(sectorNames as string[]).join(", ")}\n\nTender: "${text}"\n\nWhich single sector from the list best matches? Reply with only the sector name, exactly as given.`;
+      } else {
+        systemInstruction = "You are a plain-language assistant explaining government and NGO procurement tenders to small business owners in Sierra Leone who may not be familiar with procurement jargon. Be concise, concrete, and avoid legal/technical terms where possible. Never claim that following your explanation guarantees winning the tender.";
+        targetedPrompt = `Explain this tender in simple, plain language (3-5 short sentences, no jargon):\n\n"${text}"`;
+      }
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: targetedPrompt,
+        config: { systemInstruction, temperature: mode === "suggest_sector" ? 0.1 : 0.5 }
+      });
+
+      res.json({ text: response.text });
+    } catch (err: any) {
+      console.error("Gemini Procurement Assist Error:", err);
+      res.status(500).json({
+        error: { code: "GEMINI_ERROR", message: "An error occurred calling the AI assist service. Please try again shortly." }
+      });
+    }
+  });
+
   // Vite Middleware Setup
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -274,6 +339,16 @@ CTA (Call To Action):
   return `### ${name} Brand Campaign Setup ("${prompt}")
 - Styled with a "${tone}" tone of voice.
 - Campaign tagline: "Harvested with pride, shared with love."`;
+}
+
+// Local fallback for procurement AI assist when no Gemini key is configured.
+function getMockProcurementAIResponse(mode: string, text: string, sectorNames?: string[]): string {
+  if (mode === "suggest_sector") {
+    const lower = text.toLowerCase();
+    const match = (sectorNames || []).find((s) => lower.includes(s.toLowerCase()));
+    return match || (sectorNames && sectorNames[0]) || "General";
+  }
+  return `[LOCAL BACKUP SUMMARY] This tender is asking qualified businesses to submit a bid. Read the deadline, eligibility, and submission instructions carefully, and reach out to the buyer's contact if anything is unclear before you apply. (AI summary unavailable — configure GEMINI_API_KEY for full explanations.)`;
 }
 
 startServer().catch(err => {

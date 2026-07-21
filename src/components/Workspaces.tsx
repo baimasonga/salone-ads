@@ -5,7 +5,7 @@ import {
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
-  FileSearch, ExternalLink
+  FileSearch, ExternalLink, Sparkle, Trophy, Landmark
 } from 'lucide-react';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from '../types';
 import {
@@ -74,6 +74,19 @@ import {
   ServiceRequest,
   ServiceRequestActivity,
   ServiceType,
+  fetchPipeline,
+  addToPipeline,
+  updatePipelineRecord,
+  removeFromPipeline,
+  fetchSupplierSectorIds,
+  setSupplierSectorIds,
+  fetchRecommendedOpportunities,
+  fetchAdminAnalytics,
+  hasFeature,
+  aiSuggestSector,
+  PipelineRecord,
+  PipelineStage,
+  AdminAnalyticsSummary,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
 
@@ -461,6 +474,31 @@ export function Workspaces({
   const [tenderDeadline, setTenderDeadline] = useState('');
   const [tenderContact, setTenderContact] = useState('');
   const [tenderSubmitting, setTenderSubmitting] = useState(false);
+  const [suggestingSector, setSuggestingSector] = useState(false);
+
+  const handleSuggestSector = async () => {
+    if (!tenderTitle.trim()) {
+      setTendersFeedback('Error: Enter a title first so AI has something to work with.');
+      setTimeout(() => setTendersFeedback(''), 4000);
+      return;
+    }
+    setSuggestingSector(true);
+    try {
+      const suggestedName = await aiSuggestSector(`${tenderTitle}. ${tenderSummary}`, tenderSectors.map((s) => s.name));
+      const match = tenderSectors.find((s) => s.name.toLowerCase() === suggestedName.trim().toLowerCase());
+      if (match) {
+        setTenderSectorId(match.id);
+        setTendersFeedback(`AI suggested: ${match.name}`);
+      } else {
+        setTendersFeedback('AI could not confidently match a sector — please select one manually.');
+      }
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'AI suggestion failed.'}`);
+    } finally {
+      setSuggestingSector(false);
+      setTimeout(() => setTendersFeedback(''), 5000);
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== 'tenders') return;
@@ -887,6 +925,122 @@ export function Workspaces({
     }
   };
 
+  // --- Supplier Pipeline States ---
+  const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
+  const [pipelineLoading, setPipelineLoading] = useState(false);
+  const [pipelineFeedback, setPipelineFeedback] = useState('');
+  const [recommended, setRecommended] = useState<OpportunityListItem[]>([]);
+  const [canExport, setCanExport] = useState(false);
+
+  const PIPELINE_STAGES: PipelineStage[] = ['saved', 'reviewing', 'interested', 'go', 'no_go', 'preparing', 'submitted', 'won', 'lost', 'withdrawn', 'archived'];
+
+  useEffect(() => {
+    if (activeTab !== 'pipeline') return;
+    setPipelineLoading(true);
+    Promise.all([fetchPipeline(activeOrg.id), fetchRecommendedOpportunities(activeOrg.id), hasFeature(activeOrg.id, 'data_export')])
+      .then(([p, rec, exportAllowed]) => {
+        setPipeline(p);
+        setRecommended(rec);
+        setCanExport(exportAllowed);
+      })
+      .catch((err: any) => setPipelineFeedback(`Error: ${err.message || 'Could not load pipeline.'}`))
+      .finally(() => setPipelineLoading(false));
+  }, [activeTab, activeOrg.id]);
+
+  const handleAddToPipeline = async (opportunityId: string) => {
+    try {
+      await addToPipeline(activeOrg.id, opportunityId);
+      setPipeline(await fetchPipeline(activeOrg.id));
+    } catch (err: any) {
+      setPipelineFeedback(`Error: ${err.message || 'Could not add to pipeline.'}`);
+    }
+  };
+
+  const handleStageChange = async (record: PipelineRecord, stage: PipelineStage) => {
+    const previous = pipeline;
+    setPipeline(pipeline.map((p) => (p.id === record.id ? { ...p, stage } : p)));
+    try {
+      await updatePipelineRecord(record.id, { stage });
+    } catch (err: any) {
+      setPipeline(previous);
+      setPipelineFeedback(`Error: ${err.message || 'Could not update stage.'}`);
+    }
+  };
+
+  const handleUpdateBidValue = async (record: PipelineRecord) => {
+    const value = prompt('Estimated bid value (Le):', record.bidValue?.toString() || '');
+    if (value === null) return;
+    try {
+      await updatePipelineRecord(record.id, { bidValue: value ? Number(value) : null });
+      setPipeline(await fetchPipeline(activeOrg.id));
+    } catch (err: any) {
+      setPipelineFeedback(`Error: ${err.message || 'Could not update bid value.'}`);
+    }
+  };
+
+  const handleRemoveFromPipeline = async (id: string) => {
+    if (!confirm('Remove this tender from your pipeline?')) return;
+    const previous = pipeline;
+    setPipeline(pipeline.filter((p) => p.id !== id));
+    try {
+      await removeFromPipeline(id);
+    } catch {
+      setPipeline(previous);
+    }
+  };
+
+  const handleExportPipelineCsv = () => {
+    const header = 'Title,Stage,Bid Value,Probability,Deadline\n';
+    const rows = pipeline.map((p) =>
+      [p.opportunityTitle, p.stage, p.bidValue ?? '', p.probability ?? '', p.submissionDeadline].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
+    );
+    const blob = new Blob([header + rows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pipeline-export.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // --- Supplier Sector Tags (for recommendations) ---
+  const [supplierSectorIds, setSupplierSectorIdsState] = useState<string[]>([]);
+  const [allSectors, setAllSectors] = useState<TaxonomyOption[]>([]);
+
+  useEffect(() => {
+    if (activeTab !== 'supplier-profile' || !activeOrg.isSupplier) return;
+    Promise.all([fetchSupplierSectorIds(activeOrg.id), fetchSectors()])
+      .then(([ids, sectors]) => {
+        setSupplierSectorIdsState(ids);
+        setAllSectors(sectors);
+      })
+      .catch(() => {});
+  }, [activeTab, activeOrg.isSupplier, activeOrg.id]);
+
+  const toggleSupplierSector = async (sectorId: string) => {
+    const next = supplierSectorIds.includes(sectorId) ? supplierSectorIds.filter((id) => id !== sectorId) : [...supplierSectorIds, sectorId];
+    setSupplierSectorIdsState(next);
+    try {
+      await setSupplierSectorIds(activeOrg.id, next);
+    } catch (err: any) {
+      setSupplierFeedback(`Error: ${err.message || 'Could not update sectors.'}`);
+    }
+  };
+
+  // --- Admin Analytics States ---
+  const [analytics, setAnalytics] = useState<AdminAnalyticsSummary | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsFeedback, setAnalyticsFeedback] = useState('');
+
+  useEffect(() => {
+    if (activeTab !== 'admin-analytics' || !isPlatformAdmin) return;
+    setAnalyticsLoading(true);
+    fetchAdminAnalytics()
+      .then(setAnalytics)
+      .catch((err: any) => setAnalyticsFeedback(`Error: ${err.message || 'Could not load analytics.'}`))
+      .finally(() => setAnalyticsLoading(false));
+  }, [activeTab, isPlatformAdmin]);
+
   // --- WORKSPACE RENDERING ---
 
   // 1. OVERVIEW WORKSPACE
@@ -1058,7 +1212,12 @@ export function Workspaces({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Sector</label>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-500 uppercase">Sector</label>
+                      <button type="button" onClick={handleSuggestSector} disabled={suggestingSector} className="text-[10px] text-emerald-600 hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-50">
+                        <Sparkle className="h-3 w-3" /> {suggestingSector ? 'Thinking…' : 'Suggest with AI'}
+                      </button>
+                    </div>
                     <select
                       value={tenderSectorId}
                       onChange={(e) => setTenderSectorId(e.target.value)}
@@ -1300,6 +1459,24 @@ export function Workspaces({
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <h4 className="font-display font-bold text-slate-900 text-sm mb-1">Sectors You Serve</h4>
+              <p className="text-xs text-slate-500 mb-3">Drives your "Recommended For You" tender matches in the Pipeline tab.</p>
+              <div className="flex flex-wrap gap-2">
+                {allSectors.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => toggleSupplierSector(s.id)}
+                    className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer ${
+                      supplierSectorIds.includes(s.id) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <form onSubmit={handleSaveSupplierProfile} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
@@ -1614,6 +1791,185 @@ export function Workspaces({
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // SUPPLIER PIPELINE WORKSPACE
+  if (activeTab === 'pipeline') {
+    const stageColor = (stage: PipelineStage) =>
+      stage === 'won' ? 'bg-emerald-100 text-emerald-800' :
+      stage === 'lost' || stage === 'withdrawn' ? 'bg-slate-200 text-slate-600' :
+      stage === 'submitted' ? 'bg-blue-100 text-blue-800' :
+      'bg-amber-100 text-amber-800';
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs flex items-center justify-between">
+          <div>
+            <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+              <BarChart2 className="h-5 w-5 text-emerald-600" /> My Bid Pipeline
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">Private to {activeOrg.name} — never visible to buyers or other suppliers.</p>
+          </div>
+          {canExport && pipeline.length > 0 && (
+            <button onClick={handleExportPipelineCsv} className="btn-geometric-secondary flex items-center gap-2 cursor-pointer text-xs">
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
+          )}
+        </div>
+
+        {pipelineFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{pipelineFeedback}</div>}
+
+        {recommended.length > 0 && (
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6">
+            <h4 className="font-display font-bold text-emerald-900 text-sm mb-3 flex items-center gap-2"><Sparkle className="h-4 w-4" /> Recommended For You</h4>
+            <p className="text-xs text-emerald-700 mb-3">Matched to the sectors in your Supplier Profile.</p>
+            <div className="space-y-2">
+              {recommended.map((op) => (
+                <div key={op.id} className="bg-white border border-emerald-100 rounded-xl p-3 flex items-center justify-between gap-3">
+                  <Link to={`/tenders/${op.slug}`} target="_blank" className="text-sm font-semibold text-slate-800 hover:underline">{op.title}</Link>
+                  <button onClick={() => handleAddToPipeline(op.id)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer shrink-0">Add to Pipeline</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {pipelineLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : pipeline.length === 0 ? (
+            <p className="text-xs text-slate-400">Nothing in your pipeline yet. Save a tender from the public search page or add a recommended one above.</p>
+          ) : (
+            <div className="space-y-3">
+              {pipeline.map((p) => (
+                <div key={p.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <Link to={`/tenders/${p.opportunitySlug}`} target="_blank" className="font-semibold text-slate-800 text-sm hover:underline">{p.opportunityTitle}</Link>
+                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">Deadline: {p.submissionDeadline ? new Date(p.submissionDeadline).toLocaleDateString('en-GB') : '—'}</p>
+                    </div>
+                    <button onClick={() => handleRemoveFromPipeline(p.id)} className="text-xs text-red-500 hover:underline cursor-pointer shrink-0">Remove</button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 mt-3">
+                    <select value={p.stage} onChange={(e) => handleStageChange(p, e.target.value as PipelineStage)}
+                      className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border-0 cursor-pointer ${stageColor(p.stage)}`}>
+                      {PIPELINE_STAGES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                    </select>
+                    <button onClick={() => handleUpdateBidValue(p)} className="text-xs text-slate-500 hover:underline cursor-pointer">
+                      {p.bidValue ? `Le ${p.bidValue.toLocaleString()}` : 'Set bid value'}
+                    </button>
+                  </div>
+                  {p.notes && <p className="text-xs text-slate-500 mt-2">{p.notes}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ADMIN ANALYTICS WORKSPACE
+  if (activeTab === 'admin-analytics') {
+    if (!isPlatformAdmin) {
+      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
+    }
+    const StatBlock = ({ title, stats }: { title: string; stats: { label: string; count: number }[] }) => (
+      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+        <h4 className="font-display font-bold text-slate-900 text-sm mb-3">{title}</h4>
+        {stats.length === 0 ? <p className="text-xs text-slate-400">No data yet.</p> : (
+          <div className="space-y-1.5">
+            {stats.map((s, i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="text-slate-600">{s.label}</span>
+                <span className="font-mono font-bold text-slate-800">{s.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Landmark className="h-5 w-5 text-emerald-600" /> Platform Analytics
+          </h3>
+        </div>
+
+        {analyticsFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{analyticsFeedback}</div>}
+
+        {analyticsLoading ? (
+          <p className="text-xs text-slate-400">Loading…</p>
+        ) : analytics ? (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white border border-slate-100 rounded-2xl p-5">
+                <span className="text-slate-400 font-semibold text-xs block">Organizations</span>
+                <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{analytics.total_organizations}</span>
+              </div>
+              <div className="bg-white border border-slate-100 rounded-2xl p-5">
+                <span className="text-slate-400 font-semibold text-xs block">Buyers</span>
+                <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{analytics.total_buyers}</span>
+              </div>
+              <div className="bg-white border border-slate-100 rounded-2xl p-5">
+                <span className="text-slate-400 font-semibold text-xs block">Suppliers</span>
+                <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{analytics.total_suppliers}</span>
+              </div>
+              <div className="bg-white border border-slate-100 rounded-2xl p-5">
+                <span className="text-slate-400 font-semibold text-xs block">Verified Suppliers</span>
+                <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">{analytics.total_verified_suppliers}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <StatBlock title="Opportunities by Status" stats={analytics.opportunities_by_status} />
+              <StatBlock title="Opportunities by Sector" stats={analytics.opportunities_by_sector} />
+              <StatBlock title="Opportunities by District" stats={analytics.opportunities_by_district} />
+              <StatBlock title="Most Followed Buyers" stats={analytics.most_followed_buyers} />
+              <StatBlock title="Active Subscriptions by Plan" stats={analytics.subscriptions_by_plan} />
+              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+                <h4 className="font-display font-bold text-slate-900 text-sm mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-purple-600" /> Contract Awards by Sector</h4>
+                {analytics.awards_by_sector.length === 0 ? <p className="text-xs text-slate-400">No awards recorded yet.</p> : (
+                  <div className="space-y-1.5">
+                    {analytics.awards_by_sector.map((s, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-600">{s.label} ({s.count})</span>
+                        {s.total_value !== undefined && <span className="font-mono font-bold text-slate-800">Le {s.total_value.toLocaleString()}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+                <h4 className="font-display font-bold text-slate-900 text-sm mb-3 flex items-center gap-2"><Eye className="h-4 w-4" /> Most Viewed Tenders</h4>
+                <div className="space-y-1.5">
+                  {analytics.most_viewed.map((v, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <Link to={`/tenders/${v.slug}`} target="_blank" className="text-slate-600 hover:underline truncate">{v.title}</Link>
+                      <span className="font-mono font-bold text-slate-800 shrink-0 ml-2">{v.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+                <h4 className="font-display font-bold text-slate-900 text-sm mb-3 flex items-center gap-2"><Award className="h-4 w-4" /> Most Saved Tenders</h4>
+                <div className="space-y-1.5">
+                  {analytics.most_saved.map((v, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <Link to={`/tenders/${v.slug}`} target="_blank" className="text-slate-600 hover:underline truncate">{v.title}</Link>
+                      <span className="font-mono font-bold text-slate-800 shrink-0 ml-2">{v.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
     );
   }

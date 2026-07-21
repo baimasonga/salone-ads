@@ -184,6 +184,7 @@ function MainApp() {
       group: "Procurement",
       items: [
         { id: 'tenders', label: 'Tenders', icon: FileSearch },
+        { id: 'pipeline', label: 'My Pipeline', icon: BarChart2 },
         { id: 'supplier-profile', label: 'Supplier Profile', icon: Award },
         { id: 'services', label: 'Bid Support Services', icon: UserCheck },
       ]
@@ -207,6 +208,7 @@ function MainApp() {
         { id: 'admin-verification', label: 'Verification Requests', icon: ShieldAlert },
         { id: 'admin-subscriptions', label: 'Subscription Requests', icon: CreditCard },
         { id: 'admin-services', label: 'Service Requests', icon: UserCheck },
+        { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
       ]
     }] : []),
     {

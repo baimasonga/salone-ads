@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Bookmark, BookmarkCheck, FileText, ExternalLink, Trophy, History, UserPlus, UserCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, Bookmark, BookmarkCheck, FileText, ExternalLink, Trophy, History, UserPlus, UserCheck, Sparkle } from 'lucide-react';
 import {
   fetchOpportunityBySlug,
   fetchOpportunityDocuments,
@@ -10,6 +10,8 @@ import {
   setOpportunitySaved,
   isFollowingBuyer,
   setFollowingBuyer,
+  incrementOpportunityView,
+  aiExplainTender,
   OpportunityDetail,
   OpportunityDocument,
   OpportunityAward,
@@ -39,6 +41,9 @@ export function TenderDetailPage() {
   const [amendments, setAmendments] = useState<OpportunityAmendment[]>([]);
   const [followingBuyer, setFollowingBuyerState] = useState(false);
   const [followToggling, setFollowToggling] = useState(false);
+  const [aiExplanation, setAiExplanation] = useState('');
+  const [aiExplaining, setAiExplaining] = useState(false);
+  const [aiError, setAiError] = useState('');
 
   useEffect(() => {
     if (!slug) return;
@@ -51,6 +56,7 @@ export function TenderDetailPage() {
           return;
         }
         setOpportunity(op);
+        incrementOpportunityView(op.id);
         const [docs, session, awardInfo, amendmentHistory] = await Promise.all([
           fetchOpportunityDocuments(op.id),
           supabase.auth.getSession(),
@@ -72,6 +78,20 @@ export function TenderDetailPage() {
       .catch((err: any) => setError(err.message || 'Could not load this tender.'))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  const handleExplainTender = async () => {
+    if (!opportunity) return;
+    setAiExplaining(true);
+    setAiError('');
+    try {
+      const text = `${opportunity.title}. ${opportunity.summary || ''} ${opportunity.description || ''}`.slice(0, 1800);
+      setAiExplanation(await aiExplainTender(text));
+    } catch (err: any) {
+      setAiError(err.message || 'Could not generate an explanation.');
+    } finally {
+      setAiExplaining(false);
+    }
+  };
 
   const toggleSave = async () => {
     if (!opportunity || !isAuthed) return;
@@ -199,6 +219,21 @@ export function TenderDetailPage() {
                 <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{opportunity.description}</p>
               </div>
             )}
+
+            <div className="bg-emerald-50 border border-emerald-100 p-6">
+              {!aiExplanation ? (
+                <button onClick={handleExplainTender} disabled={aiExplaining} className="text-sm font-semibold text-emerald-700 hover:underline cursor-pointer flex items-center gap-2 disabled:opacity-50">
+                  <Sparkle className="h-4 w-4" /> {aiExplaining ? 'Thinking…' : 'Explain this tender in simple language'}
+                </button>
+              ) : (
+                <>
+                  <h2 className="font-display font-bold text-emerald-900 text-sm uppercase mb-2 flex items-center gap-2"><Sparkle className="h-4 w-4" /> AI Explanation</h2>
+                  <p className="text-sm text-emerald-900 leading-relaxed">{aiExplanation}</p>
+                  <p className="text-[10px] text-emerald-600 mt-2">AI-generated — may contain errors. Always confirm details against the official notice above.</p>
+                </>
+              )}
+              {aiError && <p className="text-xs text-red-600 mt-2">{aiError}</p>}
+            </div>
 
             {(opportunity.eligibilityRequirements || opportunity.bidSecurity || opportunity.applicationFee) && (
               <div className="bg-white border border-slate-200 p-6 space-y-3">
