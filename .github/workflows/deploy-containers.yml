@@ -1,0 +1,61 @@
+name: Deploy to Cloudflare Containers
+
+# Runs on GitHub's ubuntu-latest runner specifically because it has a real
+# Docker daemon available, which wrangler needs to build the container
+# image (worker/index.ts + Dockerfile) — see docs/cloudflare-deployment.md
+# for why that build can't happen from a sandboxed dev session.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run only (validates wrangler.containers.toml without deploying)'
+        type: boolean
+        default: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: |
+          npm run lint
+          npm run lint:worker
+
+      - name: Write build-time env file
+        # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are safe to expose (RLS
+        # is the real access boundary), so they're plain values here rather
+        # than requiring extra repo secrets — same values already committed
+        # in wrangler.containers.toml's [vars].
+        run: |
+          cat > .env <<'EOF'
+          VITE_SUPABASE_URL=https://uhmukiqslcxoxzozeiyy.supabase.co
+          VITE_SUPABASE_ANON_KEY=sb_publishable_OaAns7uQ0PPfVhqtugqekQ_jmK0m_mY
+          EOF
+
+      - name: Deploy container (builds Docker image, pushes it, deploys the Worker)
+        run: npx wrangler deploy --config wrangler.containers.toml ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Set GEMINI_API_KEY secret on the deployed Worker
+        # Optional — an empty/unset key just means the AI features fall
+        # back to the same mock responses local dev uses without one.
+        if: ${{ !inputs.dry_run }}
+        run: echo "${{ secrets.GEMINI_API_KEY }}" | npx wrangler secret put GEMINI_API_KEY --config wrangler.containers.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

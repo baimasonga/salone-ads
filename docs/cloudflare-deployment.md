@@ -57,11 +57,24 @@ actually deployed or click-tested live — that's still pending a Cloudflare API
   matching `npm start` exactly.
 - `wrangler.containers.toml`: separate from `wrangler.toml` (Pages config) — different deploy
   target (`wrangler deploy`, not `wrangler pages deploy`).
-- Deploy: `npm run deploy:containers`.
-- Needs before deploying: same Cloudflare API token plus `Workers Scripts: Edit` and container
-  image push permission (exact scope name unconfirmed — Cloudflare's token UI should make this
-  clear when creating one scoped to Workers), a real `.env` in the build context, and
-  `wrangler secret put GEMINI_API_KEY --config wrangler.containers.toml` for the AI key.
+- Deploy: **`.github/workflows/deploy-containers.yml`**, not a local/session command. `wrangler
+  deploy` for a container needs a real Docker daemon to build the image, and neither this repo's
+  dev sandbox nor (per the last exchange) any local machine on your end has one available — so
+  this runs on GitHub's `ubuntu-latest` Actions runner instead, which does have Docker. Trigger it
+  from the repo's **Actions tab → Deploy to Cloudflare Containers → Run workflow** (defaults to
+  `dry_run: true`, which validates `wrangler.containers.toml` without actually deploying — leave
+  that on for the first run, then re-run with it off once the dry run is clean). It can also be
+  triggered via the GitHub API/MCP tooling once the secrets below are in place.
+- Needs before deploying: **`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and optionally
+  `GEMINI_API_KEY` added as repo secrets** (Settings → Secrets and variables → Actions → New
+  repository secret) — not pasted into chat or committed anywhere, since GitHub Actions secrets
+  are the standard way to hand a token to a CI job without it ever being visible in logs or
+  history. The token needs `Workers Scripts: Edit` and container image push permission (exact
+  scope name unconfirmed — Cloudflare's token-creation UI should make this clear when scoping one
+  to Workers/Containers). `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` don't need a secret — the
+  workflow writes them as plain values into `.env` before building, matching what's already
+  committed in `wrangler.containers.toml`'s `[vars]` (they're meant to be public; RLS is the real
+  boundary).
 
 ### What's verified vs. not
 
