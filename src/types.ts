@@ -99,6 +99,7 @@ export interface InfluencerProfile {
 }
 
 export interface SocialConnection {
+  id: string;
   platform: string;
   accountName: string;
   status: 'Connected' | 'Sandbox' | 'Expired' | 'Not Configured';

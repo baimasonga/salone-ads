@@ -38,8 +38,8 @@ This repository holds the fully compiled, linted, and production-ready **Phase 0
 
 - **Frontend**: React 19, TypeScript (Strict Mode), Vite 6, Tailwind CSS v4, Lucide Icons, Framer Motion.
 - **Backend**: Node.js Express Server proxy, Vite dev middleware integration.
-- **AI Engine**: `@google/genai` (v2.4.0) SDK communicating through a secure backend route.
-- **Durable Client State**: Automatic LocalStorage hydration keeping onboarding contexts active across browser restarts.
+- **Database & Auth**: Supabase (Postgres with Row Level Security, email/password auth, multi-tenant organizations).
+- **AI Engine**: `@google/genai` (v2.4.0) SDK communicating through a secure, authenticated, rate-limited backend route.
 
 ---
 
@@ -50,6 +50,8 @@ Create a `.env` file in the root directory (based on `.env.example`):
 ```env
 GEMINI_API_KEY="YOUR_OFFICIAL_GEMINI_API_KEY"
 APP_URL="http://localhost:3000"
+VITE_SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
+VITE_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY"
 ```
 
 ### 2. Install Dependencies
@@ -91,7 +93,9 @@ npm run start
     ├── index.css              # Font declarations & Tailwind v4 configurations
     ├── main.tsx               # Frontend bootstrap entry
     ├── types.ts               # Domain types (Campaign, Lead, Directory, etc.)
-    ├── mockData.ts            # High-fidelity initialization seeds
+    ├── lib/
+    │   ├── supabaseClient.ts  # Supabase client (browser)
+    │   └── api.ts             # Typed Supabase queries/mutations, DB <-> app type mapping
     └── components/
         ├── LandingPage.tsx    # High-converting homepage
         ├── AuthScreens.tsx    # Auth forms, logins, and onboarding
@@ -101,6 +105,7 @@ npm run start
 ---
 
 ## 🔒 Security & Performance Design
-- **API Protection**: No Gemini keys are ever exposed to client bundle downloads. All prompts are proxied through a secure Express gateway (`/api/gemini/generate`).
+- **API Protection**: No Gemini keys are ever exposed to client bundle downloads. All prompts are proxied through a secure, authenticated, rate-limited Express gateway (`/api/gemini/generate`) that requires a valid Supabase session.
+- **Multi-Tenant Data Isolation**: All organization data (campaigns, content, leads, brand kit, social connections) lives in Postgres behind Supabase Row Level Security — a user can only read or write rows belonging to organizations they are a member of.
 - **Low-Bandwidth Optimizations**: Toggleable media placeholders and compressed payload pipelines ensure fluid operation over domestic 3G/4G connections.
 - **Strict Accessibility**: Designed with deep charcoal text elements and pure emerald accents to exceed AAA contrast criteria.

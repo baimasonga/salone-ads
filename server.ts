@@ -1,24 +1,64 @@
 import express from "express";
 import path from "path";
-import fs from "fs";
 import dotenv from "dotenv";
+import rateLimit from "express-rate-limit";
+import { createClient } from "@supabase/supabase-js";
 import { createServer as createViteServer } from "vite";
 
 // Load environment variables
 dotenv.config();
 
 // Typed environment configuration audit
-const REQUIRED_ENV_VARS = ["APP_URL"];
+const REQUIRED_ENV_VARS = ["APP_URL", "VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"];
 const MISSING_VARS = REQUIRED_ENV_VARS.filter(key => !process.env[key]);
 if (MISSING_VARS.length > 0) {
   console.warn(`[WARN] Missing environment variables in system context: ${MISSING_VARS.join(", ")}`);
 }
 
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY;
+
+// Used only to validate the caller's access token (auth.getUser), never to
+// bypass RLS — no service-role key is used here.
+const supabaseAuthClient =
+  SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+async function requireUser(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (!token || !supabaseAuthClient) {
+    res.status(401).json({ error: { message: "Authentication required." } });
+    return;
+  }
+
+  const { data, error } = await supabaseAuthClient.auth.getUser(token);
+  if (error || !data.user) {
+    res.status(401).json({ error: { message: "Invalid or expired session." } });
+    return;
+  }
+
+  (req as any).userId = data.user.id;
+  next();
+}
+
+const aiRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req as any).userId || req.ip || "anonymous",
+  message: { error: { message: "Too many AI requests. Please wait a moment and try again." } },
+});
+
+const MAX_PROMPT_LENGTH = 2000;
+const MAX_FIELD_LENGTH = 300;
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
 
   // API Health Endpoint
   app.get("/api/health", (req, res) => {
@@ -32,17 +72,28 @@ async function startServer() {
   });
 
   // Server-Side Gemini Completion Handler
-  app.post("/api/gemini/generate", async (req, res) => {
+  app.post("/api/gemini/generate", requireUser, aiRateLimiter, async (req, res) => {
     const { prompt, option, toneOfVoice, brandName, tagline, mission } = req.body;
-    if (!prompt) {
+
+    if (typeof prompt !== "string" || prompt.trim().length === 0) {
       res.status(400).json({ error: { message: "Prompt is required" } });
       return;
+    }
+    if (prompt.length > MAX_PROMPT_LENGTH) {
+      res.status(400).json({ error: { message: `Prompt must be under ${MAX_PROMPT_LENGTH} characters.` } });
+      return;
+    }
+    for (const [key, value] of Object.entries({ toneOfVoice, brandName, tagline, mission })) {
+      if (value !== undefined && (typeof value !== "string" || value.length > MAX_FIELD_LENGTH)) {
+        res.status(400).json({ error: { message: `${key} must be a string under ${MAX_FIELD_LENGTH} characters.` } });
+        return;
+      }
     }
 
     try {
       // Lazy check and fallback to local interactive completion model if no custom key exists
-      const hasKey = process.env.GEMINI_API_KEY && 
-                     process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" && 
+      const hasKey = process.env.GEMINI_API_KEY &&
+                     process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" &&
                      process.env.GEMINI_API_KEY.trim() !== "";
 
       if (!hasKey) {
@@ -64,7 +115,7 @@ async function startServer() {
 
       // Craft tailored system instructions based on Brand Tone of Voice
       let systemInstruction = "You are an expert advertising copywriter and content strategist specializing in Sierra Leone and West African markets, as well as the global diaspora.";
-      
+
       if (brandName) {
         systemInstruction += ` You are generating content for the brand: "${brandName}".`;
       }
@@ -83,7 +134,7 @@ async function startServer() {
       // Tailor instructions based on selected option
       let targetedPrompt = prompt;
       if (option === 'captions' || option === 'copy') {
-        targetedPrompt = `Generate 3 high-converting social media post captions/copy variants based on this topic or objective: "${prompt}". 
+        targetedPrompt = `Generate 3 high-converting social media post captions/copy variants based on this topic or objective: "${prompt}".
 For each variant, provide:
 1. A short catchy Headline/Hook
 2. The Body Caption (include appropriate local emojis and call-to-actions, e.g., WhatsApp ordering info or local delivery highlights)
@@ -104,7 +155,7 @@ Format with clear separators.`;
       }
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: targetedPrompt,
         config: {
           systemInstruction: systemInstruction,
@@ -118,7 +169,7 @@ Format with clear separators.`;
       res.status(500).json({
         error: {
           code: "GEMINI_ERROR",
-          message: err.message || "An error occurred calling the Gemini AI service."
+          message: "An error occurred calling the Gemini AI service. Please try again shortly."
         }
       });
     }

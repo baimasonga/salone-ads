@@ -3,144 +3,102 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import { 
-  BarChart2, Calendar, FileText, FolderOpen, Users, Link2, 
-  MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles, 
-  Settings, ShieldAlert, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield
+import React, { useState, useEffect, useCallback } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import {
+  BarChart2, Calendar, FolderOpen, Users, Link2,
+  MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
+  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, Loader2
 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
 import { AuthScreens } from './components/AuthScreens';
 import { Workspaces } from './components/Workspaces';
-import { 
-  INITIAL_CAMPAIGNS, 
-  INITIAL_CONTENT_ITEMS, 
-  INITIAL_LEADS, 
-  INITIAL_DIRECTORY_PROFILES, 
-  INITIAL_INFLUENCER_PROFILES, 
-  INITIAL_SOCIAL_CONNECTIONS 
-} from './mockData';
+import { supabase } from './lib/supabaseClient';
+import { fetchMyOrganization, fetchOrgBundle, fetchDirectoryProfiles, fetchInfluencerProfiles } from './lib/api';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
 
+type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
+
 export default function App() {
-  // --- CORE VIEW STATE ---
-  // View states: 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard'
-  const [view, setView] = useState<'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard'>(() => {
-    const saved = localStorage.getItem('salonereach_view');
-    return (saved as any) || 'landing';
-  });
+  const [session, setSession] = useState<Session | null>(null);
+  const [view, setView] = useState<ViewState>('landing');
+  const [workspaceLoading, setWorkspaceLoading] = useState(true);
+  const [workspaceError, setWorkspaceError] = useState('');
 
-  // --- HYDRATED DATA STATES ---
-  const [activeOrg, setActiveOrg] = useState<Organization>(() => {
-    const saved = localStorage.getItem('salonereach_active_org');
-    return saved ? JSON.parse(saved) : {
-      id: 'org-def',
-      name: 'My Salone Enterprise',
-      type: 'Small Business',
-      country: 'Sierra Leone',
-      district: 'Western Area Urban',
-      primaryObjective: 'WhatsApp enquiries',
-      monthlyBudget: 'Le 15,000,000'
-    };
-  });
-
-  const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
-    const saved = localStorage.getItem('salonereach_campaigns');
-    return saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
-  });
-
-  const [contentItems, setContentItems] = useState<ContentItem[]>(() => {
-    const saved = localStorage.getItem('salonereach_content_items');
-    return saved ? JSON.parse(saved) : INITIAL_CONTENT_ITEMS;
-  });
-
-  const [leads, setLeads] = useState<Lead[]>(() => {
-    const saved = localStorage.getItem('salonereach_leads');
-    return saved ? JSON.parse(saved) : INITIAL_LEADS;
-  });
-
-  const [directoryProfiles, setDirectoryProfiles] = useState<DirectoryProfile[]>(() => {
-    const saved = localStorage.getItem('salonereach_directory_profiles');
-    return saved ? JSON.parse(saved) : INITIAL_DIRECTORY_PROFILES;
-  });
-
-  const [brandKit, setBrandKit] = useState<BrandKit>(() => {
-    const saved = localStorage.getItem('salonereach_brand_kit');
-    return saved ? JSON.parse(saved) : {
-      brandName: 'Sierra Organic',
-      legalName: 'Sierra Organic Ltd',
-      mission: 'Bring organic native Sierra Leone flavors to families globally',
-      tagline: 'Harvested with Local Pride, Shared with Global Love',
-      primaryColor: '#059669', // Emerald
-      secondaryColor: '#D97706', // Amber
-      fonts: 'Inter, Outfit',
-      toneOfVoice: 'Warm, Honest, Proudly Leonean',
-      prohibitedTerminology: ['cheap', 'artificial', 'fake']
-    };
-  });
-
-  const [socialConnections, setSocialConnections] = useState<SocialConnection[]>(() => {
-    const saved = localStorage.getItem('salonereach_social_connections');
-    return saved ? JSON.parse(saved) : INITIAL_SOCIAL_CONNECTIONS;
-  });
-
-  // Static / Constants
-  const influencerProfiles: InfluencerProfile[] = INITIAL_INFLUENCER_PROFILES;
+  // --- HYDRATED DATA STATES (populated from Supabase once authenticated) ---
+  const [activeOrg, setActiveOrg] = useState<Organization | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [directoryProfiles, setDirectoryProfiles] = useState<DirectoryProfile[]>([]);
+  const [influencerProfiles, setInfluencerProfiles] = useState<InfluencerProfile[]>([]);
+  const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
+  const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
 
   // --- DASHBOARD NAVIGATION STATES ---
-  const [activeTab, setActiveTab] = useState(() => {
-    const saved = localStorage.getItem('salonereach_active_tab');
-    return saved || 'overview';
-  });
+  const [activeTab, setActiveTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // --- PERSISTENCE SYNCHRONIZERS ---
-  useEffect(() => {
-    localStorage.setItem('salonereach_view', view);
-  }, [view]);
+  const loadWorkspace = useCallback(async (activeSession: Session | null) => {
+    if (!activeSession) {
+      setActiveOrg(null);
+      setBrandKit(null);
+      setCampaigns([]);
+      setContentItems([]);
+      setLeads([]);
+      setSocialConnections([]);
+      setDirectoryProfiles([]);
+      setInfluencerProfiles([]);
+      setWorkspaceLoading(false);
+      setView((v) => (v === 'dashboard' || v === 'onboarding' ? 'landing' : v));
+      return;
+    }
 
-  useEffect(() => {
-    localStorage.setItem('salonereach_active_org', JSON.stringify(activeOrg));
-  }, [activeOrg]);
+    setWorkspaceLoading(true);
+    setWorkspaceError('');
+    try {
+      const org = await fetchMyOrganization();
+      if (!org) {
+        setView('onboarding');
+        return;
+      }
+      const [bundle, directory, influencers] = await Promise.all([
+        fetchOrgBundle(org.id),
+        fetchDirectoryProfiles(),
+        fetchInfluencerProfiles(),
+      ]);
+      setActiveOrg(bundle.organization);
+      setBrandKit(bundle.brandKit);
+      setCampaigns(bundle.campaigns);
+      setContentItems(bundle.contentItems);
+      setLeads(bundle.leads);
+      setSocialConnections(bundle.socialConnections);
+      setDirectoryProfiles(directory);
+      setInfluencerProfiles(influencers);
+      setView('dashboard');
+    } catch (err: any) {
+      setWorkspaceError(err.message || 'Failed to load your workspace from the server.');
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  }, []);
 
+  // --- AUTH SESSION BOOTSTRAP ---
   useEffect(() => {
-    localStorage.setItem('salonereach_campaigns', JSON.stringify(campaigns));
-  }, [campaigns]);
-
-  useEffect(() => {
-    localStorage.setItem('salonereach_content_items', JSON.stringify(contentItems));
-  }, [contentItems]);
-
-  useEffect(() => {
-    localStorage.setItem('salonereach_leads', JSON.stringify(leads));
-  }, [leads]);
-
-  useEffect(() => {
-    localStorage.setItem('salonereach_directory_profiles', JSON.stringify(directoryProfiles));
-  }, [directoryProfiles]);
-
-  useEffect(() => {
-    localStorage.setItem('salonereach_brand_kit', JSON.stringify(brandKit));
-  }, [brandKit]);
-
-  useEffect(() => {
-    localStorage.setItem('salonereach_social_connections', JSON.stringify(socialConnections));
-  }, [socialConnections]);
-
-  useEffect(() => {
-    localStorage.setItem('salonereach_active_tab', activeTab);
-  }, [activeTab]);
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      loadWorkspace(nextSession);
+    });
+    return () => subscription.subscription.unsubscribe();
+  }, [loadWorkspace]);
 
   // --- HANDLERS ---
-  const handleAuthSuccess = (org?: Organization) => {
-    if (org) {
-      setActiveOrg(org);
-    }
-    setView('dashboard');
+  const handleOnboardingComplete = () => {
+    loadWorkspace(session);
   };
 
-  const handleLogout = () => {
-    setView('landing');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setActiveTab('overview');
   };
 
@@ -148,9 +106,9 @@ export default function App() {
 
   if (view === 'landing') {
     return (
-      <LandingPage 
-        onGetStarted={() => setView('signup')} 
-        onSignIn={() => setView('signin')} 
+      <LandingPage
+        onGetStarted={() => setView('signup')}
+        onSignIn={() => setView('signin')}
       />
     );
   }
@@ -160,8 +118,34 @@ export default function App() {
       <AuthScreens
         mode={view === 'onboarding' ? 'onboarding' : view === 'signin' ? 'signin' : 'signup'}
         onSwitchMode={(mode) => setView(mode)}
-        onSuccess={handleAuthSuccess}
+        onSuccess={handleOnboardingComplete}
       />
+    );
+  }
+
+  if (workspaceLoading || !activeOrg || !brandKit) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center gap-4 border-4 md:border-8 border-[#0F172A]">
+        {workspaceError ? (
+          <>
+            <p className="text-sm font-mono text-red-600 max-w-md text-center px-6">{workspaceError}</p>
+            <button
+              onClick={() => loadWorkspace(session)}
+              className="btn-geometric cursor-pointer"
+            >
+              Retry
+            </button>
+            <button onClick={handleLogout} className="text-xs font-mono text-slate-400 hover:text-slate-600 cursor-pointer">
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <Loader2 className="h-8 w-8 text-[#0F172A] animate-spin" />
+            <span className="text-xs font-mono uppercase tracking-widest text-slate-400">Loading workspace…</span>
+          </>
+        )}
+      </div>
     );
   }
 
@@ -201,16 +185,64 @@ export default function App() {
     }
   ];
 
+  return (
+    <DashboardShell
+      activeOrg={activeOrg}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      navGroups={NAV_GROUPS}
+      onLogout={handleLogout}
+    >
+      <Workspaces
+        activeTab={activeTab}
+        activeOrg={activeOrg}
+        campaigns={campaigns}
+        setCampaigns={setCampaigns}
+        contentItems={contentItems}
+        setContentItems={setContentItems}
+        leads={leads}
+        setLeads={setLeads}
+        directoryProfiles={directoryProfiles}
+        setDirectoryProfiles={setDirectoryProfiles}
+        influencerProfiles={influencerProfiles}
+        socialConnections={socialConnections}
+        setSocialConnections={setSocialConnections}
+        brandKit={brandKit}
+        setBrandKit={(update) =>
+          setBrandKit((prev) => {
+            if (!prev) return prev;
+            return typeof update === 'function' ? (update as (p: BrandKit) => BrandKit)(prev) : update;
+          })
+        }
+      />
+    </DashboardShell>
+  );
+}
+
+interface DashboardShellProps {
+  activeOrg: Organization;
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
+  navGroups: { group: string; items: { id: string; label: string; icon: any }[] }[];
+  onLogout: () => void;
+  children: React.ReactNode;
+}
+
+function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSidebarOpen, navGroups, onLogout, children }: DashboardShellProps) {
   // Track current time formatted for Greenwich Mean Time / Freetown Time
   const [timeStr, setTimeStr] = useState('');
   useEffect(() => {
     const updateTime = () => {
-      const options: Intl.DateTimeFormatOptions = { 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit', 
+      const options: Intl.DateTimeFormatOptions = {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
         hour12: false,
-        timeZone: 'Africa/Freetown' 
+        timeZone: 'Africa/Freetown'
       };
       setTimeStr(new Date().toLocaleTimeString('en-GB', options) + ' GMT');
     };
@@ -223,8 +255,8 @@ export default function App() {
     <div className="bg-[#F8FAFC] min-h-screen font-sans flex border-4 md:border-8 border-[#0F172A] relative">
       {/* Mobile Sidebar overlay */}
       {sidebarOpen && (
-        <div 
-          onClick={() => setSidebarOpen(false)} 
+        <div
+          onClick={() => setSidebarOpen(false)}
           className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-40 lg:hidden"
         />
       )}
@@ -256,11 +288,11 @@ export default function App() {
 
           {/* Navigation Items Grouped */}
           <nav className="space-y-5 text-left">
-            {NAV_GROUPS.map((group, gIdx) => {
+            {navGroups.map((group, gIdx) => {
               // Calculate index starts for neat numbering
               let prevCount = 0;
               for (let i = 0; i < gIdx; i++) {
-                prevCount += NAV_GROUPS[i].items.length;
+                prevCount += navGroups[i].items.length;
               }
 
               return (
@@ -281,8 +313,8 @@ export default function App() {
                             setSidebarOpen(false);
                           }}
                           className={`w-full flex items-center justify-between px-3 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                            isActive 
-                              ? 'bg-[#0F172A] text-white' 
+                            isActive
+                              ? 'bg-[#0F172A] text-white'
                               : 'text-[#0F172A] hover:bg-slate-200'
                           }`}
                         >
@@ -314,8 +346,8 @@ export default function App() {
             </div>
           </div>
 
-          <button 
-            onClick={handleLogout}
+          <button
+            onClick={onLogout}
             className="w-full flex items-center justify-center gap-2.5 px-3 py-2 bg-slate-100 hover:bg-[#0F172A] text-[#0F172A] hover:text-white text-xs font-mono font-bold uppercase tracking-wider transition-colors border border-[#0F172A] cursor-pointer"
           >
             <LogOut className="h-3.5 w-3.5" />
@@ -356,23 +388,7 @@ export default function App() {
 
         {/* Active Tab Screen Mounting Area */}
         <main className="p-6 md:p-8 flex-1 bg-[#F8FAFC]">
-          <Workspaces
-            activeTab={activeTab}
-            activeOrg={activeOrg}
-            campaigns={campaigns}
-            setCampaigns={setCampaigns}
-            contentItems={contentItems}
-            setContentItems={setContentItems}
-            leads={leads}
-            setLeads={setLeads}
-            directoryProfiles={directoryProfiles}
-            setDirectoryProfiles={setDirectoryProfiles}
-            influencerProfiles={influencerProfiles}
-            socialConnections={socialConnections}
-            setSocialConnections={setSocialConnections}
-            brandKit={brandKit}
-            setBrandKit={setBrandKit}
-          />
+          {children}
         </main>
 
         {/* Terminal Style Operational Footer */}

@@ -42,12 +42,14 @@ The layout maps logical concerns into distinct directories:
 *   `/docs/`: High-level architecture, PRD, and development roadmaps.
 
 ## 4. Multi-Tenancy & Data Architecture
-For Phase 0, multi-tenant state and organization scoping are simulated and validated client-side via React state and LocalStorage, enabling offline durability and resilient workflows without immediate DB setup dependencies. In future phases, these objects align directly with database entities:
-*   `Profile`: Individual user credentials, names, emails, and preferences.
-*   `Organization`: Multi-tenant containers representing small businesses, diaspora associations, NGOs, and creator collectives.
-*   `Campaign`: Planning cards connecting budget targets, goals, audience criteria, and draft content schedules.
+Multi-tenant state and organization scoping are backed by Supabase Postgres, with tenancy enforced by Row Level Security rather than client-side trust. Core entities:
+*   `profiles`: One row per Supabase Auth user (full name, email), auto-created on signup via a database trigger.
+*   `organizations` / `organization_members`: Multi-tenant containers representing small businesses, diaspora associations, NGOs, and creator collectives, with a membership join table (`owner` / `admin` / `member` roles) gating access. New organizations are created via the `create_organization` RPC, which also seeds a starter brand kit, campaigns, content items, leads, and social connections.
+*   `campaigns`, `content_items`, `leads`, `brand_kits`, `social_connections`: Org-scoped tables — every RLS policy checks membership via an `is_org_member(org_id)` helper function.
+*   `directory_profiles`, `influencer_profiles`: Shared, platform-wide marketplace tables readable by any authenticated user; directory listings can be "claimed" by an organization.
 
 ## 5. Security Principles
-*   **Server-Side AI Proxies:** The client never imports or communicates directly with `@google/genai`. All AI prompts pass through custom `/api/*` endpoints validating payload schema first.
-*   **Sensitive Environment Variables:** Sensitive API keys such as `GEMINI_API_KEY` are read exclusively in Node.js runtime and are never compiled into browser asset bundles.
+*   **Server-Side AI Proxies:** The client never imports or communicates directly with `@google/genai`. All AI prompts pass through a custom `/api/gemini/generate` endpoint that requires a valid Supabase session (Bearer token, verified server-side), rate-limits requests per user, and validates payload size before calling the model.
+*   **Row Level Security:** All tenant data is isolated at the database layer via Postgres RLS policies, not just client-side checks — a stolen client token can never read another organization's data.
+*   **Sensitive Environment Variables:** Sensitive API keys such as `GEMINI_API_KEY` are read exclusively in Node.js runtime and are never compiled into browser asset bundles. The Supabase URL and anon/publishable key are safe to expose to the browser by design — RLS is the actual access-control boundary.
 *   **Frame Safety:** No browser popups or unsafe window bindings; the app communicates and adapts entirely within standard iFrame parent containers.

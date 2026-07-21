@@ -6,6 +6,16 @@ import {
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw
 } from 'lucide-react';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from '../types';
+import {
+  createCampaign,
+  createContentItem,
+  updateLeadStatus as apiUpdateLeadStatus,
+  createDirectoryListing,
+  claimDirectoryListing,
+  toggleSocialConnectionStatus,
+  saveBrandKit,
+} from '../lib/api';
+import { supabase } from '../lib/supabaseClient';
 
 interface WorkspacesProps {
   activeTab: string;
@@ -52,26 +62,33 @@ export function Workspaces({
   const [newCampDiaspora, setNewCampDiaspora] = useState('United Kingdom');
   const [campFeedback, setCampFeedback] = useState('');
 
-  const handleCreateCampaign = (e: React.FormEvent) => {
+  const [campSubmitting, setCampSubmitting] = useState(false);
+
+  const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newCamp: Campaign = {
-      id: `camp-${Date.now()}`,
-      name: newCampName || 'Sponsorship Native Rice',
-      description: newCampDesc || 'Direct delivery promotion targeted for diaspora.',
-      objective: newCampObjective,
-      status: 'Planning',
-      totalBudget: Number(newCampBudget) || 5000000,
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      channels: ['WhatsApp Broadcaster', 'Facebook organic'],
-      district: newCampDistrict,
-      diasporaMarket: newCampDiaspora
-    };
-    setCampaigns([newCamp, ...campaigns]);
-    setNewCampName('');
-    setNewCampDesc('');
-    setCampFeedback('Campaign plan successfully established and saved to local index!');
-    setTimeout(() => setCampFeedback(''), 4000);
+    setCampSubmitting(true);
+    try {
+      const newCamp = await createCampaign(activeOrg.id, {
+        name: newCampName || 'Sponsorship Native Rice',
+        description: newCampDesc || 'Direct delivery promotion targeted for diaspora.',
+        objective: newCampObjective,
+        totalBudget: Number(newCampBudget) || 5000000,
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        channels: ['WhatsApp Broadcaster', 'Facebook organic'],
+        district: newCampDistrict,
+        diasporaMarket: newCampDiaspora
+      });
+      setCampaigns([newCamp, ...campaigns]);
+      setNewCampName('');
+      setNewCampDesc('');
+      setCampFeedback('Campaign plan successfully established and saved!');
+    } catch (err: any) {
+      setCampFeedback(`Error: ${err.message || 'Could not save campaign.'}`);
+    } finally {
+      setCampSubmitting(false);
+      setTimeout(() => setCampFeedback(''), 4000);
+    }
   };
 
   // --- AI Assistant States ---
@@ -86,11 +103,17 @@ export function Workspaces({
     setAiError('');
     setAiOutput('');
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const response = await fetch('/api/gemini/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          prompt: aiPrompt, 
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          prompt: aiPrompt,
           option: aiOption,
           toneOfVoice: brandKit.toneOfVoice,
           brandName: brandKit.brandName,
@@ -119,26 +142,32 @@ export function Workspaces({
   const [editBody, setEditBody] = useState('');
   const [contentFeedback, setContentFeedback] = useState('');
 
-  const handleSaveContent = (e: React.FormEvent) => {
+  const [contentSubmitting, setContentSubmitting] = useState(false);
+
+  const handleSaveContent = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newItem: ContentItem = {
-      id: `cont-${Date.now()}`,
-      title: editTitle || 'Custom Content Item',
-      contentType: editType,
-      platform: editPlatform,
-      headline: editHeadline || 'Harvested with Local Pride',
-      bodyText: editBody || 'Premium supply directly sourced from Bo cooperative.',
-      hashtags: ['#SaloneReach', '#EatSalone'],
-      scheduledDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      status: 'Draft',
-      version: 1
-    };
-    setContentItems([newItem, ...contentItems]);
-    setEditTitle('');
-    setEditHeadline('');
-    setEditBody('');
-    setContentFeedback('Draft template saved and added to the content index!');
-    setTimeout(() => setContentFeedback(''), 4000);
+    setContentSubmitting(true);
+    try {
+      const newItem = await createContentItem(activeOrg.id, {
+        title: editTitle || 'Custom Content Item',
+        contentType: editType,
+        platform: editPlatform,
+        headline: editHeadline || 'Harvested with Local Pride',
+        bodyText: editBody || 'Premium supply directly sourced from Bo cooperative.',
+        hashtags: ['#SaloneReach', '#EatSalone'],
+        scheduledDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      });
+      setContentItems([newItem, ...contentItems]);
+      setEditTitle('');
+      setEditHeadline('');
+      setEditBody('');
+      setContentFeedback('Draft template saved and added to the content index!');
+    } catch (err: any) {
+      setContentFeedback(`Error: ${err.message || 'Could not save content item.'}`);
+    } finally {
+      setContentSubmitting(false);
+      setTimeout(() => setContentFeedback(''), 4000);
+    }
   };
 
   // --- Media Library States ---
@@ -176,8 +205,14 @@ export function Workspaces({
   const [leadSearch, setLeadSearch] = useState('');
   const [leadStatusFilter, setLeadStatusFilter] = useState('All');
 
-  const updateLeadStatus = (id: string, newStatus: 'New' | 'Contacted' | 'Qualified' | 'Proposal Sent' | 'Converted' | 'Lost') => {
+  const updateLeadStatus = async (id: string, newStatus: 'New' | 'Contacted' | 'Qualified' | 'Proposal Sent' | 'Converted' | 'Lost') => {
+    const previous = leads;
     setLeads(leads.map(l => l.id === id ? { ...l, status: newStatus } : l));
+    try {
+      await apiUpdateLeadStatus(id, newStatus);
+    } catch {
+      setLeads(previous);
+    }
   };
 
   // --- Directory Profile States ---
@@ -191,14 +226,20 @@ export function Workspaces({
     setClaimFeedback('');
   };
 
-  const submitClaim = (e: React.FormEvent) => {
+  const submitClaim = async (e: React.FormEvent) => {
     e.preventDefault();
-    setDirectoryProfiles(directoryProfiles.map(p => p.id === claimBusinessId ? { ...p, isVerified: true } : p));
-    setClaimFeedback('Verification submitted! The Super Admin has approved your business verification.');
-    setTimeout(() => {
-      setClaimBusinessId('');
-      setClaimFeedback('');
-    }, 3000);
+    try {
+      const updated = await claimDirectoryListing(claimBusinessId, activeOrg.id);
+      setDirectoryProfiles(directoryProfiles.map(p => p.id === updated.id ? updated : p));
+      setClaimFeedback('Verification submitted! The Super Admin has approved your business verification.');
+    } catch (err: any) {
+      setClaimFeedback(`Error: ${err.message || 'Could not submit claim.'}`);
+    } finally {
+      setTimeout(() => {
+        setClaimBusinessId('');
+        setClaimFeedback('');
+      }, 3000);
+    }
   };
 
   // --- Manual Export Packages ---
@@ -226,6 +267,25 @@ export function Workspaces({
     if (!teamEmail) return;
     setTeamLogs([{ email: teamEmail, role: teamRole, date: new Date().toISOString().split('T')[0] }, ...teamLogs]);
     setTeamEmail('');
+  };
+
+  // --- Brand Kit Save State ---
+  const [brandKitSaving, setBrandKitSaving] = useState(false);
+  const [brandKitFeedback, setBrandKitFeedback] = useState('');
+
+  const handleSaveBrandKit = async () => {
+    setBrandKitSaving(true);
+    setBrandKitFeedback('');
+    try {
+      const saved = await saveBrandKit(activeOrg.id, brandKit);
+      setBrandKit(saved);
+      setBrandKitFeedback('Brand Kit configuration saved successfully!');
+    } catch (err: any) {
+      setBrandKitFeedback(`Error: ${err.message || 'Could not save brand kit.'}`);
+    } finally {
+      setBrandKitSaving(false);
+      setTimeout(() => setBrandKitFeedback(''), 4000);
+    }
   };
 
   // --- Admin Safety Board States ---
@@ -413,8 +473,8 @@ export function Workspaces({
                 className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
               />
             </div>
-            <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer">
-              Launch Campaign Plan
+            <button type="submit" disabled={campSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              {campSubmitting ? 'Saving…' : 'Launch Campaign Plan'}
             </button>
           </form>
         </div>
@@ -535,8 +595,8 @@ export function Workspaces({
                 className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500 font-sans"
               />
             </div>
-            <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer">
-              Save Draft Template
+            <button type="submit" disabled={contentSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              {contentSubmitting ? 'Saving…' : 'Save Draft Template'}
             </button>
           </form>
 
@@ -967,8 +1027,8 @@ export function Workspaces({
           <p className="text-xs text-slate-500 mb-6">Manage official social API integrations or configure the local manual sandbox.</p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {socialConnections.map((conn, idx) => (
-              <div key={idx} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex flex-col justify-between">
+            {socialConnections.map((conn) => (
+              <div key={conn.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex flex-col justify-between">
                 <div>
                   <div className="flex justify-between items-center mb-3">
                     <span className="font-display font-bold text-slate-800 text-sm">{conn.platform}</span>
@@ -985,8 +1045,15 @@ export function Workspaces({
                 <div className="border-t border-slate-50 pt-4 mt-6 flex justify-between items-center">
                   <span className="text-xs text-slate-400">Health: <strong className="text-slate-600">{conn.connectionHealth}</strong></span>
                   <button
-                    onClick={() => {
-                      setSocialConnections(socialConnections.map((c, i) => i === idx ? { ...c, status: c.status === 'Expired' ? 'Connected' : 'Expired' } : c));
+                    onClick={async () => {
+                      const nextStatus = conn.status === 'Expired' ? 'Connected' : 'Expired';
+                      const previous = socialConnections;
+                      setSocialConnections(socialConnections.map((c) => c.id === conn.id ? { ...c, status: nextStatus } : c));
+                      try {
+                        await toggleSocialConnectionStatus(conn.id, nextStatus);
+                      } catch {
+                        setSocialConnections(previous);
+                      }
                     }}
                     className="text-emerald-600 hover:text-emerald-700 text-xs font-semibold cursor-pointer"
                   >
@@ -1172,22 +1239,15 @@ export function Workspaces({
               <p className="text-xs text-slate-500">Fostering corporate visibility and local-to-diaspora transactional trust.</p>
             </div>
             <button
-              onClick={() => {
+              onClick={async () => {
                 const name = prompt('Enter your Business Name:');
                 if (name) {
-                  const newB: DirectoryProfile = {
-                    id: `dir-${Date.now()}`,
-                    businessName: name,
-                    category: 'Retail',
-                    description: 'Direct corporate listing added by workspace administrator.',
-                    district: 'Western Area Urban',
-                    city: 'Freetown',
-                    whatsapp: '+232 76 000 000',
-                    email: 'corporate@salonemail.com',
-                    isVerified: false,
-                    diasporaSupport: true
-                  };
-                  setDirectoryProfiles([newB, ...directoryProfiles]);
+                  try {
+                    const newB = await createDirectoryListing(activeOrg.id, name);
+                    setDirectoryProfiles([newB, ...directoryProfiles]);
+                  } catch (err: any) {
+                    alert(err.message || 'Could not add listing.');
+                  }
                 }
               }}
               className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-2 cursor-pointer"
@@ -1383,8 +1443,15 @@ export function Workspaces({
               </div>
             </div>
           </div>
-          <button onClick={() => alert('Brand Kit configuration saved successfully!')} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-xl text-sm transition-all cursor-pointer">
-            Save Brand Kit
+          {brandKitFeedback && (
+            <p className={`text-sm font-semibold ${brandKitFeedback.startsWith('Error') ? 'text-red-600' : 'text-emerald-700'}`}>{brandKitFeedback}</p>
+          )}
+          <button
+            onClick={handleSaveBrandKit}
+            disabled={brandKitSaving}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {brandKitSaving ? 'Saving…' : 'Save Brand Kit'}
           </button>
         </div>
       </div>
