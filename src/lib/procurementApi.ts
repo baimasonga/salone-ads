@@ -49,7 +49,10 @@ export interface OpportunityDocument {
   fileName: string;
   storagePath: string;
   fileSize: number | null;
+  isPublic: boolean;
 }
+
+const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB — keep uploads reasonable on slow connections.
 
 const LIST_SELECT = `
   id, slug, title, buyer_name, submission_deadline, estimated_value, currency_code, is_featured, review_note,
@@ -145,7 +148,7 @@ export async function fetchOpportunityBySlug(slug: string): Promise<OpportunityD
 export async function fetchOpportunityDocuments(opportunityId: string): Promise<OpportunityDocument[]> {
   const { data, error } = await supabase
     .from('opportunity_documents')
-    .select('id, file_name, storage_path, file_size')
+    .select('id, file_name, storage_path, file_size, is_public')
     .eq('opportunity_id', opportunityId)
     .order('created_at', { ascending: true });
   if (error) throw error;
@@ -154,7 +157,78 @@ export async function fetchOpportunityDocuments(opportunityId: string): Promise<
     fileName: row.file_name,
     storagePath: row.storage_path,
     fileSize: row.file_size ?? null,
+    isPublic: row.is_public,
   }));
+}
+
+function documentBucket(isPublic: boolean): 'public-assets' | 'private-documents' {
+  return isPublic ? 'public-assets' : 'private-documents';
+}
+
+// Documents are stored under {org_id}/{opportunity_id}/... — storage RLS only lets
+// members of that org read/write their own folder (see Phase 1 bucket policies).
+export async function uploadOpportunityDocument(
+  orgId: string,
+  opportunityId: string,
+  file: File,
+  isPublic: boolean
+): Promise<OpportunityDocument> {
+  if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+    throw new Error('File is too large — please keep documents under 10MB.');
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Sign in to upload documents.');
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `${orgId}/${opportunityId}/${Date.now()}-${safeName}`;
+  const bucket = documentBucket(isPublic);
+
+  const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, file);
+  if (uploadError) throw uploadError;
+
+  const { data, error } = await supabase
+    .from('opportunity_documents')
+    .insert({
+      opportunity_id: opportunityId,
+      storage_path: storagePath,
+      file_name: file.name,
+      file_size: file.size,
+      is_public: isPublic,
+      uploaded_by: user.id,
+    })
+    .select('id, file_name, storage_path, file_size, is_public')
+    .single();
+  if (error) {
+    await supabase.storage.from(bucket).remove([storagePath]);
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    fileName: data.file_name,
+    storagePath: data.storage_path,
+    fileSize: data.file_size ?? null,
+    isPublic: data.is_public,
+  };
+}
+
+export async function deleteOpportunityDocument(doc: OpportunityDocument): Promise<void> {
+  const { error: storageError } = await supabase.storage.from(documentBucket(doc.isPublic)).remove([doc.storagePath]);
+  if (storageError) throw storageError;
+  const { error } = await supabase.from('opportunity_documents').delete().eq('id', doc.id);
+  if (error) throw error;
+}
+
+export async function getOpportunityDocumentUrl(doc: OpportunityDocument): Promise<string> {
+  const bucket = documentBucket(doc.isPublic);
+  if (doc.isPublic) {
+    return supabase.storage.from(bucket).getPublicUrl(doc.storagePath).data.publicUrl;
+  }
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(doc.storagePath, 300);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
 export async function isOpportunitySaved(opportunityId: string): Promise<boolean> {

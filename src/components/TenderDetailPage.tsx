@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, Bookmark, BookmarkCheck, FileText, ExternalLink, Tr
 import {
   fetchOpportunityBySlug,
   fetchOpportunityDocuments,
+  getOpportunityDocumentUrl,
   fetchAward,
   fetchAmendments,
   fetchCurrencies,
@@ -102,6 +103,15 @@ export function TenderDetailPage() {
       setAiError(err.message || 'Could not generate an explanation.');
     } finally {
       setAiExplaining(false);
+    }
+  };
+
+  const handleOpenDocument = async (doc: OpportunityDocument) => {
+    try {
+      const url = await getOpportunityDocumentUrl(doc);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch {
+      /* non-critical */
     }
   };
 
@@ -291,8 +301,13 @@ export function TenderDetailPage() {
                 <h2 className="font-display font-bold text-slate-900 text-sm uppercase mb-3">{t('documents')}</h2>
                 <ul className="space-y-2">
                   {documents.map((doc) => (
-                    <li key={doc.id} className="flex items-center gap-2 text-sm text-slate-700">
-                      <FileText className="h-4 w-4 text-slate-400" /> {doc.fileName}
+                    <li key={doc.id}>
+                      <button
+                        onClick={() => handleOpenDocument(doc)}
+                        className="flex items-center gap-2 text-sm text-slate-700 hover:underline cursor-pointer"
+                      >
+                        <FileText className="h-4 w-4 text-slate-400" /> {doc.fileName}
+                      </button>
                     </li>
                   ))}
                 </ul>

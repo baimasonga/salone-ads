@@ -1,0 +1,42 @@
+# Config for the Cloudflare Containers deployment path (worker/index.ts +
+# Dockerfile), kept separate from wrangler.toml (the Cloudflare Pages path)
+# since Pages and Workers-with-Containers are different deploy targets.
+# Deploy with: npm run deploy:containers
+#
+# NOTE: the exact [[containers]] field set below (instance_type in
+# particular) is unverified against Cloudflare's live docs — this sandbox's
+# fetches to developers.cloudflare.com were blocked, so this was assembled
+# from the actual @cloudflare/containers package's published types (high
+# confidence: worker/index.ts) plus secondary sources for the wrangler.toml
+# shape (lower confidence). Run `wrangler deploy --config
+# wrangler.containers.toml --dry-run` first and adjust field names against
+# whatever error/warning wrangler reports before a real deploy.
+
+name = "salonereach-container"
+main = "worker/index.ts"
+compatibility_date = "2026-07-21"
+
+[[containers]]
+class_name = "SaloneReachContainer"
+image = "./Dockerfile"
+max_instances = 1
+instance_type = "basic"
+
+[[durable_objects.bindings]]
+class_name = "SaloneReachContainer"
+name = "SALONEREACH_CONTAINER"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SaloneReachContainer"]
+
+# GEMINI_API_KEY is a secret — set it with:
+#   wrangler secret put GEMINI_API_KEY --config wrangler.containers.toml
+# VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are safe to expose (RLS is the
+# real access boundary) but still needed at container *runtime* (server.ts's
+# auth check), separately from being baked into the frontend at *build*
+# time by the Dockerfile — see Dockerfile's comment.
+[vars]
+APP_URL = "REPLACE_WITH_DEPLOYED_URL"
+VITE_SUPABASE_URL = "https://uhmukiqslcxoxzozeiyy.supabase.co"
+VITE_SUPABASE_ANON_KEY = "sb_publishable_OaAns7uQ0PPfVhqtugqekQ_jmK0m_mY"
