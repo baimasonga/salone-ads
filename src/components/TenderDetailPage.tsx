@@ -6,6 +6,7 @@ import {
   fetchOpportunityDocuments,
   fetchAward,
   fetchAmendments,
+  fetchCurrencies,
   isOpportunitySaved,
   setOpportunitySaved,
   isFollowingBuyer,
@@ -16,8 +17,10 @@ import {
   OpportunityDocument,
   OpportunityAward,
   OpportunityAmendment,
+  CurrencyOption,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
+import { useLanguage } from '../lib/i18n';
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -26,6 +29,11 @@ function formatDate(iso: string | null): string {
   } catch {
     return iso;
   }
+}
+
+function formatMoney(value: number, currencyCode: string | null, currencies: CurrencyOption[]): string {
+  const symbol = currencies.find((c) => c.code === currencyCode)?.symbol ?? currencyCode ?? '';
+  return `${symbol} ${value.toLocaleString()}`.trim();
 }
 
 export function TenderDetailPage() {
@@ -44,6 +52,8 @@ export function TenderDetailPage() {
   const [aiExplanation, setAiExplanation] = useState('');
   const [aiExplaining, setAiExplaining] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const { lang, setLang, t } = useLanguage();
 
   useEffect(() => {
     if (!slug) return;
@@ -52,18 +62,20 @@ export function TenderDetailPage() {
     fetchOpportunityBySlug(slug)
       .then(async (op) => {
         if (!op) {
-          setError('This tender could not be found, or is no longer public.');
+          setError(t('notFound'));
           return;
         }
         setOpportunity(op);
         incrementOpportunityView(op.id);
-        const [docs, session, awardInfo, amendmentHistory] = await Promise.all([
+        const [docs, session, awardInfo, amendmentHistory, currencyList] = await Promise.all([
           fetchOpportunityDocuments(op.id),
           supabase.auth.getSession(),
           fetchAward(op.id),
           fetchAmendments(op.id),
+          fetchCurrencies(),
         ]);
         setDocuments(docs);
+        setCurrencies(currencyList);
         setAward(awardInfo);
         setAmendments(amendmentHistory);
         const authed = !!session.data.session;
@@ -125,17 +137,33 @@ export function TenderDetailPage() {
     <div className="min-h-screen bg-[#F8FAFC] border-4 md:border-8 border-[#0F172A]">
       <header className="bg-white border-b border-[#0F172A] px-6 py-4 flex items-center justify-between">
         <Link to="/tenders" className="flex items-center gap-2 text-[#0F172A] font-display font-black tracking-widest uppercase text-sm">
-          <ArrowLeft className="h-4 w-4" /> Back to Tenders
+          <ArrowLeft className="h-4 w-4" /> {t('backToTenders')}
         </Link>
-        <Link to="/" className="text-xs font-mono uppercase tracking-widest text-emerald-700 hover:underline">
-          Sign In / Get Started
-        </Link>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center border border-slate-200 text-[10px] font-mono uppercase tracking-widest">
+            <button
+              onClick={() => setLang('en')}
+              className={`px-2 py-1 cursor-pointer ${lang === 'en' ? 'bg-[#0F172A] text-white' : 'text-slate-500'}`}
+            >
+              EN
+            </button>
+            <button
+              onClick={() => setLang('fr')}
+              className={`px-2 py-1 cursor-pointer ${lang === 'fr' ? 'bg-[#0F172A] text-white' : 'text-slate-500'}`}
+            >
+              FR
+            </button>
+          </div>
+          <Link to="/" className="text-xs font-mono uppercase tracking-widest text-emerald-700 hover:underline">
+            {t('signIn')}
+          </Link>
+        </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-8 text-left">
         {loading && (
           <div className="flex items-center gap-2 text-slate-400 text-sm py-16 justify-center">
-            <Loader2 className="h-5 w-5 animate-spin" /> Loading tender…
+            <Loader2 className="h-5 w-5 animate-spin" /> {t('loadingTender')}
           </div>
         )}
 
@@ -162,7 +190,7 @@ export function TenderDetailPage() {
                       className="btn-geometric-secondary flex items-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-                      {saved ? 'Saved' : 'Save'}
+                      {saved ? t('saved') : t('save')}
                     </button>
                     {opportunity.buyerOrgId && (
                       <button
@@ -171,7 +199,7 @@ export function TenderDetailPage() {
                         className="btn-geometric-secondary flex items-center gap-2 cursor-pointer disabled:opacity-50"
                       >
                         {followingBuyer ? <UserCheck className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
-                        {followingBuyer ? 'Following Buyer' : 'Follow Buyer'}
+                        {followingBuyer ? t('followingBuyer') : t('followBuyer')}
                       </button>
                     )}
                   </div>
@@ -180,27 +208,33 @@ export function TenderDetailPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6 text-xs font-mono">
                 <div>
-                  <span className="text-slate-400 uppercase block">Reference</span>
+                  <span className="text-slate-400 uppercase block">{t('reference')}</span>
                   <span className="text-slate-700">{opportunity.referenceNumber || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 uppercase block">Notice Type</span>
+                  <span className="text-slate-400 uppercase block">{t('noticeType')}</span>
                   <span className="text-slate-700">{opportunity.opportunityType || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 uppercase block">Procurement Method</span>
+                  <span className="text-slate-400 uppercase block">{t('procurementMethod')}</span>
                   <span className="text-slate-700">{opportunity.procurementMethod || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 uppercase block">Sector</span>
+                  <span className="text-slate-400 uppercase block">{t('sector')}</span>
                   <span className="text-slate-700">{opportunity.sector || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 uppercase block">Location</span>
+                  <span className="text-slate-400 uppercase block">{t('location')}</span>
                   <span className="text-slate-700">{[opportunity.district, opportunity.country].filter(Boolean).join(', ') || '—'}</span>
                 </div>
+                {opportunity.estimatedValue !== null && (
+                  <div>
+                    <span className="text-slate-400 uppercase block">{t('estimatedValue')}</span>
+                    <span className="text-slate-700">{formatMoney(opportunity.estimatedValue, opportunity.currencyCode, currencies)}</span>
+                  </div>
+                )}
                 <div>
-                  <span className="text-slate-400 uppercase block">Submission Deadline</span>
+                  <span className="text-slate-400 uppercase block">{t('submissionDeadline')}</span>
                   <span className="text-red-700 font-bold">{formatDate(opportunity.submissionDeadline)}</span>
                 </div>
               </div>
@@ -208,14 +242,14 @@ export function TenderDetailPage() {
 
             {opportunity.summary && (
               <div className="bg-white border border-slate-200 p-6">
-                <h2 className="font-display font-bold text-slate-900 text-sm uppercase mb-2">Summary</h2>
+                <h2 className="font-display font-bold text-slate-900 text-sm uppercase mb-2">{t('summary')}</h2>
                 <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{opportunity.summary}</p>
               </div>
             )}
 
             {opportunity.description && (
               <div className="bg-white border border-slate-200 p-6">
-                <h2 className="font-display font-bold text-slate-900 text-sm uppercase mb-2">Description</h2>
+                <h2 className="font-display font-bold text-slate-900 text-sm uppercase mb-2">{t('description')}</h2>
                 <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{opportunity.description}</p>
               </div>
             )}
@@ -223,13 +257,13 @@ export function TenderDetailPage() {
             <div className="bg-emerald-50 border border-emerald-100 p-6">
               {!aiExplanation ? (
                 <button onClick={handleExplainTender} disabled={aiExplaining} className="text-sm font-semibold text-emerald-700 hover:underline cursor-pointer flex items-center gap-2 disabled:opacity-50">
-                  <Sparkle className="h-4 w-4" /> {aiExplaining ? 'Thinking…' : 'Explain this tender in simple language'}
+                  <Sparkle className="h-4 w-4" /> {aiExplaining ? t('thinking') : t('explainTender')}
                 </button>
               ) : (
                 <>
-                  <h2 className="font-display font-bold text-emerald-900 text-sm uppercase mb-2 flex items-center gap-2"><Sparkle className="h-4 w-4" /> AI Explanation</h2>
+                  <h2 className="font-display font-bold text-emerald-900 text-sm uppercase mb-2 flex items-center gap-2"><Sparkle className="h-4 w-4" /> {t('aiExplanation')}</h2>
                   <p className="text-sm text-emerald-900 leading-relaxed">{aiExplanation}</p>
-                  <p className="text-[10px] text-emerald-600 mt-2">AI-generated — may contain errors. Always confirm details against the official notice above.</p>
+                  <p className="text-[10px] text-emerald-600 mt-2">{t('aiDisclaimer')}</p>
                 </>
               )}
               {aiError && <p className="text-xs text-red-600 mt-2">{aiError}</p>}
@@ -237,7 +271,7 @@ export function TenderDetailPage() {
 
             {(opportunity.eligibilityRequirements || opportunity.bidSecurity || opportunity.applicationFee) && (
               <div className="bg-white border border-slate-200 p-6 space-y-3">
-                <h2 className="font-display font-bold text-slate-900 text-sm uppercase">Eligibility & Requirements</h2>
+                <h2 className="font-display font-bold text-slate-900 text-sm uppercase">{t('eligibility')}</h2>
                 {opportunity.eligibilityRequirements && <p className="text-sm text-slate-700">{opportunity.eligibilityRequirements}</p>}
                 {opportunity.bidSecurity && <p className="text-xs text-slate-500 font-mono">Bid Security: {opportunity.bidSecurity}</p>}
                 {opportunity.applicationFee && <p className="text-xs text-slate-500 font-mono">Application Fee: {opportunity.applicationFee}</p>}
@@ -246,7 +280,7 @@ export function TenderDetailPage() {
 
             {(opportunity.contactDetails || opportunity.submissionInstructions) && (
               <div className="bg-white border border-slate-200 p-6 space-y-3">
-                <h2 className="font-display font-bold text-slate-900 text-sm uppercase">How to Apply</h2>
+                <h2 className="font-display font-bold text-slate-900 text-sm uppercase">{t('howToApply')}</h2>
                 {opportunity.submissionInstructions && <p className="text-sm text-slate-700 whitespace-pre-line">{opportunity.submissionInstructions}</p>}
                 {opportunity.contactDetails && <p className="text-xs text-slate-500 font-mono">Contact: {opportunity.contactDetails}</p>}
               </div>
@@ -254,7 +288,7 @@ export function TenderDetailPage() {
 
             {documents.length > 0 && (
               <div className="bg-white border border-slate-200 p-6">
-                <h2 className="font-display font-bold text-slate-900 text-sm uppercase mb-3">Documents</h2>
+                <h2 className="font-display font-bold text-slate-900 text-sm uppercase mb-3">{t('documents')}</h2>
                 <ul className="space-y-2">
                   {documents.map((doc) => (
                     <li key={doc.id} className="flex items-center gap-2 text-sm text-slate-700">
@@ -268,12 +302,12 @@ export function TenderDetailPage() {
             {award && (
               <div className="bg-purple-50 border border-purple-200 p-6 space-y-2">
                 <h2 className="font-display font-bold text-purple-900 text-sm uppercase flex items-center gap-2">
-                  <Trophy className="h-4 w-4" /> Contract Award
+                  <Trophy className="h-4 w-4" /> {t('contractAward')}
                 </h2>
                 <p className="text-sm text-purple-900"><strong>{award.winningSupplierName}</strong></p>
                 {award.awardedValue !== undefined && (
                   <p className="text-xs text-purple-700 font-mono">
-                    Awarded Value: {award.currencyCode || ''} {award.awardedValue.toLocaleString()}
+                    Awarded Value: {formatMoney(award.awardedValue, award.currencyCode ?? null, currencies)}
                   </p>
                 )}
                 {award.awardDate && <p className="text-xs text-purple-700 font-mono">Award Date: {formatDate(award.awardDate)}</p>}
@@ -284,7 +318,7 @@ export function TenderDetailPage() {
             {amendments.length > 0 && (
               <div className="bg-white border border-slate-200 p-6">
                 <h2 className="font-display font-bold text-slate-900 text-sm uppercase mb-3 flex items-center gap-2">
-                  <History className="h-4 w-4" /> Amendment History
+                  <History className="h-4 w-4" /> {t('amendmentHistory')}
                 </h2>
                 <ul className="space-y-2">
                   {amendments.map((a) => (
@@ -303,7 +337,7 @@ export function TenderDetailPage() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-xs font-mono text-emerald-700 hover:underline"
               >
-                <ExternalLink className="h-3.5 w-3.5" /> View original source{opportunity.sourceName ? `: ${opportunity.sourceName}` : ''}
+                <ExternalLink className="h-3.5 w-3.5" /> {t('viewSource')}{opportunity.sourceName ? `: ${opportunity.sourceName}` : ''}
               </a>
             )}
           </div>

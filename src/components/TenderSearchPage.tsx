@@ -1,19 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, Loader2, ArrowLeft, MapPin, Calendar, Tag, BookmarkPlus, X } from 'lucide-react';
+import { Search, Loader2, ArrowLeft, MapPin, Calendar, Tag, Globe2, BookmarkPlus, X } from 'lucide-react';
 import {
   searchOpportunities,
   fetchSectors,
   fetchDistricts,
+  fetchCountries,
+  fetchCurrencies,
   fetchOpportunityTypes,
   fetchSavedSearches,
   createSavedSearch,
   deleteSavedSearch,
   OpportunityListItem,
   TaxonomyOption,
+  CurrencyOption,
   SavedSearch,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
+import { useLanguage } from '../lib/i18n';
 
 function formatDeadline(iso: string): string {
   try {
@@ -23,11 +27,18 @@ function formatDeadline(iso: string): string {
   }
 }
 
+function formatMoney(value: number, currencyCode: string | null, currencies: CurrencyOption[]): string {
+  const symbol = currencies.find((c) => c.code === currencyCode)?.symbol ?? currencyCode ?? '';
+  return `${symbol} ${value.toLocaleString()}`.trim();
+}
+
 export function TenderSearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [keyword, setKeyword] = useState(searchParams.get('q') || '');
   const [sectors, setSectors] = useState<TaxonomyOption[]>([]);
+  const [countries, setCountries] = useState<TaxonomyOption[]>([]);
   const [districts, setDistricts] = useState<TaxonomyOption[]>([]);
+  const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [types, setTypes] = useState<TaxonomyOption[]>([]);
   const [results, setResults] = useState<OpportunityListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,16 +46,20 @@ export function TenderSearchPage() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [savingSearch, setSavingSearch] = useState(false);
+  const { lang, setLang, t } = useLanguage();
 
   const sectorId = searchParams.get('sector') || '';
+  const countryId = searchParams.get('country') || '';
   const districtId = searchParams.get('district') || '';
   const typeId = searchParams.get('type') || '';
 
   useEffect(() => {
-    Promise.all([fetchSectors(), fetchDistricts(), fetchOpportunityTypes()])
-      .then(([s, d, t]) => {
+    Promise.all([fetchSectors(), fetchDistricts(), fetchCountries(), fetchCurrencies(), fetchOpportunityTypes()])
+      .then(([s, d, c, cur, t]) => {
         setSectors(s);
         setDistricts(d);
+        setCountries(c);
+        setCurrencies(cur);
         setTypes(t);
       })
       .catch(() => {
@@ -57,6 +72,12 @@ export function TenderSearchPage() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    fetchDistricts(countryId || undefined)
+      .then(setDistricts)
+      .catch(() => {});
+  }, [countryId]);
 
   const applySavedSearch = (s: SavedSearch) => {
     const next = new URLSearchParams();
@@ -98,18 +119,20 @@ export function TenderSearchPage() {
     searchOpportunities({
       keyword: searchParams.get('q') || undefined,
       sectorId: sectorId || undefined,
+      countryId: countryId || undefined,
       districtId: districtId || undefined,
       opportunityTypeId: typeId || undefined,
     })
       .then(setResults)
       .catch((err: any) => setError(err.message || 'Could not load tenders.'))
       .finally(() => setLoading(false));
-  }, [searchParams, sectorId, districtId, typeId]);
+  }, [searchParams, sectorId, countryId, districtId, typeId]);
 
   const updateFilter = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set(key, value);
     else next.delete(key);
+    if (key === 'country') next.delete('district');
     setSearchParams(next);
   };
 
@@ -124,41 +147,65 @@ export function TenderSearchPage() {
         <Link to="/" className="flex items-center gap-2 text-[#0F172A] font-display font-black tracking-widest uppercase text-sm">
           <ArrowLeft className="h-4 w-4" /> SaloneReach Tenders
         </Link>
-        <Link to="/" className="text-xs font-mono uppercase tracking-widest text-emerald-700 hover:underline">
-          Sign In / Get Started
-        </Link>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center border border-slate-200 text-[10px] font-mono uppercase tracking-widest">
+            <button
+              onClick={() => setLang('en')}
+              className={`px-2 py-1 cursor-pointer ${lang === 'en' ? 'bg-[#0F172A] text-white' : 'text-slate-500'}`}
+            >
+              EN
+            </button>
+            <button
+              onClick={() => setLang('fr')}
+              className={`px-2 py-1 cursor-pointer ${lang === 'fr' ? 'bg-[#0F172A] text-white' : 'text-slate-500'}`}
+            >
+              FR
+            </button>
+          </div>
+          <Link to="/" className="text-xs font-mono uppercase tracking-widest text-emerald-700 hover:underline">
+            {t('signIn')}
+          </Link>
+        </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-6 text-left">
         <div>
-          <h1 className="font-display font-black text-2xl uppercase text-[#0F172A]">Procurement Opportunities</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Government, NGO, donor-funded, and private-sector tenders across Sierra Leone.
-          </p>
+          <h1 className="font-display font-black text-2xl uppercase text-[#0F172A]">{t('pageTitle')}</h1>
+          <p className="text-sm text-slate-500 mt-1">{t('pageSubtitle')}</p>
         </div>
 
         <form onSubmit={handleSearchSubmit} className="bg-white border border-[#0F172A] p-4 space-y-4">
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Search by keyword (e.g. road, medical supplies, IT consultancy)"
+              placeholder={t('searchPlaceholder')}
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               className="flex-1 border border-slate-200 p-2.5 text-sm bg-slate-50 focus:bg-white focus:outline-emerald-500"
             />
             <button type="submit" className="btn-geometric flex items-center gap-2 cursor-pointer">
-              <Search className="h-4 w-4" /> Search
+              <Search className="h-4 w-4" /> {t('search')}
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <select
               value={sectorId}
               onChange={(e) => updateFilter('sector', e.target.value)}
               className="border border-slate-200 p-2 text-sm bg-slate-50"
             >
-              <option value="">All Sectors</option>
+              <option value="">{t('allSectors')}</option>
               {sectors.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <select
+              value={countryId}
+              onChange={(e) => updateFilter('country', e.target.value)}
+              className="border border-slate-200 p-2 text-sm bg-slate-50"
+            >
+              <option value="">{t('allCountries')}</option>
+              {countries.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
             <select
@@ -166,7 +213,7 @@ export function TenderSearchPage() {
               onChange={(e) => updateFilter('district', e.target.value)}
               className="border border-slate-200 p-2 text-sm bg-slate-50"
             >
-              <option value="">All Districts</option>
+              <option value="">{t('allDistricts')}</option>
               {districts.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
@@ -176,15 +223,15 @@ export function TenderSearchPage() {
               onChange={(e) => updateFilter('type', e.target.value)}
               className="border border-slate-200 p-2 text-sm bg-slate-50"
             >
-              <option value="">All Notice Types</option>
-              {types.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              <option value="">{t('allNoticeTypes')}</option>
+              {types.map((tp) => (
+                <option key={tp.id} value={tp.id}>{tp.name}</option>
               ))}
             </select>
           </div>
           {isAuthed && (
             <button type="button" onClick={handleSaveSearch} disabled={savingSearch} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-50">
-              <BookmarkPlus className="h-3.5 w-3.5" /> Save this search & get alerts
+              <BookmarkPlus className="h-3.5 w-3.5" /> {t('saveSearch')}
             </button>
           )}
         </form>
@@ -204,7 +251,7 @@ export function TenderSearchPage() {
 
         {loading && (
           <div className="flex items-center gap-2 text-slate-400 text-sm py-8 justify-center">
-            <Loader2 className="h-5 w-5 animate-spin" /> Loading tenders…
+            <Loader2 className="h-5 w-5 animate-spin" /> {t('loadingTenders')}
           </div>
         )}
 
@@ -214,7 +261,7 @@ export function TenderSearchPage() {
 
         {!loading && !error && results.length === 0 && (
           <div className="bg-white border border-slate-200 p-8 text-center text-slate-500 text-sm">
-            No published tenders match your search yet. Try broadening your filters.
+            {t('noResults')}
           </div>
         )}
 
@@ -244,10 +291,15 @@ export function TenderSearchPage() {
                   {op.sector && (
                     <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> {op.sector}</span>
                   )}
-                  {op.district && (
-                    <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {op.district}</span>
+                  {(op.district || op.country) && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" /> {[op.district, op.country].filter(Boolean).join(', ')}
+                    </span>
                   )}
-                  <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Deadline: {formatDeadline(op.submissionDeadline)}</span>
+                  {op.estimatedValue !== null && (
+                    <span className="flex items-center gap-1"><Globe2 className="h-3 w-3" /> {formatMoney(op.estimatedValue, op.currencyCode, currencies)}</span>
+                  )}
+                  <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {t('deadline')}: {formatDeadline(op.submissionDeadline)}</span>
                 </div>
               </Link>
             ))}
