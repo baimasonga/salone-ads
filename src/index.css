@@ -1,0 +1,186 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Outfit", "Inter", sans-serif;
+}
+
+/* Geometric Balance Theme Overrides */
+body {
+  background-color: #F8FAFC;
+  color: #0F172A;
+  font-family: "Inter", sans-serif;
+}
+
+/* Stark crisp borders and layouts */
+.geometric-border {
+  border: 1px solid #0F172A !important;
+}
+
+.geometric-border-2 {
+  border: 2px solid #0F172A !important;
+}
+
+.geometric-border-t {
+  border-top: 1px solid #0F172A !important;
+}
+
+.geometric-border-b {
+  border-bottom: 1px solid #0F172A !important;
+}
+
+.geometric-border-r {
+  border-right: 1px solid #0F172A !important;
+}
+
+.geometric-border-l {
+  border-left: 1px solid #0F172A !important;
+}
+
+/* Sharp boxy components overrides */
+.rounded-2xl, .rounded-xl, .rounded-lg, .rounded-md {
+  border-radius: 0px !important;
+}
+
+/* Stark button defaults */
+.btn-geometric {
+  background-color: #0F172A;
+  color: #ffffff;
+  border: 1px solid #0F172A;
+  border-radius: 0px !important;
+  text-transform: uppercase;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  padding: 0.6rem 1.2rem;
+  transition: all 0.2s ease;
+}
+
+.btn-geometric:hover {
+  background-color: #F8FAFC;
+  color: #0F172A;
+}
+
+.btn-geometric-secondary {
+  background-color: #ffffff;
+  color: #0F172A;
+  border: 1px solid #0F172A;
+  border-radius: 0px !important;
+  text-transform: uppercase;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  padding: 0.6rem 1.2rem;
+  transition: all 0.2s ease;
+}
+
+.btn-geometric-secondary:hover {
+  background-color: #0F172A;
+  color: #ffffff;
+}
+
+/* Custom inputs */
+input, select, textarea {
+  border-radius: 0px !important;
+  border: 1px solid #0F172A !important;
+  background-color: #ffffff !important;
+  color: #0F172A !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid #0F172A !important;
+  outline-offset: -1px;
+}
+
+/* Global Geometric Card Adaptations */
+.bg-white.border, .bg-slate-50.border {
+  border: 1px solid #0F172A !important;
+  border-radius: 0px !important;
+  box-shadow: none !important;
+}
+
+/* All buttons inside dashboard/workspaces that are not explicitly styled */
+button {
+  border-radius: 0px !important;
+}
+
+/* Form element sharp focus */
+button.bg-emerald-600, button.bg-blue-600, button.bg-indigo-600 {
+  background-color: #0F172A !important;
+  color: #ffffff !important;
+  border: 1px solid #0F172A !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.15em !important;
+  border-radius: 0px !important;
+}
+
+button.bg-emerald-600:hover, button.bg-blue-600:hover, button.bg-indigo-600:hover {
+  background-color: #ffffff !important;
+  color: #0F172A !important;
+}
+
+/* Secondary/outline buttons mapping */
+button.border-slate-200, button.border-slate-300 {
+  border-color: #0F172A !important;
+  color: #0F172A !important;
+  background-color: #ffffff !important;
+  border-radius: 0px !important;
+  font-family: "JetBrains Mono", monospace !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+}
+
+button.border-slate-200:hover, button.border-slate-300:hover {
+  background-color: #0F172A !important;
+  color: #ffffff !important;
+}
+
+/* Table header & body styling overrides for perfect geometric rows */
+table {
+  border-collapse: collapse !important;
+}
+
+table th {
+  border-bottom: 2px solid #0F172A !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.2em !important;
+  color: #0F172A !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+table td {
+  border-bottom: 1px solid #e2e8f0 !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 11px !important;
+  color: #0F172A !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+/* Custom header typography adjustments */
+h1, h2, h3, h4 {
+  font-family: "Outfit", "Inter", sans-serif !important;
+  color: #0F172A !important;
+}
+
+/* Custom progress bars & metric tracking widgets */
+.bg-emerald-500, .bg-blue-500, .bg-amber-500, .bg-indigo-500, .bg-purple-500 {
+  background-color: #0F172A !important;
+}
+
+/* Keep Sierra Leone national colors intact where needed specifically for the flag icon */
+.flag-stripes .bg-emerald-500 {
+  background-color: #10B981 !important;
+}
+.flag-stripes .bg-blue-500 {
+  background-color: #3B82F6 !important;
+}
+
+
