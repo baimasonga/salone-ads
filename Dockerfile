@@ -19,7 +19,14 @@ FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# --ignore-scripts: none of the actual runtime deps (express, supabase-js,
+# dotenv, etc.) need install scripts — only esbuild's does, and esbuild
+# isn't used at runtime, only in the build stage above. Skipping scripts
+# here avoids a real npm bug: `--omit=dev`'s dependency-tree filtering trips
+# over the nested esbuild version tsx (a devDependency) pulls in, failing
+# esbuild's own postinstall binary-version check even though tsx itself is
+# correctly excluded.
+RUN npm ci --omit=dev --ignore-scripts
 COPY --from=build /app/dist ./dist
 
 EXPOSE 3000
