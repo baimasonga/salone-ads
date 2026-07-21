@@ -801,3 +801,317 @@ export async function markNotificationRead(id: string): Promise<void> {
   const { error } = await supabase.from('notifications').update({ status: 'read', read_at: new Date().toISOString() }).eq('id', id);
   if (error) throw error;
 }
+
+// --- Team accounts ---
+
+export interface TeamMember {
+  userId: string;
+  role: string;
+  fullName: string;
+  email: string;
+}
+
+export async function fetchTeamMembers(orgId: string): Promise<TeamMember[]> {
+  // organization_members.user_id and profiles.id both reference auth.users
+  // as siblings -- there's no direct FK between the two tables, so this
+  // can't be a single embedded PostgREST select. Two round trips instead.
+  const { data: members, error: membersError } = await supabase
+    .from('organization_members')
+    .select('user_id, role, created_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: true });
+  if (membersError) throw membersError;
+  if (!members || members.length === 0) return [];
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in(
+      'id',
+      members.map((m: any) => m.user_id)
+    );
+  if (profilesError) throw profilesError;
+
+  const profileById = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+  return members.map((m: any) => {
+    const profile = profileById.get(m.user_id);
+    return {
+      userId: m.user_id,
+      role: m.role,
+      fullName: profile?.full_name ?? '',
+      email: profile?.email ?? '',
+    };
+  });
+}
+
+export async function fetchTeamMemberLimit(orgId: string): Promise<number | null> {
+  const { data, error } = await supabase.rpc('get_org_feature_limit', { p_org_id: orgId, p_feature_key: 'max_team_members' });
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function inviteTeamMember(orgId: string, email: string, role: 'owner' | 'admin' | 'member'): Promise<void> {
+  const { error } = await supabase.rpc('invite_team_member', { p_org_id: orgId, p_email: email, p_role: role });
+  if (error) throw error;
+}
+
+export async function removeTeamMember(orgId: string, userId: string): Promise<void> {
+  const { error } = await supabase.from('organization_members').delete().eq('org_id', orgId).eq('user_id', userId);
+  if (error) throw error;
+}
+
+// --- Subscriptions & billing ---
+
+export interface Plan {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  monthlyPrice: number | null;
+  annualPrice: number | null;
+  currencyCode: string;
+}
+
+export async function fetchPlans(): Promise<Plan[]> {
+  const { data, error } = await supabase
+    .from('plans')
+    .select('id, code, name, description, monthly_price, annual_price, currency_code')
+    .eq('is_active', true)
+    .order('sort_order');
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    description: row.description,
+    monthlyPrice: row.monthly_price !== null ? Number(row.monthly_price) : null,
+    annualPrice: row.annual_price !== null ? Number(row.annual_price) : null,
+    currencyCode: row.currency_code,
+  }));
+}
+
+export interface OrgSubscription {
+  id: string;
+  planCode: string;
+  planName: string;
+  status: string;
+  billingCycle: string;
+  paymentMethod: string;
+  notes: string | null;
+  currentPeriodEnd: string | null;
+  createdAt: string;
+}
+
+export async function fetchMySubscriptions(orgId: string): Promise<OrgSubscription[]> {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('id, status, billing_cycle, payment_method, notes, current_period_end, created_at, plans(code, name)')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    planCode: row.plans?.code ?? '',
+    planName: row.plans?.name ?? 'Unknown plan',
+    status: row.status,
+    billingCycle: row.billing_cycle,
+    paymentMethod: row.payment_method,
+    notes: row.notes,
+    currentPeriodEnd: row.current_period_end,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function requestSubscription(orgId: string, planId: string, billingCycle: 'monthly' | 'annual', notes: string): Promise<void> {
+  const { error } = await supabase.from('subscriptions').insert({
+    org_id: orgId,
+    plan_id: planId,
+    billing_cycle: billingCycle,
+    payment_method: 'manual_bank_transfer',
+    notes,
+  });
+  if (error) throw error;
+}
+
+export async function updateSubscriptionNotes(subscriptionId: string, notes: string): Promise<void> {
+  const { error } = await supabase.from('subscriptions').update({ notes }).eq('id', subscriptionId);
+  if (error) throw error;
+}
+
+export interface PendingSubscription extends OrgSubscription {
+  orgId: string;
+  orgName: string;
+}
+
+export async function fetchPendingSubscriptions(): Promise<PendingSubscription[]> {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('id, status, billing_cycle, payment_method, notes, current_period_end, created_at, org_id, plans(code, name), organizations(name)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    planCode: row.plans?.code ?? '',
+    planName: row.plans?.name ?? 'Unknown plan',
+    status: row.status,
+    billingCycle: row.billing_cycle,
+    paymentMethod: row.payment_method,
+    notes: row.notes,
+    currentPeriodEnd: row.current_period_end,
+    createdAt: row.created_at,
+    orgId: row.org_id,
+    orgName: row.organizations?.name ?? 'Unknown organization',
+  }));
+}
+
+export async function activateSubscription(subscriptionId: string, billingCycle: 'monthly' | 'annual'): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const periodEnd = new Date();
+  if (billingCycle === 'annual') periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  else periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+  const { error } = await supabase
+    .from('subscriptions')
+    .update({
+      status: 'active',
+      approved_by: user?.id ?? null,
+      approved_at: new Date().toISOString(),
+      current_period_start: new Date().toISOString(),
+      current_period_end: periodEnd.toISOString(),
+    })
+    .eq('id', subscriptionId);
+  if (error) throw error;
+}
+
+export async function cancelSubscriptionRequest(subscriptionId: string, note: string): Promise<void> {
+  const { error } = await supabase.from('subscriptions').update({ status: 'cancelled', notes: note }).eq('id', subscriptionId);
+  if (error) throw error;
+}
+
+// --- Featured tender placement (admin only, enforced by RLS) ---
+
+export async function setOpportunityFeatured(id: string, featured: boolean): Promise<void> {
+  const { error } = await supabase.from('opportunities').update({ is_featured: featured }).eq('id', id);
+  if (error) throw error;
+}
+
+// --- Service requests ---
+
+export type ServiceType =
+  | 'document_retrieval'
+  | 'tender_clarification'
+  | 'eligibility_assessment'
+  | 'bid_readiness_review'
+  | 'proposal_review'
+  | 'company_profile_prep'
+  | 'supplier_registration_assistance'
+  | 'featured_placement'
+  | 'other';
+
+export interface ServiceRequestActivity {
+  id: string;
+  note: string;
+  isInternal: boolean;
+  createdAt: string;
+}
+
+export interface ServiceRequest {
+  id: string;
+  orgId: string;
+  orgName?: string;
+  serviceType: ServiceType;
+  description: string;
+  status: string;
+  quoteAmount: number | null;
+  quoteCurrency: string | null;
+  createdAt: string;
+}
+
+export async function createServiceRequest(orgId: string, serviceType: ServiceType, description: string, relatedOpportunityId?: string): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { error } = await supabase.from('service_requests').insert({
+    org_id: orgId,
+    requested_by: user.id,
+    service_type: serviceType,
+    description,
+    related_opportunity_id: relatedOpportunityId || null,
+  });
+  if (error) throw error;
+}
+
+export async function fetchMyServiceRequests(orgId: string): Promise<ServiceRequest[]> {
+  const { data, error } = await supabase
+    .from('service_requests')
+    .select('id, org_id, service_type, description, status, quote_amount, quote_currency, created_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapServiceRequest);
+}
+
+export async function fetchAllServiceRequests(): Promise<ServiceRequest[]> {
+  const { data, error } = await supabase
+    .from('service_requests')
+    .select('id, org_id, service_type, description, status, quote_amount, quote_currency, created_at, organizations(name)')
+    .neq('status', 'completed')
+    .neq('status', 'cancelled')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({ ...mapServiceRequest(row), orgName: row.organizations?.name }));
+}
+
+function mapServiceRequest(row: any): ServiceRequest {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    serviceType: row.service_type,
+    description: row.description,
+    status: row.status,
+    quoteAmount: row.quote_amount !== null && row.quote_amount !== undefined ? Number(row.quote_amount) : null,
+    quoteCurrency: row.quote_currency,
+    createdAt: row.created_at,
+  };
+}
+
+export async function fetchServiceRequestActivities(requestId: string): Promise<ServiceRequestActivity[]> {
+  const { data, error } = await supabase
+    .from('service_request_activities')
+    .select('id, note, is_internal, created_at')
+    .eq('request_id', requestId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({ id: row.id, note: row.note, isInternal: row.is_internal, createdAt: row.created_at }));
+}
+
+export async function addServiceRequestNote(requestId: string, note: string, isInternal: boolean): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { error } = await supabase.from('service_request_activities').insert({
+    request_id: requestId,
+    author_id: user.id,
+    note,
+    is_internal: isInternal,
+  });
+  if (error) throw error;
+}
+
+export async function updateServiceRequestStatus(id: string, status: string): Promise<void> {
+  const { error } = await supabase.from('service_requests').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function quoteServiceRequest(id: string, amount: number, currencyCode: string): Promise<void> {
+  const { error } = await supabase
+    .from('service_requests')
+    .update({ status: 'quoted', quote_amount: amount, quote_currency: currencyCode, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}

@@ -185,6 +185,7 @@ function MainApp() {
       items: [
         { id: 'tenders', label: 'Tenders', icon: FileSearch },
         { id: 'supplier-profile', label: 'Supplier Profile', icon: Award },
+        { id: 'services', label: 'Bid Support Services', icon: UserCheck },
       ]
     },
     {
@@ -204,6 +205,8 @@ function MainApp() {
       items: [
         { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
         { id: 'admin-verification', label: 'Verification Requests', icon: ShieldAlert },
+        { id: 'admin-subscriptions', label: 'Subscription Requests', icon: CreditCard },
+        { id: 'admin-services', label: 'Service Requests', icon: UserCheck },
       ]
     }] : []),
     {

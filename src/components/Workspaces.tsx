@@ -48,6 +48,32 @@ import {
   SupplierProfile,
   VerificationRequest,
   VerificationQueueItem,
+  fetchTeamMembers,
+  fetchTeamMemberLimit,
+  inviteTeamMember,
+  removeTeamMember,
+  fetchPlans,
+  fetchMySubscriptions,
+  requestSubscription,
+  updateSubscriptionNotes,
+  fetchPendingSubscriptions,
+  activateSubscription,
+  cancelSubscriptionRequest,
+  setOpportunityFeatured,
+  createServiceRequest,
+  fetchMyServiceRequests,
+  fetchAllServiceRequests,
+  fetchServiceRequestActivities,
+  addServiceRequestNote,
+  updateServiceRequestStatus,
+  quoteServiceRequest,
+  TeamMember,
+  Plan,
+  OrgSubscription,
+  PendingSubscription,
+  ServiceRequest,
+  ServiceRequestActivity,
+  ServiceType,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
 
@@ -281,28 +307,113 @@ export function Workspaces({
   // --- Manual Export Packages ---
   const [selectedExportPost, setSelectedExportPost] = useState<ContentItem | null>(null);
 
-  // --- Billing Manual Settlement ---
-  const [billBank, setBillBank] = useState('Rokupr Commercial Bank');
-  const [billRef, setBillRef] = useState('');
+  // --- Billing & Subscriptions ---
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [mySubscriptions, setMySubscriptions] = useState<OrgSubscription[]>([]);
+  const [billingLoading, setBillingLoading] = useState(false);
   const [billingFeedback, setBillingFeedback] = useState('');
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [paymentRef, setPaymentRef] = useState('');
+  const [requestingPlan, setRequestingPlan] = useState(false);
 
-  const handleRecordPayment = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (activeTab !== 'billing') return;
+    setBillingLoading(true);
+    Promise.all([fetchPlans(), fetchMySubscriptions(activeOrg.id)])
+      .then(([p, subs]) => {
+        setPlans(p);
+        setMySubscriptions(subs);
+      })
+      .catch((err: any) => setBillingFeedback(`Error: ${err.message || 'Could not load billing info.'}`))
+      .finally(() => setBillingLoading(false));
+  }, [activeTab, activeOrg.id]);
+
+  const activeSubscription = mySubscriptions.find((s) => s.status === 'active');
+  const pendingSubscription = mySubscriptions.find((s) => s.status === 'pending');
+
+  const handleRequestPlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBillingFeedback('Bank transfer record logged. Our platform finance team is validating your receipt.');
-    setBillRef('');
-    setTimeout(() => setBillingFeedback(''), 4000);
+    if (!selectedPlanId) return;
+    setRequestingPlan(true);
+    try {
+      await requestSubscription(activeOrg.id, selectedPlanId, billingCycle, paymentRef);
+      setMySubscriptions(await fetchMySubscriptions(activeOrg.id));
+      setPaymentRef('');
+      setBillingFeedback('Upgrade requested. Our finance team will confirm your payment and activate the plan.');
+    } catch (err: any) {
+      setBillingFeedback(`Error: ${err.message || 'Could not request plan.'}`);
+    } finally {
+      setRequestingPlan(false);
+      setTimeout(() => setBillingFeedback(''), 5000);
+    }
   };
 
-  // --- Team Invitation ---
-  const [teamEmail, setTeamEmail] = useState('');
-  const [teamRole, setTeamRole] = useState('Designer');
-  const [teamLogs, setTeamLogs] = useState<{ email: string; role: string; date: string }[]>([]);
+  const handleSubmitPaymentRef = async () => {
+    if (!pendingSubscription) return;
+    const ref = prompt('Bank / mobile money transaction reference:');
+    if (!ref) return;
+    try {
+      await updateSubscriptionNotes(pendingSubscription.id, ref);
+      setMySubscriptions(await fetchMySubscriptions(activeOrg.id));
+      setBillingFeedback('Payment reference submitted for review.');
+    } catch (err: any) {
+      setBillingFeedback(`Error: ${err.message || 'Could not submit payment reference.'}`);
+    } finally {
+      setTimeout(() => setBillingFeedback(''), 4000);
+    }
+  };
 
-  const handleInviteTeam = (e: React.FormEvent) => {
+  // --- Team Members ---
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamLimit, setTeamLimit] = useState<number | null>(null);
+  const [teamEmail, setTeamEmail] = useState('');
+  const [teamRole, setTeamRole] = useState<'admin' | 'member'>('member');
+  const [teamFeedback, setTeamFeedback] = useState('');
+  const [teamInviting, setTeamInviting] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'team') return;
+    setTeamLoading(true);
+    Promise.all([fetchTeamMembers(activeOrg.id), fetchTeamMemberLimit(activeOrg.id)])
+      .then(([members, limit]) => {
+        setTeamMembers(members);
+        setTeamLimit(limit);
+      })
+      .catch((err: any) => setTeamFeedback(`Error: ${err.message || 'Could not load team.'}`))
+      .finally(() => setTeamLoading(false));
+  }, [activeTab, activeOrg.id]);
+
+  const handleInviteTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teamEmail) return;
-    setTeamLogs([{ email: teamEmail, role: teamRole, date: new Date().toISOString().split('T')[0] }, ...teamLogs]);
-    setTeamEmail('');
+    setTeamInviting(true);
+    try {
+      await inviteTeamMember(activeOrg.id, teamEmail, teamRole);
+      const [members, limit] = await Promise.all([fetchTeamMembers(activeOrg.id), fetchTeamMemberLimit(activeOrg.id)]);
+      setTeamMembers(members);
+      setTeamLimit(limit);
+      setTeamEmail('');
+      setTeamFeedback('Team member added.');
+    } catch (err: any) {
+      setTeamFeedback(`Error: ${err.message || 'Could not invite team member.'}`);
+    } finally {
+      setTeamInviting(false);
+      setTimeout(() => setTeamFeedback(''), 5000);
+    }
+  };
+
+  const handleRemoveTeamMember = async (userId: string) => {
+    if (!confirm('Remove this team member?')) return;
+    const previous = teamMembers;
+    setTeamMembers(teamMembers.filter((m) => m.userId !== userId));
+    try {
+      await removeTeamMember(activeOrg.id, userId);
+    } catch (err: any) {
+      setTeamMembers(previous);
+      setTeamFeedback(`Error: ${err.message || 'Could not remove team member.'}`);
+    }
   };
 
   // --- Brand Kit Save State ---
@@ -641,6 +752,141 @@ export function Workspaces({
     }
   };
 
+  const handleToggleFeatured = async (op: ReviewQueueItem | OpportunityListItem, featured: boolean) => {
+    try {
+      await setOpportunityFeatured(op.id, featured);
+      setReviewQueue(reviewQueue.map((o) => (o.id === op.id ? { ...o, isFeatured: featured } : o)));
+    } catch (err: any) {
+      setReviewFeedback(`Error: ${err.message || 'Could not update featured status.'}`);
+    }
+  };
+
+  // --- Admin Subscription Requests States ---
+  const [pendingSubscriptions, setPendingSubscriptions] = useState<PendingSubscription[]>([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subscriptionsFeedback, setSubscriptionsFeedback] = useState('');
+
+  useEffect(() => {
+    if (activeTab !== 'admin-subscriptions' || !isPlatformAdmin) return;
+    setSubscriptionsLoading(true);
+    fetchPendingSubscriptions()
+      .then(setPendingSubscriptions)
+      .catch((err: any) => setSubscriptionsFeedback(`Error: ${err.message || 'Could not load subscription requests.'}`))
+      .finally(() => setSubscriptionsLoading(false));
+  }, [activeTab, isPlatformAdmin]);
+
+  const handleActivateSubscription = async (sub: PendingSubscription) => {
+    const previous = pendingSubscriptions;
+    setPendingSubscriptions(pendingSubscriptions.filter((s) => s.id !== sub.id));
+    try {
+      await activateSubscription(sub.id, sub.billingCycle as 'monthly' | 'annual');
+    } catch (err: any) {
+      setPendingSubscriptions(previous);
+      setSubscriptionsFeedback(`Error: ${err.message || 'Could not activate subscription.'}`);
+    }
+  };
+
+  const handleDeclineSubscription = async (sub: PendingSubscription) => {
+    const note = prompt('Reason for declining this subscription request:') || '';
+    const previous = pendingSubscriptions;
+    setPendingSubscriptions(pendingSubscriptions.filter((s) => s.id !== sub.id));
+    try {
+      await cancelSubscriptionRequest(sub.id, note);
+    } catch (err: any) {
+      setPendingSubscriptions(previous);
+      setSubscriptionsFeedback(`Error: ${err.message || 'Could not decline subscription.'}`);
+    }
+  };
+
+  // --- Service Requests States (buyer/supplier + admin) ---
+  const [myServiceRequests, setMyServiceRequests] = useState<ServiceRequest[]>([]);
+  const [allServiceRequests, setAllServiceRequests] = useState<ServiceRequest[]>([]);
+  const [serviceRequestsLoading, setServiceRequestsLoading] = useState(false);
+  const [serviceRequestFeedback, setServiceRequestFeedback] = useState('');
+  const [srServiceType, setSrServiceType] = useState<ServiceType>('bid_readiness_review');
+  const [srDescription, setSrDescription] = useState('');
+  const [srSubmitting, setSrSubmitting] = useState(false);
+  const [expandedRequestId, setExpandedRequestId] = useState('');
+  const [requestActivities, setRequestActivities] = useState<ServiceRequestActivity[]>([]);
+
+  useEffect(() => {
+    if (activeTab !== 'services') return;
+    setServiceRequestsLoading(true);
+    fetchMyServiceRequests(activeOrg.id)
+      .then(setMyServiceRequests)
+      .catch((err: any) => setServiceRequestFeedback(`Error: ${err.message || 'Could not load service requests.'}`))
+      .finally(() => setServiceRequestsLoading(false));
+  }, [activeTab, activeOrg.id]);
+
+  useEffect(() => {
+    if (activeTab !== 'admin-services' || !isPlatformAdmin) return;
+    setServiceRequestsLoading(true);
+    fetchAllServiceRequests()
+      .then(setAllServiceRequests)
+      .catch((err: any) => setServiceRequestFeedback(`Error: ${err.message || 'Could not load service requests.'}`))
+      .finally(() => setServiceRequestsLoading(false));
+  }, [activeTab, isPlatformAdmin]);
+
+  const handleCreateServiceRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSrSubmitting(true);
+    try {
+      await createServiceRequest(activeOrg.id, srServiceType, srDescription);
+      setMyServiceRequests(await fetchMyServiceRequests(activeOrg.id));
+      setSrDescription('');
+      setServiceRequestFeedback('Request submitted. Our team will follow up shortly.');
+    } catch (err: any) {
+      setServiceRequestFeedback(`Error: ${err.message || 'Could not submit request.'}`);
+    } finally {
+      setSrSubmitting(false);
+      setTimeout(() => setServiceRequestFeedback(''), 5000);
+    }
+  };
+
+  const toggleExpandRequest = async (id: string) => {
+    if (expandedRequestId === id) {
+      setExpandedRequestId('');
+      return;
+    }
+    setExpandedRequestId(id);
+    try {
+      setRequestActivities(await fetchServiceRequestActivities(id));
+    } catch {
+      setRequestActivities([]);
+    }
+  };
+
+  const handleAddAdminNote = async (id: string, internal: boolean) => {
+    const note = prompt(internal ? 'Internal note (admin only):' : 'Message to the customer:');
+    if (!note) return;
+    try {
+      await addServiceRequestNote(id, note, internal);
+      setRequestActivities(await fetchServiceRequestActivities(id));
+    } catch (err: any) {
+      setServiceRequestFeedback(`Error: ${err.message || 'Could not add note.'}`);
+    }
+  };
+
+  const handleQuoteRequest = async (id: string) => {
+    const amountStr = prompt('Quote amount:');
+    if (!amountStr) return;
+    try {
+      await quoteServiceRequest(id, Number(amountStr), 'SLE');
+      setAllServiceRequests(await fetchAllServiceRequests());
+    } catch (err: any) {
+      setServiceRequestFeedback(`Error: ${err.message || 'Could not save quote.'}`);
+    }
+  };
+
+  const handleUpdateRequestStatus = async (id: string, status: string) => {
+    try {
+      await updateServiceRequestStatus(id, status);
+      setAllServiceRequests(await fetchAllServiceRequests());
+    } catch (err: any) {
+      setServiceRequestFeedback(`Error: ${err.message || 'Could not update status.'}`);
+    }
+  };
+
   // --- WORKSPACE RENDERING ---
 
   // 1. OVERVIEW WORKSPACE
@@ -972,9 +1218,15 @@ export function Workspaces({
                     </div>
                   )}
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-wrap">
                     <button onClick={() => handleApprove(op.id)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1">
                       <Check className="h-3.5 w-3.5" /> Approve
+                    </button>
+                    <button
+                      onClick={async () => { await handleToggleFeatured(op, true); await handleApprove(op.id); }}
+                      className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer"
+                    >
+                      Approve & Feature
                     </button>
                     <button onClick={() => handleRequestCorrection(op.id)} className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer">Request Correction</button>
                     <button onClick={() => handleReject(op.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
@@ -1156,6 +1408,206 @@ export function Workspaces({
                   <div className="flex items-center gap-4 mt-3">
                     <button onClick={() => handleApproveVerification(v)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Approve</button>
                     <button onClick={() => handleRejectVerification(v.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // BID SUPPORT SERVICES WORKSPACE (buyers & suppliers)
+  if (activeTab === 'services') {
+    const serviceTypeLabels: Record<ServiceType, string> = {
+      document_retrieval: 'Document Retrieval',
+      tender_clarification: 'Tender Clarification',
+      eligibility_assessment: 'Eligibility Assessment',
+      bid_readiness_review: 'Bid-Readiness Review',
+      proposal_review: 'Proposal Review',
+      company_profile_prep: 'Company Profile Preparation',
+      supplier_registration_assistance: 'Supplier Registration Assistance',
+      featured_placement: 'Featured Placement Request',
+      other: 'Other',
+    };
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Bid Support Services</h3>
+          <p className="text-xs text-slate-500 mt-1">Request paid, human-assisted help — separate from our AI Content Studio, these are performed by our team.</p>
+        </div>
+
+        {serviceRequestFeedback && (
+          <div className={`text-sm p-4 rounded-xl font-semibold ${serviceRequestFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {serviceRequestFeedback}
+          </div>
+        )}
+
+        <form onSubmit={handleCreateServiceRequest} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase">Service Needed</label>
+            <select value={srServiceType} onChange={(e) => setSrServiceType(e.target.value as ServiceType)}
+              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
+              {Object.entries(serviceTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase">Describe What You Need</label>
+            <textarea required rows={3} value={srDescription} onChange={(e) => setSrDescription(e.target.value)}
+              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+          </div>
+          <button type="submit" disabled={srSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
+            {srSubmitting ? 'Submitting…' : 'Submit Request'}
+          </button>
+        </form>
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Requests</h4>
+          {serviceRequestsLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : myServiceRequests.length === 0 ? (
+            <p className="text-xs text-slate-400">No requests yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {myServiceRequests.map((r) => (
+                <div key={r.id} className="border border-slate-100 rounded-xl p-4">
+                  <button onClick={() => toggleExpandRequest(r.id)} className="w-full flex items-center justify-between gap-4 cursor-pointer text-left">
+                    <div>
+                      <span className="font-semibold text-slate-800 text-sm block">{serviceTypeLabels[r.serviceType]}</span>
+                      <span className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleDateString('en-GB')}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {r.quoteAmount !== null && <span className="text-xs font-mono text-slate-600">{r.quoteCurrency} {r.quoteAmount.toLocaleString()}</span>}
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{r.status}</span>
+                    </div>
+                  </button>
+                  {expandedRequestId === r.id && (
+                    <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
+                      {requestActivities.length === 0 ? (
+                        <p className="text-xs text-slate-400">No updates yet.</p>
+                      ) : (
+                        requestActivities.map((a) => (
+                          <p key={a.id} className="text-xs text-slate-600"><span className="font-mono text-slate-400">{new Date(a.createdAt).toLocaleDateString('en-GB')}:</span> {a.note}</p>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ADMIN SUBSCRIPTION REQUESTS WORKSPACE
+  if (activeTab === 'admin-subscriptions') {
+    if (!isPlatformAdmin) {
+      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
+    }
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-emerald-600" /> Subscription Requests
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Confirm bank transfer payment before activating a plan.</p>
+        </div>
+
+        {subscriptionsFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{subscriptionsFeedback}</div>}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {subscriptionsLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : pendingSubscriptions.length === 0 ? (
+            <p className="text-xs text-slate-400">No pending subscription requests.</p>
+          ) : (
+            <div className="space-y-4">
+              {pendingSubscriptions.map((s) => (
+                <div key={s.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-slate-800 text-sm">{s.orgName}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">{s.planName} · {s.billingCycle} · Requested {new Date(s.createdAt).toLocaleDateString('en-GB')}</p>
+                    </div>
+                  </div>
+                  {s.notes && <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 mt-2 font-mono">Payment ref: {s.notes}</p>}
+                  <div className="flex items-center gap-4 mt-3">
+                    <button onClick={() => handleActivateSubscription(s)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Activate</button>
+                    <button onClick={() => handleDeclineSubscription(s)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Decline</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ADMIN SERVICE REQUESTS WORKSPACE
+  if (activeTab === 'admin-services') {
+    if (!isPlatformAdmin) {
+      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
+    }
+    const serviceTypeLabels: Record<string, string> = {
+      document_retrieval: 'Document Retrieval', tender_clarification: 'Tender Clarification',
+      eligibility_assessment: 'Eligibility Assessment', bid_readiness_review: 'Bid-Readiness Review',
+      proposal_review: 'Proposal Review', company_profile_prep: 'Company Profile Preparation',
+      supplier_registration_assistance: 'Supplier Registration Assistance', featured_placement: 'Featured Placement Request', other: 'Other',
+    };
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-emerald-600" /> Service Requests
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Quote, assign, and track bid-support requests. Internal notes are never visible to the requester.</p>
+        </div>
+
+        {serviceRequestFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{serviceRequestFeedback}</div>}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {serviceRequestsLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : allServiceRequests.length === 0 ? (
+            <p className="text-xs text-slate-400">No open service requests.</p>
+          ) : (
+            <div className="space-y-4">
+              {allServiceRequests.map((r) => (
+                <div key={r.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4 className="font-semibold text-slate-800 text-sm">{serviceTypeLabels[r.serviceType]} — {r.orgName}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>
+                    </div>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800 shrink-0">{r.status}</span>
+                  </div>
+                  <button onClick={() => toggleExpandRequest(r.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer mt-2">
+                    {expandedRequestId === r.id ? 'Hide activity' : 'View activity & notes'}
+                  </button>
+                  {expandedRequestId === r.id && (
+                    <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
+                      {requestActivities.map((a) => (
+                        <p key={a.id} className={`text-xs ${a.isInternal ? 'text-amber-700 bg-amber-50 rounded p-1.5' : 'text-slate-600'}`}>
+                          {a.isInternal && <strong>[Internal] </strong>}{a.note}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4 mt-3 flex-wrap">
+                    <button onClick={() => handleAddAdminNote(r.id, false)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Message Customer</button>
+                    <button onClick={() => handleAddAdminNote(r.id, true)} className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer">Internal Note</button>
+                    <button onClick={() => handleQuoteRequest(r.id)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">Add Quote</button>
+                    <select value={r.status} onChange={(e) => handleUpdateRequestStatus(r.id, e.target.value)} className="text-xs border border-slate-200 rounded-lg p-1 bg-white">
+                      <option value="submitted">Submitted</option>
+                      <option value="quoted">Quoted</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
                   </div>
                 </div>
               ))}
@@ -2246,52 +2698,61 @@ export function Workspaces({
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
           <h3 className="font-display font-bold text-slate-900 text-lg">Team Roles & Secure Invites</h3>
-          <p className="text-xs text-slate-500">Establish workspace parameters and authorize designers, marketers, or diaspora coordinators.</p>
+          <p className="text-xs text-slate-500">
+            Add existing SaloneReach users to {activeOrg.name}.
+            {teamLimit !== null && ` Your plan allows up to ${teamLimit} team member${teamLimit === 1 ? '' : 's'}.`}
+          </p>
+
+          {teamFeedback && (
+            <div className={`text-sm p-3.5 rounded-xl font-semibold ${teamFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+              {teamFeedback}
+            </div>
+          )}
 
           <form onSubmit={handleInviteTeam} className="flex flex-col sm:flex-row gap-4">
             <input
               type="email"
               required
-              placeholder="e.g. colleague@salonetech.com"
+              placeholder="colleague@example.com (must already have a SaloneReach account)"
               value={teamEmail}
               onChange={(e) => setTeamEmail(e.target.value)}
               className="flex-1 border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
             />
             <select
               value={teamRole}
-              onChange={(e) => setTeamRole(e.target.value)}
+              onChange={(e) => setTeamRole(e.target.value as 'admin' | 'member')}
               className="border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
             >
-              <option>Campaign Manager</option>
-              <option>Content Designer</option>
-              <option>Platform Analyst</option>
-              <option>Viewer</option>
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
             </select>
-            <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer shrink-0">
-              Invite Member
+            <button type="submit" disabled={teamInviting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer shrink-0 disabled:opacity-50">
+              {teamInviting ? 'Adding…' : 'Add Member'}
             </button>
           </form>
 
           <div className="border-t border-slate-50 pt-6 space-y-4">
             <h4 className="font-display font-bold text-slate-800 text-sm">Active Workspace Membership</h4>
-            <div className="space-y-3 text-xs">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-                <div>
-                  <span className="font-bold text-slate-800">Alhassan Kamara (You)</span>
-                  <span className="text-[10px] text-slate-400 font-mono block">baimasonga@gmail.com</span>
-                </div>
-                <span className="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full uppercase text-[10px]">Owner</span>
-              </div>
-              {teamLogs.map((log, idx) => (
-                <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center animate-fade-in">
-                  <div>
-                    <span className="font-bold text-slate-800">{log.email}</span>
-                    <span className="text-[10px] text-slate-400 font-mono block">Invited on {log.date}</span>
+            {teamLoading ? (
+              <p className="text-xs text-slate-400">Loading…</p>
+            ) : (
+              <div className="space-y-3 text-xs">
+                {teamMembers.map((m) => (
+                  <div key={m.userId} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                    <div>
+                      <span className="font-bold text-slate-800">{m.fullName || m.email}</span>
+                      <span className="text-[10px] text-slate-400 font-mono block">{m.email}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`font-bold px-2.5 py-0.5 rounded-full uppercase text-[10px] ${m.role === 'owner' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>{m.role}</span>
+                      {m.role !== 'owner' && (
+                        <button onClick={() => handleRemoveTeamMember(m.userId)} className="text-red-500 hover:underline cursor-pointer">Remove</button>
+                      )}
+                    </div>
                   </div>
-                  <span className="bg-blue-100 text-blue-800 font-bold px-2.5 py-0.5 rounded-full uppercase text-[10px]">{log.role}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2302,67 +2763,95 @@ export function Workspaces({
   if (activeTab === 'billing') {
     return (
       <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Billing & Invoice Settlement</h3>
-          <p className="text-xs text-slate-500">Record payments manually via bank draft to avoid complex credit card limits.</p>
-
-          {billingFeedback && (
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-3.5 rounded-xl font-semibold">
-              {billingFeedback}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Current Plan</h3>
+          {billingLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : activeSubscription ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-display font-bold text-emerald-700 text-lg">{activeSubscription.planName}</span>
+                {activeSubscription.currentPeriodEnd && (
+                  <p className="text-xs text-slate-500 mt-1">Renews / expires {new Date(activeSubscription.currentPeriodEnd).toLocaleDateString('en-GB')}</p>
+                )}
+              </div>
+              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Active</span>
             </div>
+          ) : (
+            <p className="text-sm text-slate-500">You're on the Free plan.</p>
           )}
+        </div>
 
-          <form onSubmit={handleRecordPayment} className="space-y-4 text-xs">
+        {billingFeedback && (
+          <div className={`text-sm p-3.5 rounded-xl font-semibold ${billingFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {billingFeedback}
+          </div>
+        )}
+
+        {pendingSubscription && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-3">
+            <p className="text-sm text-amber-900">
+              <strong>{pendingSubscription.planName}</strong> upgrade requested — awaiting payment confirmation and admin approval.
+            </p>
+            {pendingSubscription.notes ? (
+              <p className="text-xs text-amber-700 font-mono">Reference on file: {pendingSubscription.notes}</p>
+            ) : (
+              <button onClick={handleSubmitPaymentRef} className="text-xs font-semibold text-amber-700 hover:underline cursor-pointer">
+                Submit bank transfer reference
+              </button>
+            )}
+          </div>
+        )}
+
+        {!pendingSubscription && (
+          <form onSubmit={handleRequestPlan} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+            <h4 className="font-display font-bold text-slate-900 text-sm">Request a Plan Change</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-slate-400 font-mono uppercase mb-1">Select Bank / Processor</label>
-                <select
-                  value={billBank}
-                  onChange={(e) => setBillBank(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-700"
-                >
-                  <option>Rokupr Commercial Bank</option>
-                  <option>Sierra Leone Commercial Bank</option>
-                  <option>Orange Money Transfer</option>
-                  <option>Direct Bank Draft Wire</option>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Plan</label>
+                <select value={selectedPlanId} onChange={(e) => setSelectedPlanId(e.target.value)} required
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
+                  <option value="">Select a plan</option>
+                  {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-slate-400 font-mono uppercase mb-1">Transaction Ref Code</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. SLCB-9812401"
-                  value={billRef}
-                  onChange={(e) => setBillRef(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-slate-700 focus:bg-white"
-                />
+                <label className="block text-xs font-bold text-slate-500 uppercase">Billing Cycle</label>
+                <select value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as 'monthly' | 'annual')}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
+                  <option value="monthly">Monthly</option>
+                  <option value="annual">Annual</option>
+                </select>
               </div>
             </div>
-            <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-6 rounded-xl cursor-pointer">
-              Record Bank Settlement
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Payment Reference (optional, bank transfer)</label>
+              <input type="text" placeholder="e.g. SLCB-9812401" value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+            </div>
+            <button type="submit" disabled={requestingPlan} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-6 rounded-xl text-sm cursor-pointer disabled:opacity-50">
+              {requestingPlan ? 'Requesting…' : 'Request Plan Change'}
             </button>
+            <p className="text-[10px] text-slate-400">Payment is confirmed manually by our finance team — your plan activates once approved, never automatically on submission.</p>
           </form>
+        )}
 
-          {/* Stored invoices mocker */}
-          <div className="border-t border-slate-100 pt-6">
-            <span className="font-display font-bold text-slate-800 text-sm block mb-4">Invoice Ledger History</span>
-            <div className="bg-slate-50 border border-slate-100 rounded-xl overflow-hidden text-xs">
-              <div className="grid grid-cols-4 p-3 font-mono font-bold uppercase text-slate-400 border-b border-slate-100">
-                <span>INVOICE</span>
-                <span>PLAN DETAILS</span>
-                <span>AMOUNT</span>
-                <span>STATUS</span>
-              </div>
-              <div className="grid grid-cols-4 p-3 text-slate-600">
-                <span className="font-bold">INV-2026-001</span>
-                <span>Starter Trial Upgrade</span>
-                <span className="font-mono">SLE 440 (Approx $19)</span>
-                <span className="text-emerald-600 font-bold">Paid</span>
-              </div>
+        {mySubscriptions.length > 0 && (
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+            <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Subscription History</h4>
+            <div className="space-y-2 text-xs">
+              {mySubscriptions.map((s) => (
+                <div key={s.id} className="flex items-center justify-between border-b border-slate-50 pb-2">
+                  <span className="text-slate-700">{s.planName} · {new Date(s.createdAt).toLocaleDateString('en-GB')}</span>
+                  <span className={`font-bold px-2 py-0.5 rounded-full uppercase text-[9px] ${
+                    s.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
+                    s.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
+                  }`}>{s.status}</span>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }

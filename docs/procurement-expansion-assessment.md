@@ -286,8 +286,56 @@ the dashboard header (unread badge, dropdown, polls every 60s, click marks read 
 follow + RLS cross-user isolation) and the supplier verification approval path (including the bug fix above)
 verified against the real schema with real probes, then cleaned up.
 
-## 8. What's next (Phase 5 — not started)
+## 8. Phase 5: Commercial Features — implemented (2026-07-21)
 
-Phase 5 (Commercial Features) is next per the spec: wiring the `subscriptions`/`plans` schema from Phase 1 to an
-actual upgrade flow, featured tender placement, service requests (document retrieval, bid-readiness review),
-and team accounts. Say the word when you want it scoped.
+Admin: `baimasonga@gmail.com` still hasn't signed up. Same offer stands.
+
+**Two long-standing fake stubs are now real.** Team Roles previously had a hard-coded fake member
+("Alhassan Kamara") and stored invites only in local component state (lost on refresh). Billing Invoices had a
+fake invoice row and a "record payment" button that did nothing. Both now run on real tables from earlier
+phases (`organization_members`, `subscriptions`, `plans`).
+
+**Feature entitlements — actually enforced, not decorative**: `plan_features` now has real limits
+(`max_team_members`: Free=1, Professional=3, Business=10, Enterprise=unlimited). A `get_org_feature_limit()`
+function checks the org's active subscription, falling back to Free if none. `invite_team_member()` enforces
+this server-side — verified with a real probe: invite #2 on the Free plan was rejected, then succeeded
+immediately after the org's subscription was activated on Professional. This is the first entitlement actually
+wired to a real limit; others (document access, WhatsApp alerts) remain aspirational until those features exist.
+
+**Team accounts**: invite works only for emails with an existing SaloneReach account (via a `find_user_id_by_email`
+lookup) — inviting a non-existent email fails with a clear message rather than pretending to send an email
+nobody configured. Owners can remove members (not themselves, not via admins to avoid a demotion vector).
+
+**Subscriptions/billing**: org requests a plan + submits a payment reference; a new Admin "Subscription Requests"
+tab lets admins activate (sets real period dates) or decline. The Phase 1 `protect_subscription_fields` trigger
+still guarantees a non-admin can never self-activate — reconfirmed while testing this phase.
+
+**Featured tender placement**: `is_featured` (added in Phase 2, unused until now) gets a real toggle via
+"Approve & Feature" in the admin tender review queue.
+
+**Service requests**: buyers/suppliers submit requests (document retrieval, bid-readiness review, etc.) from a
+new "Bid Support Services" tab; a new Admin "Service Requests" tab lets staff message the customer, add
+**internal-only** notes, quote, and update status. The internal/customer note split is enforced by RLS on a
+separate `service_request_activities` table (not a column-level check, since Postgres can't do per-row
+column-level security the way RLS does) — verified with a real probe: an org member saw only the
+customer-visible note, never the internal one added by an admin on the same request.
+
+**Two real bugs found and fixed while verifying this phase:**
+1. `fetchTeamMembers` tried to embed `profiles(full_name, email)` directly off `organization_members` in one
+   PostgREST query. `organization_members.user_id` and `profiles.id` are sibling foreign keys to `auth.users` —
+   there's no direct FK between the two tables, so PostgREST can't auto-join them. Fixed with two round trips
+   (fetch members, then fetch matching profiles, merge client-side) rather than a broken single query.
+2. That fix also surfaced a real RLS gap: **no policy let an org member view a teammate's profile at all** —
+   only their own. Added a policy scoped to "shares an organization with me." Without it, the team roster would
+   have silently rendered blank names for everyone but yourself.
+   Both were caught by testing the actual code path end-to-end against the real schema, not by reading it.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Entitlement enforcement, the subscription
+activation → invite unlock sequence, the fixed team-roster query, and the internal/customer note RLS split were
+all verified against the real schema with real probes, then cleaned up.
+
+## 9. What's next (Phase 6 — not started)
+
+Phase 6 (Intelligence) is next per the spec: the supplier opportunity pipeline (save → pursue → won/lost),
+award-history analytics, buyer intelligence, data exports, and AI-assisted tender summaries/matching using the
+existing Gemini proxy. Say the word when you want it scoped.
