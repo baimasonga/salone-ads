@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, Loader2, ArrowLeft, MapPin, Calendar, Tag } from 'lucide-react';
+import { Search, Loader2, ArrowLeft, MapPin, Calendar, Tag, BookmarkPlus, X } from 'lucide-react';
 import {
   searchOpportunities,
   fetchSectors,
   fetchDistricts,
   fetchOpportunityTypes,
+  fetchSavedSearches,
+  createSavedSearch,
+  deleteSavedSearch,
   OpportunityListItem,
   TaxonomyOption,
+  SavedSearch,
 } from '../lib/procurementApi';
+import { supabase } from '../lib/supabaseClient';
 
 function formatDeadline(iso: string): string {
   try {
@@ -27,6 +32,9 @@ export function TenderSearchPage() {
   const [results, setResults] = useState<OpportunityListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [savingSearch, setSavingSearch] = useState(false);
 
   const sectorId = searchParams.get('sector') || '';
   const districtId = searchParams.get('district') || '';
@@ -42,7 +50,47 @@ export function TenderSearchPage() {
       .catch(() => {
         /* filter dropdowns are a progressive enhancement; ignore failures */
       });
+    supabase.auth.getSession().then(({ data }) => {
+      setIsAuthed(!!data.session);
+      if (data.session) {
+        fetchSavedSearches().then(setSavedSearches).catch(() => {});
+      }
+    });
   }, []);
+
+  const applySavedSearch = (s: SavedSearch) => {
+    const next = new URLSearchParams();
+    if (s.keyword) next.set('q', s.keyword);
+    if (s.sectorId) next.set('sector', s.sectorId);
+    if (s.districtId) next.set('district', s.districtId);
+    if (s.opportunityTypeId) next.set('type', s.opportunityTypeId);
+    setSearchParams(next);
+    setKeyword(s.keyword || '');
+  };
+
+  const handleSaveSearch = async () => {
+    const name = prompt('Name this saved search (e.g. "Health tenders in Bo"):');
+    if (!name) return;
+    setSavingSearch(true);
+    try {
+      const created = await createSavedSearch({ name, keyword: keyword || null, sectorId: sectorId || null, districtId: districtId || null, opportunityTypeId: typeId || null });
+      setSavedSearches([created, ...savedSearches]);
+    } catch {
+      /* non-critical */
+    } finally {
+      setSavingSearch(false);
+    }
+  };
+
+  const handleDeleteSavedSearch = async (id: string) => {
+    const previous = savedSearches;
+    setSavedSearches(savedSearches.filter((s) => s.id !== id));
+    try {
+      await deleteSavedSearch(id);
+    } catch {
+      setSavedSearches(previous);
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -134,7 +182,25 @@ export function TenderSearchPage() {
               ))}
             </select>
           </div>
+          {isAuthed && (
+            <button type="button" onClick={handleSaveSearch} disabled={savingSearch} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-50">
+              <BookmarkPlus className="h-3.5 w-3.5" /> Save this search & get alerts
+            </button>
+          )}
         </form>
+
+        {savedSearches.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {savedSearches.map((s) => (
+              <span key={s.id} className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-xs px-3 py-1.5">
+                <button onClick={() => applySavedSearch(s)} className="text-slate-700 hover:underline cursor-pointer">{s.name}</button>
+                <button onClick={() => handleDeleteSavedSearch(s.id)} className="text-slate-400 hover:text-red-600 cursor-pointer">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
 
         {loading && (
           <div className="flex items-center gap-2 text-slate-400 text-sm py-8 justify-center">

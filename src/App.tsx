@@ -9,7 +9,7 @@ import type { Session } from '@supabase/supabase-js';
 import {
   BarChart2, Calendar, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
-  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, Loader2, FileSearch
+  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, ShieldAlert, Loader2, FileSearch, Bell
 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
 import { AuthScreens } from './components/AuthScreens';
@@ -18,6 +18,7 @@ import { TenderSearchPage } from './components/TenderSearchPage';
 import { TenderDetailPage } from './components/TenderDetailPage';
 import { supabase } from './lib/supabaseClient';
 import { fetchMyOrganization, fetchOrgBundle, fetchDirectoryProfiles, fetchInfluencerProfiles, fetchMyPlatformRole } from './lib/api';
+import { fetchMyNotifications, markNotificationRead, AppNotification } from './lib/procurementApi';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
 
 type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
@@ -183,6 +184,7 @@ function MainApp() {
       group: "Procurement",
       items: [
         { id: 'tenders', label: 'Tenders', icon: FileSearch },
+        { id: 'supplier-profile', label: 'Supplier Profile', icon: Award },
       ]
     },
     {
@@ -201,6 +203,7 @@ function MainApp() {
       group: "Platform Admin",
       items: [
         { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
+        { id: 'admin-verification', label: 'Verification Requests', icon: ShieldAlert },
       ]
     }] : []),
     {
@@ -280,6 +283,41 @@ function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSi
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // --- Notification Bell ---
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const refreshNotifications = () => {
+    fetchMyNotifications()
+      .then(setNotifications)
+      .catch(() => {
+        /* notifications are non-critical; ignore transient failures */
+      });
+  };
+
+  useEffect(() => {
+    refreshNotifications();
+    const interval = setInterval(refreshNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const unreadCount = notifications.filter((n) => n.status !== 'read').length;
+
+  const handleNotificationClick = async (notification: AppNotification) => {
+    if (notification.status !== 'read') {
+      setNotifications(notifications.map((n) => (n.id === notification.id ? { ...n, status: 'read' } : n)));
+      try {
+        await markNotificationRead(notification.id);
+      } catch {
+        /* best effort */
+      }
+    }
+    if (notification.linkUrl) {
+      window.open(notification.linkUrl, '_blank');
+    }
+    setNotifOpen(false);
+  };
 
   return (
     <div className="bg-[#F8FAFC] min-h-screen font-sans flex border-4 md:border-8 border-[#0F172A] relative">
@@ -410,6 +448,43 @@ function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSi
             </div>
             <div className="hidden sm:block h-4 w-px bg-slate-300"></div>
             <span className="text-xs font-mono text-[#0F172A]">{timeStr || 'Freetown GMT'}</span>
+
+            <div className="relative">
+              <button
+                onClick={() => setNotifOpen(!notifOpen)}
+                className="relative text-[#0F172A] hover:bg-slate-100 p-1.5 cursor-pointer"
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <div className="absolute right-0 mt-2 w-80 bg-white border border-[#0F172A] shadow-lg z-40 max-h-96 overflow-y-auto">
+                  <div className="p-3 border-b border-slate-100">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">Notifications</span>
+                  </div>
+                  {notifications.length === 0 ? (
+                    <p className="text-xs text-slate-400 p-4 text-center">No notifications yet.</p>
+                  ) : (
+                    notifications.map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => handleNotificationClick(n)}
+                        className={`w-full text-left p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer ${n.status !== 'read' ? 'bg-emerald-50/40' : ''}`}
+                      >
+                        <span className="text-xs font-semibold text-slate-800 block">{n.title}</span>
+                        {n.body && <span className="text-[11px] text-slate-500 block mt-0.5">{n.body}</span>}
+                        <span className="text-[9px] text-slate-400 font-mono mt-1 block">{new Date(n.createdAt).toLocaleDateString('en-GB')}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
             <span className="bg-[#0F172A] text-white text-[10px] font-mono font-bold px-2.5 py-1 uppercase tracking-wider">
               {activeOrg.type}
             </span>

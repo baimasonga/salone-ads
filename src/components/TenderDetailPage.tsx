@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Bookmark, BookmarkCheck, FileText, ExternalLink, Trophy, History } from 'lucide-react';
+import { ArrowLeft, Loader2, Bookmark, BookmarkCheck, FileText, ExternalLink, Trophy, History, UserPlus, UserCheck } from 'lucide-react';
 import {
   fetchOpportunityBySlug,
   fetchOpportunityDocuments,
@@ -8,6 +8,8 @@ import {
   fetchAmendments,
   isOpportunitySaved,
   setOpportunitySaved,
+  isFollowingBuyer,
+  setFollowingBuyer,
   OpportunityDetail,
   OpportunityDocument,
   OpportunityAward,
@@ -35,6 +37,8 @@ export function TenderDetailPage() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [award, setAward] = useState<OpportunityAward | null>(null);
   const [amendments, setAmendments] = useState<OpportunityAmendment[]>([]);
+  const [followingBuyer, setFollowingBuyerState] = useState(false);
+  const [followToggling, setFollowToggling] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -60,6 +64,9 @@ export function TenderDetailPage() {
         setIsAuthed(authed);
         if (authed) {
           setSaved(await isOpportunitySaved(op.id));
+          if (op.buyerOrgId) {
+            setFollowingBuyerState(await isFollowingBuyer(op.buyerOrgId));
+          }
         }
       })
       .catch((err: any) => setError(err.message || 'Could not load this tender.'))
@@ -77,6 +84,20 @@ export function TenderDetailPage() {
       /* keep prior state on failure */
     } finally {
       setSavingToggle(false);
+    }
+  };
+
+  const toggleFollow = async () => {
+    if (!opportunity?.buyerOrgId || !isAuthed) return;
+    setFollowToggling(true);
+    const next = !followingBuyer;
+    try {
+      await setFollowingBuyer(opportunity.buyerOrgId, next);
+      setFollowingBuyerState(next);
+    } catch {
+      /* keep prior state on failure */
+    } finally {
+      setFollowToggling(false);
     }
   };
 
@@ -114,14 +135,26 @@ export function TenderDetailPage() {
                   <p className="text-sm text-slate-500 mt-1">{opportunity.buyerName}</p>
                 </div>
                 {isAuthed && (
-                  <button
-                    onClick={toggleSave}
-                    disabled={savingToggle}
-                    className="btn-geometric-secondary flex items-center gap-2 cursor-pointer disabled:opacity-50 shrink-0"
-                  >
-                    {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-                    {saved ? 'Saved' : 'Save'}
-                  </button>
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <button
+                      onClick={toggleSave}
+                      disabled={savingToggle}
+                      className="btn-geometric-secondary flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+                      {saved ? 'Saved' : 'Save'}
+                    </button>
+                    {opportunity.buyerOrgId && (
+                      <button
+                        onClick={toggleFollow}
+                        disabled={followToggling}
+                        className="btn-geometric-secondary flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {followingBuyer ? <UserCheck className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                        {followingBuyer ? 'Following Buyer' : 'Follow Buyer'}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 

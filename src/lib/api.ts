@@ -41,6 +41,8 @@ function mapOrganization(row: any): Organization {
     monthlyBudget: row.monthly_budget ?? '',
     isBuyer: !!row.is_buyer,
     isSupplier: !!row.is_supplier,
+    buyerVerified: !!row.buyer_verified,
+    supplierVerifiedUntil: row.supplier_verified_until ?? null,
   };
 }
 

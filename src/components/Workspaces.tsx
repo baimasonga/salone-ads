@@ -34,9 +34,20 @@ import {
   approveOpportunity,
   requestCorrection,
   rejectOpportunity,
+  enableSupplierMode,
+  fetchSupplierProfile,
+  saveSupplierProfile,
+  submitVerificationRequest,
+  fetchMyVerificationRequests,
+  fetchVerificationQueue,
+  approveVerification,
+  rejectVerification,
   OpportunityListItem,
   ReviewQueueItem,
   TaxonomyOption,
+  SupplierProfile,
+  VerificationRequest,
+  VerificationQueueItem,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
 
@@ -530,6 +541,106 @@ export function Workspaces({
     }
   };
 
+  // --- Supplier Profile States ---
+  const EMPTY_SUPPLIER: SupplierProfile = {
+    tradingName: '', registrationNumber: '', taxIdentificationNumber: '', description: '',
+    website: '', yearEstablished: null, employeeCount: '', geographicCoverage: '', certifications: '', majorClients: '',
+  };
+  const [supplierProfile, setSupplierProfile] = useState<SupplierProfile>(EMPTY_SUPPLIER);
+  const [supplierLoading, setSupplierLoading] = useState(false);
+  const [supplierSaving, setSupplierSaving] = useState(false);
+  const [supplierFeedback, setSupplierFeedback] = useState('');
+  const [enablingSupplier, setEnablingSupplier] = useState(false);
+  const [myVerifications, setMyVerifications] = useState<VerificationRequest[]>([]);
+
+  useEffect(() => {
+    if (activeTab !== 'supplier-profile' || !activeOrg.isSupplier) return;
+    setSupplierLoading(true);
+    Promise.all([fetchSupplierProfile(activeOrg.id), fetchMyVerificationRequests(activeOrg.id)])
+      .then(([profile, verifications]) => {
+        setSupplierProfile(profile);
+        setMyVerifications(verifications);
+      })
+      .catch((err: any) => setSupplierFeedback(`Error: ${err.message || 'Could not load supplier profile.'}`))
+      .finally(() => setSupplierLoading(false));
+  }, [activeTab, activeOrg.isSupplier, activeOrg.id]);
+
+  const handleEnableSupplierMode = async () => {
+    setEnablingSupplier(true);
+    try {
+      await enableSupplierMode(activeOrg.id);
+      window.location.reload();
+    } catch (err: any) {
+      setSupplierFeedback(`Error: ${err.message || 'Could not enable supplier mode.'}`);
+      setEnablingSupplier(false);
+    }
+  };
+
+  const handleSaveSupplierProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSupplierSaving(true);
+    try {
+      await saveSupplierProfile(activeOrg.id, supplierProfile);
+      setSupplierFeedback('Supplier profile saved.');
+    } catch (err: any) {
+      setSupplierFeedback(`Error: ${err.message || 'Could not save supplier profile.'}`);
+    } finally {
+      setSupplierSaving(false);
+      setTimeout(() => setSupplierFeedback(''), 4000);
+    }
+  };
+
+  const handleSubmitVerification = async () => {
+    const notes = prompt('Anything you want the reviewer to know? (optional)') || '';
+    try {
+      await submitVerificationRequest(activeOrg.id, 'supplier', notes);
+      setMyVerifications(await fetchMyVerificationRequests(activeOrg.id));
+      setSupplierFeedback('Verification request submitted.');
+    } catch (err: any) {
+      setSupplierFeedback(`Error: ${err.message || 'Could not submit verification request.'}`);
+    } finally {
+      setTimeout(() => setSupplierFeedback(''), 4000);
+    }
+  };
+
+  // --- Admin Verification Queue States ---
+  const [verificationQueue, setVerificationQueue] = useState<VerificationQueueItem[]>([]);
+  const [verificationQueueLoading, setVerificationQueueLoading] = useState(false);
+  const [verificationFeedback, setVerificationFeedback] = useState('');
+
+  useEffect(() => {
+    if (activeTab !== 'admin-verification' || !isPlatformAdmin) return;
+    setVerificationQueueLoading(true);
+    fetchVerificationQueue()
+      .then(setVerificationQueue)
+      .catch((err: any) => setVerificationFeedback(`Error: ${err.message || 'Could not load verification queue.'}`))
+      .finally(() => setVerificationQueueLoading(false));
+  }, [activeTab, isPlatformAdmin]);
+
+  const handleApproveVerification = async (item: VerificationQueueItem) => {
+    const previous = verificationQueue;
+    setVerificationQueue(verificationQueue.filter((v) => v.id !== item.id));
+    try {
+      await approveVerification(item.id, item.orgId, item.requestType as 'supplier' | 'buyer');
+    } catch (err: any) {
+      setVerificationQueue(previous);
+      setVerificationFeedback(`Error: ${err.message || 'Could not approve verification.'}`);
+    }
+  };
+
+  const handleRejectVerification = async (id: string) => {
+    const note = prompt('Reason for rejecting this verification request:');
+    if (!note) return;
+    const previous = verificationQueue;
+    setVerificationQueue(verificationQueue.filter((v) => v.id !== id));
+    try {
+      await rejectVerification(id, note);
+    } catch (err: any) {
+      setVerificationQueue(previous);
+      setVerificationFeedback(`Error: ${err.message || 'Could not reject verification.'}`);
+    }
+  };
+
   // --- WORKSPACE RENDERING ---
 
   // 1. OVERVIEW WORKSPACE
@@ -868,6 +979,183 @@ export function Workspaces({
                     <button onClick={() => handleRequestCorrection(op.id)} className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer">Request Correction</button>
                     <button onClick={() => handleReject(op.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
                     <Link to={`/tenders/${op.slug}`} target="_blank" className="text-xs text-slate-400 hover:underline ml-auto">Preview</Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // SUPPLIER PROFILE WORKSPACE
+  if (activeTab === 'supplier-profile') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Award className="h-5 w-5 text-emerald-600" /> Supplier Profile
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Build a verifiable supplier profile so buyers can discover and invite {activeOrg.name} to bid.</p>
+        </div>
+
+        {supplierFeedback && (
+          <div className={`text-sm p-4 rounded-xl font-semibold ${supplierFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {supplierFeedback}
+          </div>
+        )}
+
+        {!activeOrg.isSupplier ? (
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center space-y-4">
+            <p className="text-sm text-slate-600">Enable Supplier Mode to create a profile and apply for verification.</p>
+            <button
+              onClick={handleEnableSupplierMode}
+              disabled={enablingSupplier}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50"
+            >
+              {enablingSupplier ? 'Enabling…' : 'Enable Supplier Mode'}
+            </button>
+          </div>
+        ) : supplierLoading ? (
+          <p className="text-xs text-slate-400">Loading…</p>
+        ) : (
+          <>
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-display font-bold text-slate-900 text-sm">Verification Status</h4>
+                {activeOrg.supplierVerifiedUntil && new Date(activeOrg.supplierVerifiedUntil) > new Date() ? (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-emerald-100 text-emerald-800">
+                    Verified until {new Date(activeOrg.supplierVerifiedUntil).toLocaleDateString('en-GB')}
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-slate-100 text-slate-600">Not Verified</span>
+                )}
+              </div>
+              <button onClick={handleSubmitVerification} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">
+                Apply for Supplier Verification
+              </button>
+              {myVerifications.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {myVerifications.map((v) => (
+                    <div key={v.id} className="border border-slate-100 rounded-lg p-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-700">{v.requestType} verification</span>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{v.status.replace('_', ' ')}</span>
+                      </div>
+                      {v.reviewerNote && <p className="text-red-600 mt-1">{v.reviewerNote}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleSaveSupplierProfile} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+              <h4 className="font-display font-bold text-slate-900 text-sm">Company Details</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Trading Name</label>
+                  <input type="text" value={supplierProfile.tradingName} onChange={(e) => setSupplierProfile({ ...supplierProfile, tradingName: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Registration Number</label>
+                  <input type="text" value={supplierProfile.registrationNumber} onChange={(e) => setSupplierProfile({ ...supplierProfile, registrationNumber: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Tax ID</label>
+                  <input type="text" value={supplierProfile.taxIdentificationNumber} onChange={(e) => setSupplierProfile({ ...supplierProfile, taxIdentificationNumber: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Website</label>
+                  <input type="text" value={supplierProfile.website} onChange={(e) => setSupplierProfile({ ...supplierProfile, website: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Year Established</label>
+                  <input type="number" value={supplierProfile.yearEstablished ?? ''} onChange={(e) => setSupplierProfile({ ...supplierProfile, yearEstablished: e.target.value ? Number(e.target.value) : null })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Employees</label>
+                  <input type="text" placeholder="e.g. 11-50" value={supplierProfile.employeeCount} onChange={(e) => setSupplierProfile({ ...supplierProfile, employeeCount: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Company Description</label>
+                <textarea rows={3} value={supplierProfile.description} onChange={(e) => setSupplierProfile({ ...supplierProfile, description: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Geographic Coverage</label>
+                <input type="text" placeholder="e.g. Western Area, Bo, Kenema" value={supplierProfile.geographicCoverage} onChange={(e) => setSupplierProfile({ ...supplierProfile, geographicCoverage: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Certifications & Licences</label>
+                <input type="text" value={supplierProfile.certifications} onChange={(e) => setSupplierProfile({ ...supplierProfile, certifications: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Major Clients / Past Projects</label>
+                <input type="text" value={supplierProfile.majorClients} onChange={(e) => setSupplierProfile({ ...supplierProfile, majorClients: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <button type="submit" disabled={supplierSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50">
+                {supplierSaving ? 'Saving…' : 'Save Supplier Profile'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ADMIN VERIFICATION REVIEW WORKSPACE (platform admins only)
+  if (activeTab === 'admin-verification') {
+    if (!isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          You do not have platform admin access.
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-emerald-600" /> Verification Requests
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Review supplier and buyer verification applications.</p>
+        </div>
+
+        {verificationFeedback && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{verificationFeedback}</div>
+        )}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {verificationQueueLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : verificationQueue.length === 0 ? (
+            <p className="text-xs text-slate-400">No pending verification requests.</p>
+          ) : (
+            <div className="space-y-4">
+              {verificationQueue.map((v) => (
+                <div key={v.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-slate-800 text-sm">{v.orgName}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">{v.requestType} verification · Submitted {new Date(v.submittedAt).toLocaleDateString('en-GB')}</p>
+                    </div>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{v.status.replace('_', ' ')}</span>
+                  </div>
+                  {v.notes && <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 mt-2">{v.notes}</p>}
+                  <div className="flex items-center gap-4 mt-3">
+                    <button onClick={() => handleApproveVerification(v)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Approve</button>
+                    <button onClick={() => handleRejectVerification(v.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
                   </div>
                 </div>
               ))}

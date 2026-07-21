@@ -238,8 +238,56 @@ the real schema: draft → awaiting_review → published (admin-only) → deadli
 logging and award upsert behaving exactly as the client code expects. Live browser testing remains blocked by
 this sandbox's `*.supabase.co` egress policy.
 
-## 7. What's next (Phase 4 — not started)
+## 7. Phase 4: Suppliers and Alerts — implemented (2026-07-21)
 
-Phase 4 (Suppliers and Alerts) is next per the spec: supplier profiles, saved-search-driven alerts, followed
-buyers/sectors, and the email notification adapter (the `notifications`/`notification_preferences` schema from
-Phase 1 is ready but nothing dispatches to it yet). Say the word when you want it scoped.
+Admin: `baimasonga@gmail.com` still hasn't signed up. Same offer stands — sign up and tell me, I'll promote it.
+
+**Supplier profiles & verification**: new "Supplier Profile" dashboard tab — enable supplier mode, fill in
+company details (registration number, tax ID, certifications, geographic coverage, etc.), and apply for
+verification. New Admin "Verification Requests" tab reviews and approves/rejects supplier or buyer verification
+applications. Verified suppliers get a `supplier_verified_until` timestamp (1 year); buyers get a
+`buyer_verified` flag — neither is set just by registering, matching the spec's explicit rule.
+
+**A real bug found and fixed during verification**: the first version of `approveVerification` tried to update
+`organizations.supplier_verified_until` directly from the client. That table's RLS only allows the org's own
+owner/admin members to update it — platform admins aren't members of every org, so the write silently affected
+zero rows. Caught by testing the actual approval path end-to-end rather than trusting the code read-through.
+Fixed with a scoped `admin_set_organization_verification()` RPC (admin-gated, touches only the verification
+columns) rather than broadening the general update policy, which would have let admins edit arbitrary org
+fields from the client. Verified the fix with the same probe that caught the bug.
+
+**Alerts — the real notification pipeline**: a database trigger (`notify_matching_users_on_publish`) fires
+whenever an opportunity newly becomes `published`/`amended`, and creates in-app notification rows for (a) users
+whose saved search matches its sector/district/type, and (b) users following the buyer. Verified end-to-end: a
+user with a saved "Health sector" search and a different user following the buyer org both received exactly the
+right notification when a matching tender was approved; a third user saw only their own notifications, never
+the others'. A `generate_deadline_reminders()` function (admin-callable, verified to reject non-admins) creates
+reminders for saved opportunities nearing their deadline — this needs a real scheduler to run automatically,
+which isn't set up yet (see below).
+
+**New UI**: "Save this search & get alerts" on the public tender search page (saved searches shown as
+removable chips, click to re-apply); "Follow Buyer" toggle on the tender detail page; a notification bell in
+the dashboard header (unread badge, dropdown, polls every 60s, click marks read and opens the linked tender).
+
+**Known simplifications / explicit non-goals**:
+- **No outbound email is actually sent.** There's no email provider configured (no Resend/Postmark/SES
+  credentials), so "email" as a channel exists in the schema (`notifications.channel`) but nothing dispatches to
+  it — only in-app notifications are live. Sending real email requires you to choose and provide credentials for
+  a provider; I won't fabricate that.
+- **No cron scheduler wired up yet** for `generate_deadline_reminders()` — it works and is tested, but currently
+  needs to be called manually (e.g., by an admin, or via `pg_cron`/a scheduled Edge Function once you want it
+  automatic). Flagging as infrastructure to decide on rather than adding silently.
+- Followed sectors (`followed_sectors` table) exists in the schema but has no UI yet — only followed buyers and
+  saved searches are wired up.
+- Saved-search matching is exact-match on sector/district/type only, not keyword — a saved search with a
+  keyword won't yet trigger alerts on keyword matches, only on the structured filters.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Full alert pipeline (saved search match + buyer
+follow + RLS cross-user isolation) and the supplier verification approval path (including the bug fix above)
+verified against the real schema with real probes, then cleaned up.
+
+## 8. What's next (Phase 5 — not started)
+
+Phase 5 (Commercial Features) is next per the spec: wiring the `subscriptions`/`plans` schema from Phase 1 to an
+actual upgrade flow, featured tender placement, service requests (document retrieval, bid-readiness review),
+and team accounts. Say the word when you want it scoped.

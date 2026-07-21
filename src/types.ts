@@ -21,6 +21,8 @@ export interface Organization {
   monthlyBudget: string;
   isBuyer: boolean;
   isSupplier: boolean;
+  buyerVerified: boolean;
+  supplierVerifiedUntil: string | null;
 }
 
 export interface BrandKit {
