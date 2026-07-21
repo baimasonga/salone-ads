@@ -1,5 +1,6 @@
 import React from 'react';
-import { ArrowRight, Globe, Users, TrendingUp, CheckCircle, Shield, Award, Sparkles, MessageSquare } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Globe, Users, TrendingUp, CheckCircle, Shield, Award, Sparkles, MessageSquare, FileSearch } from 'lucide-react';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -26,6 +27,9 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
             <a href="#features" className="hover:underline transition-all">Features</a>
             <a href="#audience" className="hover:underline transition-all">Audiences</a>
             <a href="#pricing" className="hover:underline transition-all">Pricing</a>
+            <Link to="/tenders" className="hover:underline transition-all flex items-center gap-1.5">
+              <FileSearch className="h-3.5 w-3.5" /> Tenders
+            </Link>
           </nav>
 
           <div className="flex items-center gap-4">

@@ -159,9 +159,49 @@ server-side only — no dispatch logic exists yet, that arrives with Phase 4 ale
 (no public access). Both use an `{org_id}/...` path convention enforced by RLS via `is_org_member()`, so an org
 can only read/write its own folder in either bucket.
 
-## 5. What's next (Phase 2 — not started, needs a separate go-ahead)
+## 5. Phase 2: Tender Discovery — implemented (2026-07-21)
 
-Phase 2 is where the product becomes visible: the `opportunities` domain table itself, public tender
-search/detail pages (this needs a client-side router — none exists today), category/sector/district browse
-pages, and buyer profile pages. This is a much bigger UI lift than Phase 1 and touches the app's navigation
-structure, so I'll scope it separately once you're ready rather than bundling it into this pass.
+Admin: `baimasonga@gmail.com` had no account yet as of this pass, so platform-admin promotion is still pending —
+sign up with that email and let me know, and I'll flip `platform_role` immediately.
+
+**Database**: `opportunities` (the full entity from the spec), `opportunity_categories` (multi-tagging),
+`opportunity_documents`, `saved_opportunities`, `buyer_profiles`. RLS verified end-to-end with real
+insert/select probes: a non-buyer org is rejected from inserting an opportunity; once `is_buyer = true`, it can
+create one (defaults to `draft`); an unrelated user cannot see the draft; once the buyer transitions it to
+`published`, the same unrelated user can see it. Draft-vs-published visibility, not just table access, is what's
+enforced.
+
+**Routing**: added `react-router-dom` (justified: the app had no client-side router at all, and public,
+shareable, SEO-indexable tender URLs are a hard requirement — this is a pure addition, nothing existing was
+replaced). The existing landing/auth/dashboard flow is unchanged, now mounted at a catch-all route; two new
+public routes were added: `/tenders` and `/tenders/:slug`.
+
+**Public pages** (`src/components/TenderSearchPage.tsx`, `TenderDetailPage.tsx`): keyword + sector + district +
+notice-type search with URL query-param state (shareable/bookmarkable searches), a detail page with full
+opportunity info, documents list, and a save/bookmark toggle for signed-in users. Linked from the landing page
+nav ("Tenders").
+
+**Buyer publishing** (new "Tenders" dashboard tab, `Procurement` nav group): an org must explicitly "Enable
+Buyer Mode" (self-service, sets `organizations.is_buyer = true`) before it can publish. Once enabled, a buyer
+creates and **self-publishes** tenders directly (no admin review gate yet — that's explicitly a Phase 3 item per
+the spec's own phasing, so this is a deliberate simplification, not an oversight) and can close its own listings.
+
+**Known simplifications, to revisit in later phases**:
+- No admin review queue yet (Phase 3) — buyers self-publish directly.
+- No document upload UI yet — the `opportunity_documents` table and the `private-documents`/`public-assets`
+  storage buckets exist, but nothing writes to them yet.
+- `buyer_profiles` table exists but has no editor UI yet — the detail page shows the buyer's org name only.
+- Keyword search matches tender title only (`ilike`), not full-text across description/buyer — fine for the
+  current data volume, will need a proper search index once volume grows.
+- Search results are capped at 50, no pagination yet.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Live browser click-through is still blocked in
+this sandbox by the same `*.supabase.co` egress policy noted in the Phase 0 pass — verified correctness instead
+via direct RLS probes against the real schema (see above) and by cross-checking every column name the frontend
+queries against `information_schema.columns` for the actual tables.
+
+## 6. What's next (Phase 3 — not started)
+
+Phase 3 (Publishing and Administration) is the natural next slice: buyer draft/review workflow with an actual
+admin approval queue, amendments, deadline extensions, contract awards, and duplicate detection — closing the
+gap this pass deliberately left open (self-publish). Say the word when you want it scoped.

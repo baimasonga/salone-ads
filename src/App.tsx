@@ -4,15 +4,18 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import {
   BarChart2, Calendar, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
-  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, Loader2
+  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, Loader2, FileSearch
 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
 import { AuthScreens } from './components/AuthScreens';
 import { Workspaces } from './components/Workspaces';
+import { TenderSearchPage } from './components/TenderSearchPage';
+import { TenderDetailPage } from './components/TenderDetailPage';
 import { supabase } from './lib/supabaseClient';
 import { fetchMyOrganization, fetchOrgBundle, fetchDirectoryProfiles, fetchInfluencerProfiles } from './lib/api';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
@@ -20,6 +23,16 @@ import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, Socia
 type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
 
 export default function App() {
+  return (
+    <Routes>
+      <Route path="/tenders" element={<TenderSearchPage />} />
+      <Route path="/tenders/:slug" element={<TenderDetailPage />} />
+      <Route path="/*" element={<MainApp />} />
+    </Routes>
+  );
+}
+
+function MainApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [view, setView] = useState<ViewState>('landing');
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
@@ -160,6 +173,12 @@ export default function App() {
         { id: 'calendar', label: 'Calendar', icon: Calendar },
         { id: 'media', label: 'Media Library', icon: FolderOpen },
         { id: 'audiences', label: 'Audiences', icon: Users },
+      ]
+    },
+    {
+      group: "Procurement",
+      items: [
+        { id: 'tenders', label: 'Tenders', icon: FileSearch },
       ]
     },
     {

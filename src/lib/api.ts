@@ -39,6 +39,8 @@ function mapOrganization(row: any): Organization {
     district: row.district ?? undefined,
     primaryObjective: row.primary_objective ?? '',
     monthlyBudget: row.monthly_budget ?? '',
+    isBuyer: !!row.is_buyer,
+    isSupplier: !!row.is_supplier,
   };
 }
 

@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { 
-  BarChart2, Calendar, FileText, FolderOpen, Users, Link2, 
-  MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles, 
-  Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2, 
-  Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
+  MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
+  Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
+  Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
+  FileSearch, ExternalLink
 } from 'lucide-react';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from '../types';
 import {
@@ -15,6 +17,17 @@ import {
   toggleSocialConnectionStatus,
   saveBrandKit,
 } from '../lib/api';
+import {
+  fetchMyOpportunities,
+  enableBuyerMode,
+  createOpportunity,
+  closeOpportunity,
+  fetchSectors,
+  fetchDistricts,
+  fetchOpportunityTypes,
+  OpportunityListItem,
+  TaxonomyOption,
+} from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
 
 interface WorkspacesProps {
@@ -297,6 +310,93 @@ export function Workspaces({
     setScannedFlagged(true);
   };
 
+  // --- Tenders (Procurement) States ---
+  const [myOpportunities, setMyOpportunities] = useState<OpportunityListItem[]>([]);
+  const [tendersLoading, setTendersLoading] = useState(false);
+  const [tendersFeedback, setTendersFeedback] = useState('');
+  const [enablingBuyer, setEnablingBuyer] = useState(false);
+  const [tenderSectors, setTenderSectors] = useState<TaxonomyOption[]>([]);
+  const [tenderDistricts, setTenderDistricts] = useState<TaxonomyOption[]>([]);
+  const [tenderTypes, setTenderTypes] = useState<TaxonomyOption[]>([]);
+  const [tenderTitle, setTenderTitle] = useState('');
+  const [tenderSummary, setTenderSummary] = useState('');
+  const [tenderDescription, setTenderDescription] = useState('');
+  const [tenderTypeId, setTenderTypeId] = useState('');
+  const [tenderSectorId, setTenderSectorId] = useState('');
+  const [tenderDistrictId, setTenderDistrictId] = useState('');
+  const [tenderDeadline, setTenderDeadline] = useState('');
+  const [tenderContact, setTenderContact] = useState('');
+  const [tenderSubmitting, setTenderSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'tenders') return;
+    setTendersLoading(true);
+    Promise.all([
+      fetchMyOpportunities(activeOrg.id),
+      fetchSectors(),
+      fetchDistricts(),
+      fetchOpportunityTypes(),
+    ])
+      .then(([opps, sectors, districts, types]) => {
+        setMyOpportunities(opps);
+        setTenderSectors(sectors);
+        setTenderDistricts(districts);
+        setTenderTypes(types);
+      })
+      .catch((err: any) => setTendersFeedback(`Error: ${err.message || 'Could not load tenders.'}`))
+      .finally(() => setTendersLoading(false));
+  }, [activeTab, activeOrg.id]);
+
+  const handleEnableBuyerMode = async () => {
+    setEnablingBuyer(true);
+    try {
+      await enableBuyerMode(activeOrg.id);
+      window.location.reload();
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'Could not enable buyer mode.'}`);
+      setEnablingBuyer(false);
+    }
+  };
+
+  const handleCreateOpportunity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTenderSubmitting(true);
+    try {
+      const created = await createOpportunity(activeOrg.id, activeOrg.name, {
+        title: tenderTitle,
+        summary: tenderSummary,
+        description: tenderDescription,
+        opportunityTypeId: tenderTypeId,
+        sectorId: tenderSectorId,
+        districtId: tenderDistrictId,
+        submissionDeadline: tenderDeadline,
+        contactDetails: tenderContact,
+      });
+      setMyOpportunities([created, ...myOpportunities]);
+      setTenderTitle('');
+      setTenderSummary('');
+      setTenderDescription('');
+      setTenderDeadline('');
+      setTenderContact('');
+      setTendersFeedback('Tender published! It is now publicly searchable on the Tenders page.');
+    } catch (err: any) {
+      setTendersFeedback(`Error: ${err.message || 'Could not publish tender.'}`);
+    } finally {
+      setTenderSubmitting(false);
+      setTimeout(() => setTendersFeedback(''), 5000);
+    }
+  };
+
+  const handleCloseOpportunity = async (id: string) => {
+    const previous = myOpportunities;
+    setMyOpportunities(myOpportunities.map((o) => (o.id === id ? { ...o, statusCode: 'closed', statusLabel: 'Closed' } : o)));
+    try {
+      await closeOpportunity(id);
+    } catch {
+      setMyOpportunities(previous);
+    }
+  };
+
   // --- WORKSPACE RENDERING ---
 
   // 1. OVERVIEW WORKSPACE
@@ -380,6 +480,173 @@ export function Workspaces({
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // TENDERS WORKSPACE (Procurement)
+  if (activeTab === 'tenders') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+              <FileSearch className="h-5 w-5 text-emerald-600" /> Procurement Tenders
+            </h3>
+            <Link to="/tenders" target="_blank" className="text-xs font-mono text-emerald-600 hover:underline flex items-center gap-1">
+              View public listings <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
+          <p className="text-xs text-slate-500">Publish tender notices for {activeOrg.name} and manage your published opportunities.</p>
+        </div>
+
+        {tendersFeedback && (
+          <div className={`text-sm p-4 rounded-xl font-semibold ${tendersFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {tendersFeedback}
+          </div>
+        )}
+
+        {!activeOrg.isBuyer ? (
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center space-y-4">
+            <p className="text-sm text-slate-600">
+              To publish tenders, enable Buyer Mode for {activeOrg.name}. This lets your organization post procurement
+              notices that are publicly searchable at /tenders.
+            </p>
+            <button
+              onClick={handleEnableBuyerMode}
+              disabled={enablingBuyer}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50"
+            >
+              {enablingBuyer ? 'Enabling…' : 'Enable Buyer Mode'}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Publish New Tender</h4>
+              <form onSubmit={handleCreateOpportunity} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Tender Title</label>
+                  <input
+                    type="text" required
+                    placeholder="e.g. Rehabilitation of Bo-Kenema Feeder Road"
+                    value={tenderTitle}
+                    onChange={(e) => setTenderTitle(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Summary</label>
+                  <textarea
+                    required rows={2}
+                    placeholder="One or two sentence summary shown in search results"
+                    value={tenderSummary}
+                    onChange={(e) => setTenderSummary(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Full Description</label>
+                  <textarea
+                    rows={4}
+                    placeholder="Scope of work, deliverables, and background"
+                    value={tenderDescription}
+                    onChange={(e) => setTenderDescription(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase">Notice Type</label>
+                    <select
+                      value={tenderTypeId}
+                      onChange={(e) => setTenderTypeId(e.target.value)}
+                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                    >
+                      <option value="">Select type</option>
+                      {tenderTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase">Sector</label>
+                    <select
+                      value={tenderSectorId}
+                      onChange={(e) => setTenderSectorId(e.target.value)}
+                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                    >
+                      <option value="">Select sector</option>
+                      {tenderSectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase">District</label>
+                    <select
+                      value={tenderDistrictId}
+                      onChange={(e) => setTenderDistrictId(e.target.value)}
+                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                    >
+                      <option value="">Select district</option>
+                      {tenderDistricts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase">Submission Deadline</label>
+                    <input
+                      type="datetime-local" required
+                      value={tenderDeadline}
+                      onChange={(e) => setTenderDeadline(e.target.value)}
+                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase">Contact Details</label>
+                    <input
+                      type="text"
+                      placeholder="email, phone, or WhatsApp"
+                      value={tenderContact}
+                      onChange={(e) => setTenderContact(e.target.value)}
+                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit" disabled={tenderSubmitting}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {tenderSubmitting ? 'Publishing…' : 'Publish Tender'}
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Published Tenders</h4>
+              {tendersLoading ? (
+                <p className="text-xs text-slate-400">Loading…</p>
+              ) : myOpportunities.length === 0 ? (
+                <p className="text-xs text-slate-400">No tenders published yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {myOpportunities.map((op) => (
+                    <div key={op.id} className="border border-slate-100 rounded-xl p-4 flex items-center justify-between gap-4">
+                      <div>
+                        <Link to={`/tenders/${op.slug}`} target="_blank" className="font-semibold text-slate-800 text-sm hover:underline">{op.title}</Link>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">Deadline: {new Date(op.submissionDeadline).toLocaleDateString('en-GB')}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-slate-100 text-slate-600">{op.statusLabel}</span>
+                        {op.statusCode !== 'closed' && (
+                          <button onClick={() => handleCloseOpportunity(op.id)} className="text-xs text-red-600 hover:underline cursor-pointer">Close</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     );
   }

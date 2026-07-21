@@ -19,6 +19,8 @@ export interface Organization {
   district?: string;
   primaryObjective: string;
   monthlyBudget: string;
+  isBuyer: boolean;
+  isSupplier: boolean;
 }
 
 export interface BrandKit {
