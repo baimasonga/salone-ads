@@ -511,7 +511,44 @@ just never ran automatically). No new UI, migration only.
 confirmed `anon`/`authenticated` cannot execute the internal sweep function, confirmed the sweep runs without
 error, and confirmed the admin-gated public RPC still rejects non-admin callers after the refactor.
 
-## 13. Where this leaves the platform
+## 13. Real bug found via the first live anonymous-visitor test (2026-07-21)
+
+Every RLS/permissions claim made in phases 1-7 above was verified by direct SQL probes run as an
+elevated/service-role session — never by an actual anonymous browser hitting Supabase with the public
+`anon` key. The Cloudflare Containers deployment (docs/cloudflare-deployment.md) was the first time
+that happened, and it immediately surfaced a real bug: the public `/tenders` search page failed for
+every anonymous visitor with `permission denied for function is_org_member`.
+
+**Root cause**: `is_org_member()` and `is_platform_admin()` — the two helper functions referenced via
+`OR` in nearly every table's RLS policy (e.g. `is_public AND is_opportunity_publicly_visible(...) OR
+is_org_member(buyer_org_id) OR is_platform_admin()`) — had `EXECUTE` granted to `authenticated` but
+**never to `anon`**. Postgres requires `EXECUTE` on every function referenced in a policy's `USING`
+clause for the querying role, even when that particular `OR`-branch won't end up true — so a signed-out
+visitor querying `opportunities` (which joins `sectors`/`districts`/`countries`, all with the same
+policy shape) hit a hard permission error instead of just getting the public rows the policy intended
+to allow. `is_opportunity_publicly_visible()` — the function actually named for the public case — did
+have the `anon` grant; the two general-purpose membership/admin helper functions simply never got one,
+presumably because nothing had exercised the anonymous path for real until now.
+
+**Fix**: both functions are `SECURITY DEFINER` and key off `auth.uid()` internally, so granting
+`EXECUTE` to `anon` is safe — called with no session, they correctly evaluate to `false`, and
+table-level RLS remains the actual access boundary either way. `grant execute on function
+public.is_org_member(uuid) to anon; grant execute on function public.is_platform_admin() to anon;`
+No policy or schema changes — purely a missing grant.
+
+**Verification**: `set local role anon` in a real SQL session, then ran the exact join shape
+`searchOpportunities()`/`fetchSectors()`/`fetchDistricts()`/`fetchCountries()`/`fetchOpportunityTypes()`
+use — all now execute cleanly with no permission error (empty result sets, since no real tender data
+has been published yet — there are still zero rows in `auth.users`).
+
+**Implication worth flagging**: this same class of bug could exist wherever a public-facing query path
+in this codebase hasn't yet been exercised by a real anonymous or real authenticated session — every
+verification across phases 1-7 relied on service-role SQL probes, which bypass grant checks entirely
+the way RLS bypass works for a superuser. A live click-through as both a signed-out visitor and a real
+signed-up user (buyer, supplier, admin) would be worth doing before treating any of this as fully
+production-verified, not just schema-correct.
+
+## 14. Where this leaves the platform
 
 Seven phases in: Foundations, Tender Discovery, Publishing/Administration, Suppliers/Alerts, Commercial
 Features, Intelligence, and a first slice of Regional Expansion are all implemented against the real schema
