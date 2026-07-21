@@ -488,13 +488,36 @@ pass — `auth.users` currently has zero rows, i.e. nobody has signed up yet, so
 with, on top of the sandbox's existing `*.supabase.co` egress block. This should be exercised for real as soon
 as an account exists.
 
-## 12. Where this leaves the platform
+## 12. Automated deadline reminders — implemented (2026-07-21)
+
+Closes the other Phase 4 deferred item: `generate_deadline_reminders()` worked since Phase 4 but had no
+scheduler behind it, only a manual call. `pg_cron` is now enabled on the project, running the sweep daily at
+06:00 UTC (`cron.job` id 1, `0 6 * * *`).
+
+The scheduler can't carry a client session, so the original function (which gates on
+`is_platform_admin()` — there's no `auth.uid()` in a cron job's context, so it would always have raised) was
+split: the reminder-matching logic moved into a new `run_deadline_reminder_sweep()`, revoked from `anon` and
+`authenticated` (confirmed with `has_function_privilege`: both return false) so it can't be called as a
+client-facing bypass of the admin gate, and the cron job calls that directly. `generate_deadline_reminders()`
+still exists, still admin-gated, and now just delegates to the shared sweep function — verified both still
+behave correctly: the sweep runs standalone (returned 0, correctly, against a database with no seeded
+opportunities/saved-searches yet), and the admin-gated wrapper still raises `Admin access required` when called
+outside an admin session, exactly as before the refactor.
+
+No frontend changes — this was a pure backend/infrastructure gap (the function already existed and worked, it
+just never ran automatically). No new UI, migration only.
+
+**Verification**: real SQL probes against the live schema — confirmed the cron job is registered and active,
+confirmed `anon`/`authenticated` cannot execute the internal sweep function, confirmed the sweep runs without
+error, and confirmed the admin-gated public RPC still rejects non-admin callers after the refactor.
+
+## 13. Where this leaves the platform
 
 Seven phases in: Foundations, Tender Discovery, Publishing/Administration, Suppliers/Alerts, Commercial
 Features, Intelligence, and a first slice of Regional Expansion are all implemented against the real schema
-with RLS as the actual security boundary, not just UI conventions. Document upload (§11) closes one long-standing
-deferred item. What's left per the original spec: further Phase 7 depth (more countries, dashboard-wide French,
-taxonomy translation, actual region-specific source ingestion), document *extraction* (as opposed to upload),
-and the remaining deliberately-deferred items called out across earlier phases (outbound email, cron-scheduled
-reminders, API-key management, researcher ingestion tooling, admin-entered/website-ingested tenders). Say the
-word on any of these when you're ready.
+with RLS as the actual security boundary, not just UI conventions. Document upload (§11) and automated deadline
+reminders (§12) close two long-standing deferred items. What's left per the original spec: further Phase 7
+depth (more countries, dashboard-wide French, taxonomy translation, actual region-specific source ingestion),
+document *extraction* (as opposed to upload), and the remaining deliberately-deferred items called out across
+earlier phases (outbound email, API-key management, researcher ingestion tooling, admin-entered/website-ingested
+tenders). Say the word on any of these when you're ready.
