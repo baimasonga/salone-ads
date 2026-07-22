@@ -167,17 +167,18 @@ function MainApp() {
     );
   }
 
-  // Define sidebar navigation items grouped logically
+  // Define sidebar navigation items grouped logically.
+  // Social media advertising (Campaigns, Content Studio, Calendar, Media
+  // Library, Audiences, Social Accounts, Analytics, CRM Leads, Brand Kit) is
+  // internal SaloneReach-team tooling, not a customer-facing feature — only
+  // shown to platform admins. This is a UI convenience only; the real
+  // boundary is the RLS policies on those tables (they now require
+  // is_platform_admin(), see docs/procurement-expansion-assessment.md).
   const NAV_GROUPS = [
     {
-      group: "Core Marketing",
+      group: "Overview",
       items: [
         { id: 'overview', label: 'Overview', icon: BarChart2 },
-        { id: 'campaigns', label: 'Campaigns', icon: Compass },
-        { id: 'content', label: 'Content Studio', icon: Sparkles },
-        { id: 'calendar', label: 'Calendar', icon: Calendar },
-        { id: 'media', label: 'Media Library', icon: FolderOpen },
-        { id: 'audiences', label: 'Audiences', icon: Users },
       ]
     },
     {
@@ -190,17 +191,28 @@ function MainApp() {
       ]
     },
     {
-      group: "Conversions & Discovery",
+      group: "Discovery",
       items: [
-        { id: 'social', label: 'Social Accounts', icon: Link2 },
-        { id: 'analytics', label: 'Analytics', icon: Landmark },
-        { id: 'leads', label: 'CRM Leads', icon: MessageSquare },
         { id: 'influencers', label: 'Influencer Market', icon: Award },
         { id: 'directory', label: 'Business Directory', icon: BookOpen },
         { id: 'events', label: 'Event Promotion', icon: UserCheck },
         { id: 'tourism', label: 'Tourism Excursions', icon: Compass },
       ]
     },
+    ...(isPlatformAdmin ? [{
+      group: "Social Media Advertising (Internal)",
+      items: [
+        { id: 'campaigns', label: 'Campaigns', icon: Compass },
+        { id: 'content', label: 'Content Studio', icon: Sparkles },
+        { id: 'calendar', label: 'Calendar', icon: Calendar },
+        { id: 'media', label: 'Media Library', icon: FolderOpen },
+        { id: 'audiences', label: 'Audiences', icon: Users },
+        { id: 'social', label: 'Social Accounts', icon: Link2 },
+        { id: 'analytics', label: 'Analytics', icon: Landmark },
+        { id: 'leads', label: 'CRM Leads', icon: MessageSquare },
+        { id: 'brandkit', label: 'Brand Kit', icon: Settings },
+      ]
+    }] : []),
     ...(isPlatformAdmin ? [{
       group: "Platform Admin",
       items: [
@@ -209,15 +221,14 @@ function MainApp() {
         { id: 'admin-subscriptions', label: 'Subscription Requests', icon: CreditCard },
         { id: 'admin-services', label: 'Service Requests', icon: UserCheck },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
+        { id: 'admin', label: 'Super Admin Desk', icon: Shield },
       ]
     }] : []),
     {
       group: "Workspace Settings",
       items: [
-        { id: 'brandkit', label: 'Brand Kit', icon: Settings },
         { id: 'team', label: 'Team Roles', icon: UserPlus },
         { id: 'billing', label: 'Billing Invoices', icon: CreditCard },
-        { id: 'admin', label: 'Super Admin Desk', icon: Shield },
       ]
     }
   ];

@@ -42,6 +42,12 @@ export interface OpportunityDetail extends OpportunityListItem {
   sourceName: string | null;
   sourceUrl: string | null;
   buyerOrgId: string | null;
+  // false means the description/eligibility/contact/apply fields above are
+  // redacted (null) server-side by get_opportunity_detail() — the caller
+  // isn't the buyer, an admin, or a subscriber. Teaser fields (title,
+  // buyerName, sector, district, country, submissionDeadline, summary) are
+  // always populated regardless.
+  hasFullAccess: boolean;
 }
 
 export interface OpportunityDocument {
@@ -57,15 +63,6 @@ const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB — keep uploads reaso
 const LIST_SELECT = `
   id, slug, title, buyer_name, submission_deadline, estimated_value, currency_code, is_featured, review_note,
   sectors(name), districts(name), countries(name), opportunity_types(label), opportunity_statuses(code, label)
-`;
-
-const DETAIL_SELECT = `
-  ${LIST_SELECT},
-  reference_number, summary, description, country_id, city, buyer_org_id,
-  publication_date, clarification_deadline, opening_date,
-  eligibility_requirements, bid_security, application_fee, contact_details, submission_instructions,
-  source_name, source_url,
-  procurement_methods(label), funding_agencies(name)
 `;
 
 function mapListItem(row: any): OpportunityListItem {
@@ -85,29 +82,6 @@ function mapListItem(row: any): OpportunityListItem {
     statusCode: row.opportunity_statuses?.code ?? 'published',
     statusLabel: row.opportunity_statuses?.label ?? 'Published',
     reviewNote: row.review_note ?? null,
-  };
-}
-
-function mapDetail(row: any): OpportunityDetail {
-  return {
-    ...mapListItem(row),
-    referenceNumber: row.reference_number ?? null,
-    summary: row.summary ?? null,
-    description: row.description ?? null,
-    procurementMethod: row.procurement_methods?.label ?? null,
-    city: row.city ?? null,
-    fundingAgency: row.funding_agencies?.name ?? null,
-    publicationDate: row.publication_date ?? null,
-    clarificationDeadline: row.clarification_deadline ?? null,
-    openingDate: row.opening_date ?? null,
-    eligibilityRequirements: row.eligibility_requirements ?? null,
-    bidSecurity: row.bid_security ?? null,
-    applicationFee: row.application_fee ?? null,
-    contactDetails: row.contact_details ?? null,
-    submissionInstructions: row.submission_instructions ?? null,
-    sourceName: row.source_name ?? null,
-    sourceUrl: row.source_url ?? null,
-    buyerOrgId: row.buyer_org_id ?? null,
   };
 }
 
@@ -138,11 +112,69 @@ export async function searchOpportunities(filters: OpportunitySearchFilters): Pr
   return (data ?? []).map(mapListItem);
 }
 
+// Uses the get_opportunity_detail() RPC rather than a direct table select —
+// the raw opportunities row is still fully public per RLS (draft/published
+// visibility is the only row-level gate), so column-level redaction of the
+// non-subscriber fields (description, eligibility, contact, apply
+// instructions) has to happen server-side in the RPC. A direct select here
+// would leak everything regardless of subscription status.
 export async function fetchOpportunityBySlug(slug: string): Promise<OpportunityDetail | null> {
-  const { data, error } = await supabase.from('opportunities').select(DETAIL_SELECT).eq('slug', slug).maybeSingle();
+  const { data, error } = await supabase.rpc('get_opportunity_detail', { p_slug: slug });
   if (error) throw error;
-  if (!data) return null;
-  return mapDetail(data);
+  const row = data?.[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    buyerName: row.buyer_name,
+    submissionDeadline: row.submission_deadline,
+    estimatedValue: row.estimated_value !== null && row.estimated_value !== undefined ? Number(row.estimated_value) : null,
+    currencyCode: row.currency_code ?? null,
+    isFeatured: row.is_featured,
+    sector: row.sector ?? null,
+    district: row.district ?? null,
+    country: row.country ?? null,
+    opportunityType: row.opportunity_type ?? null,
+    statusCode: row.status_code ?? 'published',
+    statusLabel: row.status_label ?? 'Published',
+    reviewNote: row.review_note ?? null,
+    referenceNumber: row.reference_number ?? null,
+    summary: row.summary ?? null,
+    description: row.description ?? null,
+    procurementMethod: row.procurement_method ?? null,
+    city: row.city ?? null,
+    fundingAgency: row.funding_agency ?? null,
+    publicationDate: row.publication_date ?? null,
+    clarificationDeadline: row.clarification_deadline ?? null,
+    openingDate: row.opening_date ?? null,
+    eligibilityRequirements: row.eligibility_requirements ?? null,
+    bidSecurity: row.bid_security ?? null,
+    applicationFee: row.application_fee ?? null,
+    contactDetails: row.contact_details ?? null,
+    submissionInstructions: row.submission_instructions ?? null,
+    sourceName: row.source_name ?? null,
+    sourceUrl: row.source_url ?? null,
+    buyerOrgId: row.buyer_org_id ?? null,
+    hasFullAccess: row.has_full_access,
+  };
+}
+
+// Whether the signed-in user has a Viewer or Publisher tender subscription
+// on any of their orgs — used to gate documents/alerts UI and to decide
+// whether to show a "Subscribe to view" prompt before the buyer-publish form.
+export async function userHasTenderSubscription(): Promise<boolean> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+  const [viewer, publisher] = await Promise.all([
+    supabase.rpc('user_has_tender_feature', { p_feature_key: 'tender_alerts_and_details' }),
+    supabase.rpc('user_has_tender_feature', { p_feature_key: 'tender_publishing' }),
+  ]);
+  if (viewer.error) throw viewer.error;
+  if (publisher.error) throw publisher.error;
+  return !!viewer.data || !!publisher.data;
 }
 
 export async function fetchOpportunityDocuments(opportunityId: string): Promise<OpportunityDocument[]> {
@@ -318,9 +350,15 @@ export async function fetchMyOpportunities(orgId: string): Promise<OpportunityLi
   return (data ?? []).map(mapListItem);
 }
 
-export async function enableBuyerMode(orgId: string): Promise<void> {
-  const { error } = await supabase.from('organizations').update({ is_buyer: true }).eq('id', orgId);
+// Returns whether buyer mode actually activated. protect_buyer_mode_activation_trigger
+// silently reverts is_buyer back to false (no error) if the org doesn't have
+// the tender_publishing entitlement — same "revert rather than error" idiom
+// the rest of this schema's protective triggers use — so the caller has to
+// check the returned row's actual state rather than assume the update took.
+export async function enableBuyerMode(orgId: string): Promise<boolean> {
+  const { data, error } = await supabase.from('organizations').update({ is_buyer: true }).eq('id', orgId).select('is_buyer').single();
   if (error) throw error;
+  return data.is_buyer;
 }
 
 export interface CreateOpportunityInput {

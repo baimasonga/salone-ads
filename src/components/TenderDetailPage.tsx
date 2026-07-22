@@ -279,6 +279,16 @@ export function TenderDetailPage() {
               {aiError && <p className="text-xs text-red-600 mt-2">{aiError}</p>}
             </div>
 
+            {!opportunity.hasFullAccess && (
+              <div className="bg-[#0F172A] text-white p-6 text-center space-y-3">
+                <h2 className="font-display font-bold text-sm uppercase">{t('subscribeToViewTitle')}</h2>
+                <p className="text-sm text-slate-300 leading-relaxed max-w-md mx-auto">{t('subscribeToViewBody')}</p>
+                <Link to="/#pricing" className="inline-block bg-emerald-500 hover:bg-emerald-400 text-[#0F172A] font-semibold px-6 py-2.5 text-sm">
+                  {t('viewPlans')}
+                </Link>
+              </div>
+            )}
+
             {(opportunity.eligibilityRequirements || opportunity.bidSecurity || opportunity.applicationFee) && (
               <div className="bg-white border border-slate-200 p-6 space-y-3">
                 <h2 className="font-display font-bold text-slate-900 text-sm uppercase">{t('eligibility')}</h2>

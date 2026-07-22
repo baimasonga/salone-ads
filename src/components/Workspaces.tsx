@@ -548,8 +548,13 @@ export function Workspaces({
   const handleEnableBuyerMode = async () => {
     setEnablingBuyer(true);
     try {
-      await enableBuyerMode(activeOrg.id);
-      window.location.reload();
+      const activated = await enableBuyerMode(activeOrg.id);
+      if (activated) {
+        window.location.reload();
+      } else {
+        setTendersFeedback('Publishing tenders requires a Publisher subscription. Upgrade your plan from Billing Invoices to enable it.');
+        setEnablingBuyer(false);
+      }
     } catch (err: any) {
       setTendersFeedback(`Error: ${err.message || 'Could not enable buyer mode.'}`);
       setEnablingBuyer(false);
