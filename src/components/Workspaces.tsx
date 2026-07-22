@@ -18,6 +18,7 @@ import {
   claimDirectoryListing,
   toggleSocialConnectionStatus,
   saveBrandKit,
+  createLead,
   fetchMediaAssets,
   uploadMediaAsset,
   deleteMediaAsset,
@@ -414,24 +415,35 @@ export function Workspaces({
 
   // --- Directory Profile States ---
   const [claimBusinessId, setClaimBusinessId] = useState('');
-  const [claimDocName, setClaimDocName] = useState('');
+  const [claimFile, setClaimFile] = useState<File | null>(null);
   const [claimFeedback, setClaimFeedback] = useState('');
+  const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
   const handleClaimListing = (id: string) => {
     setClaimBusinessId(id);
-    setClaimDocName('');
+    setClaimFile(null);
     setClaimFeedback('');
   };
 
   const submitClaim = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!claimFile) {
+      setClaimFeedback('Error: Attach a business license or tax certificate file.');
+      return;
+    }
+    setIsSubmittingClaim(true);
     try {
+      // Real file, uploaded to the same storage-backed Media Library used
+      // elsewhere — the "document name" text field this replaced never
+      // actually persisted or checked a file at all.
+      await uploadMediaAsset(activeOrg.id, claimFile, 'Verification Documents');
       const updated = await claimDirectoryListing(claimBusinessId, activeOrg.id);
       setDirectoryProfiles(directoryProfiles.map(p => p.id === updated.id ? updated : p));
-      setClaimFeedback('Verification submitted! The Super Admin has approved your business verification.');
+      setClaimFeedback('Verification document uploaded and listing verified.');
     } catch (err: any) {
       setClaimFeedback(`Error: ${err.message || 'Could not submit claim.'}`);
     } finally {
+      setIsSubmittingClaim(false);
       setTimeout(() => {
         setClaimBusinessId('');
         setClaimFeedback('');
@@ -3710,7 +3722,22 @@ export function Workspaces({
                   </div>
                 </div>
                 <button
-                  onClick={() => alert(`Inquiry submitted to ${inf.displayName}! Stored in CRM.`)}
+                  onClick={async () => {
+                    const budgetStr = prompt(`Proposed budget for ${inf.displayName} (Leones):`, '0');
+                    if (budgetStr === null) return;
+                    try {
+                      const lead = await createLead(activeOrg.id, {
+                        name: inf.displayName,
+                        source: 'Influencer Marketplace',
+                        district: inf.district,
+                        estimatedValue: Number(budgetStr) || 0,
+                      });
+                      setLeads([lead, ...leads]);
+                      alert(`Real CRM lead created for ${inf.displayName} — see the CRM Leads tab.`);
+                    } catch (err: any) {
+                      alert(err.message || 'Could not create lead.');
+                    }
+                  }}
                   className="bg-emerald-50 text-emerald-800 text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-colors cursor-pointer shrink-0"
                 >
                   Invite Partner
@@ -3795,18 +3822,16 @@ export function Workspaces({
               <form onSubmit={submitClaim} className="space-y-4 text-xs">
                 <p className="text-slate-500">Provide an official copy of your SL business license or tax certificate to earn your verification mark.</p>
                 <div>
-                  <label className="block text-slate-400 font-mono uppercase mb-1">Corporate document name</label>
+                  <label className="block text-slate-400 font-mono uppercase mb-1">Corporate document</label>
                   <input
-                    type="text"
+                    type="file"
                     required
-                    placeholder="e.g. SL_License_Haven.pdf"
-                    value={claimDocName}
-                    onChange={(e) => setClaimDocName(e.target.value)}
+                    onChange={(e) => setClaimFile(e.target.files?.[0] ?? null)}
                     className="w-full border border-slate-200 rounded-lg p-2 bg-white text-slate-700"
                   />
                 </div>
-                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-xl cursor-pointer">
-                  Submit Verification Documents
+                <button type="submit" disabled={isSubmittingClaim} className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-semibold py-2 px-4 rounded-xl cursor-pointer">
+                  {isSubmittingClaim ? 'Uploading…' : 'Submit Verification Documents'}
                 </button>
               </form>
             )}
@@ -3825,30 +3850,39 @@ export function Workspaces({
           <p className="text-xs text-slate-500 mb-6">Connect ticket sales with direct tracking campaigns to trace ticket buyers directly in the UK/US diaspora communities.</p>
 
           <div className="space-y-4">
-            <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl flex justify-between items-center text-sm">
-              <div>
-                <span className="font-bold text-slate-800 block">Freetown December Music Fest 2026</span>
-                <span className="text-xs text-slate-500">Date: Dec 24, 2026 · Location: National Stadium Complex</span>
+            {[
+              { title: 'Freetown December Music Fest 2026', date: 'Dec 24, 2026', location: 'National Stadium Complex', scheduledDate: '2026-12-24', buttonLabel: 'Promote Concert' },
+              { title: 'Sierra Leone Diaspora Investment Summit', date: 'Nov 12, 2026', location: 'Radisson Blu, Freetown', scheduledDate: '2026-11-12', buttonLabel: 'Promote Summit' },
+            ].map((ev) => (
+              <div key={ev.title} className="bg-slate-50 p-4 border border-slate-100 rounded-xl flex justify-between items-center text-sm">
+                <div>
+                  <span className="font-bold text-slate-800 block">{ev.title}</span>
+                  <span className="text-xs text-slate-500">Date: {ev.date} · Location: {ev.location}</span>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const newItem = await createContentItem(activeOrg.id, {
+                        title: `Promote: ${ev.title}`,
+                        contentType: 'Social Post',
+                        platform: 'Facebook & WhatsApp',
+                        headline: ev.title,
+                        bodyText: `Join us for ${ev.title} — ${ev.date} at ${ev.location}. Don't miss it!`,
+                        hashtags: ['#SaloneReach', '#EatSalone'],
+                        scheduledDate: ev.scheduledDate,
+                      });
+                      setContentItems([newItem, ...contentItems]);
+                      alert(`Real draft created in Content Studio for "${ev.title}".`);
+                    } catch (err: any) {
+                      alert(err.message || 'Could not create draft.');
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer"
+                >
+                  {ev.buttonLabel}
+                </button>
               </div>
-              <button
-                onClick={() => alert('Concert promotional template added to Content Studio drafts!')}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer"
-              >
-                Promote Concert
-              </button>
-            </div>
-            <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl flex justify-between items-center text-sm">
-              <div>
-                <span className="font-bold text-slate-800 block">Sierra Leone Diaspora Investment Summit</span>
-                <span className="text-xs text-slate-500">Date: Nov 12, 2026 · Location: Radisson Blu, Freetown</span>
-              </div>
-              <button
-                onClick={() => alert('Summit promo briefs added to Campaign planner!')}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer"
-              >
-                Promote Summit
-              </button>
-            </div>
+            ))}
           </div>
         </div>
       </div>

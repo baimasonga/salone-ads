@@ -313,6 +313,30 @@ export async function updateLeadStatus(leadId: string, status: Lead['status']): 
   return mapLead(row);
 }
 
+export async function createLead(
+  orgId: string,
+  input: Pick<Lead, 'name' | 'source'> & Partial<Pick<Lead, 'email' | 'telephone' | 'whatsapp' | 'district' | 'estimatedValue'>>
+): Promise<Lead> {
+  const row = unwrap(
+    await supabase
+      .from('leads')
+      .insert({
+        org_id: orgId,
+        name: input.name,
+        email: input.email ?? '',
+        telephone: input.telephone ?? '',
+        whatsapp: input.whatsapp ?? '',
+        district: input.district,
+        source: input.source,
+        status: 'New',
+        estimated_value: input.estimatedValue ?? 0,
+      })
+      .select('*')
+      .single()
+  );
+  return mapLead(row);
+}
+
 export async function createDirectoryListing(
   orgId: string,
   businessName: string

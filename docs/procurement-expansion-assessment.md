@@ -1063,4 +1063,33 @@ what month was displayed).
 (`getCalendarCells`/`formatDateKey`) directly in Node — confirmed July 2026 starts on the correct Wednesday
 with 2 leading blank cells and 31 real days, and Feb 2028 (a leap year) correctly shows 29 days.
 
+## 30. Real influencer/directory/events workflows (2026-07-22)
+
+Closed the three most jarring "claims to do something but doesn't" gaps in the remaining ad-platform
+prototype screens:
+
+- **Influencer "Invite Partner"** (`alert('Inquiry submitted...Stored in CRM.')`, no CRM effect at all) now
+  creates a real `leads` row via a new `createLead()` function (org-scoped, admin-only RLS, same convention
+  as every other ad-platform table) — the creator's proposed budget is captured and the lead genuinely
+  appears in the CRM Leads tab afterward.
+- **Directory verification** ("Corporate document name" was a plain text field — nothing was ever uploaded
+  or checked, and `claimDirectoryListing()` verified the listing regardless of what was typed) now requires
+  and uploads a real file through the same storage-backed Media Library built in §27, tagged into a
+  "Verification Documents" folder, before the listing is marked verified.
+- **Events "Promote Concert"/"Promote Summit"** (`alert('...added to Content Studio drafts!')`/
+  `alert('...added to Campaign planner!')`, neither of which happened) now call the real
+  `createContentItem()` API already used by the Content Studio tab, producing an actual draft (real title,
+  headline, body, hashtags, scheduled date matching the event) that genuinely appears in Content Studio
+  afterward.
+
+**Known remaining gap, not attempted this pass**: the events/tourism destinations themselves are still two
+hardcoded example entries each, not full CRUD (create/edit/delete real events or tours). Given the time
+already invested in this follow-up and that these are internal admin-only screens (not subscriber-facing),
+building full event/tour management was judged lower priority than fixing the three actions that actively
+lied about what they'd done — flagging honestly rather than quietly leaving it off the list.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Live-verified the exact `leads` insert shape
+`createLead()` issues against the real table schema, as the real admin session — succeeded, then cleaned
+up the test row.
+
 Say the word on anything else when you're ready.
