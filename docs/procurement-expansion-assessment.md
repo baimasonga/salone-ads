@@ -736,5 +736,48 @@ researcher ingestion tooling, admin-entered/website-ingested tenders), pricing p
 the old ad-platform-oriented tiers), and — the next thing on deck — designing a third subscriber type for
 paid business/event/goods/services advertising (§17). A live click-through of the full tender lifecycle
 (buyer publish → admin review → public listing → subscriber detail view) as real non-admin accounts is
-still outstanding too. Say the word on anything
-else when you're ready.
+still outstanding too.
+
+## 19. Third subscriber type: Advertiser — submit-and-report, no directory/browsing UI (2026-07-22)
+
+Follow-up to the design question flagged at the end of §17. Direct product-owner instruction on scope:
+"no business directory listing/event promotion etc would appear on the subscriber page. the only info to
+appear is details about the adverts submitted for advertising (no people reach, number of times the
+advert was run, which platform the advert appeared etc)" — i.e. this tier gets *no* discovery/browsing
+tooling at all (that stays admin-only per §17), just a narrow submit-a-request-and-see-the-report loop.
+The actual design/production of the advert remains admin-only ad-platform work; the subscriber only
+supplies what they want advertised and later sees what happened.
+
+**Schema** (new table, no local migration files — applied directly via Supabase MCP as with the rest of
+this schema): `advertisement_requests(id, org_id, requested_by, category [business/event/goods/service],
+subject, description, status [submitted/in_production/live/completed/cancelled], platform, reach_count,
+run_count, start_date, end_date, created_at, updated_at)`.
+
+**RLS**: SELECT for org members + `is_platform_admin()`. INSERT requires
+`org_has_feature(org_id, 'business_advertising')` — deliberately no org-member UPDATE policy at all,
+admin-only, since this is a one-way report the subscriber can't self-edit. New plan_features row:
+`business_advertising` (free=0, professional=0, business=1, enterprise=1).
+
+**API layer** (`procurementApi.ts`): `submitAdvertisementRequest`, `fetchMyAdvertisements`,
+`fetchAllAdvertisementRequests` (admin queue, joins `organizations.name`), `updateAdvertisementReport`
+(admin fulfillment — status/platform/reach_count/run_count/dates).
+
+**UI**: new "My Adverts" nav item, shown only when the org actually holds the `business_advertising`
+entitlement (unlike Tenders, which stays visible to Free-tier orgs with an upsell — this is an add-on
+feature, not core to the product, so it's hidden rather than shown-then-blocked for orgs without it).
+Contains a submission form (category/subject/description) and a read-only list of the org's own requests
+showing status plus, once fulfilled, platform/reach/times-run. Admin side: "Advertising Requests" item in
+the Platform Admin group — a fulfillment queue with a status dropdown and three prompt-based fields
+(platform, reach, run count) per request, same interaction pattern as the existing Service Requests queue.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Live RLS probes via `set local role
+authenticated` + simulated JWT claims (not the superuser MCP context, which bypasses RLS): a non-entitled
+org's INSERT was rejected (`42501` RLS violation); an entitled org's INSERT succeeded; a non-admin org
+member's UPDATE attempt silently affected zero rows (correct — no self-service update policy exists); an
+admin's UPDATE through a real simulated admin session succeeded. Separately re-verified the exact query
+shapes the new UI code issues — the subscriber `SELECT` (own org, no join), the admin `SELECT` with the
+`organizations(name)` embed, and the admin `UPDATE` writing status/platform/reach_count/run_count
+together — all executed successfully as the real entitled/admin users, then cleaned up the test rows
+afterward.
+
+Say the word on anything else when you're ready.

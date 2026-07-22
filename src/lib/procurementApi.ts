@@ -1458,3 +1458,114 @@ export async function aiSuggestSector(titleAndDescription: string, sectorNames: 
 export async function aiExplainTender(tenderText: string): Promise<string> {
   return callProcurementAI('explain_tender', tenderText);
 }
+
+// --- Advertiser subscribers: "My Adverts" (submit + read-only report) ---
+//
+// This is deliberately narrow. An Advertiser-tier subscriber never gets
+// directory/event-promotion browsing UI -- they submit what they want
+// advertised, admins design/run it (same admin-only ad-platform tooling
+// used for everything else), and this table is the read-only report of
+// what actually happened: platform it ran on, how many times, and reach.
+// INSERT is entitlement-gated by org_has_feature(org_id, 'business_advertising')
+// via RLS; UPDATE is admin-only (no self-service edits after submission).
+
+export type AdvertisementCategory = 'business' | 'event' | 'goods' | 'service';
+export type AdvertisementStatus = 'submitted' | 'in_production' | 'live' | 'completed' | 'cancelled';
+
+export interface AdvertisementRequest {
+  id: string;
+  orgId: string;
+  orgName?: string;
+  category: AdvertisementCategory;
+  subject: string;
+  description: string;
+  status: AdvertisementStatus;
+  platform: string | null;
+  reachCount: number | null;
+  runCount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+}
+
+function mapAdvertisementRequest(row: any): AdvertisementRequest {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    category: row.category,
+    subject: row.subject,
+    description: row.description,
+    status: row.status,
+    platform: row.platform,
+    reachCount: row.reach_count,
+    runCount: row.run_count,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    createdAt: row.created_at,
+  };
+}
+
+export async function submitAdvertisementRequest(
+  orgId: string,
+  input: { category: AdvertisementCategory; subject: string; description: string }
+): Promise<AdvertisementRequest> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await supabase
+    .from('advertisement_requests')
+    .insert({
+      org_id: orgId,
+      requested_by: user.id,
+      category: input.category,
+      subject: input.subject,
+      description: input.description,
+    })
+    .select('id, org_id, category, subject, description, status, platform, reach_count, run_count, start_date, end_date, created_at')
+    .single();
+  if (error) throw error;
+  return mapAdvertisementRequest(data);
+}
+
+export async function fetchMyAdvertisements(orgId: string): Promise<AdvertisementRequest[]> {
+  const { data, error } = await supabase
+    .from('advertisement_requests')
+    .select('id, org_id, category, subject, description, status, platform, reach_count, run_count, start_date, end_date, created_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapAdvertisementRequest);
+}
+
+// Admin fulfillment queue -- every org's requests, since admins aren't
+// members of every org and RLS grants them SELECT via is_platform_admin().
+export async function fetchAllAdvertisementRequests(): Promise<AdvertisementRequest[]> {
+  const { data, error } = await supabase
+    .from('advertisement_requests')
+    .select('id, org_id, category, subject, description, status, platform, reach_count, run_count, start_date, end_date, created_at, organizations(name)')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({ ...mapAdvertisementRequest(row), orgName: row.organizations?.name }));
+}
+
+export interface UpdateAdvertisementReportInput {
+  status?: AdvertisementStatus;
+  platform?: string | null;
+  reachCount?: number | null;
+  runCount?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
+export async function updateAdvertisementReport(id: string, updates: UpdateAdvertisementReportInput): Promise<void> {
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.status !== undefined) patch.status = updates.status;
+  if (updates.platform !== undefined) patch.platform = updates.platform;
+  if (updates.reachCount !== undefined) patch.reach_count = updates.reachCount;
+  if (updates.runCount !== undefined) patch.run_count = updates.runCount;
+  if (updates.startDate !== undefined) patch.start_date = updates.startDate;
+  if (updates.endDate !== undefined) patch.end_date = updates.endDate;
+  const { error } = await supabase.from('advertisement_requests').update(patch).eq('id', id);
+  if (error) throw error;
+}

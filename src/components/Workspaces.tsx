@@ -98,6 +98,12 @@ import {
   PipelineRecord,
   PipelineStage,
   AdminAnalyticsSummary,
+  submitAdvertisementRequest,
+  fetchMyAdvertisements,
+  fetchAllAdvertisementRequests,
+  updateAdvertisementReport,
+  AdvertisementRequest,
+  AdvertisementCategory,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
 
@@ -1063,6 +1069,64 @@ export function Workspaces({
     }
   };
 
+  // --- Advertiser subscriber: "My Adverts" + admin fulfillment queue ---
+  const [canAdvertise, setCanAdvertise] = useState(false);
+  const [myAdvertisements, setMyAdvertisements] = useState<AdvertisementRequest[]>([]);
+  const [allAdvertisements, setAllAdvertisements] = useState<AdvertisementRequest[]>([]);
+  const [advertisementsLoading, setAdvertisementsLoading] = useState(false);
+  const [advertisementFeedback, setAdvertisementFeedback] = useState('');
+  const [adCategory, setAdCategory] = useState<AdvertisementCategory>('business');
+  const [adSubject, setAdSubject] = useState('');
+  const [adDescription, setAdDescription] = useState('');
+  const [adSubmitting, setAdSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (activeTab !== 'advertising' || isPlatformAdmin) return;
+    setAdvertisementsLoading(true);
+    Promise.all([hasFeature(activeOrg.id, 'business_advertising'), fetchMyAdvertisements(activeOrg.id)])
+      .then(([entitled, ads]) => {
+        setCanAdvertise(entitled);
+        setMyAdvertisements(ads);
+      })
+      .catch((err: any) => setAdvertisementFeedback(`Error: ${err.message || 'Could not load your adverts.'}`))
+      .finally(() => setAdvertisementsLoading(false));
+  }, [activeTab, activeOrg.id, isPlatformAdmin]);
+
+  useEffect(() => {
+    if (activeTab !== 'admin-advertising' || !isPlatformAdmin) return;
+    setAdvertisementsLoading(true);
+    fetchAllAdvertisementRequests()
+      .then(setAllAdvertisements)
+      .catch((err: any) => setAdvertisementFeedback(`Error: ${err.message || 'Could not load advertising requests.'}`))
+      .finally(() => setAdvertisementsLoading(false));
+  }, [activeTab, isPlatformAdmin]);
+
+  const handleSubmitAdvertisement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdSubmitting(true);
+    try {
+      const created = await submitAdvertisementRequest(activeOrg.id, { category: adCategory, subject: adSubject, description: adDescription });
+      setMyAdvertisements([created, ...myAdvertisements]);
+      setAdSubject('');
+      setAdDescription('');
+      setAdvertisementFeedback('Request submitted. Our team will design and run your advert.');
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err.message || 'Could not submit request.'}`);
+    } finally {
+      setAdSubmitting(false);
+      setTimeout(() => setAdvertisementFeedback(''), 5000);
+    }
+  };
+
+  const handleUpdateAdvertisement = async (id: string, updates: Parameters<typeof updateAdvertisementReport>[1]) => {
+    try {
+      await updateAdvertisementReport(id, updates);
+      setAllAdvertisements(await fetchAllAdvertisementRequests());
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err.message || 'Could not update advert.'}`);
+    }
+  };
+
   // --- Supplier Pipeline States ---
   const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
   const [pipelineLoading, setPipelineLoading] = useState(false);
@@ -2000,6 +2064,190 @@ export function Workspaces({
                       )}
                     </div>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ADVERTISER SUBSCRIBER WORKSPACE ("My Adverts")
+  // Deliberately narrow: no directory/event-promotion browsing UI here at
+  // all. This subscriber submits what they want advertised and later sees
+  // a read-only report of what happened -- platform, run count, reach.
+  // The actual design/production work stays admin-only ad-platform tooling.
+  if (activeTab === 'advertising') {
+    const categoryLabels: Record<AdvertisementCategory, string> = {
+      business: 'Business', event: 'Event', goods: 'Goods', service: 'Service',
+    };
+    const statusColor: Record<string, string> = {
+      submitted: 'bg-blue-100 text-blue-800',
+      in_production: 'bg-amber-100 text-amber-800',
+      live: 'bg-emerald-100 text-emerald-800',
+      completed: 'bg-slate-200 text-slate-600',
+      cancelled: 'bg-red-100 text-red-700',
+    };
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg">My Adverts</h3>
+          <p className="text-xs text-slate-500 mt-1">Submit what you'd like advertised — our team designs, builds and runs it on social media. Below is a read-only report of what's happened with each request.</p>
+        </div>
+
+        {advertisementFeedback && (
+          <div className={`text-sm p-4 rounded-xl font-semibold ${advertisementFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {advertisementFeedback}
+          </div>
+        )}
+
+        {advertisementsLoading ? (
+          <p className="text-xs text-slate-400">Loading…</p>
+        ) : !canAdvertise ? (
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center">
+            <p className="text-sm text-slate-600">Advertising is available on the Business plan and above.</p>
+            <button onClick={() => setActiveTab('billing')} className="btn-geometric mt-4 cursor-pointer">View Plans</button>
+          </div>
+        ) : (
+          <>
+            <form onSubmit={handleSubmitAdvertisement} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">What are you advertising?</label>
+                <select value={adCategory} onChange={(e) => setAdCategory(e.target.value as AdvertisementCategory)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
+                  {Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Subject</label>
+                <input required value={adSubject} onChange={(e) => setAdSubject(e.target.value)} placeholder="e.g. Grand opening of our Freetown showroom"
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Describe what you need advertised</label>
+                <textarea required rows={3} value={adDescription} onChange={(e) => setAdDescription(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <button type="submit" disabled={adSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
+                {adSubmitting ? 'Submitting…' : 'Submit Request'}
+              </button>
+            </form>
+
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Requests</h4>
+              {myAdvertisements.length === 0 ? (
+                <p className="text-xs text-slate-400">No requests yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {myAdvertisements.map((ad) => (
+                    <div key={ad.id} className="border border-slate-100 rounded-xl p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <span className="font-semibold text-slate-800 text-sm block">{ad.subject}</span>
+                          <span className="text-xs text-slate-500">{categoryLabels[ad.category]} · {new Date(ad.createdAt).toLocaleDateString('en-GB')}</span>
+                        </div>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${statusColor[ad.status] ?? 'bg-slate-100 text-slate-600'}`}>{ad.status.replace('_', ' ')}</span>
+                      </div>
+                      {(ad.platform || ad.reachCount !== null || ad.runCount !== null) && (
+                        <div className="mt-3 pt-3 border-t border-slate-50 grid grid-cols-3 gap-3 text-center">
+                          <div>
+                            <span className="text-[9px] text-slate-400 uppercase font-bold block">Platform</span>
+                            <span className="text-xs font-semibold text-slate-700">{ad.platform || '—'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] text-slate-400 uppercase font-bold block">Reach</span>
+                            <span className="text-xs font-semibold text-slate-700">{ad.reachCount !== null ? ad.reachCount.toLocaleString() : '—'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] text-slate-400 uppercase font-bold block">Times Run</span>
+                            <span className="text-xs font-semibold text-slate-700">{ad.runCount !== null ? ad.runCount.toLocaleString() : '—'}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ADMIN ADVERTISING FULFILLMENT QUEUE
+  if (activeTab === 'admin-advertising') {
+    if (!isPlatformAdmin) {
+      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
+    }
+    const categoryLabels: Record<string, string> = { business: 'Business', event: 'Event', goods: 'Goods', service: 'Service' };
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Landmark className="h-5 w-5 text-emerald-600" /> Advertising Requests
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Fulfillment queue for subscriber advert requests — update status and report reach/run data once the advert is live.</p>
+        </div>
+
+        {advertisementFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{advertisementFeedback}</div>}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {advertisementsLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : allAdvertisements.length === 0 ? (
+            <p className="text-xs text-slate-400">No advertising requests yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {allAdvertisements.map((ad) => (
+                <div key={ad.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4 className="font-semibold text-slate-800 text-sm">{ad.subject} — {ad.orgName}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">{categoryLabels[ad.category]}: {ad.description}</p>
+                    </div>
+                    <select value={ad.status} onChange={(e) => handleUpdateAdvertisement(ad.id, { status: e.target.value as AdvertisementRequest['status'] })}
+                      className="text-xs border border-slate-200 rounded-lg p-1 bg-white shrink-0">
+                      <option value="submitted">Submitted</option>
+                      <option value="in_production">In Production</option>
+                      <option value="live">Live</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4 mt-3">
+                    <button
+                      onClick={() => {
+                        const platform = prompt('Platform(s) the advert ran on:', ad.platform ?? '');
+                        if (platform === null) return;
+                        handleUpdateAdvertisement(ad.id, { platform });
+                      }}
+                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
+                    >
+                      Platform: {ad.platform || 'Set'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const reachStr = prompt('Reach (number of people reached):', ad.reachCount?.toString() ?? '');
+                        if (reachStr === null) return;
+                        handleUpdateAdvertisement(ad.id, { reachCount: Number(reachStr) || 0 });
+                      }}
+                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
+                    >
+                      Reach: {ad.reachCount !== null ? ad.reachCount.toLocaleString() : 'Set'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const runStr = prompt('Number of times the advert was run:', ad.runCount?.toString() ?? '');
+                        if (runStr === null) return;
+                        handleUpdateAdvertisement(ad.id, { runCount: Number(runStr) || 0 });
+                      }}
+                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
+                    >
+                      Times Run: {ad.runCount !== null ? ad.runCount.toLocaleString() : 'Set'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

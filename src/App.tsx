@@ -19,7 +19,7 @@ import { TenderSearchPage } from './components/TenderSearchPage';
 import { TenderDetailPage } from './components/TenderDetailPage';
 import { supabase } from './lib/supabaseClient';
 import { fetchMyOrganization, fetchOrgBundle, fetchDirectoryProfiles, fetchInfluencerProfiles, fetchMyPlatformRole } from './lib/api';
-import { fetchMyNotifications, markNotificationRead, AppNotification } from './lib/procurementApi';
+import { fetchMyNotifications, markNotificationRead, AppNotification, hasFeature } from './lib/procurementApi';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
 
 type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
@@ -50,6 +50,7 @@ function MainApp() {
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [canAdvertise, setCanAdvertise] = useState(false);
 
   // --- DASHBOARD NAVIGATION STATES ---
   const [activeTab, setActiveTab] = useState('overview');
@@ -66,6 +67,7 @@ function MainApp() {
       setDirectoryProfiles([]);
       setInfluencerProfiles([]);
       setIsPlatformAdmin(false);
+      setCanAdvertise(false);
       setWorkspaceLoading(false);
       setView((v) => (v === 'dashboard' || v === 'onboarding' ? 'landing' : v));
       return;
@@ -79,11 +81,12 @@ function MainApp() {
         setView('onboarding');
         return;
       }
-      const [bundle, directory, influencers, platformRole] = await Promise.all([
+      const [bundle, directory, influencers, platformRole, advertisingEntitled] = await Promise.all([
         fetchOrgBundle(org.id),
         fetchDirectoryProfiles(),
         fetchInfluencerProfiles(),
         fetchMyPlatformRole(),
+        hasFeature(org.id, 'business_advertising').catch(() => false),
       ]);
       setActiveOrg(bundle.organization);
       setBrandKit(bundle.brandKit);
@@ -94,6 +97,7 @@ function MainApp() {
       setDirectoryProfiles(directory);
       setInfluencerProfiles(influencers);
       setIsPlatformAdmin(platformRole === 'admin');
+      setCanAdvertise(advertisingEntitled);
       setView('dashboard');
     } catch (err: any) {
       setWorkspaceError(err.message || 'Failed to load your workspace from the server.');
@@ -191,6 +195,16 @@ function MainApp() {
         { id: 'services', label: 'Support Services', icon: UserCheck },
       ]
     },
+    // Advertiser-tier subscribers only -- hidden entirely (not shown-then-
+    // blocked) unless the org's org has the business_advertising
+    // entitlement. No directory/event-promotion browsing tools here, just
+    // the submission form + read-only fulfillment report.
+    ...(!isPlatformAdmin && canAdvertise ? [{
+      group: "Advertising",
+      items: [
+        { id: 'advertising', label: 'My Adverts', icon: Sparkles },
+      ]
+    }] : []),
     ...(isPlatformAdmin ? [{
       group: "Discovery",
       adminOnly: true,
@@ -224,6 +238,7 @@ function MainApp() {
         { id: 'admin-verification', label: 'Verification Requests', icon: ShieldAlert },
         { id: 'admin-subscriptions', label: 'Subscription Requests', icon: CreditCard },
         { id: 'admin-services', label: 'Service Requests', icon: UserCheck },
+        { id: 'admin-advertising', label: 'Advertising Requests', icon: Sparkles },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
         { id: 'admin', label: 'Super Admin Desk', icon: Shield },
       ]
