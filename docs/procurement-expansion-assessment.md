@@ -662,17 +662,55 @@ tables, not just the features that obviously belong to that domain — `fetchOrg
 "ad-platform feature," it was universal workspace-loading plumbing that happened to also fetch
 ad-platform data unconditionally for every user.
 
-## 16. Where this leaves the platform
+## 16. Closing the §14 follow-ups: Overview and Tenders tabs are now tier-aware (2026-07-22)
+
+§14 restricted the ad-platform to admins at the RLS/backend level but explicitly flagged two UI gaps as
+not-yet-done: the Overview tab still showed 100% ad-platform content to every org, and the Tenders tab
+showed the "Enable Buyer Mode" publish CTA to every non-buyer org regardless of subscription tier. Direct
+product-owner feedback after the first non-admin click-through confirmed both needed fixing — a Viewer
+subscriber (detail access + alerts, no publishing) should never see tender *publishing* tools in their
+dashboard at all, not just have them disabled.
+
+**Overview tab**: now branches on `isPlatformAdmin`. Admins keep the original ad-platform stats view
+unchanged. Everyone else gets a procurement-relevant overview: subscription tier badge (Free/Viewer/
+Publisher, derived from the same `tender_publishing`/`tender_alerts_and_details` plan features §14
+introduced), saved-search count, pipeline count, quick links to Tenders/Pipeline/Supplier Profile, and a
+subscribe upsell for Free-tier orgs. Real counts, not placeholder numbers — pulled from
+`fetchPipeline()`/`fetchSavedSearches()`, both already existing from earlier phases.
+
+**Tenders tab**: now branches three ways instead of the old binary `isBuyer` check:
+- **Publisher** (`tender_publishing` entitled, or already `is_buyer`): unchanged — buyer publish form
+  and "Your Tenders" management.
+- **Viewer** (`tender_alerts_and_details` only): a saved-searches/alerts panel (reusing the same
+  `fetchSavedSearches`/`deleteSavedSearch` the public search page already uses) plus a link to browse
+  tenders — **no publish UI rendered at all**, not shown-then-blocked.
+- **Free/no subscription**: a subscribe upsell, no tender tooling.
+
+`setActiveTab` had to be threaded into `Workspaces` as a new prop (wasn't previously passed down — the
+component only ever received `activeTab` read-only) so the new Overview quick-links could actually
+navigate.
+
+**Deliberately not attempted this pass**: real email/WhatsApp alert delivery. The product owner asked
+for this directly ("receives alert via emails/WhatsApp etc"), and it's a genuine gap — Phase 4's alert
+pipeline only ever created in-app notification rows, explicitly because no email/SMS provider was
+configured. This needs the owner to choose and provide credentials for a real provider (e.g. Resend/
+Postmark/SES for email, Twilio or the WhatsApp Business API for WhatsApp) before it can be built for
+real — same reasoning as not fabricating Cloudflare/Gemini credentials earlier in this session.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean.
+
+## 17. Where this leaves the platform
 
 Seven phases plus a Regional Expansion slice are implemented against the real schema with RLS as the
 actual security boundary. §11-§14 closed document upload, automated reminders, and — the largest change
 — repositioned the whole product: tenders are now the subscriber-facing product with a real
 teaser/paywall boundary, and the original ad-platform is internal-only. §15 fixed a real regression that
-lockdown introduced (onboarding crash for non-admins) — a reminder that every phase in this build gets
-verified against the real schema precisely because read-through alone misses this class of bug. What's
-left per the original spec: further Phase 7 depth, document *extraction*, the remaining
-deliberately-deferred items (outbound email, API-key management, researcher ingestion tooling,
-admin-entered/website-ingested tenders), and the follow-ups flagged in §14 (Overview tab content,
-pricing page copy). A live click-through of the full tender lifecycle (buyer publish → admin review →
-public listing → subscriber detail view) as real non-admin accounts is still outstanding — that's the
-next thing in progress. Say the word on anything else when you're ready.
+lockdown introduced (onboarding crash for non-admins). §16 closed the remaining UI gaps from §14 (Overview
+and Tenders tabs are now genuinely tier-aware, not just backend-gated). What's left per the original
+spec: further Phase 7 depth, document *extraction*, real outbound email/WhatsApp alert delivery (needs
+provider credentials from the owner), the remaining deliberately-deferred items (API-key management,
+researcher ingestion tooling, admin-entered/website-ingested tenders), and pricing page copy (still
+describes the old ad-platform-oriented tiers, not Viewer/Publisher). A live click-through of the full
+tender lifecycle (buyer publish → admin review → public listing → subscriber detail view) as real
+non-admin accounts is still outstanding — that's the next thing in progress. Say the word on anything
+else when you're ready.

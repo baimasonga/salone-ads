@@ -248,6 +248,7 @@ function MainApp() {
     >
       <Workspaces
         activeTab={activeTab}
+        setActiveTab={setActiveTab}
         activeOrg={activeOrg}
         isPlatformAdmin={isPlatformAdmin}
         campaigns={campaigns}

@@ -5,7 +5,7 @@ import {
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
-  FileSearch, ExternalLink, Sparkle, Trophy, Landmark
+  FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X
 } from 'lucide-react';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from '../types';
 import {
@@ -91,6 +91,9 @@ import {
   fetchRecommendedOpportunities,
   fetchAdminAnalytics,
   hasFeature,
+  fetchSavedSearches,
+  deleteSavedSearch,
+  SavedSearch,
   aiSuggestSector,
   PipelineRecord,
   PipelineStage,
@@ -100,6 +103,7 @@ import { supabase } from '../lib/supabaseClient';
 
 interface WorkspacesProps {
   activeTab: string;
+  setActiveTab: (tab: string) => void;
   activeOrg: Organization;
   isPlatformAdmin: boolean;
   campaigns: Campaign[];
@@ -119,6 +123,7 @@ interface WorkspacesProps {
 
 export function Workspaces({
   activeTab,
+  setActiveTab,
   activeOrg,
   isPlatformAdmin,
   campaigns,
@@ -488,6 +493,30 @@ export function Workspaces({
   const [tenderContact, setTenderContact] = useState('');
   const [tenderSubmitting, setTenderSubmitting] = useState(false);
   const [suggestingSector, setSuggestingSector] = useState(false);
+  const [canPublishTenders, setCanPublishTenders] = useState(false);
+  const [canViewTenderDetails, setCanViewTenderDetails] = useState(false);
+  const [viewerSavedSearches, setViewerSavedSearches] = useState<SavedSearch[]>([]);
+
+  // --- Non-admin Overview States ---
+  const [overviewTier, setOverviewTier] = useState<'Free' | 'Viewer' | 'Publisher' | null>(null);
+  const [overviewPipelineCount, setOverviewPipelineCount] = useState(0);
+  const [overviewSavedSearchCount, setOverviewSavedSearchCount] = useState(0);
+
+  useEffect(() => {
+    if (activeTab !== 'overview' || isPlatformAdmin) return;
+    Promise.all([
+      hasFeature(activeOrg.id, 'tender_publishing'),
+      hasFeature(activeOrg.id, 'tender_alerts_and_details'),
+      fetchPipeline(activeOrg.id).catch(() => []),
+      fetchSavedSearches().catch(() => []),
+    ])
+      .then(([canPublish, canView, pipeline, savedSearches]) => {
+        setOverviewTier(canPublish ? 'Publisher' : canView ? 'Viewer' : 'Free');
+        setOverviewPipelineCount(pipeline.length);
+        setOverviewSavedSearchCount(savedSearches.length);
+      })
+      .catch(() => {});
+  }, [activeTab, activeOrg.id, isPlatformAdmin]);
 
   const handleSuggestSector = async () => {
     if (!tenderTitle.trim()) {
@@ -522,18 +551,34 @@ export function Workspaces({
       fetchCountries(),
       fetchCurrencies(),
       fetchOpportunityTypes(),
+      hasFeature(activeOrg.id, 'tender_publishing'),
+      hasFeature(activeOrg.id, 'tender_alerts_and_details'),
+      fetchSavedSearches().catch(() => []),
     ])
-      .then(([opps, sectors, countries, currencies, types]) => {
+      .then(([opps, sectors, countries, currencies, types, canPublish, canView, savedSearches]) => {
         setMyOpportunities(opps);
         setTenderSectors(sectors);
         setTenderCountries(countries);
         setTenderCurrencies(currencies);
         setTenderTypes(types);
+        setCanPublishTenders(canPublish);
+        setCanViewTenderDetails(canView);
+        setViewerSavedSearches(savedSearches);
         if (countries.length > 0) setTenderCountryId((prev) => prev || countries[0].id);
       })
       .catch((err: any) => setTendersFeedback(`Error: ${err.message || 'Could not load tenders.'}`))
       .finally(() => setTendersLoading(false));
   }, [activeTab, activeOrg.id]);
+
+  const handleDeleteViewerSavedSearch = async (id: string) => {
+    const previous = viewerSavedSearches;
+    setViewerSavedSearches(viewerSavedSearches.filter((s) => s.id !== id));
+    try {
+      await deleteSavedSearch(id);
+    } catch {
+      setViewerSavedSearches(previous);
+    }
+  };
 
   useEffect(() => {
     if (!tenderCountryId) return;
@@ -1137,6 +1182,80 @@ export function Workspaces({
   // --- WORKSPACE RENDERING ---
 
   // 1. OVERVIEW WORKSPACE
+  if (activeTab === 'overview' && !isPlatformAdmin) {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="flex justify-between items-center bg-emerald-50/50 border border-emerald-100/50 p-6 rounded-2xl">
+          <div>
+            <h2 className="font-display font-bold text-xl text-emerald-950">Welcome back!</h2>
+            <p className="text-sm text-slate-500 mt-0.5">Here's the procurement activity for {activeOrg.name}.</p>
+          </div>
+          {overviewTier && (
+            <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full ${
+              overviewTier === 'Publisher' ? 'bg-emerald-100 text-emerald-800' :
+              overviewTier === 'Viewer' ? 'bg-blue-100 text-blue-800' :
+              'bg-slate-100 text-slate-600'
+            }`}>
+              {overviewTier} Plan
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
+            <span className="text-slate-400 font-semibold text-xs block">SAVED SEARCHES & ALERTS</span>
+            <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{overviewSavedSearchCount}</span>
+          </div>
+          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
+            <span className="text-slate-400 font-semibold text-xs block">TENDERS IN PIPELINE</span>
+            <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{overviewPipelineCount}</span>
+          </div>
+          {overviewTier === 'Publisher' && (
+            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
+              <span className="text-slate-400 font-semibold text-xs block">TENDERS PUBLISHED</span>
+              <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{myOpportunities.length}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Quick Links</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button onClick={() => setActiveTab('tenders')} className="text-left bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-xl p-4 transition-colors cursor-pointer">
+              <FileSearch className="h-4 w-4 text-emerald-600 mb-2" />
+              <span className="font-semibold text-slate-800 text-sm block">Tenders</span>
+              <span className="text-xs text-slate-500">{overviewTier === 'Publisher' ? 'Publish & manage' : 'Alerts & saved searches'}</span>
+            </button>
+            <button onClick={() => setActiveTab('pipeline')} className="text-left bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-xl p-4 transition-colors cursor-pointer">
+              <BarChart2 className="h-4 w-4 text-emerald-600 mb-2" />
+              <span className="font-semibold text-slate-800 text-sm block">My Pipeline</span>
+              <span className="text-xs text-slate-500">Track opportunities you're bidding on</span>
+            </button>
+            <button onClick={() => setActiveTab('supplier-profile')} className="text-left bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-xl p-4 transition-colors cursor-pointer">
+              <Award className="h-4 w-4 text-emerald-600 mb-2" />
+              <span className="font-semibold text-slate-800 text-sm block">Supplier Profile</span>
+              <span className="text-xs text-slate-500">Get verified to build trust with buyers</span>
+            </button>
+          </div>
+        </div>
+
+        {overviewTier === 'Free' && (
+          <div className="bg-[#0F172A] text-white p-6 text-center space-y-3 rounded-2xl">
+            <h3 className="font-display font-bold text-sm uppercase">Subscribe for full tender access</h3>
+            <p className="text-sm text-slate-300 max-w-md mx-auto">
+              Viewer plans unlock full tender details and alerts. Publisher plans add the ability to post your own
+              tenders.
+            </p>
+            <Link to="/#pricing" target="_blank" className="inline-block bg-emerald-500 hover:bg-emerald-400 text-[#0F172A] font-semibold px-6 py-2.5 text-sm rounded-xl">
+              View subscription plans
+            </Link>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 1b. OVERVIEW WORKSPACE (platform admins — ad-platform stats)
   if (activeTab === 'overview') {
     return (
       <div className="space-y-8 text-left">
@@ -1234,7 +1353,13 @@ export function Workspaces({
               View public listings <ExternalLink className="h-3 w-3" />
             </Link>
           </div>
-          <p className="text-xs text-slate-500">Publish tender notices for {activeOrg.name} and manage your published opportunities.</p>
+          <p className="text-xs text-slate-500">
+            {activeOrg.isBuyer || canPublishTenders
+              ? `Publish tender notices for ${activeOrg.name} and manage your published opportunities.`
+              : canViewTenderDetails
+              ? 'View full tender details and manage the alerts you receive for matching opportunities.'
+              : 'Subscribe to view full tender details and get alerts — or upgrade to Publisher to post your own.'}
+          </p>
         </div>
 
         {tendersFeedback && (
@@ -1243,10 +1368,10 @@ export function Workspaces({
           </div>
         )}
 
-        {!activeOrg.isBuyer ? (
+        {!activeOrg.isBuyer && canPublishTenders ? (
           <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center space-y-4">
             <p className="text-sm text-slate-600">
-              To publish tenders, enable Buyer Mode for {activeOrg.name}. This lets your organization post procurement
+              Your plan includes tender publishing. Enable Buyer Mode for {activeOrg.name} to post procurement
               notices that are publicly searchable at /tenders.
             </p>
             <button
@@ -1256,6 +1381,45 @@ export function Workspaces({
             >
               {enablingBuyer ? 'Enabling…' : 'Enable Buyer Mode'}
             </button>
+          </div>
+        ) : !activeOrg.isBuyer && canViewTenderDetails ? (
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-display font-bold text-slate-900 text-sm">Your Saved Searches & Alerts</h4>
+              <Link to="/tenders" target="_blank" className="text-xs font-semibold text-emerald-600 hover:underline flex items-center gap-1">
+                Browse tenders <ExternalLink className="h-3 w-3" />
+              </Link>
+            </div>
+            {viewerSavedSearches.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No saved searches yet. Browse public tenders and use "Save this search &amp; get alerts" to start
+                receiving notifications for matching opportunities.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {viewerSavedSearches.map((s) => (
+                  <span key={s.id} className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 text-xs px-3 py-1.5 rounded-lg">
+                    {s.name}
+                    <button onClick={() => handleDeleteViewerSavedSearch(s.id)} className="text-slate-400 hover:text-red-600 cursor-pointer">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
+              Want to publish your own tenders? Upgrade to a Publisher plan from Billing Invoices.
+            </p>
+          </div>
+        ) : !activeOrg.isBuyer ? (
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center space-y-4">
+            <p className="text-sm text-slate-600">
+              Subscribe to a Viewer or Publisher plan to see full tender details and receive alerts for matching
+              opportunities — or Publisher to publish your own tenders.
+            </p>
+            <Link to="/#pricing" target="_blank" className="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all">
+              View subscription plans
+            </Link>
           </div>
         ) : (
           <>
