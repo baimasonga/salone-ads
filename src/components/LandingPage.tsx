@@ -4,7 +4,7 @@ import {
   ArrowRight, ArrowUpRight, CheckCircle, Sparkles, Bell, FileSearch, ClipboardCheck, Megaphone,
   Search, KeyRound, Send, MapPin, Calendar, Menu, X, Wheat, HardHat, Mountain, Wifi, Landmark,
   HeartPulse, GraduationCap, Palmtree, Zap, Truck, Briefcase, HandHeart, Building2, ChevronDown,
-  Mail, MessageCircle,
+  Mail, MessageCircle, FileCheck2, ClipboardList,
 } from 'lucide-react';
 import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, OpportunityListItem, TaxonomyOption } from '../lib/procurementApi';
 
@@ -182,17 +182,37 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           className="absolute inset-0 opacity-[0.07] pointer-events-none"
           style={{ backgroundImage: 'repeating-linear-gradient(45deg, #10B981 0, #10B981 1px, transparent 1px, transparent 24px)' }}
         />
-        <div className="relative max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        {/* Oversized watermark icon — tendering, quiet texture behind the copy */}
+        <ClipboardList className="hidden lg:block absolute -right-10 -bottom-14 h-64 w-64 text-white/[0.04] pointer-events-none rotate-6" />
+
+        <div className="relative max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-8">
           <div className="flex flex-col gap-3">
             <div className="inline-flex items-center gap-2 border border-white/30 text-[10px] font-mono uppercase tracking-widest px-3 py-1.5 w-fit">
               <Sparkles className="h-3.5 w-3.5 text-[#10B981]" /> Sierra Leone + Liberia
             </div>
-            <h1 className="font-display font-extrabold text-2xl sm:text-3xl lg:text-4xl tracking-tight uppercase max-w-2xl">
+            <h1 className="font-display font-extrabold text-2xl sm:text-3xl lg:text-4xl tracking-tight uppercase max-w-2xl !text-white">
               Procurement opportunities across West Africa
             </h1>
             <p className="text-sm sm:text-base text-slate-300 max-w-xl leading-relaxed">
               Browse published tenders for free, subscribe for full details and real-time alerts, or publish your own as a verified buyer.
             </p>
+
+            {/* Icon cluster — tendering + advertising, our own visual language, not stock photography */}
+            <div className="flex items-center gap-3 sm:gap-4 mt-2">
+              {[
+                { icon: FileCheck2, label: 'Tenders' },
+                { icon: Search, label: 'Search' },
+                { icon: Megaphone, label: 'Adverts' },
+                { icon: Bell, label: 'Alerts' },
+              ].map(({ icon: Icon, label }) => (
+                <div key={label} className="flex flex-col items-center gap-1.5">
+                  <div className="h-10 w-10 sm:h-11 sm:w-11 border border-white/30 bg-white/5 flex items-center justify-center">
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-[#10B981]" />
+                  </div>
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-slate-400">{label}</span>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-6 sm:gap-8 font-mono shrink-0 border-t md:border-t-0 md:border-l border-white/20 pt-6 md:pt-0 md:pl-8">
             <div>

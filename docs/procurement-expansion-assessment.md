@@ -923,4 +923,31 @@ this commit. A faint diagonal artifact in the banner screenshot was double-check
 confirmed to be a downscaling/moiré artifact of the repeating-gradient background, not real content
 bleeding through.
 
+## 24. Banner graphics + a real invisible-headline bug found by actually rendering it (2026-07-22)
+
+Product owner request after seeing the deployed §23 banner live (confirmed real data: 12 sectors/31
+districts/2 countries matching the database): add graphics relating to tendering and advertising to the
+banner. Added an icon cluster (Tenders/Search/Adverts/Alerts, four bordered emerald-on-navy tiles using the
+existing icon-in-box visual language — no stock photography, consistent with §21's decision not to
+fabricate imagery) plus a large, very low-opacity `ClipboardList` watermark icon in the banner's corner for
+quiet texture.
+
+**Real bug found while rendering this, not by reading code**: the banner headline
+("Procurement Opportunities Across West Africa") was completely invisible — navy text on the navy banner
+background. Root cause: `index.css` has a blanket `h1, h2, h3, h4 { color: #0F172A !important; }` rule.
+Every other heading in the app happens to already use Tailwind's `text-slate-900`, whose hex
+(`#0f172a`) is *identical* to that forced navy — so the override has been silently harmless everywhere
+else in the product. This banner was the first heading ever placed on a dark background wanting white
+text, which is exactly what exposed it. Fixed with Tailwind's important-modifier (`!text-white`), which
+compiles to a class-selector `!important` rule that beats the element-selector `!important` rule on
+specificity. Caught only because the icon-cluster verification screenshot was taken and actually looked at
+— a pure code read-through would never have surfaced this, since the JSX itself looked completely correct
+(`text-white` on the parent section, headline with no conflicting class).
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Screenshotted before and after the fix at the
+banner region specifically (not just a full-page shot) to confirm the headline is now visible white text.
+No mock data needed this time — the icon cluster, watermark, and headline don't depend on tender/sector
+data, so the real (sandbox-blocked) fetch code was rendered as-is, showing honest "—" placeholders for the
+sector/district counts exactly as a real empty response would.
+
 Say the word on anything else when you're ready.
