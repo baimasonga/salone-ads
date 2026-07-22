@@ -264,8 +264,14 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       </section>
 
       {/* Three action cards — Find / Alerts / Subscribe */}
-      <section className="px-6 py-8 bg-white border-b border-slate-100">
-        <div className="max-w-7xl mx-auto grid sm:grid-cols-3 gap-px bg-slate-200 border border-slate-200">
+      <section className="relative px-6 py-10 bg-gradient-to-b from-emerald-50/50 via-white to-white border-b border-slate-100 overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-[0.05] pointer-events-none"
+          style={{ backgroundImage: 'repeating-linear-gradient(45deg, #10B981 0, #10B981 1px, transparent 1px, transparent 24px)' }}
+        />
+        <div className="relative max-w-7xl mx-auto flex flex-col gap-5">
+          <span className="text-emerald-600 font-bold tracking-wider text-xs uppercase font-mono">Quick Actions</span>
+          <div className="grid sm:grid-cols-3 gap-px bg-slate-200 border border-slate-200">
           {[
             { icon: Search, title: 'Find Tenders', body: 'In your sector and district.', linkLabel: 'Advanced search', to: '/tenders' },
             { icon: Bell, title: 'Get Alerts', body: 'Tailored to your saved searches.', linkLabel: 'Add alerts', action: onGetStarted },
@@ -290,6 +296,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               <button key={card.title} onClick={card.action} className="bg-white hover:bg-slate-50 p-6 flex flex-col items-start transition-colors text-left cursor-pointer">{content}</button>
             );
           })}
+          </div>
         </div>
       </section>
 

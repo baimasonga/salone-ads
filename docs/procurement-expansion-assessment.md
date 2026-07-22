@@ -964,4 +964,16 @@ from §24). Hidden below `md` so the mobile layout stays clean (confirmed via a 
 the illustration renders correctly, right colors, no overlap with the stat trio) and mobile width (confirms
 it's properly hidden and nothing overflows).
 
+## 26. Filled in the flat white background behind the action-cards row (2026-07-22)
+
+Direct feedback on the plain white background behind the Find Tenders/Get Alerts/Subscribe row — it had no
+texture and no heading, unlike every other section on the page. Gave it a soft emerald-tinted gradient
+fade (`from-emerald-50/50 via-white to-white`) plus the same faint diagonal-stripe texture used in the
+banner, for visual consistency rather than introducing a new pattern. Also added a small "Quick Actions"
+eyebrow label above the cards, since this was the one section on the page with no heading at all.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Screenshotted the section directly to confirm
+the gradient/texture render correctly and the JSX nesting (an extra wrapping div was needed for the eyebrow
+label) didn't break the card grid layout.
+
 Say the word on anything else when you're ready.
