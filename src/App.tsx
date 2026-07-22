@@ -9,7 +9,8 @@ import type { Session } from '@supabase/supabase-js';
 import {
   BarChart2, Calendar, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
-  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, ShieldAlert, Loader2, FileSearch, Bell
+  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, ShieldAlert, Loader2, FileSearch, Bell,
+  ChevronDown, ChevronRight
 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
 import { AuthScreens } from './components/AuthScreens';
@@ -200,7 +201,8 @@ function MainApp() {
       ]
     },
     ...(isPlatformAdmin ? [{
-      group: "Social Media Advertising (Internal)",
+      group: "Social Media Advertising",
+      adminOnly: true,
       items: [
         { id: 'campaigns', label: 'Campaigns', icon: Compass },
         { id: 'content', label: 'Content Studio', icon: Sparkles },
@@ -215,6 +217,7 @@ function MainApp() {
     }] : []),
     ...(isPlatformAdmin ? [{
       group: "Platform Admin",
+      adminOnly: true,
       items: [
         { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
         { id: 'admin-verification', label: 'Verification Requests', icon: ShieldAlert },
@@ -276,12 +279,78 @@ interface DashboardShellProps {
   setActiveTab: (tab: string) => void;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  navGroups: { group: string; items: { id: string; label: string; icon: any }[] }[];
+  navGroups: { group: string; adminOnly?: boolean; items: { id: string; label: string; icon: any }[] }[];
   onLogout: () => void;
   children: React.ReactNode;
 }
 
+type NavGroup = DashboardShellProps['navGroups'][number];
+
+function computeItemNumOffset(groupIndex: number, groups: NavGroup[]): number {
+  let count = 0;
+  for (let i = 0; i < groupIndex; i++) count += groups[i].items.length;
+  return count;
+}
+
+function NavGroupBlock({
+  group,
+  itemNumOffset,
+  activeTab,
+  onSelect,
+  accent = 'default',
+}: {
+  group: NavGroup;
+  itemNumOffset: number;
+  activeTab: string;
+  onSelect: (id: string) => void;
+  accent?: 'default' | 'amber';
+}) {
+  const labelColor = accent === 'amber' ? 'text-amber-600' : 'text-slate-400';
+  const activeClasses = accent === 'amber' ? 'bg-amber-700 text-white' : 'bg-[#0F172A] text-white';
+  const idleClasses = accent === 'amber' ? 'text-amber-900 hover:bg-amber-50' : 'text-[#0F172A] hover:bg-slate-200';
+
+  return (
+    <div className="space-y-2">
+      <span className={`text-[10px] font-bold uppercase tracking-[0.3em] block px-2 ${labelColor}`}>
+        {group.group}
+      </span>
+      <div className="space-y-1">
+        {group.items.map((item, itemIdx) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          const itemNum = String(itemNumOffset + itemIdx + 1).padStart(2, '0');
+          return (
+            <button
+              key={item.id}
+              onClick={() => onSelect(item.id)}
+              className={`w-full flex items-center justify-between px-3 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                isActive ? activeClasses : idleClasses
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span>{item.label}</span>
+              </div>
+              <span className="text-[9px] opacity-60 font-mono">{itemNum}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSidebarOpen, navGroups, onLogout, children }: DashboardShellProps) {
+  const orgNavGroups = navGroups.filter((g) => !g.adminOnly);
+  const adminNavGroups = navGroups.filter((g) => g.adminOnly);
+
+  // Collapsed by default — auto-expand once if the active tab happens to
+  // already be inside it (e.g. reloading while on an admin tab), then leave
+  // it under the user's control from then on.
+  const [adminSectionOpen, setAdminSectionOpen] = useState(
+    () => adminNavGroups.some((g) => g.items.some((item) => item.id === activeTab))
+  );
+
   // Track current time formatted for Greenwich Mean Time / Freetown Time
   const [timeStr, setTimeStr] = useState('');
   useEffect(() => {
@@ -370,50 +439,59 @@ function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSi
             <span className="text-[10px] text-slate-600 font-mono mt-1 block">PLAN: Trial Tier</span>
           </div>
 
-          {/* Navigation Items Grouped */}
+          {/* Navigation Items Grouped — everyday workspace groups first, then
+              a clearly separated, collapsed-by-default "Admin Tools" zone.
+              Two zones instead of one flat list because admins otherwise see
+              ~26 equal-weight items with no cue that half of them are
+              internal-only tooling, not their daily procurement work. */}
           <nav className="space-y-5 text-left">
-            {navGroups.map((group, gIdx) => {
-              // Calculate index starts for neat numbering
-              let prevCount = 0;
-              for (let i = 0; i < gIdx; i++) {
-                prevCount += navGroups[i].items.length;
-              }
+            {orgNavGroups.map((group, gIdx) => (
+              <NavGroupBlock
+                key={gIdx}
+                group={group}
+                itemNumOffset={computeItemNumOffset(gIdx, orgNavGroups)}
+                activeTab={activeTab}
+                onSelect={(id) => {
+                  setActiveTab(id);
+                  setSidebarOpen(false);
+                }}
+              />
+            ))}
 
-              return (
-                <div key={gIdx} className="space-y-2">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] block px-2">
-                    {group.group}
+            {adminNavGroups.length > 0 && (
+              <div className="pt-4 border-t border-dashed border-amber-300">
+                <button
+                  onClick={() => setAdminSectionOpen((open) => !open)}
+                  className="w-full flex items-center justify-between px-2 py-1 cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5 text-[10px] text-amber-700 font-bold uppercase tracking-[0.3em]">
+                    <Shield className="h-3 w-3" /> Admin Tools
                   </span>
-                  <div className="space-y-1">
-                    {group.items.map((item, itemIdx) => {
-                      const Icon = item.icon;
-                      const isActive = activeTab === item.id;
-                      const itemNum = String(prevCount + itemIdx + 1).padStart(2, '0');
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            setActiveTab(item.id);
-                            setSidebarOpen(false);
-                          }}
-                          className={`w-full flex items-center justify-between px-3 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                            isActive
-                              ? 'bg-[#0F172A] text-white'
-                              : 'text-[#0F172A] hover:bg-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Icon className="h-3.5 w-3.5 shrink-0" />
-                            <span>{item.label}</span>
-                          </div>
-                          <span className="text-[9px] opacity-60 font-mono">{itemNum}</span>
-                        </button>
-                      );
-                    })}
+                  {adminSectionOpen ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-amber-600" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-amber-600" />
+                  )}
+                </button>
+                {adminSectionOpen && (
+                  <div className="space-y-5 mt-3">
+                    {adminNavGroups.map((group, gIdx) => (
+                      <NavGroupBlock
+                        key={gIdx}
+                        group={group}
+                        itemNumOffset={computeItemNumOffset(gIdx, adminNavGroups)}
+                        activeTab={activeTab}
+                        accent="amber"
+                        onSelect={(id) => {
+                          setActiveTab(id);
+                          setSidebarOpen(false);
+                        }}
+                      />
+                    ))}
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            )}
           </nav>
         </div>
 
