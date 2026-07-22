@@ -109,3 +109,13 @@ export interface SocialConnection {
   status: 'Connected' | 'Sandbox' | 'Expired' | 'Not Configured';
   connectionHealth: 'Healthy' | 'Warning' | 'Disconnected' | 'None';
 }
+
+export interface MediaAsset {
+  id: string;
+  folder: string;
+  fileName: string;
+  storagePath: string;
+  fileSize: number | null;
+  mimeType: string | null;
+  createdAt: string;
+}

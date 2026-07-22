@@ -5,9 +5,9 @@ import {
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
-  FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X
+  FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X, Image as ImageIcon
 } from 'lucide-react';
-import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from '../types';
+import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset } from '../types';
 import {
   createCampaign,
   createContentItem,
@@ -16,6 +16,10 @@ import {
   claimDirectoryListing,
   toggleSocialConnectionStatus,
   saveBrandKit,
+  fetchMediaAssets,
+  uploadMediaAsset,
+  deleteMediaAsset,
+  getMediaAssetUrl,
 } from '../lib/api';
 import {
   fetchMyOpportunities,
@@ -265,24 +269,69 @@ export function Workspaces({
   };
 
   // --- Media Library States ---
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
   const [lowBandwidthMode, setLowBandwidthMode] = useState(false);
+  const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaFeedback, setMediaFeedback] = useState('');
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadFolder, setUploadFolder] = useState('General');
+  const mediaFileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const simulateUpload = () => {
-    setIsUploading(true);
-    setUploadProgress(0);
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setTimeout(() => setIsUploading(false), 800);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 150);
+  useEffect(() => {
+    if (activeTab !== 'media') return;
+    setMediaLoading(true);
+    fetchMediaAssets(activeOrg.id)
+      .then(setMediaAssets)
+      .catch((err: any) => setMediaFeedback(`Error: ${err.message || 'Could not load media assets.'}`))
+      .finally(() => setMediaLoading(false));
+  }, [activeTab, activeOrg.id]);
+
+  const handleMediaFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setIsUploadingMedia(true);
+    try {
+      const asset = await uploadMediaAsset(activeOrg.id, file, uploadFolder);
+      setMediaAssets([asset, ...mediaAssets]);
+      setMediaFeedback('Asset uploaded.');
+    } catch (err: any) {
+      setMediaFeedback(`Error: ${err.message || 'Could not upload asset.'}`);
+    } finally {
+      setIsUploadingMedia(false);
+      setTimeout(() => setMediaFeedback(''), 4000);
+    }
   };
+
+  const handleDeleteMediaAsset = async (asset: MediaAsset) => {
+    const previous = mediaAssets;
+    setMediaAssets(mediaAssets.filter((a) => a.id !== asset.id));
+    try {
+      await deleteMediaAsset(asset);
+    } catch (err: any) {
+      setMediaAssets(previous);
+      setMediaFeedback(`Error: ${err.message || 'Could not delete asset.'}`);
+      setTimeout(() => setMediaFeedback(''), 4000);
+    }
+  };
+
+  const handleViewMediaAsset = async (asset: MediaAsset) => {
+    try {
+      const url = await getMediaAssetUrl(asset);
+      window.open(url, '_blank');
+    } catch (err: any) {
+      setMediaFeedback(`Error: ${err.message || 'Could not open asset.'}`);
+      setTimeout(() => setMediaFeedback(''), 4000);
+    }
+  };
+
+  const mediaFolders = Array.from(new Set(mediaAssets.map((a) => a.folder)));
+
+  function formatFileSize(bytes: number | null): string {
+    if (bytes === null) return '—';
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
 
   // --- Tracking Links States ---
   const [trackDest, setTrackDest] = useState('https://freetownhaven.com/booking');
@@ -3039,7 +3088,7 @@ export function Workspaces({
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-100 p-6 rounded-2xl">
           <div>
             <h3 className="font-display font-bold text-slate-900 text-lg">Centralized Media Library</h3>
-            <p className="text-xs text-slate-500">Manage logo palettes, photography folders, and direct campaign assets.</p>
+            <p className="text-xs text-slate-500">Real, storage-backed assets — upload logos, photography, and campaign files.</p>
           </div>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
@@ -3051,61 +3100,88 @@ export function Workspaces({
               />
               Low-Bandwidth Mode
             </label>
+            <input
+              type="text"
+              value={uploadFolder}
+              onChange={(e) => setUploadFolder(e.target.value)}
+              placeholder="Folder"
+              className="w-28 border border-slate-200 rounded-xl p-2 text-xs bg-slate-50 focus:bg-white focus:outline-emerald-500"
+            />
+            <input ref={mediaFileInputRef} type="file" onChange={handleMediaFileChange} className="hidden" />
             <button
-              onClick={simulateUpload}
-              disabled={isUploading}
+              onClick={() => mediaFileInputRef.current?.click()}
+              disabled={isUploadingMedia}
               className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-2 cursor-pointer"
             >
-              <Upload className="h-4 w-4" /> Upload Asset
+              <Upload className="h-4 w-4" /> {isUploadingMedia ? 'Uploading…' : 'Upload Asset'}
             </button>
           </div>
         </div>
 
-        {/* Upload Status Card */}
-        {isUploading && (
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <div className="flex justify-between items-center text-xs text-slate-500 mb-2">
-              <span className="font-medium">Direct resizable upload progress...</span>
-              <span className="font-mono font-bold text-emerald-600">{uploadProgress}%</span>
-            </div>
-            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full transition-all duration-150" style={{ width: `${uploadProgress}%` }} />
-            </div>
+        {mediaFeedback && (
+          <div className={`text-sm p-4 rounded-xl font-semibold ${mediaFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {mediaFeedback}
           </div>
         )}
 
-        {/* Assets Folders Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {['Logos & Branding', 'Bo Agriculture Photos', 'Homecoming Concerts', 'Radio Voices'].map((folder, idx) => (
-            <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow text-left">
-              <FolderOpen className="text-emerald-600 h-10 w-10 mb-4" />
-              <h4 className="font-display font-bold text-slate-800 text-sm leading-tight">{folder}</h4>
-              <span className="text-[10px] text-slate-400 font-mono mt-1 block uppercase">3 Folders · 12 Files</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Thumbnail Preview Area */}
-        <div className="space-y-4">
-          <h4 className="font-display font-bold text-slate-900 text-sm">Recent Visual Uploads</h4>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
-            {[1, 2, 3, 4, 5].map((item) => (
-              <div key={item} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs relative group">
-                <div className="bg-slate-100 h-32 flex items-center justify-center text-slate-400">
-                  {lowBandwidthMode ? (
-                    <span className="text-[10px] font-mono text-slate-400">Low-Res Placeholder</span>
-                  ) : (
-                    <Compass className="h-8 w-8 text-slate-300 animate-pulse" />
-                  )}
-                </div>
-                <div className="p-3 text-left">
-                  <span className="font-semibold text-slate-700 text-xs block truncate">campaign_asset_0{item}.png</span>
-                  <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">1.4 MB · 1:1 RATIO</span>
-                </div>
-              </div>
-            ))}
+        {mediaLoading ? (
+          <p className="text-xs text-slate-400">Loading…</p>
+        ) : mediaAssets.length === 0 ? (
+          <div className="bg-white border border-slate-100 rounded-2xl p-10 text-center text-slate-400 text-sm">
+            No media assets uploaded yet. Use "Upload Asset" above to add your first file.
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Folders Grid — real counts derived from uploaded assets */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {mediaFolders.map((folder) => (
+                <div key={folder} className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow text-left">
+                  <FolderOpen className="text-emerald-600 h-10 w-10 mb-4" />
+                  <h4 className="font-display font-bold text-slate-800 text-sm leading-tight">{folder}</h4>
+                  <span className="text-[10px] text-slate-400 font-mono mt-1 block uppercase">
+                    {mediaAssets.filter((a) => a.folder === folder).length} Files
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Asset List — real files, real sizes, real delete/view */}
+            <div className="space-y-4">
+              <h4 className="font-display font-bold text-slate-900 text-sm">All Uploads</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
+                {mediaAssets.map((asset) => {
+                  const isImage = asset.mimeType?.startsWith('image/');
+                  return (
+                    <div key={asset.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs relative group">
+                      <button
+                        onClick={() => handleViewMediaAsset(asset)}
+                        className="w-full bg-slate-100 h-32 flex items-center justify-center text-slate-400 cursor-pointer"
+                      >
+                        {lowBandwidthMode ? (
+                          <span className="text-[10px] font-mono text-slate-400">Low-Res Placeholder</span>
+                        ) : isImage ? (
+                          <ImageIcon className="h-8 w-8 text-slate-300" />
+                        ) : (
+                          <FileText className="h-8 w-8 text-slate-300" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMediaAsset(asset)}
+                        className="absolute top-2 right-2 bg-white/90 border border-slate-200 rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                      </button>
+                      <div className="p-3 text-left">
+                        <span className="font-semibold text-slate-700 text-xs block truncate">{asset.fileName}</span>
+                        <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">{formatFileSize(asset.fileSize)} · {asset.folder}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   }

@@ -976,4 +976,44 @@ eyebrow label above the cards, since this was the one section on the page with n
 the gradient/texture render correctly and the JSX nesting (an extra wrapping div was needed for the eyebrow
 label) didn't break the card grid layout.
 
+## 27. External audit review + real Media Library storage (2026-07-22)
+
+The product owner had a separate ChatGPT session audit this repo for unimplemented/mocked features and
+shared its findings. Spot-checked the specific claims directly against the current code (Media Library
+upload simulation, static December 2026 calendar, alert-only tracking links, text-only directory
+verification) — all still accurate. But the audit's framing missed a key fact: every flagged gap lives
+inside the ad-platform module (Media Library, Calendar, Tracking Links, Events, Tourism, Influencer,
+Directory) that §14/§17 deliberately locked to platform-admin-only. These are no longer subscriber-facing
+gaps — they only matter if and when the SaloneReach team needs to actually run real ad production through
+them. The audit also didn't mention the procurement/tender side at all, which is where nearly all of this
+session's real engineering went and is live-deployed and personally tested. Its finding that Cloudflare
+deployment was "pending credentials" (its version of §12) is now outdated — deployed and verified live
+several times over. Its finding that the planning docs are stale relative to the code (its #13) is correct
+and became task #45 below.
+
+Agreed with the owner to work through all three follow-ups (real internal ad-tooling, deepen procurement,
+fix stale docs), starting with real Media Library storage as the first concrete piece:
+
+- **New `media_assets` table** (org_id, folder, file_name, storage_path, file_size, mime_type, uploaded_by,
+  created_at), RLS `is_org_member(org_id) and is_platform_admin()` — identical convention to
+  `content_items`/`campaigns`.
+- **New private `media-assets` storage bucket** with a storage.objects RLS policy keyed on
+  `(storage.foldername(name))[1]::uuid` matching the existing `private-documents` bucket's pattern exactly.
+- **API layer** (`src/lib/api.ts`): `fetchMediaAssets`, `uploadMediaAsset` (10MB ceiling, same as tender
+  documents), `deleteMediaAsset`, `getMediaAssetUrl` (5-minute signed URL, same pattern as
+  `getOpportunityDocumentUrl`).
+- **Workspaces.tsx Media Library tab**: replaced `simulateUpload`'s fake timed progress bar with a real
+  hidden `<input type="file">` triggered by the Upload button, a real folder-name input, and a plain
+  "Uploading…" state (no fabricated percentage, since the Supabase JS client doesn't expose real upload
+  progress without dropping to a lower-level XHR/tus client — better to show nothing fake than a
+  meaningless number). The hardcoded four-folder grid and five-placeholder thumbnail grid are now derived
+  entirely from real fetched assets — real per-folder counts, real file names/sizes, a real delete button,
+  and click-to-view via a lazily-fetched signed URL.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Live-verified RLS with real probes (non-admin
+org member blocked with `42501`, admin insert succeeds) and confirmed the exact `select`/`insert`/`delete`
+column shapes the new UI code issues round-trip correctly against the real table — the same substitute
+used throughout this session for admin-dashboard features, since those screens need a real authenticated
+app session this sandbox's browser can't reach (blocked by the sandbox's own egress policy, per §22).
+
 Say the word on anything else when you're ready.

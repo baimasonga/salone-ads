@@ -8,6 +8,7 @@ import {
   DirectoryProfile,
   InfluencerProfile,
   SocialConnection,
+  MediaAsset,
 } from '../types';
 
 export interface OrgBundle {
@@ -390,4 +391,79 @@ export async function saveBrandKit(orgId: string, brandKit: BrandKit): Promise<B
       .single()
   );
   return mapBrandKit(row);
+}
+
+// --- Media Library (admin-only, mirrors the private-documents storage pattern) ---
+
+const MEDIA_ASSET_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10MB, same ceiling as tender documents.
+const MEDIA_ASSETS_BUCKET = 'media-assets';
+
+function mapMediaAsset(row: any): MediaAsset {
+  return {
+    id: row.id,
+    folder: row.folder,
+    fileName: row.file_name,
+    storagePath: row.storage_path,
+    fileSize: row.file_size ?? null,
+    mimeType: row.mime_type ?? null,
+    createdAt: row.created_at,
+  };
+}
+
+export async function fetchMediaAssets(orgId: string): Promise<MediaAsset[]> {
+  const { data, error } = await supabase
+    .from('media_assets')
+    .select('id, folder, file_name, storage_path, file_size, mime_type, created_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapMediaAsset);
+}
+
+export async function uploadMediaAsset(orgId: string, file: File, folder: string): Promise<MediaAsset> {
+  if (file.size > MEDIA_ASSET_MAX_SIZE_BYTES) {
+    throw new Error('File is too large — please keep media assets under 10MB.');
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Sign in to upload media assets.');
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `${orgId}/${Date.now()}-${safeName}`;
+
+  const { error: uploadError } = await supabase.storage.from(MEDIA_ASSETS_BUCKET).upload(storagePath, file);
+  if (uploadError) throw uploadError;
+
+  const { data, error } = await supabase
+    .from('media_assets')
+    .insert({
+      org_id: orgId,
+      folder: folder || 'General',
+      file_name: file.name,
+      storage_path: storagePath,
+      file_size: file.size,
+      mime_type: file.type || null,
+      uploaded_by: user.id,
+    })
+    .select('id, folder, file_name, storage_path, file_size, mime_type, created_at')
+    .single();
+  if (error) {
+    await supabase.storage.from(MEDIA_ASSETS_BUCKET).remove([storagePath]);
+    throw error;
+  }
+  return mapMediaAsset(data);
+}
+
+export async function deleteMediaAsset(asset: MediaAsset): Promise<void> {
+  const { error: storageError } = await supabase.storage.from(MEDIA_ASSETS_BUCKET).remove([asset.storagePath]);
+  if (storageError) throw storageError;
+  const { error } = await supabase.from('media_assets').delete().eq('id', asset.id);
+  if (error) throw error;
+}
+
+export async function getMediaAssetUrl(asset: MediaAsset): Promise<string> {
+  const { data, error } = await supabase.storage.from(MEDIA_ASSETS_BUCKET).createSignedUrl(asset.storagePath, 300);
+  if (error) throw error;
+  return data.signedUrl;
 }
