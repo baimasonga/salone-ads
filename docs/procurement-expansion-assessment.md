@@ -780,4 +780,33 @@ shapes the new UI code issues — the subscriber `SELECT` (own org, no join), th
 together — all executed successfully as the real entitled/admin users, then cleaned up the test rows
 afterward.
 
+## 20. Landing page realigned to the tender platform, not the old ad-campaign pitch (2026-07-22)
+
+Flagged as a known gap at the end of §18 and actioned directly: the public landing page (hero, "Who We
+Serve," feature bento grid, pricing) still pitched SaloneReach as an ad-campaign tool for local
+businesses — "Start Campaign," WhatsApp click tracking, verified business directory, campaign-count
+pricing tiers. That's now admin-only internal tooling per §14/§17 and never subscriber-facing, so the
+public-facing pitch was actively describing a product visitors can't sign up for.
+
+Rewrote all four sections to describe the real product:
+- **Hero**: tender search/subscribe/publish framing, "Browse Tenders" CTA linking to `/tenders`, honest
+  stat chips (Free public search, SL + LR coverage, live alerts) instead of fabricated audience-reach
+  numbers.
+- **Who We Serve**: Suppliers & Bidders / Buyers & Institutions / Business Advertisers — matching the
+  three real subscriber roles this session built (Viewer/Publisher tender tiers, §19's Advertiser tier).
+- **Feature grid**: AI Tender Assistant (`explain_tender`/`aiSuggestSector`, real endpoints from earlier
+  phases), Saved Searches & Alerts, Buyer Publishing Workflow, Bid Pipeline & Documents — all features
+  that actually exist and are subscriber-reachable, replacing the AI-campaign-copy/directory-listing
+  content that isn't.
+- **Pricing**: four tiers pulled directly from the real `plans`/`plan_features` tables via Supabase MCP —
+  Free (teaser, 3 saved searches), Professional (`tender_alerts_and_details`, 10 saved searches, 3 team
+  members), Business (`tender_publishing` + `business_advertising` + `data_export`, 25/10), Enterprise
+  (unlimited everything). Prices are "Contact Us" rather than fabricated dollar figures since
+  `monthly_price`/`annual_price` are genuinely null in the database — subscriptions go through the
+  existing manual bank-transfer request/admin-activate flow, not a priced checkout.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Started the dev server and rendered all four
+sections in a real headless-browser screenshot pass (hero, audience, features, pricing) to confirm layout
+held after the copy swap — not just a read-through.
+
 Say the word on anything else when you're ready.

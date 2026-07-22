@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Globe, Users, TrendingUp, CheckCircle, Shield, Award, Sparkles, MessageSquare, FileSearch } from 'lucide-react';
+import { ArrowRight, CheckCircle, Sparkles, Bell, FileSearch, ClipboardCheck, Megaphone } from 'lucide-react';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -58,11 +58,11 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
             </div>
 
             <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-6xl text-[#0F172A] tracking-tighter leading-none uppercase">
-              GROW YOUR BUSINESS IN <span className="text-[#10B981] underline decoration-[#0F172A] decoration-2">SIERRA LEONE</span> AND BEYOND.
+              FIND AND WIN <span className="text-[#10B981] underline decoration-[#0F172A] decoration-2">TENDERS</span> ACROSS SIERRA LEONE.
             </h1>
 
             <p className="text-base text-slate-600 max-w-xl leading-relaxed">
-              SaloneReach is the digital growth and advertising platform connecting Sierra Leonean businesses, organizations, creators, and communities with audiences in Sierra Leone and around the world.
+              SaloneReach is Sierra Leone's tender and procurement platform. Browse published opportunities for free, subscribe for full details and real-time alerts, or publish your own tenders as a verified buyer.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto mt-2">
@@ -70,30 +70,30 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                 onClick={onGetStarted}
                 className="btn-geometric flex items-center justify-center gap-3 cursor-pointer"
               >
-                Start Campaign <ArrowRight className="h-4 w-4" />
+                Get Started <ArrowRight className="h-4 w-4" />
               </button>
-              <a
-                href="#features"
+              <Link
+                to="/tenders"
                 className="btn-geometric-secondary flex items-center justify-center gap-2"
               >
-                Explore Features
-              </a>
+                Browse Tenders
+              </Link>
             </div>
 
             <div className="flex items-center gap-6 mt-6 border-t border-[#0F172A] pt-6 w-full font-mono">
               <div>
-                <span className="block font-black text-3xl text-[#0F172A]">4.8M+</span>
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest">Audience Reach</span>
+                <span className="block font-black text-3xl text-[#0F172A]">Free</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest">Public Search</span>
               </div>
               <div className="border-l border-[#0F172A] h-8" />
               <div>
-                <span className="block font-black text-3xl text-[#0F172A]">1,200+</span>
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest">SL Businesses</span>
+                <span className="block font-black text-3xl text-[#0F172A]">SL + LR</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest">Countries Covered</span>
               </div>
               <div className="border-l border-[#0F172A] h-8" />
               <div>
-                <span className="block font-black text-3xl text-[#0F172A]">20+</span>
-                <span className="text-[10px] text-slate-500 uppercase tracking-widest">Diaspora Hubs</span>
+                <span className="block font-black text-3xl text-[#0F172A]">Live</span>
+                <span className="text-[10px] text-slate-500 uppercase tracking-widest">Deadline Alerts</span>
               </div>
             </div>
           </div>
@@ -103,36 +103,36 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
             <div className="border-2 border-[#0F172A] bg-white p-6 relative overflow-hidden">
               <div className="flex justify-between items-center border-b border-[#0F172A] pb-4 mb-4">
                 <span className="font-mono text-xs uppercase font-bold text-[#0F172A] flex items-center gap-2">
-                  <CheckCircle className="text-[#10B981] h-4 w-4" /> PROMO_ALIGN: RICE_01
+                  <CheckCircle className="text-[#10B981] h-4 w-4" /> TENDER_FEED: LIVE
                 </span>
                 <span className="border border-[#0F172A] bg-[#0F172A] text-white text-[9px] font-mono font-bold px-2 py-0.5 uppercase tracking-widest">
-                  Active
+                  Published
                 </span>
               </div>
 
               <div className="space-y-4">
                 <div className="border border-[#0F172A] bg-slate-50 p-4 text-left">
-                  <span className="text-[9px] text-slate-400 font-mono block mb-1 uppercase tracking-widest">Target Context</span>
+                  <span className="text-[9px] text-slate-400 font-mono block mb-1 uppercase tracking-widest">Sample Listing</span>
                   <p className="font-medium text-xs text-[#0F172A] font-sans leading-relaxed">
-                    Sierra Leonean diaspora (UK, US, Canada) sponsoring native rice bags for parents back home.
+                    Supply and delivery of office equipment — Ministry of Works, Freetown. Sector: Goods & Supplies.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="border border-[#0F172A] bg-slate-50 p-3 text-left">
-                    <span className="text-[9px] text-slate-400 font-mono block uppercase tracking-widest">Throughput</span>
-                    <span className="font-mono font-bold text-base text-[#10B981]">42.5K Reach</span>
+                    <span className="text-[9px] text-slate-400 font-mono block uppercase tracking-widest">Sector</span>
+                    <span className="font-mono font-bold text-base text-[#10B981]">Goods</span>
                   </div>
                   <div className="border border-[#0F172A] bg-slate-50 p-3 text-left">
-                    <span className="text-[9px] text-slate-400 font-mono block uppercase tracking-widest">Alignment</span>
-                    <span className="font-mono font-bold text-base text-blue-600">2.1K Leads</span>
+                    <span className="text-[9px] text-slate-400 font-mono block uppercase tracking-widest">District</span>
+                    <span className="font-mono font-bold text-base text-blue-600">Freetown</span>
                   </div>
                 </div>
 
                 <div className="border border-[#0F172A] bg-[#0F172A]/5 p-3 text-left">
                   <p className="text-[11px] text-[#0F172A] font-mono leading-relaxed flex gap-2">
                     <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-[#10B981]" />
-                    "Leonean-grown parboiled rice delivered directly to Bo, Makeni, or Freetown within 48 hours."
+                    Subscribe to see full eligibility requirements, bid security, and submission instructions.
                   </p>
                 </div>
               </div>
@@ -147,41 +147,41 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           <div className="max-w-2xl flex flex-col gap-3">
             <span className="text-emerald-600 font-bold tracking-wider text-xs uppercase">Who We Serve</span>
             <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-slate-900 tracking-tight">
-              Bridging Local Talents with Global Communities
+              Built for Buyers, Suppliers, and Advertisers
             </h2>
             <p className="text-slate-600 leading-relaxed">
-              We connect agricultural producers, retail startups, creative artists, tourism operators, and development agencies with users locally and in diaspora markets.
+              Whichever side of a tender you're on — or if you're simply promoting your business — SaloneReach has a subscription tier built around what you actually need.
             </p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
             <div className="border border-slate-100 bg-slate-50/50 p-6 rounded-2xl text-left hover:shadow-md transition-all">
               <div className="bg-emerald-100 text-emerald-700 h-12 w-12 rounded-xl flex items-center justify-center mb-5">
-                <Users className="h-6 w-6" />
+                <FileSearch className="h-6 w-6" />
               </div>
-              <h3 className="font-display font-bold text-xl text-slate-900 mb-2">Local Small Businesses</h3>
+              <h3 className="font-display font-bold text-xl text-slate-900 mb-2">Suppliers & Bidders</h3>
               <p className="text-slate-600 text-sm leading-relaxed">
-                Unlock high-fidelity marketing tools to design Facebook, TikTok, and WhatsApp campaign strategies that drive organic and paid foot traffic directly to your storefront.
+                Search and filter published tenders by sector, district, and deadline. Subscribe for full eligibility details, saved-search alerts, document downloads, and a private bid pipeline.
               </p>
             </div>
 
             <div className="border border-slate-100 bg-slate-50/50 p-6 rounded-2xl text-left hover:shadow-md transition-all">
               <div className="bg-blue-100 text-blue-700 h-12 w-12 rounded-xl flex items-center justify-center mb-5">
-                <Globe className="h-6 w-6" />
+                <ClipboardCheck className="h-6 w-6" />
               </div>
-              <h3 className="font-display font-bold text-xl text-slate-900 mb-2">Diaspora Sponsors</h3>
+              <h3 className="font-display font-bold text-xl text-slate-900 mb-2">Buyers & Institutions</h3>
               <p className="text-slate-600 text-sm leading-relaxed">
-                Directly purchase locally sourced food supplies, book excursions, buy homecoming events tickets, or fund local agricultural developers in a traceable, transparent ecosystem.
+                Publish tenders for admin review, manage amendments and deadline extensions, and record awards — with the same transparency standard as DGMarket-style procurement portals.
               </p>
             </div>
 
             <div className="border border-slate-100 bg-slate-50/50 p-6 rounded-2xl text-left hover:shadow-md transition-all col-span-1 sm:col-span-2 lg:col-span-1">
               <div className="bg-purple-100 text-purple-700 h-12 w-12 rounded-xl flex items-center justify-center mb-5">
-                <Award className="h-6 w-6" />
+                <Megaphone className="h-6 w-6" />
               </div>
-              <h3 className="font-display font-bold text-xl text-slate-900 mb-2">Musicians & Creators</h3>
+              <h3 className="font-display font-bold text-xl text-slate-900 mb-2">Business Advertisers</h3>
               <p className="text-slate-600 text-sm leading-relaxed">
-                Build verified creator marketplace profiles displaying clear social metrics, platforms, and rate cards to secure brand sponsorship contracts easily.
+                Submit what you want advertised — our team designs, builds, and runs it on social media — then track platform, reach, and run count from your dashboard.
               </p>
             </div>
           </div>
@@ -194,10 +194,10 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           <div className="max-w-2xl text-center flex flex-col gap-3">
             <span className="text-emerald-600 font-bold tracking-wider text-xs uppercase font-sans">Comprehensive Toolbox</span>
             <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-slate-900 tracking-tight">
-              Engineered for Real-World Engagement
+              Everything a DGMarket-Style Portal Needs
             </h2>
             <p className="text-slate-600 leading-relaxed">
-              Skip complex marketing pipelines. SaloneReach equips you with all tools required to map, build, preview, and track campaigns.
+              From first search to awarded bid — search, alerts, publishing, and a private pipeline, all in one place.
             </p>
           </div>
 
@@ -208,80 +208,80 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                 <div className="bg-emerald-50 text-emerald-700 font-bold text-xs px-3 py-1 rounded-md inline-block">
                   GEMINI AI-POWERED
                 </div>
-                <h3 className="font-display font-bold text-2xl text-slate-900">AI Campaign Assistant</h3>
+                <h3 className="font-display font-bold text-2xl text-slate-900">AI Tender Assistant</h3>
                 <p className="text-slate-600 text-sm leading-relaxed">
-                  Generate hyper-localized marketing briefs, Facebook copy variants, and warm Krio-styled radio script narratives that resonate perfectly with Sierra Leoneans at home or abroad.
+                  Get plain-language explanations of dense tender documents, and automatic sector suggestions when buyers publish a new opportunity — so nothing gets misfiled or missed.
                 </p>
               </div>
               <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 w-full md:w-80 space-y-3 font-mono text-xs shrink-0 text-left">
                 <div className="text-emerald-600 flex items-center gap-1.5 font-bold">
-                  <Sparkles className="h-3.5 w-3.5" /> krio_caption_helper
+                  <Sparkles className="h-3.5 w-3.5" /> explain_tender
                 </div>
-                <p className="text-slate-500 italic">"Padi, dis rice ya na real Salone pride. Pure, sweet, and delivered straight..."</p>
-                <div className="border-t border-slate-100 pt-2 text-slate-400">Tone: Friendly & Honest 🇸🇱</div>
+                <p className="text-slate-500 italic">"In simple terms: this tender needs a registered supplier who can deliver office furniture to Freetown within 30 days of award..."</p>
+                <div className="border-t border-slate-100 pt-2 text-slate-400">Plain-language summaries</div>
               </div>
             </div>
 
-            {/* Low-Bandwidth */}
+            {/* Alerts */}
             <div className="md:col-span-4 bg-white border border-slate-100 p-8 rounded-3xl text-left shadow-xs flex flex-col justify-between">
               <div>
                 <div className="bg-blue-50 text-blue-700 h-10 w-10 rounded-xl flex items-center justify-center mb-6">
-                  <Shield className="h-5 w-5" />
+                  <Bell className="h-5 w-5" />
                 </div>
-                <h3 className="font-display font-bold text-xl text-slate-900 mb-2">Low-Bandwidth Mode</h3>
+                <h3 className="font-display font-bold text-xl text-slate-900 mb-2">Saved Searches & Alerts</h3>
                 <p className="text-slate-600 text-sm leading-relaxed">
-                  Optimized for Sierra Leonean mobile networks. Toggle compression, defer video loading, and autosave templates to LocalStorage to safeguard work during unexpected connectivity lags.
+                  Save a search once — by sector, district, or keyword — and get notified the moment a matching tender is published, amended, or approaching its deadline.
                 </p>
               </div>
               <div className="border-t border-slate-100 pt-4 mt-6 flex justify-between items-center text-xs text-slate-500">
-                <span>Direct client saving</span>
+                <span>In-app notifications</span>
                 <span className="text-emerald-600 font-semibold">Active</span>
               </div>
             </div>
 
-            {/* Leads & WhatsApp */}
+            {/* Buyer Publishing */}
             <div className="md:col-span-4 bg-white border border-slate-100 p-8 rounded-3xl text-left shadow-xs flex flex-col justify-between">
               <div>
                 <div className="bg-purple-50 text-purple-700 h-10 w-10 rounded-xl flex items-center justify-center mb-6">
-                  <MessageSquare className="h-5 w-5" />
+                  <ClipboardCheck className="h-5 w-5" />
                 </div>
-                <h3 className="font-display font-bold text-xl text-slate-900 mb-2">WhatsApp Click Tracking</h3>
+                <h3 className="font-display font-bold text-xl text-slate-900 mb-2">Buyer Publishing Workflow</h3>
                 <p className="text-slate-600 text-sm leading-relaxed">
-                  Generate instant redirect links, short codes, and QR badges connecting ads directly to your WhatsApp Business inbox. Monitor lead triggers seamlessly.
+                  Verified buyers submit tenders for admin review before they go live, then manage amendments, deadline extensions, and awards from the same dashboard.
                 </p>
               </div>
               <div className="border-t border-slate-100 pt-4 mt-6 text-xs text-slate-400 font-mono">
-                salone.reach/rt/rice-bo
+                Every tender is admin-reviewed
               </div>
             </div>
 
-            {/* Public Directory */}
+            {/* Supplier Pipeline */}
             <div className="md:col-span-8 bg-white border border-slate-100 p-8 rounded-3xl text-left shadow-xs flex flex-col justify-between">
               <div className="space-y-4">
                 <div className="bg-amber-50 border border-amber-100 text-amber-800 text-xs font-semibold px-2.5 py-1 rounded-full inline-block">
-                  DISCOVERABILITY
+                  PRIVATE TO YOU
                 </div>
-                <h3 className="font-display font-bold text-2xl text-slate-900">Verified Business Directory</h3>
+                <h3 className="font-display font-bold text-2xl text-slate-900">Bid Pipeline & Documents</h3>
                 <p className="text-slate-600 text-sm leading-relaxed">
-                  List your company under agricultural, tourism, technology, or catering categories. Claim existing records with proper documentation to earn verification checkmarks and diaspora trust.
+                  Track every tender you're pursuing from saved through won or lost, upload supporting documents, and download buyer-published materials — never visible to other suppliers.
                 </p>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-4 border-t border-slate-100">
                 <div className="text-center">
-                  <span className="block font-mono text-emerald-600 font-bold">Bo District</span>
-                  <span className="text-xs text-slate-400">Agriculture</span>
+                  <span className="block font-mono text-emerald-600 font-bold">Saved</span>
+                  <span className="text-xs text-slate-400">Stage 1</span>
                 </div>
                 <div className="text-center border-l border-slate-100">
-                  <span className="block font-mono text-emerald-600 font-bold">Lumley</span>
-                  <span className="text-xs text-slate-400">Hotels</span>
+                  <span className="block font-mono text-emerald-600 font-bold">Preparing</span>
+                  <span className="text-xs text-slate-400">Stage 2</span>
                 </div>
                 <div className="text-center border-l border-slate-100">
-                  <span className="block font-mono text-emerald-600 font-bold">Kenema</span>
-                  <span className="text-xs text-slate-400">Cocoa Growers</span>
+                  <span className="block font-mono text-emerald-600 font-bold">Submitted</span>
+                  <span className="text-xs text-slate-400">Stage 3</span>
                 </div>
                 <div className="text-center border-l border-slate-100">
-                  <span className="block font-mono text-emerald-600 font-bold">Makeni</span>
-                  <span className="text-xs text-slate-400">Retail Supply</span>
+                  <span className="block font-mono text-emerald-600 font-bold">Won / Lost</span>
+                  <span className="text-xs text-slate-400">Stage 4</span>
                 </div>
               </div>
             </div>
@@ -295,29 +295,29 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           <div className="max-w-2xl text-center flex flex-col gap-3">
             <span className="text-emerald-600 font-bold tracking-wider text-xs uppercase">Simple & Adaptable Plans</span>
             <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-slate-900 tracking-tight">
-              Invest in Scalable Local Growth
+              A Tier for Every Role
             </h2>
             <p className="text-slate-600 leading-relaxed">
-              No hidden fees or rigid long-term bindings. Choose the exact tier supporting your company scale and primary audience locations.
+              Browse for free. Subscribe to unlock full tender details, alerts, publishing, and business advertising. Pricing is agreed directly with our team — request a plan and we'll follow up.
             </p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 w-full">
-            {/* Free Trial */}
+            {/* Free */}
             <div className="border border-slate-100 bg-slate-50/50 p-6 rounded-2xl flex flex-col justify-between text-left">
               <div>
-                <h3 className="font-display font-bold text-lg text-slate-900">Trial</h3>
+                <h3 className="font-display font-bold text-lg text-slate-900">Free</h3>
                 <div className="my-4">
-                  <span className="text-3xl font-extrabold text-slate-900 font-display">Free</span>
+                  <span className="text-3xl font-extrabold text-slate-900 font-display">Le 0</span>
                   <span className="text-slate-500 text-sm"> / month</span>
                 </div>
                 <p className="text-slate-600 text-xs leading-relaxed mb-6">
-                  Perfect for local startups to map campaigns and configure directory lists.
+                  Browse published tenders, DGMarket-style — teaser details, no sign-in required.
                 </p>
                 <ul className="space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 1 Campaign Plan</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Local Directory Profile</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Manual Calendar Exports</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Public tender search</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 3 saved searches</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Basic tender info only</li>
                 </ul>
               </div>
               <button onClick={onGetStarted} className="w-full mt-8 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2 rounded-lg transition-colors cursor-pointer text-center text-sm">
@@ -325,74 +325,72 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               </button>
             </div>
 
-            {/* Starter */}
+            {/* Professional (Viewer) */}
             <div className="border border-slate-100 bg-slate-50/50 p-6 rounded-2xl flex flex-col justify-between text-left">
               <div>
-                <h3 className="font-display font-bold text-lg text-slate-900">Starter</h3>
+                <h3 className="font-display font-bold text-lg text-slate-900">Professional</h3>
                 <div className="my-4">
-                  <span className="text-3xl font-extrabold text-slate-900 font-display">$19</span>
-                  <span className="text-slate-500 text-sm"> / month</span>
+                  <span className="text-xl font-extrabold text-slate-900 font-display">Contact Us</span>
                 </div>
                 <p className="text-slate-600 text-xs leading-relaxed mb-6">
-                  For active local retail, agro-producers, and digital creators.
+                  For suppliers who need the full picture before they bid.
                 </p>
                 <ul className="space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 3 Active Campaigns</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 1 Brand Kit configuration</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> AI content tokens (Basic)</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> WhatsApp Click shortcodes</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Full tender details & documents</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Real-time deadline alerts</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 10 saved searches</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 3 team members</li>
                 </ul>
               </div>
               <button onClick={onGetStarted} className="w-full mt-8 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2 rounded-lg transition-colors cursor-pointer text-center text-sm">
-                Subscribe Starter
+                Subscribe Professional
               </button>
             </div>
 
-            {/* Professional */}
+            {/* Business (Publisher + Advertiser) */}
             <div className="border-2 border-emerald-500 bg-emerald-50/10 p-6 rounded-2xl flex flex-col justify-between text-left relative">
               <div className="absolute top-0 right-6 -translate-y-1/2 bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-sm">
                 RECOMMENDED
               </div>
               <div>
-                <h3 className="font-display font-bold text-lg text-slate-900">Professional</h3>
+                <h3 className="font-display font-bold text-lg text-slate-900">Business</h3>
                 <div className="my-4">
-                  <span className="text-3xl font-extrabold text-slate-900 font-display">$49</span>
-                  <span className="text-slate-500 text-sm"> / month</span>
+                  <span className="text-xl font-extrabold text-slate-900 font-display">Contact Us</span>
                 </div>
                 <p className="text-slate-600 text-xs leading-relaxed mb-6">
-                  Comprehensive tools designed for established companies & exporters.
+                  Everything in Professional, plus publish your own tenders and advertise your business.
                 </p>
                 <ul className="space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Unlimited Campaign Plans</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Multiple Brand Kits</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Full AI Studio Completion</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Interactive CRM Lead tables</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Publish & manage your own tenders</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Submit business/event adverts</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> CSV pipeline export</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 25 saved searches · 10 team members</li>
                 </ul>
               </div>
               <button onClick={onGetStarted} className="w-full mt-8 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg shadow-sm transition-colors cursor-pointer text-center text-sm">
-                Go Professional
+                Go Business
               </button>
             </div>
 
-            {/* Agency / Enterprise */}
+            {/* Enterprise */}
             <div className="border border-slate-100 bg-slate-50/50 p-6 rounded-2xl flex flex-col justify-between text-left">
               <div>
-                <h3 className="font-display font-bold text-lg text-slate-900">Agency</h3>
+                <h3 className="font-display font-bold text-lg text-slate-900">Enterprise</h3>
                 <div className="my-4">
-                  <span className="text-3xl font-extrabold text-slate-900 font-display">$99</span>
-                  <span className="text-slate-500 text-sm"> / month</span>
+                  <span className="text-xl font-extrabold text-slate-900 font-display">Contact Us</span>
                 </div>
                 <p className="text-slate-600 text-xs leading-relaxed mb-6">
-                  For marketing agencies and organizations managing client assets.
+                  For agencies and institutions operating at scale across teams.
                 </p>
                 <ul className="space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Multi-Tenant Client Profiles</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Client reviewer access portals</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Premium white-label analytics</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Everything in Business</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Unlimited saved searches</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Unlimited team members</li>
+                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Dedicated support</li>
                 </ul>
               </div>
               <button onClick={onGetStarted} className="w-full mt-8 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-2 rounded-lg transition-colors cursor-pointer text-center text-sm">
-                Get Agency
+                Contact Sales
               </button>
             </div>
           </div>
