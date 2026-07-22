@@ -419,7 +419,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       {/* Target Audience Section */}
       <section id="audience" className="py-14 bg-white border-b border-slate-100 px-6">
         <div className="max-w-7xl mx-auto flex flex-col gap-8">
-          <div className="max-w-2xl flex flex-col gap-2">
+          <div className="max-w-2xl mx-auto flex flex-col items-center gap-2 text-center">
             <span className="text-emerald-600 font-bold tracking-wider text-xs uppercase font-mono">Who We Serve</span>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
               Built for Buyers, Suppliers, and Advertisers
