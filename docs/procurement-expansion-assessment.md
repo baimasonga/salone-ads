@@ -950,4 +950,18 @@ No mock data needed this time — the icon cluster, watermark, and headline don'
 data, so the real (sandbox-blocked) fetch code was rendered as-is, showing honest "—" placeholders for the
 sector/district counts exactly as a real empty response would.
 
+## 25. Original vector illustration in the banner (2026-07-22)
+
+Follow-up request: add actual vector images of tenders/procurement/adverts to the banner, beyond the small
+icon tiles from §24. Hand-built a original inline SVG (`ProcurementIllustration` in `LandingPage.tsx`) —
+a tender document (header bar, body text lines, emerald approval-seal checkmark) paired with a megaphone
+emitting amber reach waves — composed from basic shapes in our own brand palette, not a fetched/licensed
+stock asset. Used twice: a visible ~160px version stacked above the stat trio on md+ screens, and a very
+low-opacity oversized version as background texture (replacing the plain `ClipboardList` icon watermark
+from §24). Hidden below `md` so the mobile layout stays clean (confirmed via a dedicated 390px screenshot).
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Screenshotted both the desktop banner (confirms
+the illustration renders correctly, right colors, no overlap with the stat trio) and mobile width (confirms
+it's properly hidden and nothing overflows).
+
 Say the word on anything else when you're ready.

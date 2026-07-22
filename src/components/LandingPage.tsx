@@ -4,7 +4,7 @@ import {
   ArrowRight, ArrowUpRight, CheckCircle, Sparkles, Bell, FileSearch, ClipboardCheck, Megaphone,
   Search, KeyRound, Send, MapPin, Calendar, Menu, X, Wheat, HardHat, Mountain, Wifi, Landmark,
   HeartPulse, GraduationCap, Palmtree, Zap, Truck, Briefcase, HandHeart, Building2, ChevronDown,
-  Mail, MessageCircle, FileCheck2, ClipboardList,
+  Mail, MessageCircle, FileCheck2,
 } from 'lucide-react';
 import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, OpportunityListItem, TaxonomyOption } from '../lib/procurementApi';
 
@@ -36,6 +36,35 @@ function sectorIcon(name: string) {
   if (n.includes('consult') || n.includes('professional')) return Briefcase;
   if (n.includes('ngo') || n.includes('develop')) return HandHeart;
   return Building2;
+}
+
+// Original flat-geometric illustration — a published tender (document +
+// approval seal) and an advert going out (megaphone + reach waves). Hand-
+// built inline SVG, not a stock asset, to stay consistent with the rest of
+// the "Emerald Sky" visual language and avoid licensing/attribution issues.
+function ProcurementIllustration({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 240 200" className={className} aria-hidden="true">
+      {/* Tender document */}
+      <rect x="20" y="20" width="112" height="150" rx="4" fill="#F8FAFC" />
+      <rect x="20" y="20" width="112" height="28" rx="4" fill="#10B981" />
+      <rect x="32" y="66" width="86" height="6" rx="2" fill="#CBD5E1" />
+      <rect x="32" y="82" width="70" height="6" rx="2" fill="#CBD5E1" />
+      <rect x="32" y="98" width="86" height="6" rx="2" fill="#CBD5E1" />
+      <rect x="32" y="114" width="50" height="6" rx="2" fill="#CBD5E1" />
+      <rect x="32" y="130" width="70" height="6" rx="2" fill="#CBD5E1" />
+      {/* Approval seal */}
+      <circle cx="112" cy="152" r="22" fill="#0F172A" stroke="#10B981" strokeWidth="2.5" />
+      <path d="M101 152 L109 160 L124 144" stroke="#10B981" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Megaphone (advertising) */}
+      <rect x="140" y="118" width="13" height="16" fill="#FBBF24" />
+      <path d="M150 90 L192 70 L192 152 L150 132 Z" fill="#FBBF24" />
+      {/* Reach waves */}
+      <path d="M200 82 Q214 111 200 140" stroke="#FBBF24" strokeWidth="4" fill="none" strokeLinecap="round" opacity="0.85" />
+      <path d="M210 72 Q230 111 210 150" stroke="#FBBF24" strokeWidth="4" fill="none" strokeLinecap="round" opacity="0.5" />
+      <path d="M220 62 Q246 111 220 160" stroke="#FBBF24" strokeWidth="4" fill="none" strokeLinecap="round" opacity="0.25" />
+    </svg>
+  );
 }
 
 const HOW_IT_WORKS = [
@@ -182,8 +211,8 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           className="absolute inset-0 opacity-[0.07] pointer-events-none"
           style={{ backgroundImage: 'repeating-linear-gradient(45deg, #10B981 0, #10B981 1px, transparent 1px, transparent 24px)' }}
         />
-        {/* Oversized watermark icon — tendering, quiet texture behind the copy */}
-        <ClipboardList className="hidden lg:block absolute -right-10 -bottom-14 h-64 w-64 text-white/[0.04] pointer-events-none rotate-6" />
+        {/* Oversized faint watermark version of the same illustration — quiet texture behind the copy */}
+        <ProcurementIllustration className="hidden lg:block absolute -right-6 -bottom-10 h-72 w-72 opacity-[0.06] pointer-events-none rotate-3" />
 
         <div className="relative max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-8">
           <div className="flex flex-col gap-3">
@@ -214,18 +243,21 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-6 sm:gap-8 font-mono shrink-0 border-t md:border-t-0 md:border-l border-white/20 pt-6 md:pt-0 md:pl-8">
-            <div>
-              <span className="block font-black text-2xl">{sectors.length || '—'}</span>
-              <span className="text-[9px] text-slate-400 uppercase tracking-widest">Sectors</span>
-            </div>
-            <div>
-              <span className="block font-black text-2xl">{districtCount || '—'}</span>
-              <span className="text-[9px] text-slate-400 uppercase tracking-widest">Districts</span>
-            </div>
-            <div>
-              <span className="block font-black text-2xl">{countryCount || 2}</span>
-              <span className="text-[9px] text-slate-400 uppercase tracking-widest">Countries</span>
+          <div className="flex flex-col items-center md:items-end gap-6 shrink-0 border-t md:border-t-0 md:border-l border-white/20 pt-6 md:pt-0 md:pl-8">
+            <ProcurementIllustration className="hidden md:block w-40 h-auto" />
+            <div className="grid grid-cols-3 gap-6 sm:gap-8 font-mono">
+              <div>
+                <span className="block font-black text-2xl">{sectors.length || '—'}</span>
+                <span className="text-[9px] text-slate-400 uppercase tracking-widest">Sectors</span>
+              </div>
+              <div>
+                <span className="block font-black text-2xl">{districtCount || '—'}</span>
+                <span className="text-[9px] text-slate-400 uppercase tracking-widest">Districts</span>
+              </div>
+              <div>
+                <span className="block font-black text-2xl">{countryCount || 2}</span>
+                <span className="text-[9px] text-slate-400 uppercase tracking-widest">Countries</span>
+              </div>
             </div>
           </div>
         </div>
