@@ -22,6 +22,7 @@ export interface OpportunityListItem {
   statusCode: string;
   statusLabel: string;
   reviewNote: string | null;
+  viewCount: number;
 }
 
 export interface OpportunityDetail extends OpportunityListItem {
@@ -61,7 +62,7 @@ export interface OpportunityDocument {
 const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB — keep uploads reasonable on slow connections.
 
 const LIST_SELECT = `
-  id, slug, title, buyer_name, submission_deadline, estimated_value, currency_code, is_featured, review_note,
+  id, slug, title, buyer_name, submission_deadline, estimated_value, currency_code, is_featured, review_note, view_count,
   sectors(name), districts(name), countries(name), opportunity_types(label), opportunity_statuses(code, label)
 `;
 
@@ -82,6 +83,7 @@ function mapListItem(row: any): OpportunityListItem {
     statusCode: row.opportunity_statuses?.code ?? 'published',
     statusLabel: row.opportunity_statuses?.label ?? 'Published',
     reviewNote: row.review_note ?? null,
+    viewCount: row.view_count ?? 0,
   };
 }
 
@@ -156,6 +158,7 @@ export async function fetchOpportunityBySlug(slug: string): Promise<OpportunityD
     sourceName: row.source_name ?? null,
     sourceUrl: row.source_url ?? null,
     buyerOrgId: row.buyer_org_id ?? null,
+    viewCount: row.view_count ?? 0,
     hasFullAccess: row.has_full_access,
   };
 }

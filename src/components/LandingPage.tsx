@@ -156,69 +156,190 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
         )}
       </header>
 
-      {/* Hero Section */}
-      <section className="relative px-6 py-12 md:py-16 bg-[#F8FAFC] border-b-2 border-[#0F172A]">
-        <div className="max-w-5xl mx-auto flex flex-col items-start gap-6 text-left">
-          <div className="inline-flex items-center gap-2 border border-[#0F172A] bg-white text-[#0F172A] font-mono text-[10px] uppercase tracking-widest px-3 py-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-[#10B981]" /> Sierra Leone + Liberia
+      {/* Utility Search Bar — DGMarket-style, immediate access before any marketing copy */}
+      <div className="bg-slate-100 border-b border-slate-200 px-4 sm:px-6 py-3">
+        <form onSubmit={handleHeroSearch} className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-2 sm:items-center">
+          <span className="hidden sm:block font-display font-bold text-sm text-[#0F172A] shrink-0">Search</span>
+          <input
+            type="text"
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            placeholder="Search tenders by keyword, sector, or buyer..."
+            className="flex-1 !border-slate-300 px-3 py-2 text-sm bg-white focus:!border-[#0F172A]"
+          />
+          <button type="submit" className="bg-[#0F172A] text-white px-5 py-2 flex items-center justify-center gap-2 font-mono text-xs font-bold uppercase tracking-widest cursor-pointer hover:bg-emerald-700 transition-colors shrink-0">
+            <Search className="h-3.5 w-3.5" /> Search
+          </button>
+          <Link to="/tenders" className="text-xs font-mono font-bold uppercase tracking-widest text-[#0F172A] hover:text-emerald-600 transition-colors shrink-0 text-center sm:text-left">
+            Advanced Search
+          </Link>
+        </form>
+      </div>
+
+      {/* Compact banner — brand identity, not a stock photo */}
+      <section className="relative bg-[#0F172A] text-white px-6 py-10 md:py-12 overflow-hidden border-b-2 border-[#0F172A]">
+        <div
+          className="absolute inset-0 opacity-[0.07] pointer-events-none"
+          style={{ backgroundImage: 'repeating-linear-gradient(45deg, #10B981 0, #10B981 1px, transparent 1px, transparent 24px)' }}
+        />
+        <div className="relative max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="flex flex-col gap-3">
+            <div className="inline-flex items-center gap-2 border border-white/30 text-[10px] font-mono uppercase tracking-widest px-3 py-1.5 w-fit">
+              <Sparkles className="h-3.5 w-3.5 text-[#10B981]" /> Sierra Leone + Liberia
+            </div>
+            <h1 className="font-display font-extrabold text-2xl sm:text-3xl lg:text-4xl tracking-tight uppercase max-w-2xl">
+              Procurement opportunities across West Africa
+            </h1>
+            <p className="text-sm sm:text-base text-slate-300 max-w-xl leading-relaxed">
+              Browse published tenders for free, subscribe for full details and real-time alerts, or publish your own as a verified buyer.
+            </p>
           </div>
-
-          <h1 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-6xl text-[#0F172A] tracking-tighter leading-[0.98] uppercase">
-            Find and win <span className="text-[#10B981] underline decoration-[#0F172A] decoration-[3px] underline-offset-4">tenders</span> across West Africa.
-          </h1>
-
-          <p className="text-base sm:text-lg text-slate-600 max-w-2xl leading-relaxed">
-            SaloneReach is Sierra Leone's tender and procurement platform. Browse published opportunities
-            for free, subscribe for full details and real-time alerts, or publish your own tenders as a
-            verified buyer.
-          </p>
-
-          {/* Prominent search bar */}
-          <form onSubmit={handleHeroSearch} className="w-full max-w-2xl flex border-2 border-[#0F172A] bg-white">
-            <input
-              type="text"
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              placeholder="Search tenders by keyword, sector, or buyer..."
-              className="flex-1 !border-0 px-4 py-3 text-sm bg-white focus:outline-none"
-            />
-            <button type="submit" className="bg-[#0F172A] text-white px-5 flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-widest cursor-pointer hover:bg-emerald-700 transition-colors">
-              <Search className="h-4 w-4" /> Search
-            </button>
-          </form>
-
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <button onClick={onGetStarted} className="btn-geometric flex items-center justify-center gap-3 cursor-pointer">
-              Get Started <ArrowRight className="h-4 w-4" />
-            </button>
-            <Link to="/tenders" className="btn-geometric-secondary flex items-center justify-center gap-2">
-              Browse All Tenders
-            </Link>
-          </div>
-
-          {/* Real stat strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-10 mt-4 border-t border-[#0F172A] pt-6 w-full font-mono">
+          <div className="grid grid-cols-3 gap-6 sm:gap-8 font-mono shrink-0 border-t md:border-t-0 md:border-l border-white/20 pt-6 md:pt-0 md:pl-8">
             <div>
-              <span className="block font-black text-3xl text-[#0F172A]">Free</span>
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest">Public search</span>
+              <span className="block font-black text-2xl">{sectors.length || '—'}</span>
+              <span className="text-[9px] text-slate-400 uppercase tracking-widest">Sectors</span>
             </div>
             <div>
-              <span className="block font-black text-3xl text-[#0F172A]">{sectors.length || '—'}</span>
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest">Sectors covered</span>
+              <span className="block font-black text-2xl">{districtCount || '—'}</span>
+              <span className="text-[9px] text-slate-400 uppercase tracking-widest">Districts</span>
             </div>
             <div>
-              <span className="block font-black text-3xl text-[#0F172A]">{districtCount || '—'}</span>
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest">Districts &amp; counties</span>
-            </div>
-            <div>
-              <span className="block font-black text-3xl text-[#0F172A]">{countryCount || 2}</span>
-              <span className="text-[10px] text-slate-500 uppercase tracking-widest">Countries live</span>
+              <span className="block font-black text-2xl">{countryCount || 2}</span>
+              <span className="text-[9px] text-slate-400 uppercase tracking-widest">Countries</span>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* Compact 3-step ribbon */}
-        <div className="max-w-5xl mx-auto mt-10 border-2 border-[#0F172A] bg-white grid sm:grid-cols-3">
+      {/* Three action cards — Find / Alerts / Subscribe */}
+      <section className="px-6 py-8 bg-white border-b border-slate-100">
+        <div className="max-w-7xl mx-auto grid sm:grid-cols-3 gap-px bg-slate-200 border border-slate-200">
+          {[
+            { icon: Search, title: 'Find Tenders', body: 'In your sector and district.', linkLabel: 'Advanced search', to: '/tenders' },
+            { icon: Bell, title: 'Get Alerts', body: 'Tailored to your saved searches.', linkLabel: 'Add alerts', action: onGetStarted },
+            { icon: KeyRound, title: 'Subscribe', body: 'To unlock full procurement notices.', linkLabel: 'View plans', href: '#pricing' },
+          ].map((card) => {
+            const Icon = card.icon;
+            const content = (
+              <>
+                <div className="h-11 w-11 border border-[#0F172A] bg-emerald-50 flex items-center justify-center mb-3">
+                  <Icon className="h-5 w-5 text-emerald-700" />
+                </div>
+                <h3 className="font-display font-bold text-base text-slate-900">{card.title}</h3>
+                <p className="text-xs text-slate-500 mt-1">{card.body}</p>
+                <span className="text-xs font-semibold text-emerald-700 mt-3 inline-block">{card.linkLabel} →</span>
+              </>
+            );
+            return card.to ? (
+              <Link key={card.title} to={card.to} className="bg-white hover:bg-slate-50 p-6 flex flex-col items-start transition-colors">{content}</Link>
+            ) : card.href ? (
+              <a key={card.title} href={card.href} className="bg-white hover:bg-slate-50 p-6 flex flex-col items-start transition-colors">{content}</a>
+            ) : (
+              <button key={card.title} onClick={card.action} className="bg-white hover:bg-slate-50 p-6 flex flex-col items-start transition-colors text-left cursor-pointer">{content}</button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Directory: Sectors | Latest Opportunities | Popular Tenders — DGMarket-style density */}
+      <section className="px-6 py-10 bg-slate-50 border-b border-slate-100">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-12 gap-6 items-start">
+          {/* Sectors sidebar with real counts */}
+          <aside id="sectors" className="lg:col-span-3 bg-white border border-slate-200">
+            <div className="px-4 py-3 border-b border-slate-200">
+              <span className="font-display font-bold text-sm text-slate-900">Sectors</span>
+            </div>
+            <div>
+              {sectors.map((sector) => {
+                const Icon = sectorIcon(sector.name);
+                const count = latest.filter((op) => op.sector === sector.name).length;
+                return (
+                  <Link
+                    key={sector.id}
+                    to={`/tenders?sector=${sector.id}`}
+                    className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors group"
+                  >
+                    <span className="flex items-center gap-2 text-xs font-medium text-slate-700 group-hover:text-emerald-700 transition-colors">
+                      <Icon className="h-3.5 w-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0" /> {sector.name}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0">{count}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </aside>
+
+          {/* Main list — Latest & Featured Opportunities */}
+          <div id="tenders-feed" className="lg:col-span-6 bg-white border border-slate-200">
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <span className="font-display font-bold text-sm text-slate-900">Latest &amp; Featured Opportunities</span>
+              <Link to="/tenders" className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#0F172A] hover:text-emerald-600 transition-colors flex items-center gap-1">
+                View All <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </div>
+            {loadingLatest ? (
+              <div className="p-4 space-y-3">
+                {[0, 1, 2].map((i) => <div key={i} className="h-16 bg-slate-50 animate-pulse" />)}
+              </div>
+            ) : latest.length === 0 ? (
+              <div className="px-6 py-12 text-center flex flex-col items-center gap-3">
+                <FileSearch className="h-7 w-7 text-slate-300" />
+                <p className="text-sm text-slate-500 max-w-sm">
+                  No tenders are published yet — new opportunities go live as soon as they clear admin review.
+                </p>
+                <button onClick={onGetStarted} className="btn-geometric-secondary mt-1 cursor-pointer">Get Alerted</button>
+              </div>
+            ) : (
+              <div>
+                {latest.slice(0, 8).map((op) => (
+                  <Link
+                    key={op.id}
+                    to={`/tenders/${op.slug}`}
+                    className="group block px-4 py-3 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      {op.isFeatured && <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 uppercase tracking-wider">Featured</span>}
+                      {op.sector && <span className="bg-slate-100 text-slate-600 font-mono text-[9px] px-1.5 py-0.5 uppercase">{op.sector}</span>}
+                    </div>
+                    <h3 className="font-semibold text-sm text-slate-900 group-hover:text-emerald-700 transition-colors leading-snug">{op.title}</h3>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-[11px] text-slate-500 font-mono">
+                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {[op.district, op.country].filter(Boolean).join(', ') || '—'}</span>
+                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Deadline: {formatDeadline(op.submissionDeadline)}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Popular tenders — real view_count data */}
+          <aside className="lg:col-span-3 bg-white border border-slate-200">
+            <div className="px-4 py-3 border-b border-slate-200">
+              <span className="font-display font-bold text-sm text-slate-900">Popular Tenders</span>
+            </div>
+            {!loadingLatest && latest.length === 0 ? (
+              <p className="text-xs text-slate-400 px-4 py-6 text-center">No activity yet.</p>
+            ) : (
+              <div>
+                {[...latest].sort((a, b) => b.viewCount - a.viewCount).slice(0, 6).map((op) => (
+                  <Link
+                    key={op.id}
+                    to={`/tenders/${op.slug}`}
+                    className="group block px-4 py-3 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors"
+                  >
+                    <h4 className="text-xs font-semibold text-slate-800 group-hover:text-emerald-700 transition-colors leading-snug">{op.title}</h4>
+                    <p className="text-[10px] text-slate-400 font-mono mt-1">{[op.country, formatDeadline(op.submissionDeadline)].filter(Boolean).join(' · ')}</p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </aside>
+        </div>
+      </section>
+
+      {/* Compact 3-step ribbon */}
+      <section className="px-6 py-10 bg-white border-b border-slate-100">
+        <div className="max-w-7xl mx-auto border-2 border-[#0F172A] bg-white grid sm:grid-cols-3">
           {HOW_IT_WORKS.map((step, i) => {
             const Icon = step.icon;
             return (
@@ -233,106 +354,6 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               </div>
             );
           })}
-        </div>
-      </section>
-
-      {/* Browse by Sector — real taxonomy data */}
-      <section id="sectors" className="py-14 bg-white border-b border-slate-100 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col gap-8">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div className="flex flex-col gap-2">
-              <span className="text-emerald-600 font-bold tracking-wider text-xs uppercase font-mono">Browse By Sector</span>
-              <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-                {sectors.length} Sectors, One Search
-              </h2>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-slate-200 border border-slate-200">
-            {sectors.map((sector) => {
-              const Icon = sectorIcon(sector.name);
-              return (
-                <Link
-                  key={sector.id}
-                  to={`/tenders?sector=${sector.id}`}
-                  className="group bg-white hover:bg-slate-50 p-5 flex flex-col items-start gap-3 transition-colors"
-                >
-                  <Icon className="h-5 w-5 text-emerald-700" />
-                  <span className="text-xs font-semibold text-slate-800 leading-snug group-hover:text-emerald-700 transition-colors">
-                    {sector.name}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Live Tenders Feed — real data, honest empty state */}
-      <section id="tenders-feed" className="py-14 bg-slate-50 border-b border-slate-100 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col gap-8">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div className="flex flex-col gap-2">
-              <span className="text-emerald-600 font-bold tracking-wider text-xs uppercase font-mono">Live Tender Feed</span>
-              <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-                Latest Published Opportunities
-              </h2>
-            </div>
-            <Link
-              to="/tenders"
-              className="inline-flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-widest text-[#0F172A] hover:text-emerald-600 transition-colors shrink-0"
-            >
-              View All Tenders <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          {loadingLatest ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="border border-slate-200 p-5 h-36 animate-pulse bg-white" />
-              ))}
-            </div>
-          ) : latest.length === 0 ? (
-            <div className="border-2 border-dashed border-slate-300 bg-white px-8 py-14 text-center flex flex-col items-center gap-3">
-              <FileSearch className="h-8 w-8 text-slate-300" />
-              <p className="text-sm text-slate-500 max-w-md">
-                No tenders are published yet — new opportunities go live as soon as they clear admin
-                review. Be the first to know when one lands.
-              </p>
-              <button onClick={onGetStarted} className="btn-geometric-secondary mt-2 cursor-pointer bg-white">
-                Get Alerted
-              </button>
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {latest.map((op) => (
-                <Link
-                  key={op.id}
-                  to={`/tenders/${op.slug}`}
-                  className="group border border-slate-200 hover:border-[#0F172A] bg-white p-5 flex flex-col gap-3 transition-colors"
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {op.isFeatured && (
-                      <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 uppercase tracking-wider">Featured</span>
-                    )}
-                    {op.sector && (
-                      <span className="bg-slate-100 text-slate-600 font-mono text-[9px] px-2 py-0.5 uppercase">{op.sector}</span>
-                    )}
-                  </div>
-                  <h3 className="font-display font-bold text-slate-900 leading-snug group-hover:text-emerald-700 transition-colors">
-                    {op.title}
-                  </h3>
-                  <p className="text-xs text-slate-500">{op.buyerName}</p>
-                  <div className="flex items-center justify-between mt-auto pt-3 border-t border-slate-100 text-[10px] text-slate-500 font-mono">
-                    {(op.district || op.country) && (
-                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {[op.district, op.country].filter(Boolean).join(', ')}</span>
-                    )}
-                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDeadline(op.submissionDeadline)}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
       </section>
 

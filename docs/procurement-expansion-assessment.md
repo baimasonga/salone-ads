@@ -885,4 +885,42 @@ screenshot completed; the mock code was fully reverted (confirmed via diff again
 never shipped. `tsc --noEmit` and `npm run build` are clean, but the actual live-data rendering of this
 page has **not** been re-confirmed visually since §21 and should be checked on the deployed site.
 
+## 23. Landing page restructured around the DGMarket reference screenshot (2026-07-22)
+
+The product owner shared an actual screenshot of dgmarket.com's front page as a direct design reference.
+Its information architecture is fundamentally different from the modern-SaaS structure built in §21-22: a
+compact utility search bar above any marketing copy, a short photographic banner (not a big headline
+hero), a "Sectors" sidebar showing live per-sector tender counts, a dense list-style (not card-grid) main
+tender listing, and a secondary "Popular tenders" sidebar list — altogether a much more information-dense,
+utility-first directory feel than a typical landing page.
+
+Restructured the top of `LandingPage.tsx` to match that pattern while keeping the existing sharp
+navy/emerald "Emerald Sky" visual identity (no stock photography available or appropriate to fabricate, so
+the banner uses the brand's own geometric pattern instead of a photo):
+- **Utility search bar**: a slim strip directly under the header — keyword input, Search button, Advanced
+  Search link — the very first thing after branding, before any pitch copy.
+- **Compact banner**: replaced the previous full headline hero with a shorter navy banner (tagline +
+  live sector/district/country stat trio), closer to DGMarket's photo-banner proportions.
+- **Three action cards**: Find Tenders / Get Alerts / Subscribe — mirroring DGMarket's icon+headline+link
+  utility-card row exactly, mapped to our own real actions (browse, get-started, pricing anchor).
+- **Three-column directory**: a real "Sectors" sidebar with live per-sector tender counts (computed
+  client-side from the same fetched opportunity list — grouping, not a new query), a dense "Latest &
+  Featured Opportunities" list (title + district/country + deadline per row, not a card grid), and a
+  "Popular Tenders" sidebar sorted by the real `view_count` column.
+- **New `viewCount` field**: added to `OpportunityListItem` (procurementApi.ts) — `view_count` was already
+  a real column on `opportunities` (fed by the existing `increment_opportunity_view` RPC) but had never
+  been exposed through `LIST_SELECT`/`mapListItem`; this is the only backend-adjacent change, a single
+  centralized mapper update, not new fabricated data.
+- The rest of §21-22's content (Who We Serve, Features bento, FAQ, Pricing, richer footer) stays below
+  this directory block — DGMarket doesn't need to explain or sell itself since it's an established brand,
+  but SaloneReach still does, so both structures now coexist: directory-first, marketing explanation after.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Re-confirmed the §22 finding that this
+sandbox's egress policy blocks real Supabase calls from any local process — so, as before, verified the
+new layout with temporary local mock data (matching the real 12 sector names and a realistic view-count
+spread), screenshotted at full desktop width, then reverted the mock via diff-checked restore before
+this commit. A faint diagonal artifact in the banner screenshot was double-checked with a tight crop and
+confirmed to be a downscaling/moiré artifact of the repeating-gradient background, not real content
+bleeding through.
+
 Say the word on anything else when you're ready.
