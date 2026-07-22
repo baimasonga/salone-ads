@@ -6,7 +6,8 @@ import {
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
-  FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X, Image as ImageIcon
+  FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X, Image as ImageIcon,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink } from '../types';
 import {
@@ -437,6 +438,27 @@ export function Workspaces({
       }, 3000);
     }
   };
+
+  // --- Social Publishing Calendar (real month navigation, not a fixed Dec 2026 grid) ---
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
+  function formatDateKey(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function getCalendarCells(monthStart: Date): (Date | null)[] {
+    const year = monthStart.getFullYear();
+    const month = monthStart.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstWeekday = (firstDay.getDay() + 6) % 7; // Monday-first
+    const cells: (Date | null)[] = Array(firstWeekday).fill(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+    return cells;
+  }
 
   // --- Manual Export Packages ---
   const [selectedExportPost, setSelectedExportPost] = useState<ContentItem | null>(null);
@@ -3119,20 +3141,30 @@ export function Workspaces({
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-display font-bold text-slate-900 text-lg">Social Publishing Calendar</h3>
-            <span className="text-xs text-slate-500 font-medium">Month View: December 2026</span>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="p-1 hover:bg-slate-100 rounded-lg cursor-pointer">
+                <ChevronLeft className="h-4 w-4 text-slate-500" />
+              </button>
+              <span className="text-xs text-slate-500 font-medium w-32 text-center">
+                {calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+              </span>
+              <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="p-1 hover:bg-slate-100 rounded-lg cursor-pointer">
+                <ChevronRight className="h-4 w-4 text-slate-500" />
+              </button>
+            </div>
           </div>
 
-          {/* Grid View */}
+          {/* Grid View — real month, real days-in-month, real scheduled_date matches */}
           <div className="grid grid-cols-7 gap-2 border border-slate-100 rounded-xl overflow-hidden p-2 bg-slate-50">
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
               <div key={day} className="text-center font-bold text-xs text-slate-400 py-2">{day}</div>
             ))}
-            {Array.from({ length: 28 }).map((_, idx) => {
-              const dayNum = idx + 1;
-              const scheduledPost = contentItems.find(item => item.scheduledDate === `2026-12-${dayNum < 10 ? '0' + dayNum : dayNum}`);
+            {getCalendarCells(calendarMonth).map((day, idx) => {
+              if (!day) return <div key={idx} />;
+              const scheduledPost = contentItems.find(item => item.scheduledDate === formatDateKey(day));
               return (
                 <div key={idx} className="bg-white border border-slate-100 rounded-lg p-2 min-h-24 flex flex-col justify-between relative group hover:shadow-xs transition-shadow">
-                  <span className="font-mono text-xs font-bold text-slate-400">{dayNum}</span>
+                  <span className="font-mono text-xs font-bold text-slate-400">{day.getDate()}</span>
                   {scheduledPost && (
                     <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-1.5 rounded text-[10px] font-semibold leading-tight line-clamp-2">
                       {scheduledPost.title}

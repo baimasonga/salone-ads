@@ -1051,4 +1051,16 @@ end-to-end probe: created a real tracking link as the real admin session, resolv
 `click_count` incremented, a real click row was logged, and the real target URL was returned — then
 confirmed anon still cannot read `tracking_links` directly (RLS blocks it; only the RPC path works).
 
+## 29. Real calendar month navigation (2026-07-22)
+
+Replaced the fixed 28-cell "December 2026" grid with a genuine month calendar: real days-in-month (28-31,
+leap-year aware), correct Monday-first weekday alignment for whichever month is showing, Prev/Next
+navigation defaulting to the real current month, and scheduled posts matched against real `scheduledDate`
+values (already-real `content_items` data — the old code just only ever checked `2026-12-DD` regardless of
+what month was displayed).
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Verified the pure date-arithmetic logic
+(`getCalendarCells`/`formatDateKey`) directly in Node — confirmed July 2026 starts on the correct Wednesday
+with 2 leading blank cells and 31 real days, and Feb 2028 (a leap year) correctly shows 29 days.
+
 Say the word on anything else when you're ready.
