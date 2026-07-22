@@ -174,10 +174,29 @@ export async function fetchMyPlatformRole(): Promise<'user' | 'researcher' | 'ad
   return (data?.platform_role as 'user' | 'researcher' | 'admin') ?? 'user';
 }
 
+// Brand kit + campaigns/content/leads/social connections are admin-only
+// internal ad-platform tooling now (RLS requires is_platform_admin()) — for
+// every other org these correctly come back empty, not an error. Use
+// .maybeSingle() (not .single()) for brand_kits and fall back to a blank
+// placeholder, since a non-admin org legitimately has zero accessible rows
+// and can never reach the Brand Kit/Content Studio UI anyway (hidden from
+// nav and blocked by RLS on any write).
+const EMPTY_BRAND_KIT: BrandKit = {
+  brandName: '',
+  legalName: '',
+  mission: '',
+  tagline: '',
+  primaryColor: '#10B981',
+  secondaryColor: '#0F172A',
+  fonts: '',
+  toneOfVoice: '',
+  prohibitedTerminology: [],
+};
+
 export async function fetchOrgBundle(orgId: string): Promise<OrgBundle> {
   const [orgRes, brandKitRes, campaignsRes, contentRes, leadsRes, socialRes] = await Promise.all([
     supabase.from('organizations').select('*').eq('id', orgId).single(),
-    supabase.from('brand_kits').select('*').eq('org_id', orgId).single(),
+    supabase.from('brand_kits').select('*').eq('org_id', orgId).maybeSingle(),
     supabase.from('campaigns').select('*').eq('org_id', orgId).order('created_at', { ascending: false }),
     supabase.from('content_items').select('*').eq('org_id', orgId).order('created_at', { ascending: false }),
     supabase.from('leads').select('*').eq('org_id', orgId).order('created_at', { ascending: false }),
@@ -193,7 +212,7 @@ export async function fetchOrgBundle(orgId: string): Promise<OrgBundle> {
 
   return {
     organization: mapOrganization(orgRes.data),
-    brandKit: mapBrandKit(brandKitRes.data),
+    brandKit: brandKitRes.data ? mapBrandKit(brandKitRes.data) : EMPTY_BRAND_KIT,
     campaigns: (campaignsRes.data ?? []).map(mapCampaign),
     contentItems: (contentRes.data ?? []).map(mapContentItem),
     leads: (leadsRes.data ?? []).map(mapLead),

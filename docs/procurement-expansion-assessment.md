@@ -624,13 +624,55 @@ non-admin hitting one of those tabs would just see empty data, not a leak). Pric
 the existing `/#pricing` landing-page anchor, which still describes the *old* ad-platform-oriented plan
 tiers, not the new Viewer/Publisher framing — worth a copy pass before real customers see it.
 
-## 15. Where this leaves the platform
+## 15. Regression: the Phase 14 RLS lockdown broke onboarding for every non-admin (2026-07-22)
+
+Found by the first real non-admin signup attempt (not a probe) — clicking "Complete Workspace Setup"
+appeared to do nothing. It actually succeeded silently, five times: `create_organization()` has no
+duplicate guard, and the client's error handling swallowed a downstream failure without surfacing it,
+so each click just created another org and re-hit the same silent failure.
+
+**Root cause**: `fetchOrgBundle()` (called for *every* user on every workspace load, not just
+ad-platform users) used `.single()` on `brand_kits`, which throws when zero rows come back. §14's RLS
+lockdown made `brand_kits` (and `campaigns`/`content_items`/`leads`/`social_connections`) admin-only —
+so for any non-admin org, that query now legitimately returns zero rows, and `.single()` throws. The
+thrown error was caught by `loadWorkspace`'s try/catch, which sets `workspaceError` — but the render
+logic checks `view === 'onboarding'` *before* checking that error state, so the failure was completely
+invisible: the user just saw the same onboarding form again, with no indication anything had happened.
+
+**Two real bugs, both fixed**:
+1. `fetchOrgBundle()` now uses `.maybeSingle()` for `brand_kits` and falls back to a blank
+   `EMPTY_BRAND_KIT` placeholder when null — safe because a non-admin org can never reach the Brand
+   Kit/Content Studio UI anyway (hidden from nav since §14, and RLS blocks any write regardless).
+   `campaigns`/`content_items`/`leads`/`social_connections` never needed this fix — RLS-filtered-to-zero
+   returns an empty array, not an error, from a plain (non-`.single()`) select; `brand_kits` was the only
+   one using `.single()`.
+2. `create_organization()` had no guard against a user creating more than one org, despite "exactly one
+   organization per user" being the documented design intent since Phase 1. Added a check that raises a
+   clear, friendly error ("You already have an organization...") instead of silently creating another.
+
+**Verification**: live probes against the real schema, not just read-through — confirmed the RPC now
+rejects a second org creation for the same user with the intended error message; confirmed the
+`brand_kits` select for the real affected user (`baimasonga@gmail.com`, used as this session's
+deliberately-non-admin/non-subscribed test account) returns zero rows without erroring, matching what
+the fixed client code now expects. Cleaned up the four duplicate "Timo global" orgs created during the
+stuck-form incident, keeping the first. `tsc --noEmit` and `npm run build` clean.
+
+**Lesson for future admin-only RLS lockdowns**: check every code path that touches the restricted
+tables, not just the features that obviously belong to that domain — `fetchOrgBundle` wasn't an
+"ad-platform feature," it was universal workspace-loading plumbing that happened to also fetch
+ad-platform data unconditionally for every user.
+
+## 16. Where this leaves the platform
 
 Seven phases plus a Regional Expansion slice are implemented against the real schema with RLS as the
 actual security boundary. §11-§14 closed document upload, automated reminders, and — the largest change
 — repositioned the whole product: tenders are now the subscriber-facing product with a real
-teaser/paywall boundary, and the original ad-platform is internal-only. What's left per the original
-spec: further Phase 7 depth, document *extraction*, the remaining deliberately-deferred items (outbound
-email, API-key management, researcher ingestion tooling, admin-entered/website-ingested tenders), and
-the follow-ups flagged in §14 (Overview tab content, pricing page copy). Say the word on any of these
-when you're ready.
+teaser/paywall boundary, and the original ad-platform is internal-only. §15 fixed a real regression that
+lockdown introduced (onboarding crash for non-admins) — a reminder that every phase in this build gets
+verified against the real schema precisely because read-through alone misses this class of bug. What's
+left per the original spec: further Phase 7 depth, document *extraction*, the remaining
+deliberately-deferred items (outbound email, API-key management, researcher ingestion tooling,
+admin-entered/website-ingested tenders), and the follow-ups flagged in §14 (Overview tab content,
+pricing page copy). A live click-through of the full tender lifecycle (buyer publish → admin review →
+public listing → subscriber detail view) as real non-admin accounts is still outstanding — that's the
+next thing in progress. Say the word on anything else when you're ready.
