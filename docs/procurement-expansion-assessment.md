@@ -1093,3 +1093,27 @@ lied about what they'd done — flagging honestly rather than quietly leaving it
 up the test row.
 
 Say the word on anything else when you're ready.
+
+## 31. Corrected stale planning docs (2026-07-22)
+
+`docs/implementation-plan.md` and `docs/product-requirements.md` were both entirely unedited leftovers
+from before the procurement pivot — the plan's phase table still said Phase 0 "IN PROGRESS" and every
+later phase "Planned" (despite phases 0-6 and 8 being done or mostly done by this point), and the PRD's
+positioning statement and module list described only the ad-platform vision with zero mention of
+tenders/procurement at all. Anyone reading either file cold would have an actively wrong picture of both
+what's built and what the product now is.
+
+Fixed both:
+- `implementation-plan.md` gets a top-of-file superseded notice plus a rewritten phase-status table with
+  accurate per-phase status (Done / Mostly done / Partial / Still not started, with a one-line reason for
+  each), and a closing note that Phase 11 onward (the actual current product) is tracked in this assessment
+  doc instead of being phase-numbered there.
+- `product-requirements.md` gets the same superseded notice, keeps the original positioning/module list for
+  historical context (the ad-platform module is still real, just no longer the product's front door), and
+  adds a "Current Positioning Statement" reflecting the actual product today.
+
+Both files now point here (`procurement-expansion-assessment.md`) as the live source of truth, rather than
+silently going stale next to it.
+
+**Verification**: doc-only change, no code affected — reviewed both files end-to-end after editing to
+confirm they read coherently and no longer contradict the real state of the repo.
