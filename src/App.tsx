@@ -188,7 +188,7 @@ function MainApp() {
         { id: 'tenders', label: 'Tenders', icon: FileSearch },
         { id: 'pipeline', label: 'My Pipeline', icon: BarChart2 },
         { id: 'supplier-profile', label: 'Supplier Profile', icon: Award },
-        { id: 'services', label: 'Bid Support Services', icon: UserCheck },
+        { id: 'services', label: 'Support Services', icon: UserCheck },
       ]
     },
     {

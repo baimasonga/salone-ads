@@ -1941,7 +1941,7 @@ export function Workspaces({
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Bid Support Services</h3>
+          <h3 className="font-display font-bold text-slate-900 text-lg">Support Services</h3>
           <p className="text-xs text-slate-500 mt-1">Request paid, human-assisted help — separate from our AI Content Studio, these are performed by our team.</p>
         </div>
 
