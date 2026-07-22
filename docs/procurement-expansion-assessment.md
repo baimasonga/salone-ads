@@ -847,4 +847,42 @@ apply heuristics, critique against the checklist).
 browser (desktop 1440px full-page pass, plus a dedicated mobile 390px pass with the menu opened and
 closed) rather than reviewing source code alone — this is how the mobile overflow bug was actually caught.
 
+## 22. Landing page density pass: real sector/stats content, tighter spacing (2026-07-22)
+
+Direct product-owner feedback on §21's redesign: "too much of white spaces and few web items for
+displaying contents," plus a scoping instruction that the Pricing section ("A Tier for Every Role") must
+stay exclusive to the general front page (confirmed via grep — it only ever existed in `LandingPage.tsx`,
+not duplicated elsewhere; no code change needed for that part, just confirmed and left as-is).
+
+Addressed the density complaint with real content, not decoration:
+- **Prominent search bar** in the hero, wired to `/tenders?q=...` — the signature element real commercial
+  procurement portals (DGMarket, UNGM) lead with, which the previous pass didn't have.
+- **New "Browse By Sector" section**: all 12 real sectors from the `sectors` table (`fetchSectors()`),
+  rendered as a dense clickable tile grid linking to `/tenders?sector={id}`, each icon-mapped by keyword
+  match against the real sector name (Agriculture → wheat icon, Health → heart-pulse, etc.), with a
+  generic building icon as fallback. Zero fabricated categories.
+- **Real stat strip** in the hero: sector count, district/county count (31, from `fetchDistricts()`),
+  and country count (2) — all live counts from the same taxonomy tables the search filters already use,
+  not invented traffic numbers.
+- **New FAQ section** (5 real Q&As grounded in actual product mechanics — free browsing, admin review,
+  plan differences, advertising flow, country coverage) as a working accordion.
+- **Denser tender feed**: 9 cards instead of 6, tighter grid gaps.
+- **Richer 4-column footer**: Platform / Account / Get In Touch link columns instead of a single
+  brand-plus-copyright row — only real in-page anchors and existing actions (Sign In/Get Started), no
+  invented pages.
+- **Tightened vertical rhythm** throughout: `py-20` → `py-14`, `gap-16` → `gap-8`, condensing the standalone
+  "How It Works" card into a compact horizontal ribbon under the hero instead of a tall side card.
+
+**Verification gap, disclosed rather than papered over**: attempted to re-screenshot the live-data
+rendering as done for §21, and discovered mid-session that this sandbox's outbound proxy explicitly
+denies (403, confirmed via the proxy's own `/__agentproxy/status` failure log) any connection to this
+project's Supabase domain — for every process, not just curl. This means §21's earlier "verified empty
+state" screenshots were actually rendering a silently-caught network failure (`.catch(() => setLatest([]))`
+masks a fetch error identically to a genuine empty result) — not a confirmed real render. Per the proxy's
+own policy ("do not retry or route around it"), did not attempt a bypass. Instead verified layout/density
+with temporary local mock data matching the real 12 sector names, but the user interrupted before that
+screenshot completed; the mock code was fully reverted (confirmed via diff against a pre-mock backup) and
+never shipped. `tsc --noEmit` and `npm run build` are clean, but the actual live-data rendering of this
+page has **not** been re-confirmed visually since §21 and should be checked on the deployed site.
+
 Say the word on anything else when you're ready.
