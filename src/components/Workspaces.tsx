@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import JSZip from 'jszip';
 import { Link } from 'react-router-dom';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
@@ -387,6 +388,72 @@ export function Workspaces({
 
   // --- Manual Export Packages ---
   const [selectedExportPost, setSelectedExportPost] = useState<ContentItem | null>(null);
+  const [exportAssets, setExportAssets] = useState<MediaAsset[]>([]);
+  const [exportSelectedAssetIds, setExportSelectedAssetIds] = useState<Set<string>>(new Set());
+  const [isGeneratingExport, setIsGeneratingExport] = useState(false);
+  const [exportFeedback, setExportFeedback] = useState('');
+
+  useEffect(() => {
+    if (!selectedExportPost) return;
+    setExportSelectedAssetIds(new Set());
+    fetchMediaAssets(activeOrg.id)
+      .then(setExportAssets)
+      .catch(() => setExportAssets([]));
+  }, [selectedExportPost, activeOrg.id]);
+
+  const toggleExportAsset = (id: string) => {
+    setExportSelectedAssetIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Builds a real .zip (caption.txt + any selected media asset files, fetched
+  // via signed URL) and triggers an actual browser download — replacing the
+  // old alert() that only claimed a package was compiled.
+  const handleDownloadCompiledAssets = async () => {
+    if (!selectedExportPost) return;
+    setIsGeneratingExport(true);
+    setExportFeedback('');
+    try {
+      const zip = new JSZip();
+      const captionText = [
+        `Platform: ${selectedExportPost.platform}`,
+        `Recommended timing: 18:00 GMT (Peak Leonean Engagement)`,
+        '',
+        selectedExportPost.headline,
+        '',
+        selectedExportPost.bodyText,
+        '',
+        selectedExportPost.hashtags.join(' '),
+      ].join('\n');
+      zip.file('caption.txt', captionText);
+
+      const selectedAssets = exportAssets.filter((a) => exportSelectedAssetIds.has(a.id));
+      for (const asset of selectedAssets) {
+        const url = await getMediaAssetUrl(asset);
+        const response = await fetch(url);
+        const blob = await response.blob();
+        zip.file(asset.fileName, blob);
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${selectedExportPost.title.replace(/[^a-zA-Z0-9._-]/g, '_')}-export.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(downloadUrl);
+    } catch (err: any) {
+      setExportFeedback(`Error: ${err.message || 'Could not generate export package.'}`);
+    } finally {
+      setIsGeneratingExport(false);
+    }
+  };
 
   // --- Billing & Subscriptions ---
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -3059,18 +3126,37 @@ export function Workspaces({
                 </div>
               </div>
               <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex flex-col justify-between text-xs space-y-3">
-                <span className="font-bold text-slate-700 block uppercase">Manual Publishing Checklist</span>
+                <span className="font-bold text-slate-700 block uppercase">Attach Media Assets</span>
+                {exportAssets.length === 0 ? (
+                  <p className="text-slate-400">No media assets uploaded yet — the export will still include caption.txt.</p>
+                ) : (
+                  <div className="max-h-32 overflow-y-auto space-y-1.5">
+                    {exportAssets.map((asset) => (
+                      <label key={asset.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={exportSelectedAssetIds.has(asset.id)}
+                          onChange={() => toggleExportAsset(asset.id)}
+                          className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="truncate text-slate-700">{asset.fileName}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
                 <ul className="space-y-2">
                   <li className="flex items-center gap-2"><Check className="text-emerald-600 h-4 w-4 shrink-0" /> Copy generated caption safely</li>
-                  <li className="flex items-center gap-2"><Check className="text-emerald-600 h-4 w-4 shrink-0" /> Download compressed image/video asset</li>
+                  <li className="flex items-center gap-2"><Check className="text-emerald-600 h-4 w-4 shrink-0" /> Attach media assets from the Library above</li>
                   <li className="flex items-center gap-2"><Check className="text-emerald-600 h-4 w-4 shrink-0" /> Embed UTM tracking link</li>
                   <li className="flex items-center gap-2"><Check className="text-emerald-600 h-4 w-4 shrink-0" /> Upload to target social platform manually</li>
                 </ul>
+                {exportFeedback && <p className="text-red-600 font-semibold">{exportFeedback}</p>}
                 <button
-                  onClick={() => alert('Download simulated: Manual export package compiled successfully!')}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2 cursor-pointer"
+                  onClick={handleDownloadCompiledAssets}
+                  disabled={isGeneratingExport}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Download className="h-4 w-4" /> Download Compiled Assets
+                  <Download className="h-4 w-4" /> {isGeneratingExport ? 'Compiling…' : 'Download Compiled Assets'}
                 </button>
               </div>
             </div>
