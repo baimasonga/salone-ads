@@ -809,4 +809,42 @@ Rewrote all four sections to describe the real product:
 sections in a real headless-browser screenshot pass (hero, audience, features, pricing) to confirm layout
 held after the copy swap — not just a read-through.
 
+## 21. Landing page redesign: real tender data, honest empty state, unified visual system (2026-07-22)
+
+Direct product-owner request: "the front page UI needs to be redone for displaying tenders and other
+adverts... the UI must be design professional." Rebuilt `LandingPage.tsx` end to end rather than making
+incremental copy edits, using the `ui-ux-design` skill's process (frame the problem, one job per section,
+apply heuristics, critique against the checklist).
+
+**What changed:**
+- **Hero**: replaced the old single hardcoded "sample listing" mockup — which implied it was live data but
+  wasn't — with an honest "How It Works" 3-step panel (Search free → Subscribe → Bid or publish). No fake
+  data anywhere in the hero now.
+- **New "Live Tender Feed" section**: genuinely wired to `searchOpportunities({})`, showing the latest 6
+  published tenders as real cards (sector, buyer, district, deadline), or a deliberately designed empty
+  state (dashed border, plain-language explanation, "Get Alerted" CTA) for the current reality — 0
+  published tenders in the database today. This directly answers "displaying tenders": it's live, not
+  decorative, and will start populating itself the moment the first buyer-submitted tender clears admin
+  review.
+- **Visual system unification**: discovered mid-task that `index.css` already force-flattens
+  `rounded-xl`/`rounded-2xl`/`rounded-3xl` to 0 and strips shadows off certain `bg-white.border` /
+  `bg-slate-50.border` combinations globally (`!important` overrides) — meaning the page's soft-SaaS
+  source classes were already rendering sharp-cornered in production, just inconsistently (some cards
+  escaped the override via opacity-modified background classes like `bg-slate-50/50`, which don't match
+  the plain-class selector). Rewrote every section to use explicit sharp-cornered classes directly
+  (`border border-[#0F172A]`/`border-slate-200`/`border-slate-300`, zero `rounded-*` classes anywhere) so
+  the design is correct by construction rather than accidentally correct via a global hack. Added numbered
+  index badges (01/02/03) to the "Who We Serve" and "How It Works" cards, echoing the same
+  `itemNum`-in-the-corner convention the dashboard sidebar already uses — a small consistency thread tying
+  the marketing site to the product itself.
+- **Mobile header bug found and fixed during review**: the original header (logo + "Sign In" text button +
+  "Get Started" button, all always visible) overflowed at 390px width — confirmed by an actual mobile
+  viewport screenshot, not assumed. Replaced with a proper collapsible mobile menu (hamburger toggle,
+  `aria-expanded`/`aria-label`, full-width dropdown with stacked nav links + Sign In + Get Started),
+  re-screenshotted open and closed to confirm the fix.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Rendered every section with a real headless
+browser (desktop 1440px full-page pass, plus a dedicated mobile 390px pass with the menu opened and
+closed) rather than reviewing source code alone — this is how the mobile overflow bug was actually caught.
+
 Say the word on anything else when you're ready.
