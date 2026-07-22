@@ -1117,3 +1117,69 @@ silently going stale next to it.
 
 **Verification**: doc-only change, no code affected — reviewed both files end-to-end after editing to
 confirm they read coherently and no longer contradict the real state of the repo.
+
+## 32. Full feature/function QA pass (2026-07-22)
+
+Systematic audit of "does every feature actually work," combining live RLS-simulated tests against
+the real database (as the two real accounts — `baimasonga@gmail.com`/Timo Global, a regular subscriber,
+and `mabangura@quantixsl.com`/FaxaRa, the platform admin) with a local dev-server + Playwright smoke pass
+and a full re-read of the security/performance advisors.
+
+**Confirmed working end-to-end (live-tested, not just code-reviewed)**:
+- Tender publish (as a real buyer-org member) → public listing (anon can see it) → `get_opportunity_detail`
+  correctly redacts `description`/`contact_details`/`submission_instructions`/etc. for a non-entitled/anon
+  caller (`has_full_access: false`) while showing the teaser fields.
+- Advertisement request: subscriber submit (business-plan entitlement required) → admin-only fulfillment
+  update (status/platform/reach) → confirmed a non-admin org member's attempt to update the same row is
+  silently rejected by RLS (0 rows affected).
+- `resolve_tracking_link` RPC: increments `click_count` and logs a row in `tracking_link_clicks` correctly;
+  the `/r/:code` Express route returns a clean 404 for an unknown code rather than crashing.
+- Security advisors: zero ERROR-level findings. All WARN-level findings are either already-accepted,
+  documented trade-offs from earlier phases (SECURITY DEFINER functions intentionally callable by
+  anon/authenticated, e.g. `get_opportunity_detail`) or routine performance suggestions (missing indexes on
+  FKs, `auth_rls_initplan`, `multiple_permissive_policies`) — no correctness bugs.
+
+**Real bug found and fixed**: the `service_requests` UPDATE RLS policy (`is_org_member(org_id) OR
+is_platform_admin()`) let a regular org member update their *own* service request's `status` and
+`quote_amount`/`quote_currency` — meaning any subscriber could self-quote or self-mark their own support
+request "completed" via a direct REST/SQL call, entirely bypassing the intended admin-only fulfillment
+queue (the UI never exposes this, but RLS — not the UI — is the real boundary, and RLS allowed it). Fixed
+with `protect_service_request_fulfillment()`, a `BEFORE UPDATE` trigger following the same silent-revert
+idiom as the existing `protect_buyer_mode_activation()`: non-admin callers may still self-cancel their own
+request (`status = 'cancelled'`), but any other status change, quote amount, quote currency, or assignment
+change gets reverted to its prior value rather than erroring. Live-verified all three cases: self-quote/
+self-complete reverted silently, self-cancel still works, admin quote/complete still works.
+
+**Minor fix**: `LandingPage.tsx`'s country-count stat used `countryCount || 2` — a hardcoded fallback that
+made it look like live data even when the fetch failed, inconsistent with its sibling stats (sectors,
+districts) which honestly show `—` on failure/zero. Changed to `countryCount || '—'` to match.
+
+**Findings reported, not changed (judgment calls, not "broken")**:
+- **No password-reset/forgot-password flow exists at all** (`AuthScreens.tsx` only has sign-in, sign-up,
+  and Google OAuth) — a real gap for a commercial product, but building it is new-feature scope, not a fix,
+  so it's flagged for a decision rather than built unprompted.
+- **No URL deep-linking for sign-in/sign-up/dashboard tabs**: `MainApp` in `App.tsx` drives its `view` and
+  `activeTab` entirely from React state (`useState`), never from `location.pathname` — only `/tenders` and
+  `/tenders/:slug` are real routes. Visiting `/sign-in` or `/sign-up` directly renders the landing page, and
+  refreshing mid-session always resets `activeTab` to `overview`. Every in-app click path (Get Started → Sign
+  In → dashboard) works correctly; this only bites direct/bookmarked/shared links. Refactoring this to real
+  routes is a larger, separate change with real regression risk, so it's reported rather than attempted here.
+- **Three orphaned tables with schema+RLS but zero application code referencing them**: `buyer_profiles`,
+  `followed_sectors`, `notification_preferences`. `followed_sectors`/`notification_preferences` look like
+  they were built ahead of the (still-blocked, Task #44) real alert-delivery work and are natural building
+  blocks for it; `buyer_profiles` looks superseded by the `is_buyer`/`buyer_verified` flags now living
+  directly on `organizations`. Not dropped — flagged for a decision.
+- **Residual risk already documented in §11/§15 reaffirmed, not re-litigated**: raw `opportunities` /
+  `opportunity_documents` rows are still fully selectable by anyone once published (Postgres RLS is
+  row-level, not column-level) — the app never queries them directly for detail (uses the redacting
+  `get_opportunity_detail` RPC instead), but a caller hitting the Supabase REST endpoint directly with the
+  public anon key could still see every column. This was a deliberate, accepted trade-off when built, not a
+  regression from this pass.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean after the fixes. Dev server smoke-tested
+locally (`/`, `/api/health`, `/r/:code` with a bad code, and a Playwright pass over `/`, `/sign-in`,
+`/sign-up` checking for JS `pageerror`s) — no crashes; the only console noise was the sandbox's existing
+`*.supabase.co` egress block, not app bugs. All test rows inserted during live RLS probes were cleaned up
+(and one advertisement_requests/service_requests row each needed a privileged delete since neither table
+has a DELETE policy — by design, to preserve an audit trail — rather than the usual authenticated-role
+cleanup path used elsewhere in this doc).

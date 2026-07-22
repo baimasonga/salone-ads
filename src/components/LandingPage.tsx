@@ -255,7 +255,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                 <span className="text-[9px] text-slate-400 uppercase tracking-widest">Districts</span>
               </div>
               <div>
-                <span className="block font-black text-2xl">{countryCount || 2}</span>
+                <span className="block font-black text-2xl">{countryCount || '—'}</span>
                 <span className="text-[9px] text-slate-400 uppercase tracking-widest">Countries</span>
               </div>
             </div>
