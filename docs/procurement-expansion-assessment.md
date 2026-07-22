@@ -1016,4 +1016,39 @@ column shapes the new UI code issues round-trip correctly against the real table
 used throughout this session for admin-dashboard features, since those screens need a real authenticated
 app session this sandbox's browser can't reach (blocked by the sandbox's own egress policy, per §22).
 
+## 28. Real tracking links, click capture, and analytics (2026-07-22)
+
+Replaced the entire alert-only/mock tracking-and-attribution layer with a real one:
+
+- **Schema**: `tracking_links` (org_id, label, target_url, short_code, click_count) and
+  `tracking_link_clicks` (tracking_link_id, org_id, clicked_at, referrer). Management RLS matches the
+  admin-only convention (`is_org_member(org_id) and is_platform_admin()`); the tables themselves are never
+  directly readable by anon.
+- **`resolve_tracking_link(p_code, p_referrer)` RPC** — SECURITY DEFINER, granted to `anon` and
+  `authenticated`, same pattern as `increment_opportunity_view`/`get_opportunity_detail`: looks up the
+  short code, atomically increments `click_count`, logs a click row, and returns the real target URL.
+- **Real server-side redirect**: `GET /r/:code` in `server.ts` calls the RPC and issues a genuine HTTP 302
+  — a server route rather than a client-side SPA route, so it's fast, works without JS, and behaves
+  correctly for share-preview crawlers.
+- **API layer**: `createTrackingLink`, `fetchTrackingLinks`, `deleteTrackingLink`, and `fetchClickSeries`
+  (buckets real click timestamps into a daily series, replacing the hardcoded `[65, 80, 55, ...]` array).
+- **Tourism tab**: the two "Generate Tracking Link" buttons (previously `alert('...configured!')`) now
+  create a real link on demand (prompting for the real destination — a WhatsApp link or booking page — 
+  instead of assuming one) and, once created, show the real `/r/{code}` short link with a copy button and
+  live click count.
+- **Analytics tab**: replaced three fabricated stats (Le 240 CPC, 8.2% conversion, 42% diaspora share — no
+  backing data existed for any of them) with real ones (active tracking links, total clicks, clicks in the
+  last 7 days), added a real daily click chart, and a full tracking-link builder + list (this also picked
+  up a completely orphaned, never-rendered UTM-builder state block that existed in the code but was wired
+  to no UI at all).
+- **Overview tab** (admin ad-stats view): replaced "Audience Reach" (4,812,400, fake), "WhatsApp Clicks"
+  (12,410, fake), and "Est. ROI Index" (3.5x, fake) with Active Campaigns, Tracking Link Clicks, and
+  Content Published — all real counts from data already being fetched — plus the same real click chart.
+
+**Verification**: `tsc --noEmit` and `npm run build` (including the esbuild server bundle) clean. Live
+end-to-end probe: created a real tracking link as the real admin session, resolved it via
+`resolve_tracking_link` as genuinely anonymous (`set local role anon`, no JWT claims at all) — confirmed
+`click_count` incremented, a real click row was logged, and the real target URL was returned — then
+confirmed anon still cannot read `tracking_links` directly (RLS blocks it; only the RPC path works).
+
 Say the word on anything else when you're ready.

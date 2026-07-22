@@ -60,6 +60,26 @@ async function startServer() {
 
   app.use(express.json({ limit: "100kb" }));
 
+  // Tracking link redirect — resolves a short code via the SECURITY DEFINER
+  // resolve_tracking_link() RPC (which also logs the click), then issues a
+  // real HTTP redirect. A server route rather than a client-side SPA route
+  // so it works as a real, fast, share-preview-friendly short link.
+  app.get("/r/:code", async (req, res) => {
+    if (!supabaseAuthClient) {
+      res.status(503).send("Tracking links are not configured.");
+      return;
+    }
+    const { data, error } = await supabaseAuthClient.rpc("resolve_tracking_link", {
+      p_code: req.params.code,
+      p_referrer: req.get("referer") || null,
+    });
+    if (error || !data) {
+      res.status(404).send("This link is invalid or has expired.");
+      return;
+    }
+    res.redirect(302, data);
+  });
+
   // API Health Endpoint
   app.get("/api/health", (req, res) => {
     res.json({

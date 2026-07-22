@@ -9,6 +9,7 @@ import {
   InfluencerProfile,
   SocialConnection,
   MediaAsset,
+  TrackingLink,
 } from '../types';
 
 export interface OrgBundle {
@@ -466,4 +467,92 @@ export async function getMediaAssetUrl(asset: MediaAsset): Promise<string> {
   const { data, error } = await supabase.storage.from(MEDIA_ASSETS_BUCKET).createSignedUrl(asset.storagePath, 300);
   if (error) throw error;
   return data.signedUrl;
+}
+
+// --- Tracking links (admin-only) ---
+// Real short links: /r/{code} is resolved server-side by server.ts, which
+// calls the resolve_tracking_link() RPC (logs the click, then redirects) —
+// see docs/procurement-expansion-assessment.md for why this needed a real
+// server route rather than a client-side SPA route.
+
+function mapTrackingLink(row: any): TrackingLink {
+  return {
+    id: row.id,
+    label: row.label,
+    targetUrl: row.target_url,
+    shortCode: row.short_code,
+    clickCount: row.click_count,
+    createdAt: row.created_at,
+  };
+}
+
+function generateShortCode(): string {
+  return Math.random().toString(36).slice(2, 8);
+}
+
+export async function fetchTrackingLinks(orgId: string): Promise<TrackingLink[]> {
+  const { data, error } = await supabase
+    .from('tracking_links')
+    .select('id, label, target_url, short_code, click_count, created_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapTrackingLink);
+}
+
+export async function createTrackingLink(orgId: string, label: string, targetUrl: string): Promise<TrackingLink> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await supabase
+    .from('tracking_links')
+    .insert({
+      org_id: orgId,
+      label,
+      target_url: targetUrl,
+      short_code: generateShortCode(),
+      created_by: user.id,
+    })
+    .select('id, label, target_url, short_code, click_count, created_at')
+    .single();
+  if (error) throw error;
+  return mapTrackingLink(data);
+}
+
+export async function deleteTrackingLink(id: string): Promise<void> {
+  const { error } = await supabase.from('tracking_links').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export interface ClickSeriesPoint {
+  date: string;
+  count: number;
+}
+
+// Groups the org's raw click timestamps into a real daily series for the
+// last `days` days — replaces the previous hardcoded bar-chart array.
+export async function fetchClickSeries(orgId: string, days: number): Promise<ClickSeriesPoint[]> {
+  const since = new Date();
+  since.setDate(since.getDate() - (days - 1));
+  since.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('tracking_link_clicks')
+    .select('clicked_at')
+    .eq('org_id', orgId)
+    .gte('clicked_at', since.toISOString());
+  if (error) throw error;
+
+  const counts = new Map<string, number>();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(since);
+    d.setDate(d.getDate() + i);
+    counts.set(d.toISOString().split('T')[0], 0);
+  }
+  for (const row of data ?? []) {
+    const day = new Date(row.clicked_at).toISOString().split('T')[0];
+    counts.set(day, (counts.get(day) ?? 0) + 1);
+  }
+  return Array.from(counts.entries()).map(([date, count]) => ({ date, count }));
 }

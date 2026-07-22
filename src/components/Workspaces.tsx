@@ -8,7 +8,7 @@ import {
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
   FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X, Image as ImageIcon
 } from 'lucide-react';
-import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset } from '../types';
+import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink } from '../types';
 import {
   createCampaign,
   createContentItem,
@@ -21,6 +21,11 @@ import {
   uploadMediaAsset,
   deleteMediaAsset,
   getMediaAssetUrl,
+  fetchTrackingLinks,
+  createTrackingLink,
+  deleteTrackingLink,
+  fetchClickSeries,
+  ClickSeriesPoint,
 } from '../lib/api';
 import {
   fetchMyOpportunities,
@@ -334,15 +339,62 @@ export function Workspaces({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  // --- Tracking Links States ---
+  // --- Tracking Links States (real, storage-backed short links) ---
   const [trackDest, setTrackDest] = useState('https://freetownhaven.com/booking');
-  const [trackSource, setTrackSource] = useState('Facebook Ads');
-  const [trackMedium, setTrackMedium] = useState('Social Video');
-  const [generatedLink, setGeneratedLink] = useState('');
+  const [trackLabel, setTrackLabel] = useState('');
+  const [trackingLinks, setTrackingLinks] = useState<TrackingLink[]>([]);
+  const [trackingLinksLoading, setTrackingLinksLoading] = useState(false);
+  const [trackingLinkFeedback, setTrackingLinkFeedback] = useState('');
+  const [clickSeries, setClickSeries] = useState<ClickSeriesPoint[]>([]);
 
-  const handleGenerateLink = () => {
-    const slug = Math.random().toString(36).substring(2, 7);
-    setGeneratedLink(`https://salone.reach/rt/${slug}?utm_source=${encodeURIComponent(trackSource)}&utm_medium=${encodeURIComponent(trackMedium)}&destination=${encodeURIComponent(trackDest)}`);
+  useEffect(() => {
+    if (activeTab !== 'analytics' && activeTab !== 'tourism' && activeTab !== 'events' && activeTab !== 'overview') return;
+    if (activeTab === 'overview' && !isPlatformAdmin) return;
+    setTrackingLinksLoading(true);
+    Promise.all([fetchTrackingLinks(activeOrg.id), fetchClickSeries(activeOrg.id, 12)])
+      .then(([links, series]) => {
+        setTrackingLinks(links);
+        setClickSeries(series);
+      })
+      .catch((err: any) => setTrackingLinkFeedback(`Error: ${err.message || 'Could not load tracking links.'}`))
+      .finally(() => setTrackingLinksLoading(false));
+  }, [activeTab, activeOrg.id]);
+
+  const handleGenerateLink = async () => {
+    if (!trackLabel.trim() || !trackDest.trim()) {
+      setTrackingLinkFeedback('Error: Give the link a label and a destination URL.');
+      setTimeout(() => setTrackingLinkFeedback(''), 4000);
+      return;
+    }
+    try {
+      const link = await createTrackingLink(activeOrg.id, trackLabel, trackDest);
+      setTrackingLinks([link, ...trackingLinks]);
+      setTrackLabel('');
+    } catch (err: any) {
+      setTrackingLinkFeedback(`Error: ${err.message || 'Could not create tracking link.'}`);
+      setTimeout(() => setTrackingLinkFeedback(''), 4000);
+    }
+  };
+
+  const handleDeleteTrackingLink = async (id: string) => {
+    const previous = trackingLinks;
+    setTrackingLinks(trackingLinks.filter((l) => l.id !== id));
+    try {
+      await deleteTrackingLink(id);
+    } catch (err: any) {
+      setTrackingLinks(previous);
+      setTrackingLinkFeedback(`Error: ${err.message || 'Could not delete link.'}`);
+      setTimeout(() => setTrackingLinkFeedback(''), 4000);
+    }
+  };
+
+  // Generic — any workspace with a real destination URL can create a real
+  // tracking link through this (used by both the Analytics builder and the
+  // Tourism tab's per-destination "Generate Tracking Link" buttons).
+  const generateNamedTrackingLink = async (label: string, defaultUrl: string): Promise<TrackingLink | null> => {
+    const targetUrl = prompt(`Where should "${label}" send visitors? (e.g. a WhatsApp link or booking page)`, defaultUrl);
+    if (!targetUrl) return null;
+    return createTrackingLink(activeOrg.id, label, targetUrl);
   };
 
   // --- Lead Management States ---
@@ -1452,17 +1504,15 @@ export function Workspaces({
           </div>
         </div>
 
-        {/* Dashboard Cards */}
+        {/* Dashboard Cards — real counts, not mock figures */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <span className="text-slate-400 font-semibold text-xs block">AUDIENCE REACH</span>
-            <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">4,812,400</span>
-            <span className="text-xs text-emerald-600 font-bold mt-1 block">↑ 12.4% vs last month</span>
+            <span className="text-slate-400 font-semibold text-xs block">ACTIVE CAMPAIGNS</span>
+            <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{campaigns.filter((c) => c.status === 'Active').length}</span>
           </div>
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <span className="text-slate-400 font-semibold text-xs block">WHATSAPP CLICKS</span>
-            <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">12,410</span>
-            <span className="text-xs text-emerald-600 font-bold mt-1 block">↑ 8.2% conversion rate</span>
+            <span className="text-slate-400 font-semibold text-xs block">TRACKING LINK CLICKS</span>
+            <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{trackingLinks.reduce((sum, l) => sum + l.clickCount, 0)}</span>
           </div>
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
             <span className="text-slate-400 font-semibold text-xs block">ACTIVE LEADS</span>
@@ -1470,23 +1520,26 @@ export function Workspaces({
             <span className="text-xs text-blue-600 font-bold mt-1 block">Lightweight CRM loaded</span>
           </div>
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <span className="text-slate-400 font-semibold text-xs block">EST. ROI INDEX</span>
-            <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">3.5x</span>
-            <span className="text-xs text-slate-500 font-medium mt-1 block">Targeting optimized</span>
+            <span className="text-slate-400 font-semibold text-xs block">CONTENT PUBLISHED</span>
+            <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">{contentItems.filter((c) => c.status === 'Published').length}</span>
           </div>
         </div>
 
-        {/* Local Traffic Chart Mock */}
+        {/* Real click chart — from tracking_link_clicks */}
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Daily Click Attributions (Local vs Diaspora)</h3>
-          <div className="flex items-end gap-3 h-48 pt-6">
-            {[65, 80, 55, 95, 70, 110, 85, 120, 90, 105, 130, 95].map((val, idx) => (
-              <div key={idx} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                <div className="w-full bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-colors" style={{ height: `${(val / 140) * 100}%` }} />
-                <span className="text-[10px] text-slate-400 font-mono">D{idx+1}</span>
-              </div>
-            ))}
-          </div>
+          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Daily Tracking Link Clicks (Last 12 Days)</h3>
+          {clickSeries.length === 0 ? (
+            <p className="text-xs text-slate-400">No tracking link clicks yet — create a link in the Analytics tab to start seeing activity here.</p>
+          ) : (
+            <div className="flex items-end gap-3 h-48 pt-6">
+              {clickSeries.map((point) => (
+                <div key={point.date} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                  <div className="w-full bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-colors" style={{ height: `${(point.count / Math.max(1, ...clickSeries.map((p) => p.count))) * 100}%` }} />
+                  <span className="text-[10px] text-slate-400 font-mono">{point.date.slice(5)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Onboarding Checklist */}
@@ -3400,28 +3453,108 @@ export function Workspaces({
 
   // 8. ANALYTICS WORKSPACE
   if (activeTab === 'analytics') {
+    const totalClicks = trackingLinks.reduce((sum, l) => sum + l.clickCount, 0);
+    const clicksLast7Days = clickSeries.slice(-7).reduce((sum, p) => sum + p.count, 0);
+    const maxClickCount = Math.max(1, ...clickSeries.map((p) => p.count));
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-6">Attributions & Performance Funnel</h3>
-
+          <h3 className="font-display font-bold text-slate-900 text-lg mb-6">Real Tracking Link Performance</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-center">
-              <span className="text-xs text-slate-400 font-bold uppercase block">Avg. Cost Per WhatsApp Click</span>
-              <span className="font-display font-extrabold text-2xl text-slate-800 block mt-2">Le 240</span>
-              <span className="text-xs text-emerald-600 font-medium block mt-1">Excellent cost-to-reach ratio</span>
+              <span className="text-xs text-slate-400 font-bold uppercase block">Active Tracking Links</span>
+              <span className="font-display font-extrabold text-2xl text-slate-800 block mt-2">{trackingLinks.length}</span>
             </div>
             <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-center">
-              <span className="text-xs text-slate-400 font-bold uppercase block">Conversion Rate (Click to Lead)</span>
-              <span className="font-display font-extrabold text-2xl text-slate-800 block mt-2">8.2%</span>
-              <span className="text-xs text-emerald-600 font-medium block mt-1">↑ 1.2% this week</span>
+              <span className="text-xs text-slate-400 font-bold uppercase block">Total Clicks (All Time)</span>
+              <span className="font-display font-extrabold text-2xl text-slate-800 block mt-2">{totalClicks}</span>
             </div>
             <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-center">
-              <span className="text-xs text-slate-400 font-bold uppercase block">Diaspora Traffic Share</span>
-              <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">42%</span>
-              <span className="text-xs text-slate-500 font-medium block mt-1">UK: 24% | US: 18%</span>
+              <span className="text-xs text-slate-400 font-bold uppercase block">Clicks (Last 7 Days)</span>
+              <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">{clicksLast7Days}</span>
             </div>
           </div>
+        </div>
+
+        {/* Real click chart — from tracking_link_clicks, not a fixed mock array */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Daily Clicks (Last 12 Days)</h3>
+          <div className="flex items-end gap-3 h-48 pt-6">
+            {clickSeries.map((point) => (
+              <div key={point.date} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                <div className="w-full bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-colors" style={{ height: `${(point.count / maxClickCount) * 100}%` }} />
+                <span className="text-[10px] text-slate-400 font-mono">{point.date.slice(5)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Tracking Link Builder */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Create a Tracking Link</h3>
+          {trackingLinkFeedback && (
+            <div className={`text-sm p-3 rounded-xl font-semibold ${trackingLinkFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+              {trackingLinkFeedback}
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Label</label>
+              <input
+                type="text"
+                placeholder="e.g. Facebook Video Ad"
+                value={trackLabel}
+                onChange={(e) => setTrackLabel(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Destination URL</label>
+              <input
+                type="text"
+                value={trackDest}
+                onChange={(e) => setTrackDest(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+              />
+            </div>
+          </div>
+          <button onClick={handleGenerateLink} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer">
+            Generate Tracking Link
+          </button>
+        </div>
+
+        {/* List of real links */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Tracking Links</h4>
+          {trackingLinksLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : trackingLinks.length === 0 ? (
+            <p className="text-xs text-slate-400">No tracking links yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {trackingLinks.map((link) => {
+                const shortUrl = `${window.location.origin}/r/${link.shortCode}`;
+                return (
+                  <div key={link.id} className="border border-slate-100 rounded-xl p-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <span className="font-semibold text-slate-800 text-sm block truncate">{link.label}</span>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(shortUrl)}
+                        className="text-xs text-emerald-600 hover:underline cursor-pointer font-mono truncate block"
+                        title="Copy link"
+                      >
+                        {shortUrl}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0">
+                      <span className="text-xs font-mono text-slate-500">{link.clickCount} clicks</span>
+                      <button onClick={() => handleDeleteTrackingLink(link.id)} className="text-xs text-red-500 hover:underline cursor-pointer">Delete</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -3699,16 +3832,40 @@ export function Workspaces({
           <p className="text-xs text-slate-500 mb-6">Showcase eco-tourism hotspots and ancestral landmarks (e.g., Tiwai Island, Banana Islands) with simple, tracking-redirect call-to-actions.</p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl space-y-2">
-              <span className="font-bold text-slate-800 block">Bunce Island Historical Exploration</span>
-              <p className="text-xs text-slate-500 leading-relaxed">Ancestral roots tours mapping Sierra Leonean heritage directly for African-American and Caribbean diaspora visitors.</p>
-              <button onClick={() => alert('Bunce Island promotional link configured!')} className="text-emerald-600 font-semibold hover:underline text-xs block cursor-pointer pt-2">Generate Tracking Link</button>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl space-y-2">
-              <span className="font-bold text-slate-800 block">Banana Island Snorkeling Retreat</span>
-              <p className="text-xs text-slate-500 leading-relaxed">Eco-friendly water sports, local dining, and beach camping escapes tailored for festive groups.</p>
-              <button onClick={() => alert('Banana Island promotional link configured!')} className="text-emerald-600 font-semibold hover:underline text-xs block cursor-pointer pt-2">Generate Tracking Link</button>
-            </div>
+            {[
+              { label: 'Bunce Island Historical Exploration', body: 'Ancestral roots tours mapping Sierra Leonean heritage directly for African-American and Caribbean diaspora visitors.', defaultUrl: 'https://wa.me/23276000000?text=Bunce%20Island%20tour' },
+              { label: 'Banana Island Snorkeling Retreat', body: 'Eco-friendly water sports, local dining, and beach camping escapes tailored for festive groups.', defaultUrl: 'https://wa.me/23276000000?text=Banana%20Island%20retreat' },
+            ].map((dest) => {
+              const existing = trackingLinks.find((l) => l.label === dest.label);
+              return (
+                <div key={dest.label} className="bg-slate-50 border border-slate-100 p-5 rounded-xl space-y-2">
+                  <span className="font-bold text-slate-800 block">{dest.label}</span>
+                  <p className="text-xs text-slate-500 leading-relaxed">{dest.body}</p>
+                  {existing ? (
+                    <div className="pt-2">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/r/${existing.shortCode}`)}
+                        className="text-emerald-600 font-mono text-xs hover:underline cursor-pointer block truncate"
+                        title="Copy link"
+                      >
+                        {`${window.location.origin}/r/${existing.shortCode}`}
+                      </button>
+                      <span className="text-[10px] text-slate-400 font-mono">{existing.clickCount} clicks</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        const link = await generateNamedTrackingLink(dest.label, dest.defaultUrl);
+                        if (link) setTrackingLinks((prev) => [link, ...prev]);
+                      }}
+                      className="text-emerald-600 font-semibold hover:underline text-xs block cursor-pointer pt-2"
+                    >
+                      Generate Tracking Link
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

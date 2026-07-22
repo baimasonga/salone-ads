@@ -119,3 +119,12 @@ export interface MediaAsset {
   mimeType: string | null;
   createdAt: string;
 }
+
+export interface TrackingLink {
+  id: string;
+  label: string;
+  targetUrl: string;
+  shortCode: string;
+  clickCount: number;
+  createdAt: string;
+}
