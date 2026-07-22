@@ -191,15 +191,16 @@ function MainApp() {
         { id: 'services', label: 'Support Services', icon: UserCheck },
       ]
     },
-    {
+    ...(isPlatformAdmin ? [{
       group: "Discovery",
+      adminOnly: true,
       items: [
         { id: 'influencers', label: 'Influencer Market', icon: Award },
         { id: 'directory', label: 'Business Directory', icon: BookOpen },
         { id: 'events', label: 'Event Promotion', icon: UserCheck },
         { id: 'tourism', label: 'Tourism Excursions', icon: Compass },
       ]
-    },
+    }] : []),
     ...(isPlatformAdmin ? [{
       group: "Social Media Advertising",
       adminOnly: true,

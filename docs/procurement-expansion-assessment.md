@@ -699,18 +699,42 @@ real — same reasoning as not fabricating Cloudflare/Gemini credentials earlier
 
 **Verification**: `tsc --noEmit` and `npm run build` clean.
 
-## 17. Where this leaves the platform
+## 17. Discovery (Influencer Market, Business Directory, Event Promotion, Tourism) is admin-only too (2026-07-22)
+
+§14 deliberately scoped the ad-platform lockdown narrowly to the "build and publish adverts" toolchain
+and left Discovery untouched, flagging it explicitly as a scoping decision the product owner might want
+to revisit. They did: direct feedback after seeing it in the live non-admin dashboard — subscribers
+should see *only* tender tools scoped to their tier, nothing else.
+
+Moved the whole Discovery nav group behind `isPlatformAdmin`, same as Social Media Advertising. At the
+RLS level: `directory_profiles` and `influencer_profiles` (the two with real backing tables) now require
+`is_platform_admin()` for every operation — verified live, zero rows visible to the non-admin test
+account. Event Promotion and Tourism needed no RLS change since they have no backing tables at all —
+still simulated/static UI, per the original Phase 0 assessment — so hiding the nav tab is the complete
+fix for those two.
+
+Note for later: the product owner's next stated step is designing a *third* subscriber type — someone
+who pays specifically to advertise their own business/event/goods/services (their words: "another type
+of subscriber that has paid for advertising his or her business/event, goods and service"). Business
+Directory and Event Promotion are very plausibly where that tier's features will eventually live — but
+that's explicitly a follow-up design conversation, not decided yet, so nothing here anticipates it.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean; live probe confirmed `directory_profiles`
+returns zero rows for the non-admin test account under the new policy.
+
+## 18. Where this leaves the platform
 
 Seven phases plus a Regional Expansion slice are implemented against the real schema with RLS as the
 actual security boundary. §11-§14 closed document upload, automated reminders, and — the largest change
 — repositioned the whole product: tenders are now the subscriber-facing product with a real
 teaser/paywall boundary, and the original ad-platform is internal-only. §15 fixed a real regression that
-lockdown introduced (onboarding crash for non-admins). §16 closed the remaining UI gaps from §14 (Overview
-and Tenders tabs are now genuinely tier-aware, not just backend-gated). What's left per the original
+lockdown introduced (onboarding crash for non-admins). §16-§17 closed the remaining UI/access gaps from
+§14 (Overview and Tenders tabs are tier-aware; Discovery is admin-only too). What's left per the original
 spec: further Phase 7 depth, document *extraction*, real outbound email/WhatsApp alert delivery (needs
 provider credentials from the owner), the remaining deliberately-deferred items (API-key management,
-researcher ingestion tooling, admin-entered/website-ingested tenders), and pricing page copy (still
-describes the old ad-platform-oriented tiers, not Viewer/Publisher). A live click-through of the full
-tender lifecycle (buyer publish → admin review → public listing → subscriber detail view) as real
-non-admin accounts is still outstanding — that's the next thing in progress. Say the word on anything
+researcher ingestion tooling, admin-entered/website-ingested tenders), pricing page copy (still describes
+the old ad-platform-oriented tiers), and — the next thing on deck — designing a third subscriber type for
+paid business/event/goods/services advertising (§17). A live click-through of the full tender lifecycle
+(buyer publish → admin review → public listing → subscriber detail view) as real non-admin accounts is
+still outstanding too. Say the word on anything
 else when you're ready.
