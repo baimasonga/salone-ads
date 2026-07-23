@@ -62,6 +62,7 @@ export interface ContentItem {
   scheduledDate: string;
   status: 'Draft' | 'Awaiting Review' | 'Approved' | 'Scheduled' | 'Published' | 'Failed';
   version: number;
+  campaignId?: string | null;
 }
 
 export interface Lead {
@@ -74,6 +75,7 @@ export interface Lead {
   source: string;
   status: 'New' | 'Contacted' | 'Qualified' | 'Proposal Sent' | 'Converted' | 'Lost';
   estimatedValue: number;
+  createdAt: string;
 }
 
 export interface DirectoryProfile {
@@ -127,6 +129,7 @@ export interface TrackingLink {
   shortCode: string;
   clickCount: number;
   createdAt: string;
+  campaignId?: string | null;
 }
 
 export interface AudienceSegment {

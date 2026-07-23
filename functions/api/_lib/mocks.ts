@@ -162,3 +162,51 @@ export function getMockProcurementAIResponse(mode: string, text: string, sectorN
   }
   return `[LOCAL BACKUP SUMMARY] This tender is asking qualified businesses to submit a bid. Read the deadline, eligibility, and submission instructions carefully, and reach out to the buyer's contact if anything is unclear before you apply. (AI summary unavailable — configure GEMINI_API_KEY for full explanations.)`;
 }
+
+// Mirrors server.ts's getMockLeadFollowup exactly.
+export function getMockLeadFollowup(leadName: string, leadSource: string | undefined, channel: string, brandName?: string): string {
+  const name = brandName || 'our team';
+  if (channel === 'whatsapp') {
+    return `Hi ${leadName}! 👋 This is ${name} following up on your enquiry${leadSource ? ` via ${leadSource}` : ''}. Are you still interested in moving forward? Happy to answer any questions here on WhatsApp.`;
+  }
+  return `Hi ${leadName},\n\nI wanted to follow up on your recent enquiry with ${name}${leadSource ? ` via ${leadSource}` : ''}. Please let me know if you have any questions or would like to move forward — happy to help.\n\nBest regards,\n${name}`;
+}
+
+// Mirrors server.ts's getMockContentPlan exactly.
+export function getMockContentPlan(campaignName: string, startDate: string, endDate: string, brandName?: string): any[] {
+  const name = brandName || 'Sierra Organic';
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const spanMs = Math.max(0, end.getTime() - start.getTime());
+  const dateAt = (fraction: number) => new Date(start.getTime() + spanMs * fraction).toISOString().split('T')[0];
+
+  return [
+    {
+      title: `${campaignName} — Announcement`,
+      contentType: 'Social Post',
+      platform: 'Facebook',
+      headline: `Introducing: ${campaignName}`,
+      body: `[LOCAL BACKUP CONTENT PLAN] ${name} is excited to launch "${campaignName}"! Stay tuned for more details. 🌾`,
+      hashtags: ['#SaloneReach', '#EatSalone'],
+      scheduledDate: dateAt(0),
+    },
+    {
+      title: `${campaignName} — Mid-campaign reminder`,
+      contentType: 'WhatsApp Promo',
+      platform: 'WhatsApp',
+      headline: `Don't miss out — ${campaignName}`,
+      body: `[LOCAL BACKUP CONTENT PLAN] Reminder from ${name}: "${campaignName}" is still going strong. Message us to find out more.`,
+      hashtags: ['#SaloneReach'],
+      scheduledDate: dateAt(0.5),
+    },
+    {
+      title: `${campaignName} — Closing push`,
+      contentType: 'Social Post',
+      platform: 'Facebook & Instagram',
+      headline: `Last chance: ${campaignName}`,
+      body: `[LOCAL BACKUP CONTENT PLAN] ${name} wraps up "${campaignName}" soon — don't miss your chance to get involved.`,
+      hashtags: ['#SaloneReach', '#EatSalone'],
+      scheduledDate: dateAt(0.9),
+    },
+  ];
+}

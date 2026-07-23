@@ -7,7 +7,7 @@ import {
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
   FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X, Image as ImageIcon,
-  ChevronLeft, ChevronRight, FileUp, Paperclip
+  ChevronLeft, ChevronRight, FileUp, Paperclip, Mail, MessageCircle, ShieldCheck
 } from 'lucide-react';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink, AudienceSegment } from '../types';
 import {
@@ -34,10 +34,16 @@ import {
   deleteTrackingLink,
   fetchClickSeries,
   ClickSeriesPoint,
+  fetchClicksByWeekday,
+  WeekdayClickPoint,
   fetchAudienceSegments,
   createAudienceSegment,
   deleteAudienceSegment,
+  runCampaignHealthCheck,
+  fetchCampaignActivity,
+  CampaignActivity,
 } from '../lib/api';
+import { computeLeadScore, leadPriorityLabel } from '../lib/leadScoring';
 import {
   fetchMyOpportunities,
   enableBuyerMode,
@@ -279,6 +285,156 @@ export function Workspaces({
     } finally {
       setCampSubmitting(false);
       setTimeout(() => setCampFeedback(''), 4000);
+    }
+  };
+
+  // --- Campaign Health/Activity States ---
+  const [campaignActivity, setCampaignActivity] = useState<Record<string, CampaignActivity>>({});
+  const [runningHealthCheck, setRunningHealthCheck] = useState(false);
+  const [healthCheckFeedback, setHealthCheckFeedback] = useState('');
+
+  useEffect(() => {
+    if (activeTab !== 'campaigns') return;
+    fetchCampaignActivity(activeOrg.id)
+      .then(setCampaignActivity)
+      .catch(() => {});
+  }, [activeTab, activeOrg.id]);
+
+  const handleRunHealthCheck = async () => {
+    setRunningHealthCheck(true);
+    setHealthCheckFeedback('');
+    try {
+      const flagged = await runCampaignHealthCheck();
+      setHealthCheckFeedback(
+        flagged > 0
+          ? `Found ${flagged} new issue${flagged === 1 ? '' : 's'} — check the notification bell for details.`
+          : 'No new issues found. All campaigns look healthy.'
+      );
+    } catch (err: any) {
+      setHealthCheckFeedback(`Error: ${err.message || 'Could not run the health check.'}`);
+    } finally {
+      setRunningHealthCheck(false);
+      setTimeout(() => setHealthCheckFeedback(''), 6000);
+    }
+  };
+
+  // --- Content Planning Assistant States (suggest-only: preview, admin picks which to create) ---
+  interface ContentPlanSuggestion {
+    title: string;
+    contentType: string;
+    platform: string;
+    headline: string;
+    body: string;
+    hashtags: string[];
+    scheduledDate: string;
+  }
+  const VALID_CONTENT_TYPES = ['Social Post', 'WhatsApp Promo', 'Video Script', 'Radio Brief', 'Email News'];
+  const [contentPlanCampaignId, setContentPlanCampaignId] = useState<string | null>(null);
+  const [contentPlanItems, setContentPlanItems] = useState<ContentPlanSuggestion[]>([]);
+  const [contentPlanSelected, setContentPlanSelected] = useState<Set<number>>(new Set());
+  const [contentPlanLoading, setContentPlanLoading] = useState(false);
+  const [contentPlanError, setContentPlanError] = useState('');
+  const [creatingContentPlanDrafts, setCreatingContentPlanDrafts] = useState(false);
+
+  const handleSuggestContentPlan = async (camp: Campaign) => {
+    setContentPlanCampaignId(camp.id);
+    setContentPlanItems([]);
+    setContentPlanSelected(new Set());
+    setContentPlanError('');
+    setContentPlanLoading(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const response = await fetch('/api/gemini/content-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          campaignName: camp.name,
+          campaignObjective: camp.objective,
+          campaignDescription: camp.description,
+          startDate: camp.startDate || new Date().toISOString().split('T')[0],
+          endDate: camp.endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          toneOfVoice: brandKit.toneOfVoice,
+          brandName: brandKit.brandName,
+          tagline: brandKit.tagline,
+          mission: brandKit.mission,
+        }),
+      });
+      const data = await response.json();
+      if (data.error) {
+        setContentPlanError(data.error.message || 'Could not generate a content plan.');
+      } else {
+        const items: ContentPlanSuggestion[] = Array.isArray(data.items) ? data.items : [];
+        setContentPlanItems(items);
+        setContentPlanSelected(new Set(items.map((_, i) => i)));
+      }
+    } catch {
+      setContentPlanError('Failed to communicate with the AI assistant.');
+    } finally {
+      setContentPlanLoading(false);
+    }
+  };
+
+  const toggleContentPlanItem = (idx: number) => {
+    setContentPlanSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const handleCreateSelectedDrafts = async () => {
+    if (!contentPlanCampaignId) return;
+    setCreatingContentPlanDrafts(true);
+    let failures = 0;
+    try {
+      const created: ContentItem[] = [];
+      for (const idx of contentPlanSelected) {
+        const item = contentPlanItems[idx];
+        if (!item) continue;
+        try {
+          created.push(
+            await createContentItem(activeOrg.id, {
+              title: String(item.title || 'AI Content Plan Draft').slice(0, 200),
+              contentType: (VALID_CONTENT_TYPES.includes(item.contentType) ? item.contentType : 'Social Post') as ContentItem['contentType'],
+              platform: item.platform || 'Facebook',
+              headline: item.headline || '',
+              bodyText: item.body || '',
+              hashtags: Array.isArray(item.hashtags) ? item.hashtags : [],
+              scheduledDate: item.scheduledDate || new Date().toISOString().split('T')[0],
+              campaignId: contentPlanCampaignId,
+            })
+          );
+        } catch {
+          failures += 1;
+        }
+      }
+      setContentItems([...created, ...contentItems]);
+      setCampaignActivity((prev) => ({
+        ...prev,
+        [contentPlanCampaignId]: {
+          campaignId: contentPlanCampaignId,
+          contentCount: (prev[contentPlanCampaignId]?.contentCount ?? 0) + created.length,
+          trackingLinkCount: prev[contentPlanCampaignId]?.trackingLinkCount ?? 0,
+          totalClicks: prev[contentPlanCampaignId]?.totalClicks ?? 0,
+        },
+      }));
+      setHealthCheckFeedback(
+        failures > 0
+          ? `Created ${created.length} draft${created.length === 1 ? '' : 's'}, ${failures} failed — review in Content Studio.`
+          : `Created ${created.length} draft${created.length === 1 ? '' : 's'} — review them in Content Studio.`
+      );
+      setContentPlanCampaignId(null);
+    } catch (err: any) {
+      setContentPlanError(`Error: ${err.message || 'Could not create drafts.'}`);
+    } finally {
+      setCreatingContentPlanDrafts(false);
+      setTimeout(() => setHealthCheckFeedback(''), 6000);
     }
   };
 
@@ -759,19 +915,22 @@ export function Workspaces({
   // --- Tracking Links States (real, storage-backed short links) ---
   const [trackDest, setTrackDest] = useState('https://freetownhaven.com/booking');
   const [trackLabel, setTrackLabel] = useState('');
+  const [trackCampaignId, setTrackCampaignId] = useState('');
   const [trackingLinks, setTrackingLinks] = useState<TrackingLink[]>([]);
   const [trackingLinksLoading, setTrackingLinksLoading] = useState(false);
   const [trackingLinkFeedback, setTrackingLinkFeedback] = useState('');
   const [clickSeries, setClickSeries] = useState<ClickSeriesPoint[]>([]);
+  const [weekdayClicks, setWeekdayClicks] = useState<WeekdayClickPoint[]>([]);
 
   useEffect(() => {
     if (activeTab !== 'analytics' && activeTab !== 'tourism' && activeTab !== 'events' && activeTab !== 'overview') return;
     if (activeTab === 'overview' && !isPlatformAdmin) return;
     setTrackingLinksLoading(true);
-    Promise.all([fetchTrackingLinks(activeOrg.id), fetchClickSeries(activeOrg.id, 12)])
-      .then(([links, series]) => {
+    Promise.all([fetchTrackingLinks(activeOrg.id), fetchClickSeries(activeOrg.id, 12), fetchClicksByWeekday(activeOrg.id)])
+      .then(([links, series, weekday]) => {
         setTrackingLinks(links);
         setClickSeries(series);
+        setWeekdayClicks(weekday);
       })
       .catch((err: any) => setTrackingLinkFeedback(`Error: ${err.message || 'Could not load tracking links.'}`))
       .finally(() => setTrackingLinksLoading(false));
@@ -784,9 +943,10 @@ export function Workspaces({
       return;
     }
     try {
-      const link = await createTrackingLink(activeOrg.id, trackLabel, trackDest);
+      const link = await createTrackingLink(activeOrg.id, trackLabel, trackDest, trackCampaignId || null);
       setTrackingLinks([link, ...trackingLinks]);
       setTrackLabel('');
+      setTrackCampaignId('');
     } catch (err: any) {
       setTrackingLinkFeedback(`Error: ${err.message || 'Could not create tracking link.'}`);
       setTimeout(() => setTrackingLinkFeedback(''), 4000);
@@ -861,6 +1021,52 @@ export function Workspaces({
     } finally {
       setSavingLead(false);
       setTimeout(() => setLeadFeedback(''), 4000);
+    }
+  };
+
+  // --- AI Lead Follow-up States (suggest-only: drafts text, admin sends via a real wa.me/mailto link) ---
+  const [followupLeadId, setFollowupLeadId] = useState<string | null>(null);
+  const [followupChannel, setFollowupChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [followupText, setFollowupText] = useState('');
+  const [followupLoading, setFollowupLoading] = useState(false);
+  const [followupError, setFollowupError] = useState('');
+
+  const handleDraftFollowup = async (lead: Lead, channel: 'whatsapp' | 'email') => {
+    setFollowupLeadId(lead.id);
+    setFollowupChannel(channel);
+    setFollowupText('');
+    setFollowupError('');
+    setFollowupLoading(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const response = await fetch('/api/gemini/lead-followup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          leadName: lead.name,
+          leadSource: lead.source,
+          leadDistrict: lead.district,
+          estimatedValue: lead.estimatedValue,
+          channel,
+          toneOfVoice: brandKit.toneOfVoice,
+          brandName: brandKit.brandName,
+        }),
+      });
+      const data = await response.json();
+      if (data.error) {
+        setFollowupError(data.error.message || 'Could not draft a follow-up.');
+      } else {
+        setFollowupText(data.text || '');
+      }
+    } catch {
+      setFollowupError('Failed to communicate with the AI assistant.');
+    } finally {
+      setFollowupLoading(false);
     }
   };
 
@@ -3479,7 +3685,23 @@ export function Workspaces({
 
         {/* Existing Campaigns */}
         <div className="space-y-4">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Active Campaign Scopes</h3>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h3 className="font-display font-bold text-slate-900 text-lg">Active Campaign Scopes</h3>
+            <div className="flex items-center gap-3">
+              {healthCheckFeedback && (
+                <span className="text-xs font-medium text-slate-500">{healthCheckFeedback}</span>
+              )}
+              <button
+                type="button"
+                onClick={handleRunHealthCheck}
+                disabled={runningHealthCheck}
+                className="flex items-center gap-1.5 bg-white border border-slate-200 hover:border-emerald-300 text-slate-700 font-semibold px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer disabled:opacity-50"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                {runningHealthCheck ? 'Checking…' : 'Run Health Check Now'}
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {campaigns.map((camp) => {
               const statusColor: Record<Campaign['status'], string> = {
@@ -3527,15 +3749,25 @@ export function Workspaces({
                       <span className="font-mono font-bold text-slate-800">Le {camp.totalBudget.toLocaleString()}</span>
                     </div>
                   </div>
+                  <div className="text-[10px] text-slate-400 font-mono pt-2">
+                    {campaignActivity[camp.id]?.contentCount ?? 0} content · {campaignActivity[camp.id]?.trackingLinkCount ?? 0} tracking links · {campaignActivity[camp.id]?.totalClicks ?? 0} clicks
+                  </div>
                   <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-50">
                     <button type="button" onClick={() => handleEditCampaign(camp)} className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer">
                       Edit
                     </button>
                     <button
                       type="button"
+                      onClick={() => handleSuggestContentPlan(camp)}
+                      className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Sparkles className="h-3 w-3" /> Suggest Content Plan
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleDeleteCampaign(camp)}
                       disabled={deletingCampaignId === camp.id}
-                      className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50"
+                      className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50 ml-auto"
                     >
                       {deletingCampaignId === camp.id ? 'Deleting…' : 'Delete'}
                     </button>
@@ -3545,6 +3777,66 @@ export function Workspaces({
             })}
           </div>
         </div>
+
+        {contentPlanCampaignId && (() => {
+          const camp = campaigns.find((c) => c.id === contentPlanCampaignId);
+          if (!camp) return null;
+          return (
+            <div className="bg-emerald-950 text-white rounded-2xl p-6 shadow-md space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="inline-flex items-center gap-2 bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs px-3 py-1 rounded-full font-mono uppercase tracking-widest">
+                    <Sparkles className="h-3.5 w-3.5" /> AI Content Plan — {camp.name}
+                  </span>
+                  <p className="text-emerald-300 text-[11px] mt-2">Nothing is saved yet — pick which drafts to actually create below.</p>
+                </div>
+                <button type="button" onClick={() => setContentPlanCampaignId(null)} className="text-emerald-400 hover:text-white cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {contentPlanLoading && (
+                <p className="text-xs text-emerald-300 italic">Drafting a content plan…</p>
+              )}
+              {contentPlanError && (
+                <p className="text-xs text-red-300">{contentPlanError}</p>
+              )}
+              {!contentPlanLoading && contentPlanItems.length > 0 && (
+                <div className="space-y-3">
+                  {contentPlanItems.map((item, idx) => (
+                    <label key={idx} className="flex items-start gap-3 bg-emerald-900/40 border border-emerald-800 p-3.5 rounded-xl cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={contentPlanSelected.has(idx)}
+                        onChange={() => toggleContentPlanItem(idx)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">{item.title}</span>
+                          <span className="text-[9px] font-mono text-emerald-400 shrink-0 ml-2">{item.contentType} · {item.platform} · {item.scheduledDate}</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-100 leading-relaxed">{item.headline}</p>
+                        <p className="text-[10px] text-emerald-300 leading-relaxed line-clamp-2">{item.body}</p>
+                        {item.hashtags?.length > 0 && (
+                          <p className="text-[10px] text-emerald-400 font-mono">{item.hashtags.join(' ')}</p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleCreateSelectedDrafts}
+                    disabled={creatingContentPlanDrafts || contentPlanSelected.size === 0}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {creatingContentPlanDrafts ? 'Creating…' : `Create ${contentPlanSelected.size} Selected Draft${contentPlanSelected.size === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -4521,6 +4813,58 @@ export function Workspaces({
           </div>
         </div>
 
+        {/* Clicks by day of week — real, from raw click timestamps over the last 90 days */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Clicks by Day of Week (Last 90 Days)</h3>
+          {weekdayClicks.every((w) => w.count === 0) ? (
+            <p className="text-xs text-slate-400">No click activity yet — this will fill in once your tracking links get real traffic.</p>
+          ) : (
+            <div className="flex items-end gap-3 h-40 pt-6">
+              {weekdayClicks.map((point) => {
+                const maxWeekday = Math.max(1, ...weekdayClicks.map((w) => w.count));
+                return (
+                  <div key={point.weekday} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+                    <span className="text-[10px] text-slate-500 font-mono">{point.count}</span>
+                    <div className="w-full bg-indigo-400 rounded-t-md hover:bg-indigo-500 transition-colors" style={{ height: `${(point.count / maxWeekday) * 100}%` }} />
+                    <span className="text-[10px] text-slate-400 font-mono">{point.weekday}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Per-campaign click rollup — real, joins tracking_links.campaign_id to campaigns */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Clicks by Campaign</h3>
+          {(() => {
+            const rollup = new Map<string, { name: string; clicks: number; links: number }>();
+            for (const link of trackingLinks) {
+              if (!link.campaignId) continue;
+              const camp = campaigns.find((c) => c.id === link.campaignId);
+              const key = link.campaignId;
+              const entry = rollup.get(key) ?? { name: camp?.name || 'Unknown campaign', clicks: 0, links: 0 };
+              entry.clicks += link.clickCount;
+              entry.links += 1;
+              rollup.set(key, entry);
+            }
+            const rows = Array.from(rollup.values()).sort((a, b) => b.clicks - a.clicks);
+            if (rows.length === 0) {
+              return <p className="text-xs text-slate-400">No tracking links are attached to a campaign yet — pick a campaign when creating a link below.</p>;
+            }
+            return (
+              <div className="space-y-2">
+                {rows.map((row) => (
+                  <div key={row.name} className="flex items-center justify-between text-sm border-b border-slate-50 pb-2">
+                    <span className="text-slate-700 font-medium">{row.name}</span>
+                    <span className="font-mono text-slate-500">{row.links} link{row.links === 1 ? '' : 's'} · <strong className="text-emerald-600">{row.clicks} clicks</strong></span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+
         {/* Tracking Link Builder */}
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
           <h3 className="font-display font-bold text-slate-900 text-lg">Create a Tracking Link</h3>
@@ -4548,6 +4892,19 @@ export function Workspaces({
                 onChange={(e) => setTrackDest(e.target.value)}
                 className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
               />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase">Attribute to Campaign (optional)</label>
+              <select
+                value={trackCampaignId}
+                onChange={(e) => setTrackCampaignId(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+              >
+                <option value="">No campaign</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
           </div>
           <button onClick={handleGenerateLink} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer">
@@ -4697,44 +5054,143 @@ export function Workspaces({
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-400 font-mono uppercase border-b border-slate-100">
+                  <th className="p-4 font-bold">Priority</th>
                   <th className="p-4 font-bold">Name</th>
                   <th className="p-4 font-bold">Email</th>
                   <th className="p-4 font-bold">WhatsApp / Tel</th>
                   <th className="p-4 font-bold">Source Campaign</th>
                   <th className="p-4 font-bold">Est. Value</th>
                   <th className="p-4 font-bold">Status Pipeline</th>
+                  <th className="p-4 font-bold">AI Follow-up</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
                 {leads
                   .filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()))
                   .filter(l => leadStatusFilter === 'All' || l.status === leadStatusFilter)
-                  .map((lead) => (
-                    <tr key={lead.id} className="hover:bg-slate-50/40">
-                      <td className="p-4 font-bold text-slate-900">{lead.name}</td>
-                      <td className="p-4 font-mono text-slate-500">{lead.email}</td>
-                      <td className="p-4 font-mono text-slate-500">{lead.whatsapp || lead.telephone}</td>
-                      <td className="p-4 text-slate-600">{lead.source}</td>
-                      <td className="p-4 font-mono font-bold text-emerald-600">Le {lead.estimatedValue.toLocaleString()}</td>
-                      <td className="p-4">
-                        <select
-                          value={lead.status}
-                          onChange={(e: any) => updateLeadStatus(lead.id, e.target.value)}
-                          className="border border-slate-200 rounded-lg p-1 bg-white focus:outline-emerald-500"
-                        >
-                          <option>New</option>
-                          <option>Contacted</option>
-                          <option>Qualified</option>
-                          <option>Proposal Sent</option>
-                          <option>Converted</option>
-                          <option>Lost</option>
-                        </select>
-                      </td>
-                    </tr>
-                ))}
+                  .sort((a, b) => computeLeadScore(b) - computeLeadScore(a))
+                  .map((lead) => {
+                    const priority = leadPriorityLabel(computeLeadScore(lead));
+                    const priorityColor =
+                      priority === 'Hot' ? 'bg-red-100 text-red-700' :
+                      priority === 'Warm' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500';
+                    return (
+                      <tr key={lead.id} className="hover:bg-slate-50/40">
+                        <td className="p-4">
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${priorityColor}`}>{priority}</span>
+                        </td>
+                        <td className="p-4 font-bold text-slate-900">{lead.name}</td>
+                        <td className="p-4 font-mono text-slate-500">{lead.email}</td>
+                        <td className="p-4 font-mono text-slate-500">{lead.whatsapp || lead.telephone}</td>
+                        <td className="p-4 text-slate-600">{lead.source}</td>
+                        <td className="p-4 font-mono font-bold text-emerald-600">Le {lead.estimatedValue.toLocaleString()}</td>
+                        <td className="p-4">
+                          <select
+                            value={lead.status}
+                            onChange={(e: any) => updateLeadStatus(lead.id, e.target.value)}
+                            className="border border-slate-200 rounded-lg p-1 bg-white focus:outline-emerald-500"
+                          >
+                            <option>New</option>
+                            <option>Contacted</option>
+                            <option>Qualified</option>
+                            <option>Proposal Sent</option>
+                            <option>Converted</option>
+                            <option>Lost</option>
+                          </select>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={!lead.whatsapp}
+                              onClick={() => handleDraftFollowup(lead, 'whatsapp')}
+                              title={lead.whatsapp ? 'Draft a WhatsApp follow-up' : 'No WhatsApp number on file'}
+                              className="text-emerald-600 hover:text-emerald-700 disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!lead.email}
+                              onClick={() => handleDraftFollowup(lead, 'email')}
+                              title={lead.email ? 'Draft an email follow-up' : 'No email on file'}
+                              className="text-emerald-600 hover:text-emerald-700 disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              <Mail className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
+
+          {followupLeadId && (() => {
+            const lead = leads.find((l) => l.id === followupLeadId);
+            if (!lead) return null;
+            const waDigits = (lead.whatsapp || '').replace(/[^0-9]/g, '');
+            const waLink = waDigits ? `https://wa.me/${waDigits}?text=${encodeURIComponent(followupText)}` : null;
+            const mailLink = lead.email
+              ? `mailto:${lead.email}?subject=${encodeURIComponent(`Following up — ${brandKit.brandName || 'us'}`)}&body=${encodeURIComponent(followupText)}`
+              : null;
+            return (
+              <div className="mt-4 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-900">
+                    AI-drafted {followupChannel === 'whatsapp' ? 'WhatsApp' : 'email'} follow-up for {lead.name}
+                  </span>
+                  <button type="button" onClick={() => setFollowupLeadId(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {followupLoading ? (
+                  <p className="text-xs text-slate-500 italic">Drafting…</p>
+                ) : followupError ? (
+                  <p className="text-xs text-red-600">{followupError}</p>
+                ) : (
+                  <>
+                    <textarea
+                      rows={4}
+                      value={followupText}
+                      onChange={(e) => setFollowupText(e.target.value)}
+                      className="w-full border border-emerald-200 rounded-xl p-3 bg-white text-sm focus:outline-emerald-500"
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleDraftFollowup(lead, followupChannel)}
+                        className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        Regenerate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(followupText)}
+                        className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        Copy
+                      </button>
+                      {followupChannel === 'whatsapp' && waLink && (
+                        <a href={waLink} target="_blank" rel="noopener noreferrer" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all">
+                          Open in WhatsApp
+                        </a>
+                      )}
+                      {followupChannel === 'email' && mailLink && (
+                        <a href={mailLink} className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all">
+                          Open in Email
+                        </a>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Nothing is sent automatically — this opens your own WhatsApp/email client with the message pre-filled for you to review and send.
+                    </p>
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
     );

@@ -91,6 +91,7 @@ function mapContentItem(row: any): ContentItem {
     scheduledDate: row.scheduled_date ?? '',
     status: row.status,
     version: row.version,
+    campaignId: row.campaign_id ?? null,
   };
 }
 
@@ -105,6 +106,7 @@ function mapLead(row: any): Lead {
     source: row.source ?? '',
     status: row.status,
     estimatedValue: Number(row.estimated_value) || 0,
+    createdAt: row.created_at,
   };
 }
 
@@ -308,9 +310,53 @@ export async function deleteCampaign(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// Runs the real campaign-health sweep (stale-planning / ended-but-active /
+// low-click-activity flags) on demand, admin-gated inside the RPC itself.
+// Returns how many new notifications were created.
+export async function runCampaignHealthCheck(): Promise<number> {
+  const { data, error } = await supabase.rpc('run_campaign_health_check');
+  if (error) throw error;
+  return data as number;
+}
+
+// Real per-campaign activity counts (content pieces drafted, tracking
+// links attached, total clicks across those links) -- computed from the
+// new campaign_id linkage rather than shown as empty/fabricated numbers.
+export interface CampaignActivity {
+  campaignId: string;
+  contentCount: number;
+  trackingLinkCount: number;
+  totalClicks: number;
+}
+
+export async function fetchCampaignActivity(orgId: string): Promise<Record<string, CampaignActivity>> {
+  const [contentRes, linksRes] = await Promise.all([
+    supabase.from('content_items').select('campaign_id').eq('org_id', orgId).not('campaign_id', 'is', null),
+    supabase.from('tracking_links').select('campaign_id, click_count').eq('org_id', orgId).not('campaign_id', 'is', null),
+  ]);
+  if (contentRes.error) throw contentRes.error;
+  if (linksRes.error) throw linksRes.error;
+
+  const activity: Record<string, CampaignActivity> = {};
+  const ensure = (campaignId: string) =>
+    (activity[campaignId] ??= { campaignId, contentCount: 0, trackingLinkCount: 0, totalClicks: 0 });
+
+  for (const row of contentRes.data ?? []) {
+    if (row.campaign_id) ensure(row.campaign_id).contentCount += 1;
+  }
+  for (const row of linksRes.data ?? []) {
+    if (row.campaign_id) {
+      const a = ensure(row.campaign_id);
+      a.trackingLinkCount += 1;
+      a.totalClicks += row.click_count ?? 0;
+    }
+  }
+  return activity;
+}
+
 export async function createContentItem(
   orgId: string,
-  input: Pick<ContentItem, 'title' | 'contentType' | 'platform' | 'headline' | 'bodyText' | 'hashtags' | 'scheduledDate'>
+  input: Pick<ContentItem, 'title' | 'contentType' | 'platform' | 'headline' | 'bodyText' | 'hashtags' | 'scheduledDate'> & { campaignId?: string | null }
 ): Promise<ContentItem> {
   const row = unwrap(
     await supabase
@@ -326,6 +372,7 @@ export async function createContentItem(
         scheduled_date: input.scheduledDate,
         status: 'Draft',
         version: 1,
+        campaign_id: input.campaignId ?? null,
       })
       .select('*')
       .single()
@@ -587,6 +634,7 @@ function mapTrackingLink(row: any): TrackingLink {
     shortCode: row.short_code,
     clickCount: row.click_count,
     createdAt: row.created_at,
+    campaignId: row.campaign_id ?? null,
   };
 }
 
@@ -594,17 +642,19 @@ function generateShortCode(): string {
   return Math.random().toString(36).slice(2, 8);
 }
 
+const TRACKING_LINK_SELECT = 'id, label, target_url, short_code, click_count, created_at, campaign_id';
+
 export async function fetchTrackingLinks(orgId: string): Promise<TrackingLink[]> {
   const { data, error } = await supabase
     .from('tracking_links')
-    .select('id, label, target_url, short_code, click_count, created_at')
+    .select(TRACKING_LINK_SELECT)
     .eq('org_id', orgId)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapTrackingLink);
 }
 
-export async function createTrackingLink(orgId: string, label: string, targetUrl: string): Promise<TrackingLink> {
+export async function createTrackingLink(orgId: string, label: string, targetUrl: string, campaignId?: string | null): Promise<TrackingLink> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -617,8 +667,9 @@ export async function createTrackingLink(orgId: string, label: string, targetUrl
       target_url: targetUrl,
       short_code: generateShortCode(),
       created_by: user.id,
+      campaign_id: campaignId ?? null,
     })
-    .select('id, label, target_url, short_code, click_count, created_at')
+    .select(TRACKING_LINK_SELECT)
     .single();
   if (error) throw error;
   return mapTrackingLink(data);
@@ -659,6 +710,34 @@ export async function fetchClickSeries(orgId: string, days: number): Promise<Cli
     counts.set(day, (counts.get(day) ?? 0) + 1);
   }
   return Array.from(counts.entries()).map(([date, count]) => ({ date, count }));
+}
+
+export interface WeekdayClickPoint {
+  weekday: 'Sun' | 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat';
+  count: number;
+}
+
+// Real click-count-by-weekday over the last `days` days -- surfaces which
+// day of the week actually gets engagement, computed from raw
+// tracking_link_clicks timestamps rather than shown as a guess.
+export async function fetchClicksByWeekday(orgId: string, days = 90): Promise<WeekdayClickPoint[]> {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('tracking_link_clicks')
+    .select('clicked_at')
+    .eq('org_id', orgId)
+    .gte('clicked_at', since.toISOString());
+  if (error) throw error;
+
+  const labels: WeekdayClickPoint['weekday'][] = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const counts = labels.map((weekday) => ({ weekday, count: 0 }));
+  for (const row of data ?? []) {
+    const dayIndex = new Date(row.clicked_at).getDay();
+    counts[dayIndex].count += 1;
+  }
+  return counts;
 }
 
 function mapAudienceSegment(row: any): AudienceSegment {

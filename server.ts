@@ -279,6 +279,140 @@ Respond with ONLY a valid JSON array (no markdown, no commentary, no code fences
     }
   });
 
+  // Drafts a follow-up message for a single CRM lead. Suggest-only: this
+  // never sends anything itself -- the client turns the drafted text into a
+  // real wa.me/mailto deep link so the actual send is a genuine admin action
+  // through their own WhatsApp/email client, not an automated dispatch.
+  app.post("/api/gemini/lead-followup", requireUser, aiRateLimiter, async (req, res) => {
+    const { leadName, leadSource, leadDistrict, estimatedValue, channel, toneOfVoice, brandName } = req.body;
+
+    if (typeof leadName !== "string" || leadName.trim().length === 0) {
+      res.status(400).json({ error: { message: "leadName is required" } });
+      return;
+    }
+    if (channel !== "whatsapp" && channel !== "email") {
+      res.status(400).json({ error: { message: "channel must be 'whatsapp' or 'email'." } });
+      return;
+    }
+    for (const [key, value] of Object.entries({ leadSource, leadDistrict, toneOfVoice, brandName })) {
+      if (value !== undefined && value !== null && (typeof value !== "string" || value.length > MAX_FIELD_LENGTH)) {
+        res.status(400).json({ error: { message: `${key} must be a string under ${MAX_FIELD_LENGTH} characters.` } });
+        return;
+      }
+    }
+    if (estimatedValue !== undefined && estimatedValue !== null && typeof estimatedValue !== "number") {
+      res.status(400).json({ error: { message: "estimatedValue must be a number." } });
+      return;
+    }
+
+    try {
+      const hasKey = process.env.GEMINI_API_KEY &&
+                     process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" &&
+                     process.env.GEMINI_API_KEY.trim() !== "";
+
+      if (!hasKey) {
+        res.json({ text: getMockLeadFollowup(leadName, leadSource, channel, brandName) });
+        return;
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+      });
+
+      const name = (brandName as string) || "our team";
+      const tone = (toneOfVoice as string) || "Warm, Honest, Proudly Leonean";
+      const channelNote = channel === "whatsapp"
+        ? "Write it for WhatsApp: short (under 400 characters), conversational, light emoji use is fine, end with a clear question or call to action."
+        : "Write it as a short email body (no more than 5 short paragraphs), slightly more formal, no emoji, end with a clear call to action.";
+
+      const systemInstruction = `You are a friendly sales follow-up writer for "${name}", a business in Sierra Leone. You MUST write in this tone of voice: "${tone}". Never fabricate promises, discounts, or guarantees that weren't stated.`;
+      const targetedPrompt = `Draft a follow-up message to a sales lead named "${leadName}"${leadSource ? `, who came in through "${leadSource}"` : ""}${leadDistrict ? `, based in ${leadDistrict}` : ""}${estimatedValue ? `, with an estimated deal value of Le ${Number(estimatedValue).toLocaleString()}` : ""}. The goal is to re-engage them and move the conversation forward. ${channelNote}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: targetedPrompt,
+        config: { systemInstruction, temperature: 0.6 }
+      });
+
+      res.json({ text: response.text || "" });
+    } catch (err: any) {
+      console.error("Gemini Lead Follow-up Error:", err);
+      res.status(500).json({
+        error: { code: "GEMINI_ERROR", message: "An error occurred calling the AI assist service. Please try again shortly." }
+      });
+    }
+  });
+
+  // Proposes a spread of content drafts for a campaign's date range. Returns
+  // suggestions only -- nothing is written to content_items here; the client
+  // shows them as a preview and the admin picks which ones to actually create
+  // (via the existing createContentItem path), same suggest-only contract as
+  // the rest of the Content Studio AI panel.
+  app.post("/api/gemini/content-plan", requireUser, aiRateLimiter, async (req, res) => {
+    const { campaignName, campaignObjective, campaignDescription, startDate, endDate, toneOfVoice, brandName, tagline, mission } = req.body;
+
+    if (typeof campaignName !== "string" || campaignName.trim().length === 0) {
+      res.status(400).json({ error: { message: "campaignName is required" } });
+      return;
+    }
+    if (typeof startDate !== "string" || typeof endDate !== "string") {
+      res.status(400).json({ error: { message: "startDate and endDate are required" } });
+      return;
+    }
+    for (const [key, value] of Object.entries({ campaignObjective, campaignDescription, toneOfVoice, brandName, tagline, mission })) {
+      if (value !== undefined && value !== null && (typeof value !== "string" || value.length > MAX_FIELD_LENGTH)) {
+        res.status(400).json({ error: { message: `${key} must be a string under ${MAX_FIELD_LENGTH} characters.` } });
+        return;
+      }
+    }
+
+    try {
+      const hasKey = process.env.GEMINI_API_KEY &&
+                     process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" &&
+                     process.env.GEMINI_API_KEY.trim() !== "";
+
+      if (!hasKey) {
+        res.json({ items: getMockContentPlan(campaignName, startDate, endDate, brandName) });
+        return;
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+      });
+
+      const name = (brandName as string) || "our team";
+      const tone = (toneOfVoice as string) || "Warm, Honest, Proudly Leonean";
+
+      const systemInstruction = `You are a social media content planner for "${name}", a business in Sierra Leone. Write in this tone of voice: "${tone}".`;
+      const targetedPrompt = `Propose a content plan for this campaign, spreading posts evenly across the date range:
+Campaign: "${campaignName}"
+Objective: ${campaignObjective || "not specified"}
+Description: ${campaignDescription || "not specified"}
+Date range: ${startDate} to ${endDate}
+
+Respond with ONLY a valid JSON array (no markdown, no commentary, no code fences) of 3 to 6 objects, each shaped exactly like:
+{"title": "internal draft title", "contentType": "Social Post" | "WhatsApp Promo" | "Video Script" | "Radio Brief" | "Email News", "platform": "e.g. Facebook, WhatsApp, Instagram", "headline": "short hook", "body": "the full caption/script text", "hashtags": ["#Tag1", "#Tag2"], "scheduledDate": "YYYY-MM-DD within the given range"}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: targetedPrompt,
+        config: { systemInstruction, temperature: 0.7, responseMimeType: "application/json" }
+      });
+
+      const items = parseJsonArrayLoose(response.text || "");
+      res.json({ items: items || [] });
+    } catch (err: any) {
+      console.error("Gemini Content Plan Error:", err);
+      res.status(500).json({
+        error: { code: "GEMINI_ERROR", message: "An error occurred calling the AI assist service. Please try again shortly." }
+      });
+    }
+  });
+
   // Vite Middleware Setup
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -466,6 +600,54 @@ function getMockProcurementAIResponse(mode: string, text: string, sectorNames?: 
     return match || (sectorNames && sectorNames[0]) || "General";
   }
   return `[LOCAL BACKUP SUMMARY] This tender is asking qualified businesses to submit a bid. Read the deadline, eligibility, and submission instructions carefully, and reach out to the buyer's contact if anything is unclear before you apply. (AI summary unavailable — configure GEMINI_API_KEY for full explanations.)`;
+}
+
+// Local fallback for lead follow-up drafting when no Gemini key is configured.
+function getMockLeadFollowup(leadName: string, leadSource: string | undefined, channel: string, brandName?: string): string {
+  const name = brandName || "our team";
+  if (channel === "whatsapp") {
+    return `Hi ${leadName}! 👋 This is ${name} following up on your enquiry${leadSource ? ` via ${leadSource}` : ""}. Are you still interested in moving forward? Happy to answer any questions here on WhatsApp.`;
+  }
+  return `Hi ${leadName},\n\nI wanted to follow up on your recent enquiry with ${name}${leadSource ? ` via ${leadSource}` : ""}. Please let me know if you have any questions or would like to move forward — happy to help.\n\nBest regards,\n${name}`;
+}
+
+// Local fallback for content-plan suggestions when no Gemini key is configured.
+function getMockContentPlan(campaignName: string, startDate: string, endDate: string, brandName?: string): any[] {
+  const name = brandName || "Sierra Organic";
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const spanMs = Math.max(0, end.getTime() - start.getTime());
+  const dateAt = (fraction: number) => new Date(start.getTime() + spanMs * fraction).toISOString().split("T")[0];
+
+  return [
+    {
+      title: `${campaignName} — Announcement`,
+      contentType: "Social Post",
+      platform: "Facebook",
+      headline: `Introducing: ${campaignName}`,
+      body: `[LOCAL BACKUP CONTENT PLAN] ${name} is excited to launch "${campaignName}"! Stay tuned for more details. 🌾`,
+      hashtags: ["#SaloneReach", "#EatSalone"],
+      scheduledDate: dateAt(0),
+    },
+    {
+      title: `${campaignName} — Mid-campaign reminder`,
+      contentType: "WhatsApp Promo",
+      platform: "WhatsApp",
+      headline: `Don't miss out — ${campaignName}`,
+      body: `[LOCAL BACKUP CONTENT PLAN] Reminder from ${name}: "${campaignName}" is still going strong. Message us to find out more.`,
+      hashtags: ["#SaloneReach"],
+      scheduledDate: dateAt(0.5),
+    },
+    {
+      title: `${campaignName} — Closing push`,
+      contentType: "Social Post",
+      platform: "Facebook & Instagram",
+      headline: `Last chance: ${campaignName}`,
+      body: `[LOCAL BACKUP CONTENT PLAN] ${name} wraps up "${campaignName}" soon — don't miss your chance to get involved.`,
+      hashtags: ["#SaloneReach", "#EatSalone"],
+      scheduledDate: dateAt(0.9),
+    },
+  ];
 }
 
 startServer().catch(err => {

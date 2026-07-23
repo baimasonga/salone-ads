@@ -1347,3 +1347,70 @@ confirmed byte-identical to its pre-mock state via `diff` after reverting.
 **Still not active, and can't be without the user's input**: full Meta/WhatsApp Business API OAuth
 (Social Accounts) and real email/WhatsApp alert delivery (Task #44) both require the user to register
 developer apps and provide real provider credentials — flagged, not silently skipped.
+
+## 37. Ad-platform agents: lead scoring, campaign health, content planning, performance insights (2026-07-23)
+
+User asked to "design, develop and build algorithm, agents that will assist internal advert platform to
+function." That's broad enough to build the wrong thing for days, so before writing any code I used
+`AskUserQuestion` to pin down scope and autonomy. Scope: all four of Lead scoring & follow-up, Campaign
+health monitoring, Content planning assistant, Performance insights. Autonomy: **"Suggest only, admin
+approves"** — the one non-negotiable design constraint below. Nothing in this feature auto-sends,
+auto-publishes, or auto-mutates state; every agent either surfaces a read-only signal or produces a draft
+the admin must explicitly act on.
+
+**Schema gap closed first.** `campaigns` had zero FK relationship to either `content_items` or
+`tracking_links` — no migration ever linked them, so a "campaign performance" feature would have had
+nothing real to show. Added nullable `campaign_id` (FK, `on delete set null`) to both tables.
+
+**1. Lead scoring (deterministic, not AI).** `src/lib/leadScoring.ts` — a transparent weighted formula
+(pipeline stage 50%, recency 30% with linear decay to 0 by day 21, log-scaled deal value 20%) producing a
+Hot/Warm/Cold label. Chose deterministic math over an opaque model here specifically: sales prioritization
+needs to be explainable to the admin, not a black box. CRM Leads tab now sorts by score and shows a
+priority badge.
+
+**2. Lead follow-up drafting (AI, suggest-only).** New `/api/gemini/lead-followup` route (mirrored in both
+`server.ts` and `functions/api/gemini/lead-followup.ts`) drafts a WhatsApp or email follow-up message for a
+given lead. The UI shows the draft in an editable textarea with Regenerate/Copy, and the actual "send" is a
+real `wa.me`/`mailto:` deep link the admin clicks themselves — there's no backend send infrastructure, so
+rather than fake one, the admin's own client does the sending. Nothing is persisted or transmitted by the
+backend.
+
+**3. Campaign health monitoring (rule-based sweep, not AI).** `run_campaign_health_sweep()` — a
+`SECURITY DEFINER` function following the same sweep pattern as the existing deadline-reminder job — flags
+campaigns that are active but have had no new content in N days, or are approaching their end date with
+low activity, and writes idempotent notifications (checked by `metadata->>'x_id'` before insert, so re-runs
+never duplicate). Wrapped in an admin-gated `run_campaign_health_check()` for on-demand use from the UI
+("Run Health Check Now" button), plus a new `campaign-health-sweep` pg_cron job at `0 7 * * *`. It only
+ever writes notifications — it never changes campaign status or anything else.
+
+**4. Content planning assistant (AI, suggest-only).** New `/api/gemini/content-plan` route, same
+mirrored-route/JSON-output pattern used for Content Studio's captions/ideas in §35. Given a campaign's
+name/objective/dates, returns 3-6 draft content items (title, type, platform, headline, body, hashtags,
+scheduled date) as a preview panel with checkboxes — nothing is written to `content_items` until the admin
+picks items and clicks "Create N Selected Drafts."
+
+**5. Performance insights (real data, no AI, read-only).** Campaign cards now show a real per-campaign
+activity rollup (content count, tracking-link count, click count) via `fetchCampaignActivity()`. Analytics
+tab gained a "Clicks by Day of Week (Last 90 Days)" chart and a "Clicks by Campaign" rollup (client-side
+join of `trackingLinks` against `campaigns`), plus a campaign-attribution `<select>` on the tracking-link
+creation form so new links can actually be tied to a campaign. This closes the loop the schema gap above
+opened: campaigns can now show truthful numbers instead of nothing.
+
+**Security bug found and fixed via the live-grant-testing discipline**: after `revoke execute on function
+run_campaign_health_sweep() from anon, authenticated`, a live test as an authenticated admin could still
+call the sweep function directly (it should only be reachable via the admin-gated wrapper or cron).
+Root cause: `CREATE FUNCTION` auto-grants `EXECUTE` to the `PUBLIC` pseudo-role, and revoking from specific
+roles doesn't touch that separate grant — confirmed via `information_schema.routine_privileges`, which
+showed a stray `PUBLIC` row absent from the correctly-configured `run_deadline_reminder_sweep`. Fixed with
+migration `fix_campaign_health_sweep_grants` (`revoke execute ... from public`), then re-verified with
+`has_function_privilege()` for both `anon` and `authenticated` returning `false`, and confirmed the
+admin-gated wrapper still works (SECURITY DEFINER functions run with the definer's privileges regardless of
+caller-level revokes).
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Visually verified via the sandbox's
+mock-data-then-revert technique with Playwright network interception for the new `/api/gemini/*` and RPC
+calls — CRM Leads shows the Hot/Warm/Cold sort and the follow-up draft panel with working `wa.me`/`mailto:`
+links, Campaigns shows the health-check button, real per-card activity line, and the content-plan preview
+panel with checkboxes, and Analytics shows the new charts and campaign-attribution select rendering
+correctly (including their empty states, since the mock dataset has no click data yet). Zero `pageerror`s
+across the run. `App.tsx` confirmed byte-identical to its pre-mock state via `diff` after reverting.
