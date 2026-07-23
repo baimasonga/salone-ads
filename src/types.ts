@@ -128,3 +128,12 @@ export interface TrackingLink {
   clickCount: number;
   createdAt: string;
 }
+
+export interface AudienceSegment {
+  id: string;
+  name: string;
+  districts: string[];
+  diasporaMarkets: string[];
+  interests: string[];
+  createdAt: string;
+}

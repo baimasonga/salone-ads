@@ -10,6 +10,7 @@ import {
   SocialConnection,
   MediaAsset,
   TrackingLink,
+  AudienceSegment,
 } from '../types';
 
 export interface OrgBundle {
@@ -281,6 +282,32 @@ export async function createCampaign(
   return mapCampaign(row);
 }
 
+export async function updateCampaign(
+  id: string,
+  patch: Partial<Pick<Campaign, 'name' | 'description' | 'objective' | 'status' | 'totalBudget' | 'startDate' | 'endDate' | 'channels' | 'district' | 'diasporaMarket'>>
+): Promise<Campaign> {
+  const dbPatch: Record<string, unknown> = {};
+  if (patch.name !== undefined) dbPatch.name = patch.name;
+  if (patch.description !== undefined) dbPatch.description = patch.description;
+  if (patch.objective !== undefined) dbPatch.objective = patch.objective;
+  if (patch.status !== undefined) dbPatch.status = patch.status;
+  if (patch.totalBudget !== undefined) dbPatch.total_budget = patch.totalBudget;
+  if (patch.startDate !== undefined) dbPatch.start_date = patch.startDate;
+  if (patch.endDate !== undefined) dbPatch.end_date = patch.endDate;
+  if (patch.channels !== undefined) dbPatch.channels = patch.channels;
+  if (patch.district !== undefined) dbPatch.district = patch.district;
+  if (patch.diasporaMarket !== undefined) dbPatch.diaspora_market = patch.diasporaMarket;
+  const row = unwrap(
+    await supabase.from('campaigns').update(dbPatch).eq('id', id).select('*').single()
+  );
+  return mapCampaign(row);
+}
+
+export async function deleteCampaign(id: string): Promise<void> {
+  const { error } = await supabase.from('campaigns').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function createContentItem(
   orgId: string,
   input: Pick<ContentItem, 'title' | 'contentType' | 'platform' | 'headline' | 'bodyText' | 'hashtags' | 'scheduledDate'>
@@ -404,19 +431,48 @@ export async function claimDirectoryListing(id: string, orgId: string): Promise<
   return mapDirectoryProfile(row);
 }
 
-export async function toggleSocialConnectionStatus(
-  id: string,
-  newStatus: SocialConnection['status']
+// No official Meta/WhatsApp Business API OAuth integration exists (would
+// need the org's own developer app credentials to build for real) -- this is
+// real, manually-entered channel tracking instead of a fake "connect" button
+// pretending to run an OAuth handshake it can't actually perform.
+export async function createSocialConnection(
+  orgId: string,
+  input: Pick<SocialConnection, 'platform' | 'accountName' | 'status' | 'connectionHealth'>
 ): Promise<SocialConnection> {
   const row = unwrap(
     await supabase
       .from('social_connections')
-      .update({ status: newStatus })
-      .eq('id', id)
+      .insert({
+        org_id: orgId,
+        platform: input.platform,
+        account_name: input.accountName,
+        status: input.status,
+        connection_health: input.connectionHealth,
+      })
       .select('*')
       .single()
   );
   return mapSocialConnection(row);
+}
+
+export async function updateSocialConnection(
+  id: string,
+  patch: Partial<Pick<SocialConnection, 'platform' | 'accountName' | 'status' | 'connectionHealth'>>
+): Promise<SocialConnection> {
+  const dbPatch: Record<string, unknown> = {};
+  if (patch.platform !== undefined) dbPatch.platform = patch.platform;
+  if (patch.accountName !== undefined) dbPatch.account_name = patch.accountName;
+  if (patch.status !== undefined) dbPatch.status = patch.status;
+  if (patch.connectionHealth !== undefined) dbPatch.connection_health = patch.connectionHealth;
+  const row = unwrap(
+    await supabase.from('social_connections').update(dbPatch).eq('id', id).select('*').single()
+  );
+  return mapSocialConnection(row);
+}
+
+export async function deleteSocialConnection(id: string): Promise<void> {
+  const { error } = await supabase.from('social_connections').delete().eq('id', id);
+  if (error) throw error;
 }
 
 export async function saveBrandKit(orgId: string, brandKit: BrandKit): Promise<BrandKit> {
@@ -603,4 +659,50 @@ export async function fetchClickSeries(orgId: string, days: number): Promise<Cli
     counts.set(day, (counts.get(day) ?? 0) + 1);
   }
   return Array.from(counts.entries()).map(([date, count]) => ({ date, count }));
+}
+
+function mapAudienceSegment(row: any): AudienceSegment {
+  return {
+    id: row.id,
+    name: row.name,
+    districts: row.districts ?? [],
+    diasporaMarkets: row.diaspora_markets ?? [],
+    interests: row.interests ?? [],
+    createdAt: row.created_at,
+  };
+}
+
+export async function fetchAudienceSegments(orgId: string): Promise<AudienceSegment[]> {
+  const { data, error } = await supabase
+    .from('audience_segments')
+    .select('id, name, districts, diaspora_markets, interests, created_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapAudienceSegment);
+}
+
+export async function createAudienceSegment(
+  orgId: string,
+  input: { name: string; districts: string[]; diasporaMarkets: string[]; interests: string[] }
+): Promise<AudienceSegment> {
+  const row = unwrap(
+    await supabase
+      .from('audience_segments')
+      .insert({
+        org_id: orgId,
+        name: input.name,
+        districts: input.districts,
+        diaspora_markets: input.diasporaMarkets,
+        interests: input.interests,
+      })
+      .select('*')
+      .single()
+  );
+  return mapAudienceSegment(row);
+}
+
+export async function deleteAudienceSegment(id: string): Promise<void> {
+  const { error } = await supabase.from('audience_segments').delete().eq('id', id);
+  if (error) throw error;
 }

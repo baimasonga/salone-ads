@@ -1297,3 +1297,53 @@ confirmed edit mode loads an existing item correctly, and confirmed a failed sta
 network) shows a clear error banner and rolls the optimistic UI change back cleanly rather than crashing —
 no `pageerror`s in any of these flows. `App.tsx` confirmed byte-identical to its pre-mock state via `diff`
 after reverting.
+
+## 36. Activated the remaining Social Media Advertising tools (2026-07-23)
+
+User asked to "make active all the remaining tools on Social Media and Advertising." Audited every tab in
+that nav group (Campaigns, Content Studio, Calendar, Media Library, Audiences, Social Accounts, Analytics,
+CRM Leads, Brand Kit — the first three plus Calendar/Media Library/Analytics/Brand Kit were already real
+from earlier passes) and closed out the four that weren't:
+
+**Campaigns** — had create+list only, the same one-way-funnel gap Content Studio had before §35. Added
+`updateCampaign()`/`deleteCampaign()`, a real composer edit mode (Editing badge, Status field, Cancel edit),
+and a per-card status dropdown + delete button, mirroring the Content Studio pattern exactly. No RLS
+changes needed — `campaigns` already had an admin-only `ALL` policy.
+
+**Audiences** — was 100% decorative: three groups of hardcoded checkboxes with no state at all, and a fixed
+`4,812,400 Users` reach number that never changed regardless of what was checked. There's no real audience
+data source to back a reach estimate (SaloneReach has no connected ad platform, and never will without one),
+so rather than compute a differently-fake number, this became a real, persisted audience-segment builder:
+new `audience_segments` table (org-scoped, admin-only `ALL` RLS, same pattern as `media_assets`/
+`tracking_links`) storing a segment name plus real Sierra Leone district names (fetched live via the
+existing `fetchDistricts`/`fetchCountries`), diaspora market tags, and freeform interest tags. Saved
+segments persist and list with delete. The fake reach number was replaced with an honest note pointing at
+the real blocker (no connected Meta/WhatsApp Business ad account) instead of showing a fabricated figure.
+
+**Social Accounts** — the "connect" flow was a `toggleSocialConnectionStatus` call literally labeled
+**"Simulate Expire Token"**. Real OAuth (Meta/WhatsApp Business Platform) needs the org's own developer app
+credentials, which don't exist here — same blocker as the still-pending Task #44 (real alert delivery), not
+something buildable without the user's input. What *was* buildable: real manual channel tracking. Added
+`createSocialConnection()`/`updateSocialConnection()`/`deleteSocialConnection()` (the narrower, now-unused
+`toggleSocialConnectionStatus` was removed), a real "+ Add Channel" form, and inline edit (account
+handle/status/health) plus remove on every channel card. The UI now says plainly that this is manual
+tracking, not a live integration, instead of pretending a fake button is a real OAuth handshake.
+
+**CRM Leads** — search/filter/status-update were already real (leads arrive from influencer invites,
+service/advertising request flows), but there was no way to log a lead that originated outside those
+automated paths (e.g. a phone call). Added a small "+ Add Lead" form using the existing `createLead()`.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Live-tested the new `audience_segments`
+table as the real admin (insert succeeds) and as a non-admin (insert correctly rejected by RLS), then
+cleaned up the test row. Confirmed `social_connections` already carried the same admin-only `ALL` policy
+needed by the new CRUD functions — no migration required there. Visually verified all four changes via the
+sandbox's mock-data-then-revert technique combined with Playwright network interception (for the Audiences
+tab's district/country fetch, since this sandbox blocks the real Supabase network call) — campaign edit
+mode populates and shows the Editing badge correctly, the Audiences segment builder renders real district
+checkboxes and an honest empty state, the Social Accounts add-channel form and Edit/Remove actions render
+correctly, and the CRM Leads add-lead form renders correctly. Zero `pageerror`s across all four. `App.tsx`
+confirmed byte-identical to its pre-mock state via `diff` after reverting.
+
+**Still not active, and can't be without the user's input**: full Meta/WhatsApp Business API OAuth
+(Social Accounts) and real email/WhatsApp alert delivery (Task #44) both require the user to register
+developer apps and provide real provider credentials — flagged, not silently skipped.

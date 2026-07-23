@@ -9,17 +9,21 @@ import {
   FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X, Image as ImageIcon,
   ChevronLeft, ChevronRight, FileUp, Paperclip
 } from 'lucide-react';
-import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink } from '../types';
+import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink, AudienceSegment } from '../types';
 import {
   createCampaign,
+  updateCampaign,
+  deleteCampaign,
   createContentItem,
   updateContentItem,
   deleteContentItem,
   updateLeadStatus as apiUpdateLeadStatus,
   createDirectoryListing,
   claimDirectoryListing,
-  toggleSocialConnectionStatus,
   saveBrandKit,
+  createSocialConnection,
+  updateSocialConnection,
+  deleteSocialConnection,
   createLead,
   fetchMediaAssets,
   uploadMediaAsset,
@@ -30,6 +34,9 @@ import {
   deleteTrackingLink,
   fetchClickSeries,
   ClickSeriesPoint,
+  fetchAudienceSegments,
+  createAudienceSegment,
+  deleteAudienceSegment,
 } from '../lib/api';
 import {
   fetchMyOpportunities,
@@ -163,35 +170,110 @@ export function Workspaces({
 }: WorkspacesProps) {
 
   // --- Campaign Wizard States ---
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [newCampName, setNewCampName] = useState('');
   const [newCampDesc, setNewCampDesc] = useState('');
   const [newCampObjective, setNewCampObjective] = useState('WhatsApp enquiries');
   const [newCampBudget, setNewCampBudget] = useState('5000000');
   const [newCampDistrict, setNewCampDistrict] = useState('Western Area Urban');
   const [newCampDiaspora, setNewCampDiaspora] = useState('United Kingdom');
+  const [newCampStatus, setNewCampStatus] = useState<Campaign['status']>('Planning');
   const [campFeedback, setCampFeedback] = useState('');
+  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
+  const [campStatusUpdatingId, setCampStatusUpdatingId] = useState<string | null>(null);
 
   const [campSubmitting, setCampSubmitting] = useState(false);
+
+  const resetCampaignForm = () => {
+    setEditingCampaignId(null);
+    setNewCampName('');
+    setNewCampDesc('');
+    setNewCampObjective('WhatsApp enquiries');
+    setNewCampBudget('5000000');
+    setNewCampDistrict('Western Area Urban');
+    setNewCampDiaspora('United Kingdom');
+    setNewCampStatus('Planning');
+  };
+
+  const handleEditCampaign = (camp: Campaign) => {
+    setEditingCampaignId(camp.id);
+    setNewCampName(camp.name);
+    setNewCampDesc(camp.description);
+    setNewCampObjective(camp.objective);
+    setNewCampBudget(String(camp.totalBudget));
+    setNewCampDistrict(camp.district || 'Western Area Urban');
+    setNewCampDiaspora(camp.diasporaMarket || 'United Kingdom');
+    setNewCampStatus(camp.status);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteCampaign = async (camp: Campaign) => {
+    if (!confirm(`Delete "${camp.name}"? This cannot be undone.`)) return;
+    setDeletingCampaignId(camp.id);
+    const previous = campaigns;
+    setCampaigns(campaigns.filter((c) => c.id !== camp.id));
+    try {
+      await deleteCampaign(camp.id);
+      if (editingCampaignId === camp.id) resetCampaignForm();
+    } catch (err: any) {
+      setCampaigns(previous);
+      setCampFeedback(`Error: ${err.message || 'Could not delete campaign.'}`);
+      setTimeout(() => setCampFeedback(''), 4000);
+    } finally {
+      setDeletingCampaignId(null);
+    }
+  };
+
+  const handleChangeCampaignStatus = async (camp: Campaign, status: Campaign['status']) => {
+    if (status === camp.status) return;
+    setCampStatusUpdatingId(camp.id);
+    const previous = campaigns;
+    setCampaigns(campaigns.map((c) => (c.id === camp.id ? { ...c, status } : c)));
+    try {
+      const updated = await updateCampaign(camp.id, { status });
+      setCampaigns((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      if (editingCampaignId === camp.id) setNewCampStatus(status);
+    } catch (err: any) {
+      setCampaigns(previous);
+      setCampFeedback(`Error: ${err.message || 'Could not update status.'}`);
+      setTimeout(() => setCampFeedback(''), 4000);
+    } finally {
+      setCampStatusUpdatingId(null);
+    }
+  };
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     setCampSubmitting(true);
     try {
-      const newCamp = await createCampaign(activeOrg.id, {
-        name: newCampName || 'Sponsorship Native Rice',
-        description: newCampDesc || 'Direct delivery promotion targeted for diaspora.',
-        objective: newCampObjective,
-        totalBudget: Number(newCampBudget) || 5000000,
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        channels: ['WhatsApp Broadcaster', 'Facebook organic'],
-        district: newCampDistrict,
-        diasporaMarket: newCampDiaspora
-      });
-      setCampaigns([newCamp, ...campaigns]);
-      setNewCampName('');
-      setNewCampDesc('');
-      setCampFeedback('Campaign plan successfully established and saved!');
+      if (editingCampaignId) {
+        const updated = await updateCampaign(editingCampaignId, {
+          name: newCampName || 'Sponsorship Native Rice',
+          description: newCampDesc || 'Direct delivery promotion targeted for diaspora.',
+          objective: newCampObjective,
+          totalBudget: Number(newCampBudget) || 5000000,
+          district: newCampDistrict,
+          diasporaMarket: newCampDiaspora,
+          status: newCampStatus,
+        });
+        setCampaigns(campaigns.map((c) => (c.id === updated.id ? updated : c)));
+        setCampFeedback('Campaign plan updated.');
+      } else {
+        const newCamp = await createCampaign(activeOrg.id, {
+          name: newCampName || 'Sponsorship Native Rice',
+          description: newCampDesc || 'Direct delivery promotion targeted for diaspora.',
+          objective: newCampObjective,
+          totalBudget: Number(newCampBudget) || 5000000,
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          channels: ['WhatsApp Broadcaster', 'Facebook organic'],
+          district: newCampDistrict,
+          diasporaMarket: newCampDiaspora
+        });
+        setCampaigns([newCamp, ...campaigns]);
+        setCampFeedback('Campaign plan successfully established and saved!');
+      }
+      resetCampaignForm();
     } catch (err: any) {
       setCampFeedback(`Error: ${err.message || 'Could not save campaign.'}`);
     } finally {
@@ -256,6 +338,168 @@ export function Workspaces({
       setAiError('Failed to communicate with full-stack proxy. Check dev server logs.');
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  // --- Audience Segment States ---
+  const DIASPORA_MARKET_OPTIONS = ['United Kingdom', 'United States', 'Canada', 'Germany', 'Sweden'];
+  const [audienceDistricts, setAudienceDistricts] = useState<TaxonomyOption[]>([]);
+  const [audienceSegments, setAudienceSegments] = useState<AudienceSegment[]>([]);
+  const [audienceLoading, setAudienceLoading] = useState(false);
+  const [audienceFeedback, setAudienceFeedback] = useState('');
+  const [segmentName, setSegmentName] = useState('');
+  const [segmentDistricts, setSegmentDistricts] = useState<string[]>([]);
+  const [segmentDiasporaMarkets, setSegmentDiasporaMarkets] = useState<string[]>([]);
+  const [segmentInterestsInput, setSegmentInterestsInput] = useState('');
+  const [savingSegment, setSavingSegment] = useState(false);
+  const [deletingSegmentId, setDeletingSegmentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab !== 'audiences') return;
+    setAudienceLoading(true);
+    fetchCountries()
+      .then(async (countries) => {
+        const sierraLeone = countries.find((c) => c.name === 'Sierra Leone') ?? countries[0];
+        const [districts, segments] = await Promise.all([
+          sierraLeone ? fetchDistricts(sierraLeone.id) : Promise.resolve([]),
+          fetchAudienceSegments(activeOrg.id),
+        ]);
+        setAudienceDistricts(districts);
+        setAudienceSegments(segments);
+      })
+      .catch((err: any) => setAudienceFeedback(`Error: ${err.message || 'Could not load audience data.'}`))
+      .finally(() => setAudienceLoading(false));
+  }, [activeTab, activeOrg.id]);
+
+  const toggleSegmentDistrict = (name: string) => {
+    setSegmentDistricts((prev) => (prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]));
+  };
+
+  const toggleSegmentDiasporaMarket = (name: string) => {
+    setSegmentDiasporaMarkets((prev) => (prev.includes(name) ? prev.filter((m) => m !== name) : [...prev, name]));
+  };
+
+  const resetSegmentForm = () => {
+    setSegmentName('');
+    setSegmentDistricts([]);
+    setSegmentDiasporaMarkets([]);
+    setSegmentInterestsInput('');
+  };
+
+  const handleSaveSegment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSegment(true);
+    try {
+      const segment = await createAudienceSegment(activeOrg.id, {
+        name: segmentName,
+        districts: segmentDistricts,
+        diasporaMarkets: segmentDiasporaMarkets,
+        interests: segmentInterestsInput.split(',').map((t) => t.trim()).filter(Boolean),
+      });
+      setAudienceSegments([segment, ...audienceSegments]);
+      resetSegmentForm();
+      setAudienceFeedback('Audience segment saved.');
+    } catch (err: any) {
+      setAudienceFeedback(`Error: ${err.message || 'Could not save segment.'}`);
+    } finally {
+      setSavingSegment(false);
+      setTimeout(() => setAudienceFeedback(''), 4000);
+    }
+  };
+
+  const handleDeleteSegment = async (segment: AudienceSegment) => {
+    if (!confirm(`Delete "${segment.name}"?`)) return;
+    setDeletingSegmentId(segment.id);
+    const previous = audienceSegments;
+    setAudienceSegments(audienceSegments.filter((s) => s.id !== segment.id));
+    try {
+      await deleteAudienceSegment(segment.id);
+    } catch (err: any) {
+      setAudienceSegments(previous);
+      setAudienceFeedback(`Error: ${err.message || 'Could not delete segment.'}`);
+      setTimeout(() => setAudienceFeedback(''), 4000);
+    } finally {
+      setDeletingSegmentId(null);
+    }
+  };
+
+  // --- Social Accounts States (real manual channel tracking, no OAuth) ---
+  const [socialFeedback, setSocialFeedback] = useState('');
+  const [addingChannel, setAddingChannel] = useState(false);
+  const [newChannelPlatform, setNewChannelPlatform] = useState('');
+  const [newChannelAccountName, setNewChannelAccountName] = useState('');
+  const [newChannelStatus, setNewChannelStatus] = useState<SocialConnection['status']>('Sandbox');
+  const [savingChannel, setSavingChannel] = useState(false);
+  const [editingConnectionId, setEditingConnectionId] = useState<string | null>(null);
+  const [editConnAccountName, setEditConnAccountName] = useState('');
+  const [editConnStatus, setEditConnStatus] = useState<SocialConnection['status']>('Sandbox');
+  const [editConnHealth, setEditConnHealth] = useState<SocialConnection['connectionHealth']>('Healthy');
+  const [savingConnEdit, setSavingConnEdit] = useState(false);
+  const [deletingConnectionId, setDeletingConnectionId] = useState<string | null>(null);
+
+  const handleAddChannel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingChannel(true);
+    try {
+      const conn = await createSocialConnection(activeOrg.id, {
+        platform: newChannelPlatform,
+        accountName: newChannelAccountName,
+        status: newChannelStatus,
+        connectionHealth: 'None',
+      });
+      setSocialConnections([conn, ...socialConnections]);
+      setNewChannelPlatform('');
+      setNewChannelAccountName('');
+      setNewChannelStatus('Sandbox');
+      setAddingChannel(false);
+      setSocialFeedback('Channel added.');
+    } catch (err: any) {
+      setSocialFeedback(`Error: ${err.message || 'Could not add channel.'}`);
+    } finally {
+      setSavingChannel(false);
+      setTimeout(() => setSocialFeedback(''), 4000);
+    }
+  };
+
+  const handleStartEditConnection = (conn: SocialConnection) => {
+    setEditingConnectionId(conn.id);
+    setEditConnAccountName(conn.accountName);
+    setEditConnStatus(conn.status);
+    setEditConnHealth(conn.connectionHealth);
+  };
+
+  const handleSaveConnectionEdit = async (id: string) => {
+    setSavingConnEdit(true);
+    try {
+      const updated = await updateSocialConnection(id, {
+        accountName: editConnAccountName,
+        status: editConnStatus,
+        connectionHealth: editConnHealth,
+      });
+      setSocialConnections(socialConnections.map((c) => (c.id === updated.id ? updated : c)));
+      setEditingConnectionId(null);
+    } catch (err: any) {
+      setSocialFeedback(`Error: ${err.message || 'Could not save channel.'}`);
+      setTimeout(() => setSocialFeedback(''), 4000);
+    } finally {
+      setSavingConnEdit(false);
+    }
+  };
+
+  const handleDeleteConnection = async (conn: SocialConnection) => {
+    if (!confirm(`Remove "${conn.platform}"?`)) return;
+    setDeletingConnectionId(conn.id);
+    const previous = socialConnections;
+    setSocialConnections(socialConnections.filter((c) => c.id !== conn.id));
+    try {
+      await deleteSocialConnection(conn.id);
+      if (editingConnectionId === conn.id) setEditingConnectionId(null);
+    } catch (err: any) {
+      setSocialConnections(previous);
+      setSocialFeedback(`Error: ${err.message || 'Could not remove channel.'}`);
+      setTimeout(() => setSocialFeedback(''), 4000);
+    } finally {
+      setDeletingConnectionId(null);
     }
   };
 
@@ -581,6 +825,42 @@ export function Workspaces({
       await apiUpdateLeadStatus(id, newStatus);
     } catch {
       setLeads(previous);
+    }
+  };
+
+  const [addingLead, setAddingLead] = useState(false);
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newLeadEmail, setNewLeadEmail] = useState('');
+  const [newLeadWhatsapp, setNewLeadWhatsapp] = useState('');
+  const [newLeadSource, setNewLeadSource] = useState('Manual Entry');
+  const [newLeadValue, setNewLeadValue] = useState('');
+  const [savingLead, setSavingLead] = useState(false);
+  const [leadFeedback, setLeadFeedback] = useState('');
+
+  const handleAddLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingLead(true);
+    try {
+      const lead = await createLead(activeOrg.id, {
+        name: newLeadName,
+        email: newLeadEmail,
+        whatsapp: newLeadWhatsapp,
+        source: newLeadSource || 'Manual Entry',
+        estimatedValue: Number(newLeadValue) || 0,
+      });
+      setLeads([lead, ...leads]);
+      setNewLeadName('');
+      setNewLeadEmail('');
+      setNewLeadWhatsapp('');
+      setNewLeadSource('Manual Entry');
+      setNewLeadValue('');
+      setAddingLead(false);
+      setLeadFeedback('Lead added.');
+    } catch (err: any) {
+      setLeadFeedback(`Error: ${err.message || 'Could not add lead.'}`);
+    } finally {
+      setSavingLead(false);
+      setTimeout(() => setLeadFeedback(''), 4000);
     }
   };
 
@@ -3075,9 +3355,16 @@ export function Workspaces({
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-4">Establish Campaign Plan</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-display font-bold text-slate-900 text-lg">Establish Campaign Plan</h3>
+            {editingCampaignId && (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 shrink-0">
+                Editing
+              </span>
+            )}
+          </div>
           {campFeedback && (
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm p-4 rounded-xl mb-4 font-semibold">
+            <div className={`text-sm p-4 rounded-xl mb-4 font-semibold ${campFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
               {campFeedback}
             </div>
           )}
@@ -3159,9 +3446,34 @@ export function Workspaces({
                 className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
               />
             </div>
-            <button type="submit" disabled={campSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-              {campSubmitting ? 'Saving…' : 'Launch Campaign Plan'}
-            </button>
+            {editingCampaignId && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Status</label>
+                <select
+                  value={newCampStatus}
+                  onChange={(e: any) => setNewCampStatus(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                >
+                  <option>Draft</option>
+                  <option>Planning</option>
+                  <option>Approved</option>
+                  <option>Scheduled</option>
+                  <option>Active</option>
+                  <option>Completed</option>
+                  <option>Failed</option>
+                </select>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <button type="submit" disabled={campSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                {campSubmitting ? 'Saving…' : editingCampaignId ? 'Save Changes' : 'Launch Campaign Plan'}
+              </button>
+              {editingCampaignId && (
+                <button type="button" onClick={resetCampaignForm} className="text-xs font-semibold text-slate-500 hover:underline cursor-pointer">
+                  Cancel edit
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
@@ -3169,36 +3481,68 @@ export function Workspaces({
         <div className="space-y-4">
           <h3 className="font-display font-bold text-slate-900 text-lg">Active Campaign Scopes</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {campaigns.map((camp) => (
-              <div key={camp.id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start gap-2 mb-3">
-                    <h4 className="font-display font-bold text-slate-900 leading-tight">{camp.name}</h4>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${
-                      camp.status === 'Active' ? 'bg-emerald-100 text-emerald-800' : 
-                      camp.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      {camp.status}
-                    </span>
+            {campaigns.map((camp) => {
+              const statusColor: Record<Campaign['status'], string> = {
+                Draft: 'bg-slate-200 text-slate-600',
+                Planning: 'bg-slate-100 text-slate-600',
+                Approved: 'bg-amber-100 text-amber-800',
+                Scheduled: 'bg-blue-100 text-blue-800',
+                Active: 'bg-emerald-100 text-emerald-800',
+                Completed: 'bg-indigo-100 text-indigo-800',
+                Failed: 'bg-red-100 text-red-700',
+              };
+              return (
+                <div key={camp.id} className={`bg-white border rounded-2xl p-5 shadow-xs flex flex-col justify-between ${editingCampaignId === camp.id ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-100'}`}>
+                  <div>
+                    <div className="flex justify-between items-start gap-2 mb-3">
+                      <h4 className="font-display font-bold text-slate-900 leading-tight">{camp.name}</h4>
+                      <select
+                        value={camp.status}
+                        disabled={campStatusUpdatingId === camp.id}
+                        onChange={(e: any) => handleChangeCampaignStatus(camp, e.target.value)}
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border-0 cursor-pointer shrink-0 disabled:opacity-50 ${statusColor[camp.status]}`}
+                      >
+                        <option>Draft</option>
+                        <option>Planning</option>
+                        <option>Approved</option>
+                        <option>Scheduled</option>
+                        <option>Active</option>
+                        <option>Completed</option>
+                        <option>Failed</option>
+                      </select>
+                    </div>
+                    <p className="text-slate-500 text-xs leading-relaxed mb-4">{camp.description}</p>
                   </div>
-                  <p className="text-slate-500 text-xs leading-relaxed mb-4">{camp.description}</p>
+                  <div className="border-t border-slate-50 pt-4 space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-600">
+                      <span className="font-medium">District:</span>
+                      <span className="font-mono text-slate-500">{camp.district || 'All Sierra Leone'}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span className="font-medium">Diaspora:</span>
+                      <span className="font-mono text-slate-500">{camp.diasporaMarket || 'All Diaspora'}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span className="font-medium">Budget:</span>
+                      <span className="font-mono font-bold text-slate-800">Le {camp.totalBudget.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-50">
+                    <button type="button" onClick={() => handleEditCampaign(camp)} className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer">
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCampaign(camp)}
+                      disabled={deletingCampaignId === camp.id}
+                      className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50"
+                    >
+                      {deletingCampaignId === camp.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
                 </div>
-                <div className="border-t border-slate-50 pt-4 space-y-2 text-xs">
-                  <div className="flex justify-between text-slate-600">
-                    <span className="font-medium">District:</span>
-                    <span className="font-mono text-slate-500">{camp.district || 'All Sierra Leone'}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span className="font-medium">Diaspora:</span>
-                    <span className="font-mono text-slate-500">{camp.diasporaMarket || 'All Diaspora'}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span className="font-medium">Budget:</span>
-                    <span className="font-mono font-bold text-slate-800">Le {camp.totalBudget.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -3843,72 +4187,124 @@ export function Workspaces({
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Local & Diaspora Audience Planner</h3>
-          <p className="text-xs text-slate-500">Formulate and estimate reachable user clusters by matching demographic interests and operating locations.</p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Operating Core</span>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500" />
-                  Freetown Hubs
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500" />
-                  Bo & Kenema Regions
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500" />
-                  Makeni Suburbs
-                </label>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Diaspora Markets</span>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500" />
-                  United Kingdom
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500" />
-                  United States (East Coast)
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500" />
-                  Europe / ECOWAS Hubs
-                </label>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Socio-Interests</span>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500" />
-                  Homecoming Festivals
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500" />
-                  Local Rice & Agrotech
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" defaultChecked className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500" />
-                  Music Sponsorships
-                </label>
-              </div>
-            </div>
+          <div>
+            <h3 className="font-display font-bold text-slate-900 text-lg">Local & Diaspora Audience Planner</h3>
+            <p className="text-xs text-slate-500">Build and save reusable targeting profiles from real districts and diaspora markets, for reference when planning campaigns.</p>
           </div>
 
-          <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          {audienceFeedback && (
+            <div className={`text-sm p-3.5 rounded-xl font-semibold ${audienceFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+              {audienceFeedback}
+            </div>
+          )}
+
+          <form onSubmit={handleSaveSegment} className="space-y-4">
             <div>
-              <span className="text-xs text-emerald-800 font-bold uppercase tracking-wider block">Estimated Audience Segment Reach</span>
-              <p className="text-xs text-emerald-600 mt-1">Based on active local and diaspora interest configurations.</p>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Segment Name</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Bo/Kenema rice buyers + UK diaspora"
+                value={segmentName}
+                onChange={(e) => setSegmentName(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+              />
             </div>
-            <span className="font-display font-extrabold text-3xl text-emerald-900">4,812,400 Users</span>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Districts (Sierra Leone)</span>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm max-h-48 overflow-y-auto">
+                  {audienceLoading ? (
+                    <p className="text-xs text-slate-400">Loading…</p>
+                  ) : (
+                    audienceDistricts.map((d) => (
+                      <label key={d.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={segmentDistricts.includes(d.name)}
+                          onChange={() => toggleSegmentDistrict(d.name)}
+                          className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        {d.name}
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Diaspora Markets</span>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm">
+                  {DIASPORA_MARKET_OPTIONS.map((market) => (
+                    <label key={market} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={segmentDiasporaMarkets.includes(market)}
+                        onChange={() => toggleSegmentDiasporaMarket(market)}
+                        className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      {market}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Interest Tags</span>
+                <textarea
+                  rows={5}
+                  placeholder="Homecoming Festivals, Agrotech, Music Sponsorships"
+                  value={segmentInterestsInput}
+                  onChange={(e) => setSegmentInterestsInput(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                />
+                <p className="text-[10px] text-slate-400">Comma-separated</p>
+              </div>
+            </div>
+
+            <button type="submit" disabled={savingSegment} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+              {savingSegment ? 'Saving…' : 'Save Segment'}
+            </button>
+          </form>
+
+          <div className="bg-slate-50 border border-slate-100 p-5 rounded-2xl">
+            <span className="text-xs text-slate-600 font-bold uppercase tracking-wider block">Live Reach Estimates</span>
+            <p className="text-xs text-slate-500 mt-1">
+              Real audience-size numbers require a connected Meta or WhatsApp Business ad account — see Social Accounts.
+              Not available yet, so no reach figure is shown here rather than an invented one.
+            </p>
           </div>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Saved Segments ({audienceSegments.length})</h3>
+          {audienceSegments.length === 0 ? (
+            <p className="text-xs text-slate-400">No segments saved yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {audienceSegments.map((seg) => (
+                <div key={seg.id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-3">
+                  <div className="flex justify-between items-start gap-2">
+                    <h4 className="font-display font-bold text-slate-900 leading-tight text-sm">{seg.name}</h4>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSegment(seg)}
+                      disabled={deletingSegmentId === seg.id}
+                      className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50 shrink-0"
+                    >
+                      {deletingSegmentId === seg.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <p className="text-slate-600"><span className="font-medium">Districts:</span> <span className="text-slate-500">{seg.districts.length > 0 ? seg.districts.join(', ') : '—'}</span></p>
+                    <p className="text-slate-600"><span className="font-medium">Diaspora:</span> <span className="text-slate-500">{seg.diasporaMarkets.length > 0 ? seg.diasporaMarkets.join(', ') : '—'}</span></p>
+                    <p className="text-slate-600"><span className="font-medium">Interests:</span> <span className="text-slate-500">{seg.interests.length > 0 ? seg.interests.join(', ') : '—'}</span></p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -3919,43 +4315,166 @@ export function Workspaces({
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-2">Connected Channels</h3>
-          <p className="text-xs text-slate-500 mb-6">Manage official social API integrations or configure the local manual sandbox.</p>
+          <div className="flex items-start justify-between gap-4 mb-2">
+            <div>
+              <h3 className="font-display font-bold text-slate-900 text-lg">Connected Channels</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                No official Meta/WhatsApp Business API integration exists yet (that needs a developer app and
+                credentials we don't have) — this is real, manually-tracked channel status instead of a fake
+                OAuth handshake.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAddingChannel((v) => !v)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer shrink-0"
+            >
+              {addingChannel ? 'Cancel' : '+ Add Channel'}
+            </button>
+          </div>
+
+          {socialFeedback && (
+            <div className={`text-sm p-3.5 rounded-xl font-semibold mb-4 ${socialFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+              {socialFeedback}
+            </div>
+          )}
+
+          {addingChannel && (
+            <form onSubmit={handleAddChannel} className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-6 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Platform</label>
+                  <input
+                    type="text" required
+                    placeholder="e.g. Instagram"
+                    value={newChannelPlatform}
+                    onChange={(e) => setNewChannelPlatform(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Account / Handle</label>
+                  <input
+                    type="text" required
+                    placeholder="@salonereach"
+                    value={newChannelAccountName}
+                    onChange={(e) => setNewChannelAccountName(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Status</label>
+                  <select
+                    value={newChannelStatus}
+                    onChange={(e: any) => setNewChannelStatus(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  >
+                    <option>Sandbox</option>
+                    <option>Connected</option>
+                    <option>Expired</option>
+                    <option>Not Configured</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" disabled={savingChannel} className="bg-[#0F172A] text-white font-semibold px-4 py-2 rounded-lg text-xs cursor-pointer disabled:opacity-50">
+                {savingChannel ? 'Saving…' : 'Save Channel'}
+              </button>
+            </form>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {socialConnections.length === 0 && (
+              <p className="text-xs text-slate-400">No channels tracked yet — add one above.</p>
+            )}
             {socialConnections.map((conn) => (
               <div key={conn.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="font-display font-bold text-slate-800 text-sm">{conn.platform}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                      conn.status === 'Connected' ? 'bg-emerald-100 text-emerald-800' :
-                      conn.status === 'Sandbox' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {conn.status}
-                    </span>
+                {editingConnectionId === conn.id ? (
+                  <div className="space-y-3">
+                    <span className="font-display font-bold text-slate-800 text-sm block">{conn.platform}</span>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Account / Handle</label>
+                      <input
+                        type="text"
+                        value={editConnAccountName}
+                        onChange={(e) => setEditConnAccountName(e.target.value)}
+                        className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-slate-50 text-sm focus:outline-emerald-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Status</label>
+                        <select
+                          value={editConnStatus}
+                          onChange={(e: any) => setEditConnStatus(e.target.value)}
+                          className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-slate-50 text-sm focus:outline-emerald-500"
+                        >
+                          <option>Sandbox</option>
+                          <option>Connected</option>
+                          <option>Expired</option>
+                          <option>Not Configured</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Health</label>
+                        <select
+                          value={editConnHealth}
+                          onChange={(e: any) => setEditConnHealth(e.target.value)}
+                          className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-slate-50 text-sm focus:outline-emerald-500"
+                        >
+                          <option>Healthy</option>
+                          <option>Warning</option>
+                          <option>Disconnected</option>
+                          <option>None</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveConnectionEdit(conn.id)}
+                        disabled={savingConnEdit}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1.5 rounded-lg text-xs cursor-pointer disabled:opacity-50"
+                      >
+                        {savingConnEdit ? 'Saving…' : 'Save'}
+                      </button>
+                      <button type="button" onClick={() => setEditingConnectionId(null)} className="text-xs font-semibold text-slate-500 hover:underline cursor-pointer">
+                        Cancel
+                      </button>
+                    </div>
                   </div>
-                  <span className="text-xs text-slate-500 font-mono block">ACCOUNT: {conn.accountName}</span>
-                </div>
+                ) : (
+                  <>
+                    <div>
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="font-display font-bold text-slate-800 text-sm">{conn.platform}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          conn.status === 'Connected' ? 'bg-emerald-100 text-emerald-800' :
+                          conn.status === 'Sandbox' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {conn.status}
+                        </span>
+                      </div>
+                      <span className="text-xs text-slate-500 font-mono block">ACCOUNT: {conn.accountName}</span>
+                    </div>
 
-                <div className="border-t border-slate-50 pt-4 mt-6 flex justify-between items-center">
-                  <span className="text-xs text-slate-400">Health: <strong className="text-slate-600">{conn.connectionHealth}</strong></span>
-                  <button
-                    onClick={async () => {
-                      const nextStatus = conn.status === 'Expired' ? 'Connected' : 'Expired';
-                      const previous = socialConnections;
-                      setSocialConnections(socialConnections.map((c) => c.id === conn.id ? { ...c, status: nextStatus } : c));
-                      try {
-                        await toggleSocialConnectionStatus(conn.id, nextStatus);
-                      } catch {
-                        setSocialConnections(previous);
-                      }
-                    }}
-                    className="text-emerald-600 hover:text-emerald-700 text-xs font-semibold cursor-pointer"
-                  >
-                    {conn.status === 'Expired' ? 'Re-authorize Access' : 'Simulate Expire Token'}
-                  </button>
-                </div>
+                    <div className="border-t border-slate-50 pt-4 mt-6 flex justify-between items-center">
+                      <span className="text-xs text-slate-400">Health: <strong className="text-slate-600">{conn.connectionHealth}</strong></span>
+                      <div className="flex items-center gap-4">
+                        <button type="button" onClick={() => handleStartEditConnection(conn)} className="text-emerald-600 hover:text-emerald-700 text-xs font-semibold cursor-pointer">
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteConnection(conn)}
+                          disabled={deletingConnectionId === conn.id}
+                          className="text-red-600 hover:text-red-700 text-xs font-semibold cursor-pointer disabled:opacity-50"
+                        >
+                          {deletingConnectionId === conn.id ? 'Removing…' : 'Remove'}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -4103,8 +4622,76 @@ export function Workspaces({
                 <option>Proposal Sent</option>
                 <option>Converted</option>
               </select>
+              <button
+                type="button"
+                onClick={() => setAddingLead((v) => !v)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer shrink-0"
+              >
+                {addingLead ? 'Cancel' : '+ Add Lead'}
+              </button>
             </div>
           </div>
+
+          {leadFeedback && (
+            <div className={`text-sm p-3.5 rounded-xl font-semibold mb-4 ${leadFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+              {leadFeedback}
+            </div>
+          )}
+
+          {addingLead && (
+            <form onSubmit={handleAddLead} className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-6 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Name</label>
+                  <input
+                    type="text" required
+                    value={newLeadName}
+                    onChange={(e) => setNewLeadName(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Email</label>
+                  <input
+                    type="email"
+                    value={newLeadEmail}
+                    onChange={(e) => setNewLeadEmail(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp / Tel</label>
+                  <input
+                    type="text"
+                    value={newLeadWhatsapp}
+                    onChange={(e) => setNewLeadWhatsapp(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Source</label>
+                  <input
+                    type="text"
+                    value={newLeadSource}
+                    onChange={(e) => setNewLeadSource(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Est. Value (Le)</label>
+                  <input
+                    type="number" min="0"
+                    value={newLeadValue}
+                    onChange={(e) => setNewLeadValue(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+              </div>
+              <button type="submit" disabled={savingLead} className="bg-[#0F172A] text-white font-semibold px-4 py-2 rounded-lg text-xs cursor-pointer disabled:opacity-50">
+                {savingLead ? 'Saving…' : 'Save Lead'}
+              </button>
+            </form>
+          )}
 
           <div className="overflow-x-auto border border-slate-100 rounded-xl">
             <table className="w-full text-left text-xs border-collapse">
