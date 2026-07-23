@@ -6,7 +6,7 @@
 import { Container, getContainer } from '@cloudflare/containers';
 
 interface Env {
-  SALONEREACH_CONTAINER: DurableObjectNamespace<SaloneReachContainer>;
+  MANOHUB_CONTAINER: DurableObjectNamespace<ManohubContainer>;
   GEMINI_API_KEY?: string;
   APP_URL?: string;
   VITE_SUPABASE_URL: string;
@@ -19,7 +19,7 @@ interface Env {
 // to getRandom()/load balancing without moving the rate limiter to a shared
 // store first (e.g. the same KV-based approach functions/api/_lib/shared.ts
 // uses for the Pages Functions path).
-export class SaloneReachContainer extends Container<Env> {
+export class ManohubContainer extends Container<Env> {
   defaultPort = 3000;
   sleepAfter = '30m';
 
@@ -40,7 +40,7 @@ export class SaloneReachContainer extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const container = getContainer(env.SALONEREACH_CONTAINER);
+    const container = getContainer(env.MANOHUB_CONTAINER);
     return container.fetch(request);
   },
 };

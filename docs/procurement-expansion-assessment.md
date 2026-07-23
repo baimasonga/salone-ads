@@ -511,13 +511,923 @@ just never ran automatically). No new UI, migration only.
 confirmed `anon`/`authenticated` cannot execute the internal sweep function, confirmed the sweep runs without
 error, and confirmed the admin-gated public RPC still rejects non-admin callers after the refactor.
 
-## 13. Where this leaves the platform
+## 13. Real bug found via the first live anonymous-visitor test (2026-07-21)
 
-Seven phases in: Foundations, Tender Discovery, Publishing/Administration, Suppliers/Alerts, Commercial
-Features, Intelligence, and a first slice of Regional Expansion are all implemented against the real schema
-with RLS as the actual security boundary, not just UI conventions. Document upload (§11) and automated deadline
-reminders (§12) close two long-standing deferred items. What's left per the original spec: further Phase 7
-depth (more countries, dashboard-wide French, taxonomy translation, actual region-specific source ingestion),
-document *extraction* (as opposed to upload), and the remaining deliberately-deferred items called out across
-earlier phases (outbound email, API-key management, researcher ingestion tooling, admin-entered/website-ingested
-tenders). Say the word on any of these when you're ready.
+Every RLS/permissions claim made in phases 1-7 above was verified by direct SQL probes run as an
+elevated/service-role session — never by an actual anonymous browser hitting Supabase with the public
+`anon` key. The Cloudflare Containers deployment (docs/cloudflare-deployment.md) was the first time
+that happened, and it immediately surfaced a real bug: the public `/tenders` search page failed for
+every anonymous visitor with `permission denied for function is_org_member`.
+
+**Root cause**: `is_org_member()` and `is_platform_admin()` — the two helper functions referenced via
+`OR` in nearly every table's RLS policy (e.g. `is_public AND is_opportunity_publicly_visible(...) OR
+is_org_member(buyer_org_id) OR is_platform_admin()`) — had `EXECUTE` granted to `authenticated` but
+**never to `anon`**. Postgres requires `EXECUTE` on every function referenced in a policy's `USING`
+clause for the querying role, even when that particular `OR`-branch won't end up true — so a signed-out
+visitor querying `opportunities` (which joins `sectors`/`districts`/`countries`, all with the same
+policy shape) hit a hard permission error instead of just getting the public rows the policy intended
+to allow. `is_opportunity_publicly_visible()` — the function actually named for the public case — did
+have the `anon` grant; the two general-purpose membership/admin helper functions simply never got one,
+presumably because nothing had exercised the anonymous path for real until now.
+
+**Fix**: both functions are `SECURITY DEFINER` and key off `auth.uid()` internally, so granting
+`EXECUTE` to `anon` is safe — called with no session, they correctly evaluate to `false`, and
+table-level RLS remains the actual access boundary either way. `grant execute on function
+public.is_org_member(uuid) to anon; grant execute on function public.is_platform_admin() to anon;`
+No policy or schema changes — purely a missing grant.
+
+**Verification**: `set local role anon` in a real SQL session, then ran the exact join shape
+`searchOpportunities()`/`fetchSectors()`/`fetchDistricts()`/`fetchCountries()`/`fetchOpportunityTypes()`
+use — all now execute cleanly with no permission error (empty result sets, since no real tender data
+has been published yet — there are still zero rows in `auth.users`).
+
+**Implication worth flagging**: this same class of bug could exist wherever a public-facing query path
+in this codebase hasn't yet been exercised by a real anonymous or real authenticated session — every
+verification across phases 1-7 relied on service-role SQL probes, which bypass grant checks entirely
+the way RLS bypass works for a superuser. A live click-through as both a signed-out visitor and a real
+signed-up user (buyer, supplier, admin) would be worth doing before treating any of this as fully
+production-verified, not just schema-correct.
+
+## 14. Product pivot: tenders become the subscriber product, ad-platform goes internal (2026-07-22)
+
+Decision, confirmed directly by the product owner after the first live click-through: the original
+ad-platform (Campaigns, Content Studio, Calendar, Media Library, Audiences, Social Accounts, Analytics,
+CRM Leads, Brand Kit) is no longer a customer-facing feature — it becomes internal SaloneReach-team
+tooling for running the platform's own advertising. Tenders become the DGMarket-style subscriber
+product: public listings stay open to everyone, but full detail pages and buyer publishing require a
+paid subscription.
+
+**Decisions confirmed**:
+- **Ad-platform access**: platform admins only (`profiles.platform_role = 'admin'`) — reused the
+  existing admin concept rather than inventing a separate "staff" role.
+- **Two subscription tiers**: **Viewer** (view full tender details + receive alerts, can't publish) and
+  **Publisher** (everything Viewer gets, plus publish their own tenders). Mapped onto the existing
+  Free/Professional/Business/Enterprise plan ladder rather than introducing new plan rows, since that
+  scaffolding already existed from Phase 5: `professional` = Viewer, `business`/`enterprise` = Publisher
+  (Publisher's plan_features row sets *both* flags true, so a publisher's `hasFeature` check for viewer
+  rights also passes — this is a data choice, not new logic, and is easy to re-map onto differently
+  named/priced plans later without touching any application code).
+- **Non-subscriber tender view**: DGMarket-style teaser — title, buyer, sector, district, country,
+  submission deadline, estimated value, and summary stay visible; description, eligibility
+  requirements, bid security, application fee, contact details, submission instructions, source
+  name/URL, and documents are redacted.
+
+**Why a new RPC instead of just RLS**: RLS is row-level — the `opportunities` row itself has to stay
+selectable for the teaser fields to be public, which means the *raw* row (with every column) is still
+reachable by any `anon`/`authenticated` query against the table directly. Column-level redaction based
+on a *dynamic, per-caller* entitlement (not a fixed Postgres role) isn't something RLS alone can do.
+Verified this concretely: queried the raw `opportunities` table as `anon` on a real test tender and got
+the full `description`/`contact_details` back, even after the redaction logic existed elsewhere — so
+the fix had to be at the query surface itself, not an additional policy. `get_opportunity_detail(slug)`
+(`SECURITY DEFINER`) now does the redaction server-side and is what `fetchOpportunityBySlug()` calls
+instead of a direct table select; `opportunity_documents`' public-visibility policy was updated to
+require the same entitlement, since documents would otherwise leak the same way.
+
+**New plan features**: `tender_alerts_and_details` and `tender_publishing` (boolean-style, same
+`limit_value` 0/1 convention already used by `data_export`). `org_has_feature(org_id, key)` checks a
+specific org (used for buyer-mode activation — must be scoped to *that* org, not "any org the user
+belongs to"); `user_has_tender_feature(key)` checks whether *any* of the calling user's orgs has it
+(used for read-access gating, where "viewing" isn't tied to acting as one specific org).
+
+**Buyer-mode publishing gate**: `protect_buyer_mode_activation_trigger` on `organizations` blocks
+`is_buyer` transitioning false→true unless the org has `tender_publishing` (or the actor is a platform
+admin) — same "silently revert, don't error" idiom as the existing `protect_platform_role_trigger` /
+`protect_opportunity_transition_trigger`. `enableBuyerMode()` now returns whether activation actually
+took, and the UI shows an upgrade prompt instead of assuming success.
+
+**Ad-platform RLS**: `campaigns`, `content_items`, `leads`, `social_connections`, and `brand_kits` now
+require `is_platform_admin()` in addition to org membership on every operation. Scoped deliberately to
+the "build and publish adverts" toolchain — `directory_profiles`, `influencer_profiles`, event
+promotion, and tourism were left untouched this pass (they're marketplace/discovery features, not
+advertising creation, and weren't explicitly called out); worth flagging if those should be gated too.
+Nav (`App.tsx`) reorganized to match, but the nav change is UI convenience only — the RLS changes are
+the actual boundary, verified independently of what any tab shows.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Every piece of the new gating chain was
+verified with real probes against the live schema, not read-through: `org_has_feature` false with no
+subscription → true after an active Business-tier subscription; `get_opportunity_detail` on a real
+published test tender redacts `description`/`contact_details` for an anonymous caller and confirmed
+`has_full_access: false`; the raw table select (proving the RPC is actually necessary, not redundant)
+still leaked the full row to the same anonymous caller; `protect_buyer_mode_activation_trigger` silently
+kept `is_buyer` false on an unentitled test org, then allowed it through once that org had an active
+subscription. All test rows (probe tender, probe org, probe subscription) were cleaned up afterward.
+`baimasonga@gmail.com`'s original placeholder-admin note is superseded — the actual first admin,
+`mabangura@quantixsl.com`, signed up and was promoted this session, and their org (`FaxaRa`) was given
+a real active Business-tier subscription during testing (harmless — admins bypass entitlement checks
+regardless — but worth knowing it's there rather than a genuine purchase).
+
+**Known follow-ups, not attempted this pass**: the "Overview" dashboard tab's content still mixes
+ad-platform-flavored stats for all orgs (only the *nav visibility* and backend RLS were scoped, not a
+content rewrite of what Overview shows non-admin orgs). No per-tab render guard was added inside
+`Workspaces.tsx` for the now-admin-only tabs (defense-in-depth only — RLS is the real boundary, and a
+non-admin hitting one of those tabs would just see empty data, not a leak). Pricing page CTA links to
+the existing `/#pricing` landing-page anchor, which still describes the *old* ad-platform-oriented plan
+tiers, not the new Viewer/Publisher framing — worth a copy pass before real customers see it.
+
+## 15. Regression: the Phase 14 RLS lockdown broke onboarding for every non-admin (2026-07-22)
+
+Found by the first real non-admin signup attempt (not a probe) — clicking "Complete Workspace Setup"
+appeared to do nothing. It actually succeeded silently, five times: `create_organization()` has no
+duplicate guard, and the client's error handling swallowed a downstream failure without surfacing it,
+so each click just created another org and re-hit the same silent failure.
+
+**Root cause**: `fetchOrgBundle()` (called for *every* user on every workspace load, not just
+ad-platform users) used `.single()` on `brand_kits`, which throws when zero rows come back. §14's RLS
+lockdown made `brand_kits` (and `campaigns`/`content_items`/`leads`/`social_connections`) admin-only —
+so for any non-admin org, that query now legitimately returns zero rows, and `.single()` throws. The
+thrown error was caught by `loadWorkspace`'s try/catch, which sets `workspaceError` — but the render
+logic checks `view === 'onboarding'` *before* checking that error state, so the failure was completely
+invisible: the user just saw the same onboarding form again, with no indication anything had happened.
+
+**Two real bugs, both fixed**:
+1. `fetchOrgBundle()` now uses `.maybeSingle()` for `brand_kits` and falls back to a blank
+   `EMPTY_BRAND_KIT` placeholder when null — safe because a non-admin org can never reach the Brand
+   Kit/Content Studio UI anyway (hidden from nav since §14, and RLS blocks any write regardless).
+   `campaigns`/`content_items`/`leads`/`social_connections` never needed this fix — RLS-filtered-to-zero
+   returns an empty array, not an error, from a plain (non-`.single()`) select; `brand_kits` was the only
+   one using `.single()`.
+2. `create_organization()` had no guard against a user creating more than one org, despite "exactly one
+   organization per user" being the documented design intent since Phase 1. Added a check that raises a
+   clear, friendly error ("You already have an organization...") instead of silently creating another.
+
+**Verification**: live probes against the real schema, not just read-through — confirmed the RPC now
+rejects a second org creation for the same user with the intended error message; confirmed the
+`brand_kits` select for the real affected user (`baimasonga@gmail.com`, used as this session's
+deliberately-non-admin/non-subscribed test account) returns zero rows without erroring, matching what
+the fixed client code now expects. Cleaned up the four duplicate "Timo global" orgs created during the
+stuck-form incident, keeping the first. `tsc --noEmit` and `npm run build` clean.
+
+**Lesson for future admin-only RLS lockdowns**: check every code path that touches the restricted
+tables, not just the features that obviously belong to that domain — `fetchOrgBundle` wasn't an
+"ad-platform feature," it was universal workspace-loading plumbing that happened to also fetch
+ad-platform data unconditionally for every user.
+
+## 16. Closing the §14 follow-ups: Overview and Tenders tabs are now tier-aware (2026-07-22)
+
+§14 restricted the ad-platform to admins at the RLS/backend level but explicitly flagged two UI gaps as
+not-yet-done: the Overview tab still showed 100% ad-platform content to every org, and the Tenders tab
+showed the "Enable Buyer Mode" publish CTA to every non-buyer org regardless of subscription tier. Direct
+product-owner feedback after the first non-admin click-through confirmed both needed fixing — a Viewer
+subscriber (detail access + alerts, no publishing) should never see tender *publishing* tools in their
+dashboard at all, not just have them disabled.
+
+**Overview tab**: now branches on `isPlatformAdmin`. Admins keep the original ad-platform stats view
+unchanged. Everyone else gets a procurement-relevant overview: subscription tier badge (Free/Viewer/
+Publisher, derived from the same `tender_publishing`/`tender_alerts_and_details` plan features §14
+introduced), saved-search count, pipeline count, quick links to Tenders/Pipeline/Supplier Profile, and a
+subscribe upsell for Free-tier orgs. Real counts, not placeholder numbers — pulled from
+`fetchPipeline()`/`fetchSavedSearches()`, both already existing from earlier phases.
+
+**Tenders tab**: now branches three ways instead of the old binary `isBuyer` check:
+- **Publisher** (`tender_publishing` entitled, or already `is_buyer`): unchanged — buyer publish form
+  and "Your Tenders" management.
+- **Viewer** (`tender_alerts_and_details` only): a saved-searches/alerts panel (reusing the same
+  `fetchSavedSearches`/`deleteSavedSearch` the public search page already uses) plus a link to browse
+  tenders — **no publish UI rendered at all**, not shown-then-blocked.
+- **Free/no subscription**: a subscribe upsell, no tender tooling.
+
+`setActiveTab` had to be threaded into `Workspaces` as a new prop (wasn't previously passed down — the
+component only ever received `activeTab` read-only) so the new Overview quick-links could actually
+navigate.
+
+**Deliberately not attempted this pass**: real email/WhatsApp alert delivery. The product owner asked
+for this directly ("receives alert via emails/WhatsApp etc"), and it's a genuine gap — Phase 4's alert
+pipeline only ever created in-app notification rows, explicitly because no email/SMS provider was
+configured. This needs the owner to choose and provide credentials for a real provider (e.g. Resend/
+Postmark/SES for email, Twilio or the WhatsApp Business API for WhatsApp) before it can be built for
+real — same reasoning as not fabricating Cloudflare/Gemini credentials earlier in this session.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean.
+
+## 17. Discovery (Influencer Market, Business Directory, Event Promotion, Tourism) is admin-only too (2026-07-22)
+
+§14 deliberately scoped the ad-platform lockdown narrowly to the "build and publish adverts" toolchain
+and left Discovery untouched, flagging it explicitly as a scoping decision the product owner might want
+to revisit. They did: direct feedback after seeing it in the live non-admin dashboard — subscribers
+should see *only* tender tools scoped to their tier, nothing else.
+
+Moved the whole Discovery nav group behind `isPlatformAdmin`, same as Social Media Advertising. At the
+RLS level: `directory_profiles` and `influencer_profiles` (the two with real backing tables) now require
+`is_platform_admin()` for every operation — verified live, zero rows visible to the non-admin test
+account. Event Promotion and Tourism needed no RLS change since they have no backing tables at all —
+still simulated/static UI, per the original Phase 0 assessment — so hiding the nav tab is the complete
+fix for those two.
+
+Note for later: the product owner's next stated step is designing a *third* subscriber type — someone
+who pays specifically to advertise their own business/event/goods/services (their words: "another type
+of subscriber that has paid for advertising his or her business/event, goods and service"). Business
+Directory and Event Promotion are very plausibly where that tier's features will eventually live — but
+that's explicitly a follow-up design conversation, not decided yet, so nothing here anticipates it.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean; live probe confirmed `directory_profiles`
+returns zero rows for the non-admin test account under the new policy.
+
+## 18. Where this leaves the platform
+
+Seven phases plus a Regional Expansion slice are implemented against the real schema with RLS as the
+actual security boundary. §11-§14 closed document upload, automated reminders, and — the largest change
+— repositioned the whole product: tenders are now the subscriber-facing product with a real
+teaser/paywall boundary, and the original ad-platform is internal-only. §15 fixed a real regression that
+lockdown introduced (onboarding crash for non-admins). §16-§17 closed the remaining UI/access gaps from
+§14 (Overview and Tenders tabs are tier-aware; Discovery is admin-only too). What's left per the original
+spec: further Phase 7 depth, document *extraction*, real outbound email/WhatsApp alert delivery (needs
+provider credentials from the owner), the remaining deliberately-deferred items (API-key management,
+researcher ingestion tooling, admin-entered/website-ingested tenders), pricing page copy (still describes
+the old ad-platform-oriented tiers), and — the next thing on deck — designing a third subscriber type for
+paid business/event/goods/services advertising (§17). A live click-through of the full tender lifecycle
+(buyer publish → admin review → public listing → subscriber detail view) as real non-admin accounts is
+still outstanding too.
+
+## 19. Third subscriber type: Advertiser — submit-and-report, no directory/browsing UI (2026-07-22)
+
+Follow-up to the design question flagged at the end of §17. Direct product-owner instruction on scope:
+"no business directory listing/event promotion etc would appear on the subscriber page. the only info to
+appear is details about the adverts submitted for advertising (no people reach, number of times the
+advert was run, which platform the advert appeared etc)" — i.e. this tier gets *no* discovery/browsing
+tooling at all (that stays admin-only per §17), just a narrow submit-a-request-and-see-the-report loop.
+The actual design/production of the advert remains admin-only ad-platform work; the subscriber only
+supplies what they want advertised and later sees what happened.
+
+**Schema** (new table, no local migration files — applied directly via Supabase MCP as with the rest of
+this schema): `advertisement_requests(id, org_id, requested_by, category [business/event/goods/service],
+subject, description, status [submitted/in_production/live/completed/cancelled], platform, reach_count,
+run_count, start_date, end_date, created_at, updated_at)`.
+
+**RLS**: SELECT for org members + `is_platform_admin()`. INSERT requires
+`org_has_feature(org_id, 'business_advertising')` — deliberately no org-member UPDATE policy at all,
+admin-only, since this is a one-way report the subscriber can't self-edit. New plan_features row:
+`business_advertising` (free=0, professional=0, business=1, enterprise=1).
+
+**API layer** (`procurementApi.ts`): `submitAdvertisementRequest`, `fetchMyAdvertisements`,
+`fetchAllAdvertisementRequests` (admin queue, joins `organizations.name`), `updateAdvertisementReport`
+(admin fulfillment — status/platform/reach_count/run_count/dates).
+
+**UI**: new "My Adverts" nav item, shown only when the org actually holds the `business_advertising`
+entitlement (unlike Tenders, which stays visible to Free-tier orgs with an upsell — this is an add-on
+feature, not core to the product, so it's hidden rather than shown-then-blocked for orgs without it).
+Contains a submission form (category/subject/description) and a read-only list of the org's own requests
+showing status plus, once fulfilled, platform/reach/times-run. Admin side: "Advertising Requests" item in
+the Platform Admin group — a fulfillment queue with a status dropdown and three prompt-based fields
+(platform, reach, run count) per request, same interaction pattern as the existing Service Requests queue.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Live RLS probes via `set local role
+authenticated` + simulated JWT claims (not the superuser MCP context, which bypasses RLS): a non-entitled
+org's INSERT was rejected (`42501` RLS violation); an entitled org's INSERT succeeded; a non-admin org
+member's UPDATE attempt silently affected zero rows (correct — no self-service update policy exists); an
+admin's UPDATE through a real simulated admin session succeeded. Separately re-verified the exact query
+shapes the new UI code issues — the subscriber `SELECT` (own org, no join), the admin `SELECT` with the
+`organizations(name)` embed, and the admin `UPDATE` writing status/platform/reach_count/run_count
+together — all executed successfully as the real entitled/admin users, then cleaned up the test rows
+afterward.
+
+## 20. Landing page realigned to the tender platform, not the old ad-campaign pitch (2026-07-22)
+
+Flagged as a known gap at the end of §18 and actioned directly: the public landing page (hero, "Who We
+Serve," feature bento grid, pricing) still pitched SaloneReach as an ad-campaign tool for local
+businesses — "Start Campaign," WhatsApp click tracking, verified business directory, campaign-count
+pricing tiers. That's now admin-only internal tooling per §14/§17 and never subscriber-facing, so the
+public-facing pitch was actively describing a product visitors can't sign up for.
+
+Rewrote all four sections to describe the real product:
+- **Hero**: tender search/subscribe/publish framing, "Browse Tenders" CTA linking to `/tenders`, honest
+  stat chips (Free public search, SL + LR coverage, live alerts) instead of fabricated audience-reach
+  numbers.
+- **Who We Serve**: Suppliers & Bidders / Buyers & Institutions / Business Advertisers — matching the
+  three real subscriber roles this session built (Viewer/Publisher tender tiers, §19's Advertiser tier).
+- **Feature grid**: AI Tender Assistant (`explain_tender`/`aiSuggestSector`, real endpoints from earlier
+  phases), Saved Searches & Alerts, Buyer Publishing Workflow, Bid Pipeline & Documents — all features
+  that actually exist and are subscriber-reachable, replacing the AI-campaign-copy/directory-listing
+  content that isn't.
+- **Pricing**: four tiers pulled directly from the real `plans`/`plan_features` tables via Supabase MCP —
+  Free (teaser, 3 saved searches), Professional (`tender_alerts_and_details`, 10 saved searches, 3 team
+  members), Business (`tender_publishing` + `business_advertising` + `data_export`, 25/10), Enterprise
+  (unlimited everything). Prices are "Contact Us" rather than fabricated dollar figures since
+  `monthly_price`/`annual_price` are genuinely null in the database — subscriptions go through the
+  existing manual bank-transfer request/admin-activate flow, not a priced checkout.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Started the dev server and rendered all four
+sections in a real headless-browser screenshot pass (hero, audience, features, pricing) to confirm layout
+held after the copy swap — not just a read-through.
+
+## 21. Landing page redesign: real tender data, honest empty state, unified visual system (2026-07-22)
+
+Direct product-owner request: "the front page UI needs to be redone for displaying tenders and other
+adverts... the UI must be design professional." Rebuilt `LandingPage.tsx` end to end rather than making
+incremental copy edits, using the `ui-ux-design` skill's process (frame the problem, one job per section,
+apply heuristics, critique against the checklist).
+
+**What changed:**
+- **Hero**: replaced the old single hardcoded "sample listing" mockup — which implied it was live data but
+  wasn't — with an honest "How It Works" 3-step panel (Search free → Subscribe → Bid or publish). No fake
+  data anywhere in the hero now.
+- **New "Live Tender Feed" section**: genuinely wired to `searchOpportunities({})`, showing the latest 6
+  published tenders as real cards (sector, buyer, district, deadline), or a deliberately designed empty
+  state (dashed border, plain-language explanation, "Get Alerted" CTA) for the current reality — 0
+  published tenders in the database today. This directly answers "displaying tenders": it's live, not
+  decorative, and will start populating itself the moment the first buyer-submitted tender clears admin
+  review.
+- **Visual system unification**: discovered mid-task that `index.css` already force-flattens
+  `rounded-xl`/`rounded-2xl`/`rounded-3xl` to 0 and strips shadows off certain `bg-white.border` /
+  `bg-slate-50.border` combinations globally (`!important` overrides) — meaning the page's soft-SaaS
+  source classes were already rendering sharp-cornered in production, just inconsistently (some cards
+  escaped the override via opacity-modified background classes like `bg-slate-50/50`, which don't match
+  the plain-class selector). Rewrote every section to use explicit sharp-cornered classes directly
+  (`border border-[#0F172A]`/`border-slate-200`/`border-slate-300`, zero `rounded-*` classes anywhere) so
+  the design is correct by construction rather than accidentally correct via a global hack. Added numbered
+  index badges (01/02/03) to the "Who We Serve" and "How It Works" cards, echoing the same
+  `itemNum`-in-the-corner convention the dashboard sidebar already uses — a small consistency thread tying
+  the marketing site to the product itself.
+- **Mobile header bug found and fixed during review**: the original header (logo + "Sign In" text button +
+  "Get Started" button, all always visible) overflowed at 390px width — confirmed by an actual mobile
+  viewport screenshot, not assumed. Replaced with a proper collapsible mobile menu (hamburger toggle,
+  `aria-expanded`/`aria-label`, full-width dropdown with stacked nav links + Sign In + Get Started),
+  re-screenshotted open and closed to confirm the fix.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Rendered every section with a real headless
+browser (desktop 1440px full-page pass, plus a dedicated mobile 390px pass with the menu opened and
+closed) rather than reviewing source code alone — this is how the mobile overflow bug was actually caught.
+
+## 22. Landing page density pass: real sector/stats content, tighter spacing (2026-07-22)
+
+Direct product-owner feedback on §21's redesign: "too much of white spaces and few web items for
+displaying contents," plus a scoping instruction that the Pricing section ("A Tier for Every Role") must
+stay exclusive to the general front page (confirmed via grep — it only ever existed in `LandingPage.tsx`,
+not duplicated elsewhere; no code change needed for that part, just confirmed and left as-is).
+
+Addressed the density complaint with real content, not decoration:
+- **Prominent search bar** in the hero, wired to `/tenders?q=...` — the signature element real commercial
+  procurement portals (DGMarket, UNGM) lead with, which the previous pass didn't have.
+- **New "Browse By Sector" section**: all 12 real sectors from the `sectors` table (`fetchSectors()`),
+  rendered as a dense clickable tile grid linking to `/tenders?sector={id}`, each icon-mapped by keyword
+  match against the real sector name (Agriculture → wheat icon, Health → heart-pulse, etc.), with a
+  generic building icon as fallback. Zero fabricated categories.
+- **Real stat strip** in the hero: sector count, district/county count (31, from `fetchDistricts()`),
+  and country count (2) — all live counts from the same taxonomy tables the search filters already use,
+  not invented traffic numbers.
+- **New FAQ section** (5 real Q&As grounded in actual product mechanics — free browsing, admin review,
+  plan differences, advertising flow, country coverage) as a working accordion.
+- **Denser tender feed**: 9 cards instead of 6, tighter grid gaps.
+- **Richer 4-column footer**: Platform / Account / Get In Touch link columns instead of a single
+  brand-plus-copyright row — only real in-page anchors and existing actions (Sign In/Get Started), no
+  invented pages.
+- **Tightened vertical rhythm** throughout: `py-20` → `py-14`, `gap-16` → `gap-8`, condensing the standalone
+  "How It Works" card into a compact horizontal ribbon under the hero instead of a tall side card.
+
+**Verification gap, disclosed rather than papered over**: attempted to re-screenshot the live-data
+rendering as done for §21, and discovered mid-session that this sandbox's outbound proxy explicitly
+denies (403, confirmed via the proxy's own `/__agentproxy/status` failure log) any connection to this
+project's Supabase domain — for every process, not just curl. This means §21's earlier "verified empty
+state" screenshots were actually rendering a silently-caught network failure (`.catch(() => setLatest([]))`
+masks a fetch error identically to a genuine empty result) — not a confirmed real render. Per the proxy's
+own policy ("do not retry or route around it"), did not attempt a bypass. Instead verified layout/density
+with temporary local mock data matching the real 12 sector names, but the user interrupted before that
+screenshot completed; the mock code was fully reverted (confirmed via diff against a pre-mock backup) and
+never shipped. `tsc --noEmit` and `npm run build` are clean, but the actual live-data rendering of this
+page has **not** been re-confirmed visually since §21 and should be checked on the deployed site.
+
+## 23. Landing page restructured around the DGMarket reference screenshot (2026-07-22)
+
+The product owner shared an actual screenshot of dgmarket.com's front page as a direct design reference.
+Its information architecture is fundamentally different from the modern-SaaS structure built in §21-22: a
+compact utility search bar above any marketing copy, a short photographic banner (not a big headline
+hero), a "Sectors" sidebar showing live per-sector tender counts, a dense list-style (not card-grid) main
+tender listing, and a secondary "Popular tenders" sidebar list — altogether a much more information-dense,
+utility-first directory feel than a typical landing page.
+
+Restructured the top of `LandingPage.tsx` to match that pattern while keeping the existing sharp
+navy/emerald "Emerald Sky" visual identity (no stock photography available or appropriate to fabricate, so
+the banner uses the brand's own geometric pattern instead of a photo):
+- **Utility search bar**: a slim strip directly under the header — keyword input, Search button, Advanced
+  Search link — the very first thing after branding, before any pitch copy.
+- **Compact banner**: replaced the previous full headline hero with a shorter navy banner (tagline +
+  live sector/district/country stat trio), closer to DGMarket's photo-banner proportions.
+- **Three action cards**: Find Tenders / Get Alerts / Subscribe — mirroring DGMarket's icon+headline+link
+  utility-card row exactly, mapped to our own real actions (browse, get-started, pricing anchor).
+- **Three-column directory**: a real "Sectors" sidebar with live per-sector tender counts (computed
+  client-side from the same fetched opportunity list — grouping, not a new query), a dense "Latest &
+  Featured Opportunities" list (title + district/country + deadline per row, not a card grid), and a
+  "Popular Tenders" sidebar sorted by the real `view_count` column.
+- **New `viewCount` field**: added to `OpportunityListItem` (procurementApi.ts) — `view_count` was already
+  a real column on `opportunities` (fed by the existing `increment_opportunity_view` RPC) but had never
+  been exposed through `LIST_SELECT`/`mapListItem`; this is the only backend-adjacent change, a single
+  centralized mapper update, not new fabricated data.
+- The rest of §21-22's content (Who We Serve, Features bento, FAQ, Pricing, richer footer) stays below
+  this directory block — DGMarket doesn't need to explain or sell itself since it's an established brand,
+  but SaloneReach still does, so both structures now coexist: directory-first, marketing explanation after.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Re-confirmed the §22 finding that this
+sandbox's egress policy blocks real Supabase calls from any local process — so, as before, verified the
+new layout with temporary local mock data (matching the real 12 sector names and a realistic view-count
+spread), screenshotted at full desktop width, then reverted the mock via diff-checked restore before
+this commit. A faint diagonal artifact in the banner screenshot was double-checked with a tight crop and
+confirmed to be a downscaling/moiré artifact of the repeating-gradient background, not real content
+bleeding through.
+
+## 24. Banner graphics + a real invisible-headline bug found by actually rendering it (2026-07-22)
+
+Product owner request after seeing the deployed §23 banner live (confirmed real data: 12 sectors/31
+districts/2 countries matching the database): add graphics relating to tendering and advertising to the
+banner. Added an icon cluster (Tenders/Search/Adverts/Alerts, four bordered emerald-on-navy tiles using the
+existing icon-in-box visual language — no stock photography, consistent with §21's decision not to
+fabricate imagery) plus a large, very low-opacity `ClipboardList` watermark icon in the banner's corner for
+quiet texture.
+
+**Real bug found while rendering this, not by reading code**: the banner headline
+("Procurement Opportunities Across West Africa") was completely invisible — navy text on the navy banner
+background. Root cause: `index.css` has a blanket `h1, h2, h3, h4 { color: #0F172A !important; }` rule.
+Every other heading in the app happens to already use Tailwind's `text-slate-900`, whose hex
+(`#0f172a`) is *identical* to that forced navy — so the override has been silently harmless everywhere
+else in the product. This banner was the first heading ever placed on a dark background wanting white
+text, which is exactly what exposed it. Fixed with Tailwind's important-modifier (`!text-white`), which
+compiles to a class-selector `!important` rule that beats the element-selector `!important` rule on
+specificity. Caught only because the icon-cluster verification screenshot was taken and actually looked at
+— a pure code read-through would never have surfaced this, since the JSX itself looked completely correct
+(`text-white` on the parent section, headline with no conflicting class).
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Screenshotted before and after the fix at the
+banner region specifically (not just a full-page shot) to confirm the headline is now visible white text.
+No mock data needed this time — the icon cluster, watermark, and headline don't depend on tender/sector
+data, so the real (sandbox-blocked) fetch code was rendered as-is, showing honest "—" placeholders for the
+sector/district counts exactly as a real empty response would.
+
+## 25. Original vector illustration in the banner (2026-07-22)
+
+Follow-up request: add actual vector images of tenders/procurement/adverts to the banner, beyond the small
+icon tiles from §24. Hand-built a original inline SVG (`ProcurementIllustration` in `LandingPage.tsx`) —
+a tender document (header bar, body text lines, emerald approval-seal checkmark) paired with a megaphone
+emitting amber reach waves — composed from basic shapes in our own brand palette, not a fetched/licensed
+stock asset. Used twice: a visible ~160px version stacked above the stat trio on md+ screens, and a very
+low-opacity oversized version as background texture (replacing the plain `ClipboardList` icon watermark
+from §24). Hidden below `md` so the mobile layout stays clean (confirmed via a dedicated 390px screenshot).
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Screenshotted both the desktop banner (confirms
+the illustration renders correctly, right colors, no overlap with the stat trio) and mobile width (confirms
+it's properly hidden and nothing overflows).
+
+## 26. Filled in the flat white background behind the action-cards row (2026-07-22)
+
+Direct feedback on the plain white background behind the Find Tenders/Get Alerts/Subscribe row — it had no
+texture and no heading, unlike every other section on the page. Gave it a soft emerald-tinted gradient
+fade (`from-emerald-50/50 via-white to-white`) plus the same faint diagonal-stripe texture used in the
+banner, for visual consistency rather than introducing a new pattern. Also added a small "Quick Actions"
+eyebrow label above the cards, since this was the one section on the page with no heading at all.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Screenshotted the section directly to confirm
+the gradient/texture render correctly and the JSX nesting (an extra wrapping div was needed for the eyebrow
+label) didn't break the card grid layout.
+
+## 27. External audit review + real Media Library storage (2026-07-22)
+
+The product owner had a separate ChatGPT session audit this repo for unimplemented/mocked features and
+shared its findings. Spot-checked the specific claims directly against the current code (Media Library
+upload simulation, static December 2026 calendar, alert-only tracking links, text-only directory
+verification) — all still accurate. But the audit's framing missed a key fact: every flagged gap lives
+inside the ad-platform module (Media Library, Calendar, Tracking Links, Events, Tourism, Influencer,
+Directory) that §14/§17 deliberately locked to platform-admin-only. These are no longer subscriber-facing
+gaps — they only matter if and when the SaloneReach team needs to actually run real ad production through
+them. The audit also didn't mention the procurement/tender side at all, which is where nearly all of this
+session's real engineering went and is live-deployed and personally tested. Its finding that Cloudflare
+deployment was "pending credentials" (its version of §12) is now outdated — deployed and verified live
+several times over. Its finding that the planning docs are stale relative to the code (its #13) is correct
+and became task #45 below.
+
+Agreed with the owner to work through all three follow-ups (real internal ad-tooling, deepen procurement,
+fix stale docs), starting with real Media Library storage as the first concrete piece:
+
+- **New `media_assets` table** (org_id, folder, file_name, storage_path, file_size, mime_type, uploaded_by,
+  created_at), RLS `is_org_member(org_id) and is_platform_admin()` — identical convention to
+  `content_items`/`campaigns`.
+- **New private `media-assets` storage bucket** with a storage.objects RLS policy keyed on
+  `(storage.foldername(name))[1]::uuid` matching the existing `private-documents` bucket's pattern exactly.
+- **API layer** (`src/lib/api.ts`): `fetchMediaAssets`, `uploadMediaAsset` (10MB ceiling, same as tender
+  documents), `deleteMediaAsset`, `getMediaAssetUrl` (5-minute signed URL, same pattern as
+  `getOpportunityDocumentUrl`).
+- **Workspaces.tsx Media Library tab**: replaced `simulateUpload`'s fake timed progress bar with a real
+  hidden `<input type="file">` triggered by the Upload button, a real folder-name input, and a plain
+  "Uploading…" state (no fabricated percentage, since the Supabase JS client doesn't expose real upload
+  progress without dropping to a lower-level XHR/tus client — better to show nothing fake than a
+  meaningless number). The hardcoded four-folder grid and five-placeholder thumbnail grid are now derived
+  entirely from real fetched assets — real per-folder counts, real file names/sizes, a real delete button,
+  and click-to-view via a lazily-fetched signed URL.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Live-verified RLS with real probes (non-admin
+org member blocked with `42501`, admin insert succeeds) and confirmed the exact `select`/`insert`/`delete`
+column shapes the new UI code issues round-trip correctly against the real table — the same substitute
+used throughout this session for admin-dashboard features, since those screens need a real authenticated
+app session this sandbox's browser can't reach (blocked by the sandbox's own egress policy, per §22).
+
+## 28. Real tracking links, click capture, and analytics (2026-07-22)
+
+Replaced the entire alert-only/mock tracking-and-attribution layer with a real one:
+
+- **Schema**: `tracking_links` (org_id, label, target_url, short_code, click_count) and
+  `tracking_link_clicks` (tracking_link_id, org_id, clicked_at, referrer). Management RLS matches the
+  admin-only convention (`is_org_member(org_id) and is_platform_admin()`); the tables themselves are never
+  directly readable by anon.
+- **`resolve_tracking_link(p_code, p_referrer)` RPC** — SECURITY DEFINER, granted to `anon` and
+  `authenticated`, same pattern as `increment_opportunity_view`/`get_opportunity_detail`: looks up the
+  short code, atomically increments `click_count`, logs a click row, and returns the real target URL.
+- **Real server-side redirect**: `GET /r/:code` in `server.ts` calls the RPC and issues a genuine HTTP 302
+  — a server route rather than a client-side SPA route, so it's fast, works without JS, and behaves
+  correctly for share-preview crawlers.
+- **API layer**: `createTrackingLink`, `fetchTrackingLinks`, `deleteTrackingLink`, and `fetchClickSeries`
+  (buckets real click timestamps into a daily series, replacing the hardcoded `[65, 80, 55, ...]` array).
+- **Tourism tab**: the two "Generate Tracking Link" buttons (previously `alert('...configured!')`) now
+  create a real link on demand (prompting for the real destination — a WhatsApp link or booking page — 
+  instead of assuming one) and, once created, show the real `/r/{code}` short link with a copy button and
+  live click count.
+- **Analytics tab**: replaced three fabricated stats (Le 240 CPC, 8.2% conversion, 42% diaspora share — no
+  backing data existed for any of them) with real ones (active tracking links, total clicks, clicks in the
+  last 7 days), added a real daily click chart, and a full tracking-link builder + list (this also picked
+  up a completely orphaned, never-rendered UTM-builder state block that existed in the code but was wired
+  to no UI at all).
+- **Overview tab** (admin ad-stats view): replaced "Audience Reach" (4,812,400, fake), "WhatsApp Clicks"
+  (12,410, fake), and "Est. ROI Index" (3.5x, fake) with Active Campaigns, Tracking Link Clicks, and
+  Content Published — all real counts from data already being fetched — plus the same real click chart.
+
+**Verification**: `tsc --noEmit` and `npm run build` (including the esbuild server bundle) clean. Live
+end-to-end probe: created a real tracking link as the real admin session, resolved it via
+`resolve_tracking_link` as genuinely anonymous (`set local role anon`, no JWT claims at all) — confirmed
+`click_count` incremented, a real click row was logged, and the real target URL was returned — then
+confirmed anon still cannot read `tracking_links` directly (RLS blocks it; only the RPC path works).
+
+## 29. Real calendar month navigation (2026-07-22)
+
+Replaced the fixed 28-cell "December 2026" grid with a genuine month calendar: real days-in-month (28-31,
+leap-year aware), correct Monday-first weekday alignment for whichever month is showing, Prev/Next
+navigation defaulting to the real current month, and scheduled posts matched against real `scheduledDate`
+values (already-real `content_items` data — the old code just only ever checked `2026-12-DD` regardless of
+what month was displayed).
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Verified the pure date-arithmetic logic
+(`getCalendarCells`/`formatDateKey`) directly in Node — confirmed July 2026 starts on the correct Wednesday
+with 2 leading blank cells and 31 real days, and Feb 2028 (a leap year) correctly shows 29 days.
+
+## 30. Real influencer/directory/events workflows (2026-07-22)
+
+Closed the three most jarring "claims to do something but doesn't" gaps in the remaining ad-platform
+prototype screens:
+
+- **Influencer "Invite Partner"** (`alert('Inquiry submitted...Stored in CRM.')`, no CRM effect at all) now
+  creates a real `leads` row via a new `createLead()` function (org-scoped, admin-only RLS, same convention
+  as every other ad-platform table) — the creator's proposed budget is captured and the lead genuinely
+  appears in the CRM Leads tab afterward.
+- **Directory verification** ("Corporate document name" was a plain text field — nothing was ever uploaded
+  or checked, and `claimDirectoryListing()` verified the listing regardless of what was typed) now requires
+  and uploads a real file through the same storage-backed Media Library built in §27, tagged into a
+  "Verification Documents" folder, before the listing is marked verified.
+- **Events "Promote Concert"/"Promote Summit"** (`alert('...added to Content Studio drafts!')`/
+  `alert('...added to Campaign planner!')`, neither of which happened) now call the real
+  `createContentItem()` API already used by the Content Studio tab, producing an actual draft (real title,
+  headline, body, hashtags, scheduled date matching the event) that genuinely appears in Content Studio
+  afterward.
+
+**Known remaining gap, not attempted this pass**: the events/tourism destinations themselves are still two
+hardcoded example entries each, not full CRUD (create/edit/delete real events or tours). Given the time
+already invested in this follow-up and that these are internal admin-only screens (not subscriber-facing),
+building full event/tour management was judged lower priority than fixing the three actions that actively
+lied about what they'd done — flagging honestly rather than quietly leaving it off the list.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. Live-verified the exact `leads` insert shape
+`createLead()` issues against the real table schema, as the real admin session — succeeded, then cleaned
+up the test row.
+
+Say the word on anything else when you're ready.
+
+## 31. Corrected stale planning docs (2026-07-22)
+
+`docs/implementation-plan.md` and `docs/product-requirements.md` were both entirely unedited leftovers
+from before the procurement pivot — the plan's phase table still said Phase 0 "IN PROGRESS" and every
+later phase "Planned" (despite phases 0-6 and 8 being done or mostly done by this point), and the PRD's
+positioning statement and module list described only the ad-platform vision with zero mention of
+tenders/procurement at all. Anyone reading either file cold would have an actively wrong picture of both
+what's built and what the product now is.
+
+Fixed both:
+- `implementation-plan.md` gets a top-of-file superseded notice plus a rewritten phase-status table with
+  accurate per-phase status (Done / Mostly done / Partial / Still not started, with a one-line reason for
+  each), and a closing note that Phase 11 onward (the actual current product) is tracked in this assessment
+  doc instead of being phase-numbered there.
+- `product-requirements.md` gets the same superseded notice, keeps the original positioning/module list for
+  historical context (the ad-platform module is still real, just no longer the product's front door), and
+  adds a "Current Positioning Statement" reflecting the actual product today.
+
+Both files now point here (`procurement-expansion-assessment.md`) as the live source of truth, rather than
+silently going stale next to it.
+
+**Verification**: doc-only change, no code affected — reviewed both files end-to-end after editing to
+confirm they read coherently and no longer contradict the real state of the repo.
+
+## 32. Full feature/function QA pass (2026-07-22)
+
+Systematic audit of "does every feature actually work," combining live RLS-simulated tests against
+the real database (as the two real accounts — `baimasonga@gmail.com`/Timo Global, a regular subscriber,
+and `mabangura@quantixsl.com`/FaxaRa, the platform admin) with a local dev-server + Playwright smoke pass
+and a full re-read of the security/performance advisors.
+
+**Confirmed working end-to-end (live-tested, not just code-reviewed)**:
+- Tender publish (as a real buyer-org member) → public listing (anon can see it) → `get_opportunity_detail`
+  correctly redacts `description`/`contact_details`/`submission_instructions`/etc. for a non-entitled/anon
+  caller (`has_full_access: false`) while showing the teaser fields.
+- Advertisement request: subscriber submit (business-plan entitlement required) → admin-only fulfillment
+  update (status/platform/reach) → confirmed a non-admin org member's attempt to update the same row is
+  silently rejected by RLS (0 rows affected).
+- `resolve_tracking_link` RPC: increments `click_count` and logs a row in `tracking_link_clicks` correctly;
+  the `/r/:code` Express route returns a clean 404 for an unknown code rather than crashing.
+- Security advisors: zero ERROR-level findings. All WARN-level findings are either already-accepted,
+  documented trade-offs from earlier phases (SECURITY DEFINER functions intentionally callable by
+  anon/authenticated, e.g. `get_opportunity_detail`) or routine performance suggestions (missing indexes on
+  FKs, `auth_rls_initplan`, `multiple_permissive_policies`) — no correctness bugs.
+
+**Real bug found and fixed**: the `service_requests` UPDATE RLS policy (`is_org_member(org_id) OR
+is_platform_admin()`) let a regular org member update their *own* service request's `status` and
+`quote_amount`/`quote_currency` — meaning any subscriber could self-quote or self-mark their own support
+request "completed" via a direct REST/SQL call, entirely bypassing the intended admin-only fulfillment
+queue (the UI never exposes this, but RLS — not the UI — is the real boundary, and RLS allowed it). Fixed
+with `protect_service_request_fulfillment()`, a `BEFORE UPDATE` trigger following the same silent-revert
+idiom as the existing `protect_buyer_mode_activation()`: non-admin callers may still self-cancel their own
+request (`status = 'cancelled'`), but any other status change, quote amount, quote currency, or assignment
+change gets reverted to its prior value rather than erroring. Live-verified all three cases: self-quote/
+self-complete reverted silently, self-cancel still works, admin quote/complete still works.
+
+**Minor fix**: `LandingPage.tsx`'s country-count stat used `countryCount || 2` — a hardcoded fallback that
+made it look like live data even when the fetch failed, inconsistent with its sibling stats (sectors,
+districts) which honestly show `—` on failure/zero. Changed to `countryCount || '—'` to match.
+
+**Findings reported, not changed (judgment calls, not "broken")**:
+- **No password-reset/forgot-password flow exists at all** (`AuthScreens.tsx` only has sign-in, sign-up,
+  and Google OAuth) — a real gap for a commercial product, but building it is new-feature scope, not a fix,
+  so it's flagged for a decision rather than built unprompted.
+- **No URL deep-linking for sign-in/sign-up/dashboard tabs**: `MainApp` in `App.tsx` drives its `view` and
+  `activeTab` entirely from React state (`useState`), never from `location.pathname` — only `/tenders` and
+  `/tenders/:slug` are real routes. Visiting `/sign-in` or `/sign-up` directly renders the landing page, and
+  refreshing mid-session always resets `activeTab` to `overview`. Every in-app click path (Get Started → Sign
+  In → dashboard) works correctly; this only bites direct/bookmarked/shared links. Refactoring this to real
+  routes is a larger, separate change with real regression risk, so it's reported rather than attempted here.
+- **Three orphaned tables with schema+RLS but zero application code referencing them**: `buyer_profiles`,
+  `followed_sectors`, `notification_preferences`. `followed_sectors`/`notification_preferences` look like
+  they were built ahead of the (still-blocked, Task #44) real alert-delivery work and are natural building
+  blocks for it; `buyer_profiles` looks superseded by the `is_buyer`/`buyer_verified` flags now living
+  directly on `organizations`. Not dropped — flagged for a decision.
+- **Residual risk already documented in §11/§15 reaffirmed, not re-litigated**: raw `opportunities` /
+  `opportunity_documents` rows are still fully selectable by anyone once published (Postgres RLS is
+  row-level, not column-level) — the app never queries them directly for detail (uses the redacting
+  `get_opportunity_detail` RPC instead), but a caller hitting the Supabase REST endpoint directly with the
+  public anon key could still see every column. This was a deliberate, accepted trade-off when built, not a
+  regression from this pass.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean after the fixes. Dev server smoke-tested
+locally (`/`, `/api/health`, `/r/:code` with a bad code, and a Playwright pass over `/`, `/sign-in`,
+`/sign-up` checking for JS `pageerror`s) — no crashes; the only console noise was the sandbox's existing
+`*.supabase.co` egress block, not app bugs. All test rows inserted during live RLS probes were cleaned up
+(and one advertisement_requests/service_requests row each needed a privileged delete since neither table
+has a DELETE policy — by design, to preserve an audit trail — rather than the usual authenticated-role
+cleanup path used elsewhere in this doc).
+
+## 33. File upload on the tender publish form (2026-07-23)
+
+The "Publish New Tender" form (Workspaces.tsx, Tenders tab) had no document upload of its own — a buyer
+had to first submit the form, then find the newly-created tender in the list below and expand its
+per-row "Documents" panel to attach anything. Easy to miss, and the real-world source documents (the user
+supplied a genuine IFAD "Invitation for Bids" as a reference) carry far more structured/legal detail —
+lot breakdowns, bid security schedules per lot, eligibility document checklists, submission links, bid
+opening logistics — than any reasonable set of form fields could capture. Buyers need to attach the
+authoritative notice itself, not just a form-field summary of it.
+
+**Change**: added a multi-file drop zone directly to the create-tender form (PDF/Word/Excel, 10MB/file,
+reusing the same cap already enforced server-side by `uploadOpportunityDocument`, now exported as
+`MAX_DOCUMENT_SIZE_BYTES` from `procurementApi.ts` so the form can reject oversized files immediately
+instead of waiting for a round-trip). Selected files show as removable chips with name and size. On
+submit, `handleCreateOpportunity` creates the opportunity first (as before), then uploads each attached
+file against the new opportunity's real id via the existing `uploadOpportunityDocument` — no new backend
+surface, just sequencing the existing per-tender document upload right after creation instead of requiring
+a second trip through the list view. A failed individual file upload doesn't fail the whole submission —
+the tender is still created, and the feedback message tells the buyer exactly how many documents to
+re-attach from the (still-present) per-row Documents panel.
+
+**Design**: gave the "Publish New Tender" card a proper header treatment (dark banner, icon, one line
+explaining *why* to attach a document) instead of a bare card title, and a bordered dashed drop-zone with
+icon/copy/hint text matching the app's existing card and color language, rather than a bare file input.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Visually verified via the sandbox's
+standard mock-data-then-revert technique (temporarily hardcoded a buyer-org session in `App.tsx`,
+screenshotted, reverted, confirmed with `diff` against a pre-edit backup that `App.tsx` is byte-identical
+to before) — the drop zone, file-chip list, and public/private toggle all render correctly, and selecting
+the real reference IFAD document produces a correct file chip (name + size). Confirmed the site's global
+`button.bg-emerald-600 { background-color: #0F172A !important }` rule (an intentional, existing design-
+system convention, not a regression) is what makes the new "Publish Tender" button render navy, matching
+every other primary button in the dashboard.
+
+## 34. Fixed role-boundary error: admins had access to procurement tooling (2026-07-23)
+
+User-flagged design error: the three roles in this product are System Admin, Tender Publisher (paid
+subscriber), and Tender Viewer (paid subscriber) — and system admins must not have procurement tooling at
+all. That tooling (publishing/managing tenders, tracking a bid pipeline, maintaining a supplier profile,
+requesting bid support) belongs exclusively to Publisher/Viewer subscriber accounts.
+
+**Root cause**: the sidebar's "Procurement" nav group (Tenders, My Pipeline, Supplier Profile, Support
+Services) was shown unconditionally to every organization — gated only on the org's own `is_buyer`/
+entitlement state, never on `isPlatformAdmin`. Every other subscriber-only group (`Advertising`) was
+already correctly hidden for admins; `Procurement` was the one group that slipped through. In practice this
+meant a platform admin whose own org happens to be a real buyer (SaloneReach's own operating org is) would
+see and could use the exact same "Publish New Tender" self-service form as a paying Publisher — a real
+conflict of interest, since that same admin account also has the power to approve/reject tenders in Tender
+Review.
+
+**Fix**: wrapped the "Procurement" nav group in `!isPlatformAdmin`, the same pattern already used for
+`Advertising` (`App.tsx`). Also added a defensive in-body guard to all four subscriber-only tab renders in
+`Workspaces.tsx` (`tenders`, `pipeline`, `supplier-profile`, `services`) that show a short explanatory
+message pointing admins to the correct oversight tool instead (Tender Review, Service Requests, etc.) —
+matching the codebase's existing convention of guarding admin-only tab bodies against non-admins, just in
+the reverse direction. Admins keep their real oversight tools unchanged: Discovery, Social Media
+Advertising, and Platform Admin (Tender Review, Verification Requests, Subscription Requests, Service
+Requests, Advertising Requests, Platform Analytics, Super Admin Desk) are all still there.
+
+**Not changed**: RLS still lets `is_platform_admin()` bypass ownership checks on `opportunities` and
+related tables — that's a distinct, intentional support/moderation capability (fixing a stuck record on a
+subscriber's behalf), not the self-service publishing UI this fix removes, so it was left alone. Also did
+not touch the real `FaxaRa` org's live `is_buyer: true` flag — whether the admin's own operating org should
+carry buyer status is a data/product decision distinct from "should the admin's dashboard show publishing
+tools," and wasn't asked for.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Visually verified via the sandbox's
+mock-data-then-revert technique (temporarily forced `isPlatformAdmin: true` in `App.tsx`, screenshotted the
+sidebar — confirmed no Procurement group appears, while Discovery/Social Media Advertising/Platform Admin
+still do — then reverted and confirmed with `diff` that `App.tsx` matches the pre-mock version exactly).
+
+## 35. Content Studio: real edit/delete/status workflow + structured AI output (2026-07-23)
+
+Content Studio was a one-way funnel: drafts saved but could never be edited, deleted, or moved through a
+status lifecycle, hashtags were hardcoded to the same two tags on every save regardless of content, and the
+AI assistant's multi-variant output (3 captions or 4 ideas per request) came back as one undifferentiated
+text blob that had to be hand-parsed before "Use in Composer" was usable for anything but the first idea.
+
+**Edit/delete/status** (`api.ts`, `Workspaces.tsx`): added `updateContentItem()`/`deleteContentItem()`.
+The composer now has a real edit mode — clicking "Edit" on any catalog item loads it back into the form
+(with an "Editing" badge and a Status field that only appears in edit mode), "Save Changes" updates in place
+instead of always inserting, and each catalog card gets its own Delete button (optimistic removal, rolled
+back on failure) and an inline status dropdown (Draft/Awaiting Review/Approved/Scheduled/Published/Failed)
+for fast status changes without opening the full editor. Hashtags and Scheduled Date are now real, editable
+fields (comma-separated input, normalized to `#Tag` form) instead of two fields that were always silently
+overwritten to the same hardcoded values on every save.
+
+**Structured AI output** (`server.ts`, `functions/api/gemini/generate.ts` + `_lib/shared.ts`/`_lib/mocks.ts`
+for the not-yet-deployed Cloudflare Pages path, kept in sync): the 'captions' and 'ideas' modes now prompt
+Gemini for a JSON array (`responseMimeType: application/json`) shaped as `{headline, body, hashtags}` or
+`{title, concept, platform, executionStep}` per item, parsed server-side with a fence-stripping, throws-
+never `parseJsonArrayLoose()` that falls back to plain text if the model doesn't comply. 'script' and
+'brief' stay plain text — each is naturally one block of prose, not discrete items. The client renders each
+variant as its own card with its own "Use in Composer" button (now correctly fills headline/body/hashtags
+per-variant instead of dumping the whole response into the body field with a generic placeholder headline),
+plus a "Save All N as Drafts" bulk action. The mock (no-API-key) fallback returns the same structured shape
+so behavior is identical with or without a real Gemini key.
+
+**Also fixed while in this file**: two more instances of the invisible-heading bug from §24 (Tailwind's
+plain `text-white` losing to the global `h1-h4 { color: #0F172A !important }` rule) — the AI panel's
+"Localized Coprocessor" heading and the "Subscribe for full tender access" CTA heading were both rendering
+navy-on-navy. Also found and fixed one just introduced in the previous pass: the "Publish New Tender" banner
+heading (§33) had the same bug (`text-white` without the `!` modifier). A repo-wide grep for
+`<h[1-4]...text-white` without the `!` prefix now returns zero remaining matches.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Verified via the sandbox's mock-data-then-
+revert technique combined with Playwright network interception of `/api/gemini/generate` (since this
+sandbox blocks the real Gemini endpoint too) — confirmed both captions and ideas render as separate cards
+with correct data, confirmed "Use in Composer" fills the composer exactly (no manual parsing needed anymore),
+confirmed edit mode loads an existing item correctly, and confirmed a failed status-change/delete (blocked
+network) shows a clear error banner and rolls the optimistic UI change back cleanly rather than crashing —
+no `pageerror`s in any of these flows. `App.tsx` confirmed byte-identical to its pre-mock state via `diff`
+after reverting.
+
+## 36. Activated the remaining Social Media Advertising tools (2026-07-23)
+
+User asked to "make active all the remaining tools on Social Media and Advertising." Audited every tab in
+that nav group (Campaigns, Content Studio, Calendar, Media Library, Audiences, Social Accounts, Analytics,
+CRM Leads, Brand Kit — the first three plus Calendar/Media Library/Analytics/Brand Kit were already real
+from earlier passes) and closed out the four that weren't:
+
+**Campaigns** — had create+list only, the same one-way-funnel gap Content Studio had before §35. Added
+`updateCampaign()`/`deleteCampaign()`, a real composer edit mode (Editing badge, Status field, Cancel edit),
+and a per-card status dropdown + delete button, mirroring the Content Studio pattern exactly. No RLS
+changes needed — `campaigns` already had an admin-only `ALL` policy.
+
+**Audiences** — was 100% decorative: three groups of hardcoded checkboxes with no state at all, and a fixed
+`4,812,400 Users` reach number that never changed regardless of what was checked. There's no real audience
+data source to back a reach estimate (SaloneReach has no connected ad platform, and never will without one),
+so rather than compute a differently-fake number, this became a real, persisted audience-segment builder:
+new `audience_segments` table (org-scoped, admin-only `ALL` RLS, same pattern as `media_assets`/
+`tracking_links`) storing a segment name plus real Sierra Leone district names (fetched live via the
+existing `fetchDistricts`/`fetchCountries`), diaspora market tags, and freeform interest tags. Saved
+segments persist and list with delete. The fake reach number was replaced with an honest note pointing at
+the real blocker (no connected Meta/WhatsApp Business ad account) instead of showing a fabricated figure.
+
+**Social Accounts** — the "connect" flow was a `toggleSocialConnectionStatus` call literally labeled
+**"Simulate Expire Token"**. Real OAuth (Meta/WhatsApp Business Platform) needs the org's own developer app
+credentials, which don't exist here — same blocker as the still-pending Task #44 (real alert delivery), not
+something buildable without the user's input. What *was* buildable: real manual channel tracking. Added
+`createSocialConnection()`/`updateSocialConnection()`/`deleteSocialConnection()` (the narrower, now-unused
+`toggleSocialConnectionStatus` was removed), a real "+ Add Channel" form, and inline edit (account
+handle/status/health) plus remove on every channel card. The UI now says plainly that this is manual
+tracking, not a live integration, instead of pretending a fake button is a real OAuth handshake.
+
+**CRM Leads** — search/filter/status-update were already real (leads arrive from influencer invites,
+service/advertising request flows), but there was no way to log a lead that originated outside those
+automated paths (e.g. a phone call). Added a small "+ Add Lead" form using the existing `createLead()`.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Live-tested the new `audience_segments`
+table as the real admin (insert succeeds) and as a non-admin (insert correctly rejected by RLS), then
+cleaned up the test row. Confirmed `social_connections` already carried the same admin-only `ALL` policy
+needed by the new CRUD functions — no migration required there. Visually verified all four changes via the
+sandbox's mock-data-then-revert technique combined with Playwright network interception (for the Audiences
+tab's district/country fetch, since this sandbox blocks the real Supabase network call) — campaign edit
+mode populates and shows the Editing badge correctly, the Audiences segment builder renders real district
+checkboxes and an honest empty state, the Social Accounts add-channel form and Edit/Remove actions render
+correctly, and the CRM Leads add-lead form renders correctly. Zero `pageerror`s across all four. `App.tsx`
+confirmed byte-identical to its pre-mock state via `diff` after reverting.
+
+**Still not active, and can't be without the user's input**: full Meta/WhatsApp Business API OAuth
+(Social Accounts) and real email/WhatsApp alert delivery (Task #44) both require the user to register
+developer apps and provide real provider credentials — flagged, not silently skipped.
+
+## 37. Ad-platform agents: lead scoring, campaign health, content planning, performance insights (2026-07-23)
+
+User asked to "design, develop and build algorithm, agents that will assist internal advert platform to
+function." That's broad enough to build the wrong thing for days, so before writing any code I used
+`AskUserQuestion` to pin down scope and autonomy. Scope: all four of Lead scoring & follow-up, Campaign
+health monitoring, Content planning assistant, Performance insights. Autonomy: **"Suggest only, admin
+approves"** — the one non-negotiable design constraint below. Nothing in this feature auto-sends,
+auto-publishes, or auto-mutates state; every agent either surfaces a read-only signal or produces a draft
+the admin must explicitly act on.
+
+**Schema gap closed first.** `campaigns` had zero FK relationship to either `content_items` or
+`tracking_links` — no migration ever linked them, so a "campaign performance" feature would have had
+nothing real to show. Added nullable `campaign_id` (FK, `on delete set null`) to both tables.
+
+**1. Lead scoring (deterministic, not AI).** `src/lib/leadScoring.ts` — a transparent weighted formula
+(pipeline stage 50%, recency 30% with linear decay to 0 by day 21, log-scaled deal value 20%) producing a
+Hot/Warm/Cold label. Chose deterministic math over an opaque model here specifically: sales prioritization
+needs to be explainable to the admin, not a black box. CRM Leads tab now sorts by score and shows a
+priority badge.
+
+**2. Lead follow-up drafting (AI, suggest-only).** New `/api/gemini/lead-followup` route (mirrored in both
+`server.ts` and `functions/api/gemini/lead-followup.ts`) drafts a WhatsApp or email follow-up message for a
+given lead. The UI shows the draft in an editable textarea with Regenerate/Copy, and the actual "send" is a
+real `wa.me`/`mailto:` deep link the admin clicks themselves — there's no backend send infrastructure, so
+rather than fake one, the admin's own client does the sending. Nothing is persisted or transmitted by the
+backend.
+
+**3. Campaign health monitoring (rule-based sweep, not AI).** `run_campaign_health_sweep()` — a
+`SECURITY DEFINER` function following the same sweep pattern as the existing deadline-reminder job — flags
+campaigns that are active but have had no new content in N days, or are approaching their end date with
+low activity, and writes idempotent notifications (checked by `metadata->>'x_id'` before insert, so re-runs
+never duplicate). Wrapped in an admin-gated `run_campaign_health_check()` for on-demand use from the UI
+("Run Health Check Now" button), plus a new `campaign-health-sweep` pg_cron job at `0 7 * * *`. It only
+ever writes notifications — it never changes campaign status or anything else.
+
+**4. Content planning assistant (AI, suggest-only).** New `/api/gemini/content-plan` route, same
+mirrored-route/JSON-output pattern used for Content Studio's captions/ideas in §35. Given a campaign's
+name/objective/dates, returns 3-6 draft content items (title, type, platform, headline, body, hashtags,
+scheduled date) as a preview panel with checkboxes — nothing is written to `content_items` until the admin
+picks items and clicks "Create N Selected Drafts."
+
+**5. Performance insights (real data, no AI, read-only).** Campaign cards now show a real per-campaign
+activity rollup (content count, tracking-link count, click count) via `fetchCampaignActivity()`. Analytics
+tab gained a "Clicks by Day of Week (Last 90 Days)" chart and a "Clicks by Campaign" rollup (client-side
+join of `trackingLinks` against `campaigns`), plus a campaign-attribution `<select>` on the tracking-link
+creation form so new links can actually be tied to a campaign. This closes the loop the schema gap above
+opened: campaigns can now show truthful numbers instead of nothing.
+
+**Security bug found and fixed via the live-grant-testing discipline**: after `revoke execute on function
+run_campaign_health_sweep() from anon, authenticated`, a live test as an authenticated admin could still
+call the sweep function directly (it should only be reachable via the admin-gated wrapper or cron).
+Root cause: `CREATE FUNCTION` auto-grants `EXECUTE` to the `PUBLIC` pseudo-role, and revoking from specific
+roles doesn't touch that separate grant — confirmed via `information_schema.routine_privileges`, which
+showed a stray `PUBLIC` row absent from the correctly-configured `run_deadline_reminder_sweep`. Fixed with
+migration `fix_campaign_health_sweep_grants` (`revoke execute ... from public`), then re-verified with
+`has_function_privilege()` for both `anon` and `authenticated` returning `false`, and confirmed the
+admin-gated wrapper still works (SECURITY DEFINER functions run with the definer's privileges regardless of
+caller-level revokes).
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Visually verified via the sandbox's
+mock-data-then-revert technique with Playwright network interception for the new `/api/gemini/*` and RPC
+calls — CRM Leads shows the Hot/Warm/Cold sort and the follow-up draft panel with working `wa.me`/`mailto:`
+links, Campaigns shows the health-check button, real per-card activity line, and the content-plan preview
+panel with checkboxes, and Analytics shows the new charts and campaign-attribution select rendering
+correctly (including their empty states, since the mock dataset has no click data yet). Zero `pageerror`s
+across the run. `App.tsx` confirmed byte-identical to its pre-mock state via `diff` after reverting.
+
+## 38. Renamed the product to Manohub (2026-07-23)
+
+User rejected "SaloneReach" (too narrowly Sierra-Leone-branded for a platform that now spans Sierra Leone
+and Liberia via the Mano River Union region) and picked **Manohub** from a shortlist of Mano-themed name
+options. Renamed every live reference across the codebase: UI copy (header/footer brand mark, landing page,
+auth screens, tender search header), `index.html` title, `metadata.json`, `package.json`/`package-lock.json`
+package name, README, CI workflow name, Cloudflare config (`wrangler.toml` project name,
+`wrangler.containers.toml` container/binding names, `worker/index.ts`'s `ManohubContainer` class and env
+binding), the i18n localStorage key, and mock/placeholder content (hashtags, email, handle). `tsc --noEmit`
+clean for both the app and the worker tsconfig, and `npm run build` clean.
+
+Left this changelog's prior entries (§1-37) referring to the old name untouched — they're a dated historical
+record of decisions made under that name at the time, not living product copy, so rewriting them would
+misrepresent when the rename actually happened. Also left `docs/product-requirements.md`,
+`docs/implementation-plan.md`, `docs/architecture.md`, and `docs/cloudflare-deployment.md`'s brand mentions
+updated to Manohub since those are living specs describing the current product, not a log.

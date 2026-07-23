@@ -12,23 +12,23 @@
 # wrangler.containers.toml --dry-run` first and adjust field names against
 # whatever error/warning wrangler reports before a real deploy.
 
-name = "salonereach-container"
+name = "manohub-container"
 main = "worker/index.ts"
 compatibility_date = "2026-07-21"
 
 [[containers]]
-class_name = "SaloneReachContainer"
+class_name = "ManohubContainer"
 image = "./Dockerfile"
 max_instances = 1
 instance_type = "basic"
 
 [[durable_objects.bindings]]
-class_name = "SaloneReachContainer"
-name = "SALONEREACH_CONTAINER"
+class_name = "ManohubContainer"
+name = "MANOHUB_CONTAINER"
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["SaloneReachContainer"]
+new_sqlite_classes = ["ManohubContainer"]
 
 # GEMINI_API_KEY is a secret — set it with:
 #   wrangler secret put GEMINI_API_KEY --config wrangler.containers.toml

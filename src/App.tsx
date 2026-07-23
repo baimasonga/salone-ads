@@ -9,7 +9,8 @@ import type { Session } from '@supabase/supabase-js';
 import {
   BarChart2, Calendar, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
-  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, ShieldAlert, Loader2, FileSearch, Bell
+  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, ShieldAlert, Loader2, FileSearch, Bell,
+  ChevronDown, ChevronRight
 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
 import { AuthScreens } from './components/AuthScreens';
@@ -18,7 +19,7 @@ import { TenderSearchPage } from './components/TenderSearchPage';
 import { TenderDetailPage } from './components/TenderDetailPage';
 import { supabase } from './lib/supabaseClient';
 import { fetchMyOrganization, fetchOrgBundle, fetchDirectoryProfiles, fetchInfluencerProfiles, fetchMyPlatformRole } from './lib/api';
-import { fetchMyNotifications, markNotificationRead, AppNotification } from './lib/procurementApi';
+import { fetchMyNotifications, markNotificationRead, AppNotification, hasFeature } from './lib/procurementApi';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
 
 type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
@@ -49,6 +50,7 @@ function MainApp() {
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [canAdvertise, setCanAdvertise] = useState(false);
 
   // --- DASHBOARD NAVIGATION STATES ---
   const [activeTab, setActiveTab] = useState('overview');
@@ -65,6 +67,7 @@ function MainApp() {
       setDirectoryProfiles([]);
       setInfluencerProfiles([]);
       setIsPlatformAdmin(false);
+      setCanAdvertise(false);
       setWorkspaceLoading(false);
       setView((v) => (v === 'dashboard' || v === 'onboarding' ? 'landing' : v));
       return;
@@ -78,11 +81,12 @@ function MainApp() {
         setView('onboarding');
         return;
       }
-      const [bundle, directory, influencers, platformRole] = await Promise.all([
+      const [bundle, directory, influencers, platformRole, advertisingEntitled] = await Promise.all([
         fetchOrgBundle(org.id),
         fetchDirectoryProfiles(),
         fetchInfluencerProfiles(),
         fetchMyPlatformRole(),
+        hasFeature(org.id, 'business_advertising').catch(() => false),
       ]);
       setActiveOrg(bundle.organization);
       setBrandKit(bundle.brandKit);
@@ -93,6 +97,7 @@ function MainApp() {
       setDirectoryProfiles(directory);
       setInfluencerProfiles(influencers);
       setIsPlatformAdmin(platformRole === 'admin');
+      setCanAdvertise(advertisingEntitled);
       setView('dashboard');
     } catch (err: any) {
       setWorkspaceError(err.message || 'Failed to load your workspace from the server.');
@@ -167,57 +172,88 @@ function MainApp() {
     );
   }
 
-  // Define sidebar navigation items grouped logically
+  // Define sidebar navigation items grouped logically.
+  // Social media advertising (Campaigns, Content Studio, Calendar, Media
+  // Library, Audiences, Social Accounts, Analytics, CRM Leads, Brand Kit) is
+  // internal Manohub-team tooling, not a customer-facing feature — only
+  // shown to platform admins. This is a UI convenience only; the real
+  // boundary is the RLS policies on those tables (they now require
+  // is_platform_admin(), see docs/procurement-expansion-assessment.md).
   const NAV_GROUPS = [
     {
-      group: "Core Marketing",
+      group: "Overview",
       items: [
         { id: 'overview', label: 'Overview', icon: BarChart2 },
-        { id: 'campaigns', label: 'Campaigns', icon: Compass },
-        { id: 'content', label: 'Content Studio', icon: Sparkles },
-        { id: 'calendar', label: 'Calendar', icon: Calendar },
-        { id: 'media', label: 'Media Library', icon: FolderOpen },
-        { id: 'audiences', label: 'Audiences', icon: Users },
       ]
     },
-    {
+    // Subscriber-only self-service tooling: publishing/tracking/managing
+    // tenders is a paid-subscriber (Publisher/Viewer) activity, not
+    // something a platform admin's own account should be doing -- an admin
+    // publishing and then being the one who reviews/approves tenders would
+    // be a conflict of interest. Admins get their own oversight tools in
+    // the "Platform Admin" group below (Tender Review, etc.) instead.
+    ...(!isPlatformAdmin ? [{
       group: "Procurement",
       items: [
         { id: 'tenders', label: 'Tenders', icon: FileSearch },
         { id: 'pipeline', label: 'My Pipeline', icon: BarChart2 },
         { id: 'supplier-profile', label: 'Supplier Profile', icon: Award },
-        { id: 'services', label: 'Bid Support Services', icon: UserCheck },
+        { id: 'services', label: 'Support Services', icon: UserCheck },
       ]
-    },
-    {
-      group: "Conversions & Discovery",
+    }] : []),
+    // Advertiser-tier subscribers only -- hidden entirely (not shown-then-
+    // blocked) unless the org's org has the business_advertising
+    // entitlement. No directory/event-promotion browsing tools here, just
+    // the submission form + read-only fulfillment report.
+    ...(!isPlatformAdmin && canAdvertise ? [{
+      group: "Advertising",
       items: [
-        { id: 'social', label: 'Social Accounts', icon: Link2 },
-        { id: 'analytics', label: 'Analytics', icon: Landmark },
-        { id: 'leads', label: 'CRM Leads', icon: MessageSquare },
+        { id: 'advertising', label: 'My Adverts', icon: Sparkles },
+      ]
+    }] : []),
+    ...(isPlatformAdmin ? [{
+      group: "Discovery",
+      adminOnly: true,
+      items: [
         { id: 'influencers', label: 'Influencer Market', icon: Award },
         { id: 'directory', label: 'Business Directory', icon: BookOpen },
         { id: 'events', label: 'Event Promotion', icon: UserCheck },
         { id: 'tourism', label: 'Tourism Excursions', icon: Compass },
       ]
-    },
+    }] : []),
+    ...(isPlatformAdmin ? [{
+      group: "Social Media Advertising",
+      adminOnly: true,
+      items: [
+        { id: 'campaigns', label: 'Campaigns', icon: Compass },
+        { id: 'content', label: 'Content Studio', icon: Sparkles },
+        { id: 'calendar', label: 'Calendar', icon: Calendar },
+        { id: 'media', label: 'Media Library', icon: FolderOpen },
+        { id: 'audiences', label: 'Audiences', icon: Users },
+        { id: 'social', label: 'Social Accounts', icon: Link2 },
+        { id: 'analytics', label: 'Analytics', icon: Landmark },
+        { id: 'leads', label: 'CRM Leads', icon: MessageSquare },
+        { id: 'brandkit', label: 'Brand Kit', icon: Settings },
+      ]
+    }] : []),
     ...(isPlatformAdmin ? [{
       group: "Platform Admin",
+      adminOnly: true,
       items: [
         { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
         { id: 'admin-verification', label: 'Verification Requests', icon: ShieldAlert },
         { id: 'admin-subscriptions', label: 'Subscription Requests', icon: CreditCard },
         { id: 'admin-services', label: 'Service Requests', icon: UserCheck },
+        { id: 'admin-advertising', label: 'Advertising Requests', icon: Sparkles },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
+        { id: 'admin', label: 'Super Admin Desk', icon: Shield },
       ]
     }] : []),
     {
       group: "Workspace Settings",
       items: [
-        { id: 'brandkit', label: 'Brand Kit', icon: Settings },
         { id: 'team', label: 'Team Roles', icon: UserPlus },
         { id: 'billing', label: 'Billing Invoices', icon: CreditCard },
-        { id: 'admin', label: 'Super Admin Desk', icon: Shield },
       ]
     }
   ];
@@ -234,6 +270,7 @@ function MainApp() {
     >
       <Workspaces
         activeTab={activeTab}
+        setActiveTab={setActiveTab}
         activeOrg={activeOrg}
         isPlatformAdmin={isPlatformAdmin}
         campaigns={campaigns}
@@ -265,12 +302,78 @@ interface DashboardShellProps {
   setActiveTab: (tab: string) => void;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  navGroups: { group: string; items: { id: string; label: string; icon: any }[] }[];
+  navGroups: { group: string; adminOnly?: boolean; items: { id: string; label: string; icon: any }[] }[];
   onLogout: () => void;
   children: React.ReactNode;
 }
 
+type NavGroup = DashboardShellProps['navGroups'][number];
+
+function computeItemNumOffset(groupIndex: number, groups: NavGroup[]): number {
+  let count = 0;
+  for (let i = 0; i < groupIndex; i++) count += groups[i].items.length;
+  return count;
+}
+
+function NavGroupBlock({
+  group,
+  itemNumOffset,
+  activeTab,
+  onSelect,
+  accent = 'default',
+}: {
+  group: NavGroup;
+  itemNumOffset: number;
+  activeTab: string;
+  onSelect: (id: string) => void;
+  accent?: 'default' | 'amber';
+}) {
+  const labelColor = accent === 'amber' ? 'text-amber-600' : 'text-slate-400';
+  const activeClasses = accent === 'amber' ? 'bg-amber-700 text-white' : 'bg-[#0F172A] text-white';
+  const idleClasses = accent === 'amber' ? 'text-amber-900 hover:bg-amber-50' : 'text-[#0F172A] hover:bg-slate-200';
+
+  return (
+    <div className="space-y-2">
+      <span className={`text-[10px] font-bold uppercase tracking-[0.3em] block px-2 ${labelColor}`}>
+        {group.group}
+      </span>
+      <div className="space-y-1">
+        {group.items.map((item, itemIdx) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          const itemNum = String(itemNumOffset + itemIdx + 1).padStart(2, '0');
+          return (
+            <button
+              key={item.id}
+              onClick={() => onSelect(item.id)}
+              className={`w-full flex items-center justify-between px-3 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                isActive ? activeClasses : idleClasses
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span>{item.label}</span>
+              </div>
+              <span className="text-[9px] opacity-60 font-mono">{itemNum}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSidebarOpen, navGroups, onLogout, children }: DashboardShellProps) {
+  const orgNavGroups = navGroups.filter((g) => !g.adminOnly);
+  const adminNavGroups = navGroups.filter((g) => g.adminOnly);
+
+  // Collapsed by default — auto-expand once if the active tab happens to
+  // already be inside it (e.g. reloading while on an admin tab), then leave
+  // it under the user's control from then on.
+  const [adminSectionOpen, setAdminSectionOpen] = useState(
+    () => adminNavGroups.some((g) => g.items.some((item) => item.id === activeTab))
+  );
+
   // Track current time formatted for Greenwich Mean Time / Freetown Time
   const [timeStr, setTimeStr] = useState('');
   useEffect(() => {
@@ -345,7 +448,7 @@ function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSi
               <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
                 <div className="w-4 h-4 border-2 border-white"></div>
               </div>
-              <span className="font-display font-black tracking-widest text-lg uppercase text-[#0F172A]">SaloneReach</span>
+              <span className="font-display font-black tracking-widest text-lg uppercase text-[#0F172A]">Manohub</span>
             </div>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-[#0F172A] hover:bg-slate-100 p-1 cursor-pointer">
               <X className="h-5 w-5" />
@@ -359,50 +462,59 @@ function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSi
             <span className="text-[10px] text-slate-600 font-mono mt-1 block">PLAN: Trial Tier</span>
           </div>
 
-          {/* Navigation Items Grouped */}
+          {/* Navigation Items Grouped — everyday workspace groups first, then
+              a clearly separated, collapsed-by-default "Admin Tools" zone.
+              Two zones instead of one flat list because admins otherwise see
+              ~26 equal-weight items with no cue that half of them are
+              internal-only tooling, not their daily procurement work. */}
           <nav className="space-y-5 text-left">
-            {navGroups.map((group, gIdx) => {
-              // Calculate index starts for neat numbering
-              let prevCount = 0;
-              for (let i = 0; i < gIdx; i++) {
-                prevCount += navGroups[i].items.length;
-              }
+            {orgNavGroups.map((group, gIdx) => (
+              <NavGroupBlock
+                key={gIdx}
+                group={group}
+                itemNumOffset={computeItemNumOffset(gIdx, orgNavGroups)}
+                activeTab={activeTab}
+                onSelect={(id) => {
+                  setActiveTab(id);
+                  setSidebarOpen(false);
+                }}
+              />
+            ))}
 
-              return (
-                <div key={gIdx} className="space-y-2">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] block px-2">
-                    {group.group}
+            {adminNavGroups.length > 0 && (
+              <div className="pt-4 border-t border-dashed border-amber-300">
+                <button
+                  onClick={() => setAdminSectionOpen((open) => !open)}
+                  className="w-full flex items-center justify-between px-2 py-1 cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5 text-[10px] text-amber-700 font-bold uppercase tracking-[0.3em]">
+                    <Shield className="h-3 w-3" /> Admin Tools
                   </span>
-                  <div className="space-y-1">
-                    {group.items.map((item, itemIdx) => {
-                      const Icon = item.icon;
-                      const isActive = activeTab === item.id;
-                      const itemNum = String(prevCount + itemIdx + 1).padStart(2, '0');
-                      return (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            setActiveTab(item.id);
-                            setSidebarOpen(false);
-                          }}
-                          className={`w-full flex items-center justify-between px-3 py-2 text-xs font-mono font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                            isActive
-                              ? 'bg-[#0F172A] text-white'
-                              : 'text-[#0F172A] hover:bg-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Icon className="h-3.5 w-3.5 shrink-0" />
-                            <span>{item.label}</span>
-                          </div>
-                          <span className="text-[9px] opacity-60 font-mono">{itemNum}</span>
-                        </button>
-                      );
-                    })}
+                  {adminSectionOpen ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-amber-600" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-amber-600" />
+                  )}
+                </button>
+                {adminSectionOpen && (
+                  <div className="space-y-5 mt-3">
+                    {adminNavGroups.map((group, gIdx) => (
+                      <NavGroupBlock
+                        key={gIdx}
+                        group={group}
+                        itemNumOffset={computeItemNumOffset(gIdx, adminNavGroups)}
+                        activeTab={activeTab}
+                        accent="amber"
+                        onSelect={(id) => {
+                          setActiveTab(id);
+                          setSidebarOpen(false);
+                        }}
+                      />
+                    ))}
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            )}
           </nav>
         </div>
 
@@ -517,7 +629,7 @@ function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSi
             <span className="text-[#10B981]">14ms</span>
           </div>
           <div className="ml-auto opacity-50 tracking-widest uppercase text-[9px]">
-            SaloneReach v2.4 // Build Complete
+            Manohub v2.4 // Build Complete
           </div>
         </footer>
       </div>

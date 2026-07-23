@@ -62,6 +62,7 @@ export interface ContentItem {
   scheduledDate: string;
   status: 'Draft' | 'Awaiting Review' | 'Approved' | 'Scheduled' | 'Published' | 'Failed';
   version: number;
+  campaignId?: string | null;
 }
 
 export interface Lead {
@@ -74,6 +75,7 @@ export interface Lead {
   source: string;
   status: 'New' | 'Contacted' | 'Qualified' | 'Proposal Sent' | 'Converted' | 'Lost';
   estimatedValue: number;
+  createdAt: string;
 }
 
 export interface DirectoryProfile {
@@ -108,4 +110,33 @@ export interface SocialConnection {
   accountName: string;
   status: 'Connected' | 'Sandbox' | 'Expired' | 'Not Configured';
   connectionHealth: 'Healthy' | 'Warning' | 'Disconnected' | 'None';
+}
+
+export interface MediaAsset {
+  id: string;
+  folder: string;
+  fileName: string;
+  storagePath: string;
+  fileSize: number | null;
+  mimeType: string | null;
+  createdAt: string;
+}
+
+export interface TrackingLink {
+  id: string;
+  label: string;
+  targetUrl: string;
+  shortCode: string;
+  clickCount: number;
+  createdAt: string;
+  campaignId?: string | null;
+}
+
+export interface AudienceSegment {
+  id: string;
+  name: string;
+  districts: string[];
+  diasporaMarkets: string[];
+  interests: string[];
+  createdAt: string;
 }

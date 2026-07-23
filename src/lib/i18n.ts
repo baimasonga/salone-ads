@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export type Lang = 'en' | 'fr';
 
-const STORAGE_KEY = 'salonereach-lang';
+const STORAGE_KEY = 'manohub-lang';
 
 const dictionary = {
   signIn: { en: 'Sign In / Get Started', fr: 'Se connecter / Commencer' },
@@ -56,6 +56,12 @@ const dictionary = {
     fr: 'Généré par IA — peut contenir des erreurs. Vérifiez toujours les détails dans l’avis officiel ci-dessus.',
   },
   notFound: { en: 'This tender could not be found, or is no longer public.', fr: 'Ce marché est introuvable ou n’est plus public.' },
+  subscribeToViewTitle: { en: 'Subscribe to view full details', fr: 'Abonnez-vous pour voir tous les détails' },
+  subscribeToViewBody: {
+    en: 'The full description, eligibility requirements, contact details, and how-to-apply instructions are available to Viewer and Publisher subscribers.',
+    fr: 'La description complète, les conditions d’éligibilité, les coordonnées et les instructions de candidature sont réservées aux abonnés Lecteur et Éditeur.',
+  },
+  viewPlans: { en: 'View subscription plans', fr: 'Voir les formules d’abonnement' },
 } as const;
 
 export type TranslationKey = keyof typeof dictionary;

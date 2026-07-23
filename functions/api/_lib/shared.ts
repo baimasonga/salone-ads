@@ -69,7 +69,8 @@ export async function callGemini(
   env: Env,
   systemInstruction: string,
   contents: string,
-  temperature: number
+  temperature: number,
+  responseMimeType?: string
 ): Promise<string> {
   if (!hasRealGeminiKey(env)) {
     throw new Error('NO_KEY');
@@ -82,7 +83,7 @@ export async function callGemini(
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemInstruction }] },
         contents: [{ parts: [{ text: contents }] }],
-        generationConfig: { temperature },
+        generationConfig: { temperature, ...(responseMimeType ? { responseMimeType } : {}) },
       }),
     }
   );

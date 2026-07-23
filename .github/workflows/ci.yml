@@ -1,4 +1,4 @@
-name: SaloneReach CI
+name: Manohub CI
 
 on:
   push:

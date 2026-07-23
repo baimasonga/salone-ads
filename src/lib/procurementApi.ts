@@ -22,6 +22,7 @@ export interface OpportunityListItem {
   statusCode: string;
   statusLabel: string;
   reviewNote: string | null;
+  viewCount: number;
 }
 
 export interface OpportunityDetail extends OpportunityListItem {
@@ -42,6 +43,12 @@ export interface OpportunityDetail extends OpportunityListItem {
   sourceName: string | null;
   sourceUrl: string | null;
   buyerOrgId: string | null;
+  // false means the description/eligibility/contact/apply fields above are
+  // redacted (null) server-side by get_opportunity_detail() — the caller
+  // isn't the buyer, an admin, or a subscriber. Teaser fields (title,
+  // buyerName, sector, district, country, submissionDeadline, summary) are
+  // always populated regardless.
+  hasFullAccess: boolean;
 }
 
 export interface OpportunityDocument {
@@ -52,20 +59,11 @@ export interface OpportunityDocument {
   isPublic: boolean;
 }
 
-const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB — keep uploads reasonable on slow connections.
+export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB — keep uploads reasonable on slow connections.
 
 const LIST_SELECT = `
-  id, slug, title, buyer_name, submission_deadline, estimated_value, currency_code, is_featured, review_note,
+  id, slug, title, buyer_name, submission_deadline, estimated_value, currency_code, is_featured, review_note, view_count,
   sectors(name), districts(name), countries(name), opportunity_types(label), opportunity_statuses(code, label)
-`;
-
-const DETAIL_SELECT = `
-  ${LIST_SELECT},
-  reference_number, summary, description, country_id, city, buyer_org_id,
-  publication_date, clarification_deadline, opening_date,
-  eligibility_requirements, bid_security, application_fee, contact_details, submission_instructions,
-  source_name, source_url,
-  procurement_methods(label), funding_agencies(name)
 `;
 
 function mapListItem(row: any): OpportunityListItem {
@@ -85,29 +83,7 @@ function mapListItem(row: any): OpportunityListItem {
     statusCode: row.opportunity_statuses?.code ?? 'published',
     statusLabel: row.opportunity_statuses?.label ?? 'Published',
     reviewNote: row.review_note ?? null,
-  };
-}
-
-function mapDetail(row: any): OpportunityDetail {
-  return {
-    ...mapListItem(row),
-    referenceNumber: row.reference_number ?? null,
-    summary: row.summary ?? null,
-    description: row.description ?? null,
-    procurementMethod: row.procurement_methods?.label ?? null,
-    city: row.city ?? null,
-    fundingAgency: row.funding_agencies?.name ?? null,
-    publicationDate: row.publication_date ?? null,
-    clarificationDeadline: row.clarification_deadline ?? null,
-    openingDate: row.opening_date ?? null,
-    eligibilityRequirements: row.eligibility_requirements ?? null,
-    bidSecurity: row.bid_security ?? null,
-    applicationFee: row.application_fee ?? null,
-    contactDetails: row.contact_details ?? null,
-    submissionInstructions: row.submission_instructions ?? null,
-    sourceName: row.source_name ?? null,
-    sourceUrl: row.source_url ?? null,
-    buyerOrgId: row.buyer_org_id ?? null,
+    viewCount: row.view_count ?? 0,
   };
 }
 
@@ -138,11 +114,70 @@ export async function searchOpportunities(filters: OpportunitySearchFilters): Pr
   return (data ?? []).map(mapListItem);
 }
 
+// Uses the get_opportunity_detail() RPC rather than a direct table select —
+// the raw opportunities row is still fully public per RLS (draft/published
+// visibility is the only row-level gate), so column-level redaction of the
+// non-subscriber fields (description, eligibility, contact, apply
+// instructions) has to happen server-side in the RPC. A direct select here
+// would leak everything regardless of subscription status.
 export async function fetchOpportunityBySlug(slug: string): Promise<OpportunityDetail | null> {
-  const { data, error } = await supabase.from('opportunities').select(DETAIL_SELECT).eq('slug', slug).maybeSingle();
+  const { data, error } = await supabase.rpc('get_opportunity_detail', { p_slug: slug });
   if (error) throw error;
-  if (!data) return null;
-  return mapDetail(data);
+  const row = data?.[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    buyerName: row.buyer_name,
+    submissionDeadline: row.submission_deadline,
+    estimatedValue: row.estimated_value !== null && row.estimated_value !== undefined ? Number(row.estimated_value) : null,
+    currencyCode: row.currency_code ?? null,
+    isFeatured: row.is_featured,
+    sector: row.sector ?? null,
+    district: row.district ?? null,
+    country: row.country ?? null,
+    opportunityType: row.opportunity_type ?? null,
+    statusCode: row.status_code ?? 'published',
+    statusLabel: row.status_label ?? 'Published',
+    reviewNote: row.review_note ?? null,
+    referenceNumber: row.reference_number ?? null,
+    summary: row.summary ?? null,
+    description: row.description ?? null,
+    procurementMethod: row.procurement_method ?? null,
+    city: row.city ?? null,
+    fundingAgency: row.funding_agency ?? null,
+    publicationDate: row.publication_date ?? null,
+    clarificationDeadline: row.clarification_deadline ?? null,
+    openingDate: row.opening_date ?? null,
+    eligibilityRequirements: row.eligibility_requirements ?? null,
+    bidSecurity: row.bid_security ?? null,
+    applicationFee: row.application_fee ?? null,
+    contactDetails: row.contact_details ?? null,
+    submissionInstructions: row.submission_instructions ?? null,
+    sourceName: row.source_name ?? null,
+    sourceUrl: row.source_url ?? null,
+    buyerOrgId: row.buyer_org_id ?? null,
+    viewCount: row.view_count ?? 0,
+    hasFullAccess: row.has_full_access,
+  };
+}
+
+// Whether the signed-in user has a Viewer or Publisher tender subscription
+// on any of their orgs — used to gate documents/alerts UI and to decide
+// whether to show a "Subscribe to view" prompt before the buyer-publish form.
+export async function userHasTenderSubscription(): Promise<boolean> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+  const [viewer, publisher] = await Promise.all([
+    supabase.rpc('user_has_tender_feature', { p_feature_key: 'tender_alerts_and_details' }),
+    supabase.rpc('user_has_tender_feature', { p_feature_key: 'tender_publishing' }),
+  ]);
+  if (viewer.error) throw viewer.error;
+  if (publisher.error) throw publisher.error;
+  return !!viewer.data || !!publisher.data;
 }
 
 export async function fetchOpportunityDocuments(opportunityId: string): Promise<OpportunityDocument[]> {
@@ -318,9 +353,15 @@ export async function fetchMyOpportunities(orgId: string): Promise<OpportunityLi
   return (data ?? []).map(mapListItem);
 }
 
-export async function enableBuyerMode(orgId: string): Promise<void> {
-  const { error } = await supabase.from('organizations').update({ is_buyer: true }).eq('id', orgId);
+// Returns whether buyer mode actually activated. protect_buyer_mode_activation_trigger
+// silently reverts is_buyer back to false (no error) if the org doesn't have
+// the tender_publishing entitlement — same "revert rather than error" idiom
+// the rest of this schema's protective triggers use — so the caller has to
+// check the returned row's actual state rather than assume the update took.
+export async function enableBuyerMode(orgId: string): Promise<boolean> {
+  const { data, error } = await supabase.from('organizations').update({ is_buyer: true }).eq('id', orgId).select('is_buyer').single();
   if (error) throw error;
+  return data.is_buyer;
 }
 
 export interface CreateOpportunityInput {
@@ -1419,4 +1460,115 @@ export async function aiSuggestSector(titleAndDescription: string, sectorNames: 
 
 export async function aiExplainTender(tenderText: string): Promise<string> {
   return callProcurementAI('explain_tender', tenderText);
+}
+
+// --- Advertiser subscribers: "My Adverts" (submit + read-only report) ---
+//
+// This is deliberately narrow. An Advertiser-tier subscriber never gets
+// directory/event-promotion browsing UI -- they submit what they want
+// advertised, admins design/run it (same admin-only ad-platform tooling
+// used for everything else), and this table is the read-only report of
+// what actually happened: platform it ran on, how many times, and reach.
+// INSERT is entitlement-gated by org_has_feature(org_id, 'business_advertising')
+// via RLS; UPDATE is admin-only (no self-service edits after submission).
+
+export type AdvertisementCategory = 'business' | 'event' | 'goods' | 'service';
+export type AdvertisementStatus = 'submitted' | 'in_production' | 'live' | 'completed' | 'cancelled';
+
+export interface AdvertisementRequest {
+  id: string;
+  orgId: string;
+  orgName?: string;
+  category: AdvertisementCategory;
+  subject: string;
+  description: string;
+  status: AdvertisementStatus;
+  platform: string | null;
+  reachCount: number | null;
+  runCount: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+}
+
+function mapAdvertisementRequest(row: any): AdvertisementRequest {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    category: row.category,
+    subject: row.subject,
+    description: row.description,
+    status: row.status,
+    platform: row.platform,
+    reachCount: row.reach_count,
+    runCount: row.run_count,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    createdAt: row.created_at,
+  };
+}
+
+export async function submitAdvertisementRequest(
+  orgId: string,
+  input: { category: AdvertisementCategory; subject: string; description: string }
+): Promise<AdvertisementRequest> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await supabase
+    .from('advertisement_requests')
+    .insert({
+      org_id: orgId,
+      requested_by: user.id,
+      category: input.category,
+      subject: input.subject,
+      description: input.description,
+    })
+    .select('id, org_id, category, subject, description, status, platform, reach_count, run_count, start_date, end_date, created_at')
+    .single();
+  if (error) throw error;
+  return mapAdvertisementRequest(data);
+}
+
+export async function fetchMyAdvertisements(orgId: string): Promise<AdvertisementRequest[]> {
+  const { data, error } = await supabase
+    .from('advertisement_requests')
+    .select('id, org_id, category, subject, description, status, platform, reach_count, run_count, start_date, end_date, created_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapAdvertisementRequest);
+}
+
+// Admin fulfillment queue -- every org's requests, since admins aren't
+// members of every org and RLS grants them SELECT via is_platform_admin().
+export async function fetchAllAdvertisementRequests(): Promise<AdvertisementRequest[]> {
+  const { data, error } = await supabase
+    .from('advertisement_requests')
+    .select('id, org_id, category, subject, description, status, platform, reach_count, run_count, start_date, end_date, created_at, organizations(name)')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({ ...mapAdvertisementRequest(row), orgName: row.organizations?.name }));
+}
+
+export interface UpdateAdvertisementReportInput {
+  status?: AdvertisementStatus;
+  platform?: string | null;
+  reachCount?: number | null;
+  runCount?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
+export async function updateAdvertisementReport(id: string, updates: UpdateAdvertisementReportInput): Promise<void> {
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.status !== undefined) patch.status = updates.status;
+  if (updates.platform !== undefined) patch.platform = updates.platform;
+  if (updates.reachCount !== undefined) patch.reach_count = updates.reachCount;
+  if (updates.runCount !== undefined) patch.run_count = updates.runCount;
+  if (updates.startDate !== undefined) patch.start_date = updates.startDate;
+  if (updates.endDate !== undefined) patch.end_date = updates.endDate;
+  const { error } = await supabase.from('advertisement_requests').update(patch).eq('id', id);
+  if (error) throw error;
 }
