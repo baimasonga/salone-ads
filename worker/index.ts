@@ -11,6 +11,7 @@ interface Env {
   APP_URL?: string;
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
+  BUILD_ID?: string;
 }
 
 // A single always-on instance is intentional: server.ts's AI rate limiter
@@ -40,7 +41,13 @@ export class ManohubContainer extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const container = getContainer(env.MANOHUB_CONTAINER);
+    // Naming the instance after the deployed commit (BUILD_ID, set by the
+    // GitHub Actions workflow via --var) means every deploy gets a brand
+    // new Durable Object/container instance instead of reusing whatever
+    // instance happened to already be running — otherwise a warm instance
+    // just keeps serving its old in-memory build indefinitely across
+    // redeploys, since nothing tells it to restart on a new image.
+    const container = getContainer(env.MANOHUB_CONTAINER, env.BUILD_ID || 'local');
     return container.fetch(request);
   },
 };

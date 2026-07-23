@@ -103,6 +103,17 @@ docker build -t manohub-test .   # needs a real .env in the build context first
 and fix whatever wrangler's own error messages point at — that will resolve any field-naming gaps
 faster than guessing further from here.
 
+**Stale-deploy trap (found and fixed 2026-07-23)**: `getContainer(binding)` with no `name` argument
+resolves to a fixed singleton Durable Object ID every time, and redeploying doesn't restart an
+already-running container instance — it just keeps serving whatever build it booted with until it
+sleeps (`sleepAfter`). Four consecutive successful `wrangler deploy` runs produced zero visible
+change because of exactly this. Fixed by naming the instance after the deployed commit
+(`getContainer(env.MANOHUB_CONTAINER, env.BUILD_ID || 'local')` in `worker/index.ts`, with
+`deploy-containers.yml` passing `--var BUILD_ID:${{ github.sha }}`), so every deploy gets a fresh
+instance instead of reusing a stale warm one. If a deploy still doesn't show up after this fix,
+check whether the workflow actually ran against the intended branch/commit before suspecting the
+container again.
+
 ## Recommendation
 
 Start with Path 1 (Pages + Functions) for actually clicking through and testing features — it's
