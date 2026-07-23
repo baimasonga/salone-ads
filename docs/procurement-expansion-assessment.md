@@ -1,6 +1,6 @@
 # Procurement & Supplier-Intelligence Expansion — Existing System Assessment & Gap Analysis
 
-Source brief: two attached specs describing a DGMarket/TenderSoko/BidDetail-style procurement opportunity and
+Source brief: two attached specs describing a reference-portal-style procurement opportunity and
 supplier-intelligence platform for Sierra Leone (with a West Africa expansion path), to be built as an
 **expansion of the existing SaloneReach platform**, not a rewrite. Both source documents explicitly require
 inspection + gap analysis + open questions before implementation begins — this document is that step.
@@ -553,7 +553,7 @@ production-verified, not just schema-correct.
 Decision, confirmed directly by the product owner after the first live click-through: the original
 ad-platform (Campaigns, Content Studio, Calendar, Media Library, Audiences, Social Accounts, Analytics,
 CRM Leads, Brand Kit) is no longer a customer-facing feature — it becomes internal SaloneReach-team
-tooling for running the platform's own advertising. Tenders become the DGMarket-style subscriber
+tooling for running the platform's own advertising. Tenders become the reference-portal-style subscriber
 product: public listings stay open to everyone, but full detail pages and buyer publishing require a
 paid subscription.
 
@@ -567,7 +567,7 @@ paid subscription.
   (Publisher's plan_features row sets *both* flags true, so a publisher's `hasFeature` check for viewer
   rights also passes — this is a data choice, not new logic, and is easy to re-map onto differently
   named/priced plans later without touching any application code).
-- **Non-subscriber tender view**: DGMarket-style teaser — title, buyer, sector, district, country,
+- **Non-subscriber tender view**: reference-portal-style teaser — title, buyer, sector, district, country,
   submission deadline, estimated value, and summary stay visible; description, eligibility
   requirements, bid security, application fee, contact details, submission instructions, source
   name/URL, and documents are redacted.
@@ -856,7 +856,7 @@ not duplicated elsewhere; no code change needed for that part, just confirmed an
 
 Addressed the density complaint with real content, not decoration:
 - **Prominent search bar** in the hero, wired to `/tenders?q=...` — the signature element real commercial
-  procurement portals (DGMarket, UNGM) lead with, which the previous pass didn't have.
+  procurement portals lead with, which the previous pass didn't have.
 - **New "Browse By Sector" section**: all 12 real sectors from the `sectors` table (`fetchSectors()`),
   rendered as a dense clickable tile grid linking to `/tenders?sector={id}`, each icon-mapped by keyword
   match against the real sector name (Agriculture → wheat icon, Health → heart-pulse, etc.), with a
@@ -885,11 +885,11 @@ screenshot completed; the mock code was fully reverted (confirmed via diff again
 never shipped. `tsc --noEmit` and `npm run build` are clean, but the actual live-data rendering of this
 page has **not** been re-confirmed visually since §21 and should be checked on the deployed site.
 
-## 23. Landing page restructured around the DGMarket reference screenshot (2026-07-22)
+## 23. Landing page restructured around a reference procurement-portal screenshot (2026-07-22)
 
-The product owner shared an actual screenshot of dgmarket.com's front page as a direct design reference.
-Its information architecture is fundamentally different from the modern-SaaS structure built in §21-22: a
-compact utility search bar above any marketing copy, a short photographic banner (not a big headline
+The product owner shared an actual screenshot of a well-known procurement portal's front page as a direct
+design reference. Its information architecture is fundamentally different from the modern-SaaS structure
+built in §21-22: a compact utility search bar above any marketing copy, a short photographic banner (not a big headline
 hero), a "Sectors" sidebar showing live per-sector tender counts, a dense list-style (not card-grid) main
 tender listing, and a secondary "Popular tenders" sidebar list — altogether a much more information-dense,
 utility-first directory feel than a typical landing page.
@@ -900,8 +900,8 @@ the banner uses the brand's own geometric pattern instead of a photo):
 - **Utility search bar**: a slim strip directly under the header — keyword input, Search button, Advanced
   Search link — the very first thing after branding, before any pitch copy.
 - **Compact banner**: replaced the previous full headline hero with a shorter navy banner (tagline +
-  live sector/district/country stat trio), closer to DGMarket's photo-banner proportions.
-- **Three action cards**: Find Tenders / Get Alerts / Subscribe — mirroring DGMarket's icon+headline+link
+  live sector/district/country stat trio), closer to the reference's photo-banner proportions.
+- **Three action cards**: Find Tenders / Get Alerts / Subscribe — mirroring the reference's icon+headline+link
   utility-card row exactly, mapped to our own real actions (browse, get-started, pricing anchor).
 - **Three-column directory**: a real "Sectors" sidebar with live per-sector tender counts (computed
   client-side from the same fetched opportunity list — grouping, not a new query), a dense "Latest &
@@ -912,8 +912,8 @@ the banner uses the brand's own geometric pattern instead of a photo):
   been exposed through `LIST_SELECT`/`mapListItem`; this is the only backend-adjacent change, a single
   centralized mapper update, not new fabricated data.
 - The rest of §21-22's content (Who We Serve, Features bento, FAQ, Pricing, richer footer) stays below
-  this directory block — DGMarket doesn't need to explain or sell itself since it's an established brand,
-  but SaloneReach still does, so both structures now coexist: directory-first, marketing explanation after.
+  this directory block — an established brand-name portal doesn't need to explain or sell itself, but
+  SaloneReach still does, so both structures now coexist: directory-first, marketing explanation after.
 
 **Verification**: `tsc --noEmit` and `npm run build` clean. Re-confirmed the §22 finding that this
 sandbox's egress policy blocks real Supabase calls from any local process — so, as before, verified the

@@ -185,7 +185,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
         )}
       </header>
 
-      {/* Utility Search Bar — DGMarket-style, immediate access before any marketing copy */}
+      {/* Utility Search Bar — immediate access before any marketing copy */}
       <div className="bg-slate-100 border-b border-slate-200 px-4 sm:px-6 py-3">
         <form onSubmit={handleHeroSearch} className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-2 sm:items-center">
           <span className="hidden sm:block font-display font-bold text-sm text-[#0F172A] shrink-0">Search</span>
@@ -300,7 +300,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
         </div>
       </section>
 
-      {/* Directory: Sectors | Latest Opportunities | Popular Tenders — DGMarket-style density */}
+      {/* Directory: Sectors | Latest Opportunities | Popular Tenders — dense, at-a-glance layout */}
       <section className="px-6 py-10 bg-slate-50 border-b border-slate-100">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-12 gap-6 items-start">
           {/* Sectors sidebar with real counts */}
@@ -433,7 +433,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-slate-200 border border-slate-200">
             {[
               { num: '01', icon: FileSearch, title: 'Suppliers & Bidders', body: 'Search and filter published tenders by sector, district, and deadline. Subscribe for full eligibility details, saved-search alerts, document downloads, and a private bid pipeline.' },
-              { num: '02', icon: ClipboardCheck, title: 'Buyers & Institutions', body: 'Publish tenders for admin review, manage amendments and deadline extensions, and record awards — with the same transparency standard as DGMarket-style procurement portals.' },
+              { num: '02', icon: ClipboardCheck, title: 'Buyers & Institutions', body: 'Publish tenders for admin review, manage amendments and deadline extensions, and record awards — with a transparent, auditable review process at every step.' },
               { num: '03', icon: Megaphone, title: 'Business Advertisers', body: 'Submit what you want advertised — our team designs, builds, and runs it on social media — then track platform, reach, and run count from your dashboard.' },
             ].map((card) => {
               const Icon = card.icon;
@@ -460,7 +460,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           <div className="max-w-2xl flex flex-col gap-2">
             <span className="text-emerald-600 font-bold tracking-wider text-xs uppercase font-mono">Comprehensive Toolbox</span>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-              Everything a DGMarket-Style Portal Needs
+              Everything a Modern Procurement Portal Needs
             </h2>
             <p className="text-slate-600 leading-relaxed max-w-lg">
               From first search to awarded bid — search, alerts, publishing, and a private pipeline, all
@@ -604,7 +604,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                   <span className="text-slate-500 text-sm"> / month</span>
                 </div>
                 <p className="text-slate-600 text-xs leading-relaxed mb-6">
-                  Browse published tenders, DGMarket-style — teaser details, no sign-in required.
+                  Browse published tenders — teaser details, no sign-in required.
                 </p>
                 <ul className="space-y-2.5 text-xs text-slate-600">
                   <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Public tender search</li>
