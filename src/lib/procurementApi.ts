@@ -59,7 +59,7 @@ export interface OpportunityDocument {
   isPublic: boolean;
 }
 
-const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB — keep uploads reasonable on slow connections.
+export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB — keep uploads reasonable on slow connections.
 
 const LIST_SELECT = `
   id, slug, title, buyer_name, submission_deadline, estimated_value, currency_code, is_featured, review_note, view_count,

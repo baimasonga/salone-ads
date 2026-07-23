@@ -1183,3 +1183,37 @@ locally (`/`, `/api/health`, `/r/:code` with a bad code, and a Playwright pass o
 (and one advertisement_requests/service_requests row each needed a privileged delete since neither table
 has a DELETE policy — by design, to preserve an audit trail — rather than the usual authenticated-role
 cleanup path used elsewhere in this doc).
+
+## 33. File upload on the tender publish form (2026-07-23)
+
+The "Publish New Tender" form (Workspaces.tsx, Tenders tab) had no document upload of its own — a buyer
+had to first submit the form, then find the newly-created tender in the list below and expand its
+per-row "Documents" panel to attach anything. Easy to miss, and the real-world source documents (the user
+supplied a genuine IFAD "Invitation for Bids" as a reference) carry far more structured/legal detail —
+lot breakdowns, bid security schedules per lot, eligibility document checklists, submission links, bid
+opening logistics — than any reasonable set of form fields could capture. Buyers need to attach the
+authoritative notice itself, not just a form-field summary of it.
+
+**Change**: added a multi-file drop zone directly to the create-tender form (PDF/Word/Excel, 10MB/file,
+reusing the same cap already enforced server-side by `uploadOpportunityDocument`, now exported as
+`MAX_DOCUMENT_SIZE_BYTES` from `procurementApi.ts` so the form can reject oversized files immediately
+instead of waiting for a round-trip). Selected files show as removable chips with name and size. On
+submit, `handleCreateOpportunity` creates the opportunity first (as before), then uploads each attached
+file against the new opportunity's real id via the existing `uploadOpportunityDocument` — no new backend
+surface, just sequencing the existing per-tender document upload right after creation instead of requiring
+a second trip through the list view. A failed individual file upload doesn't fail the whole submission —
+the tender is still created, and the feedback message tells the buyer exactly how many documents to
+re-attach from the (still-present) per-row Documents panel.
+
+**Design**: gave the "Publish New Tender" card a proper header treatment (dark banner, icon, one line
+explaining *why* to attach a document) instead of a bare card title, and a bordered dashed drop-zone with
+icon/copy/hint text matching the app's existing card and color language, rather than a bare file input.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Visually verified via the sandbox's
+standard mock-data-then-revert technique (temporarily hardcoded a buyer-org session in `App.tsx`,
+screenshotted, reverted, confirmed with `diff` against a pre-edit backup that `App.tsx` is byte-identical
+to before) — the drop zone, file-chip list, and public/private toggle all render correctly, and selecting
+the real reference IFAD document produces a correct file chip (name + size). Confirmed the site's global
+`button.bg-emerald-600 { background-color: #0F172A !important }` rule (an intentional, existing design-
+system convention, not a regression) is what makes the new "Publish Tender" button render navy, matching
+every other primary button in the dashboard.

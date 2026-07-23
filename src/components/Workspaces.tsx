@@ -7,7 +7,7 @@ import {
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
   FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X, Image as ImageIcon,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, FileUp, Paperclip
 } from 'lucide-react';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink } from '../types';
 import {
@@ -49,6 +49,7 @@ import {
   deleteOpportunityDocument,
   getOpportunityDocumentUrl,
   OpportunityDocument,
+  MAX_DOCUMENT_SIZE_BYTES,
   fetchOpportunitiesForReview,
   findSimilarTitledOpportunities,
   approveOpportunity,
@@ -699,6 +700,9 @@ export function Workspaces({
   const [tenderCurrencyCode, setTenderCurrencyCode] = useState('');
   const [tenderDeadline, setTenderDeadline] = useState('');
   const [tenderContact, setTenderContact] = useState('');
+  const [tenderDocumentFiles, setTenderDocumentFiles] = useState<File[]>([]);
+  const [tenderDocumentIsPublic, setTenderDocumentIsPublic] = useState(true);
+  const [tenderDocumentError, setTenderDocumentError] = useState('');
   const [tenderSubmitting, setTenderSubmitting] = useState(false);
   const [suggestingSector, setSuggestingSector] = useState(false);
   const [canPublishTenders, setCanPublishTenders] = useState(false);
@@ -814,6 +818,23 @@ export function Workspaces({
     }
   };
 
+  const handleTenderDocumentSelect = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const incoming = Array.from(fileList);
+    const oversized = incoming.filter((f) => f.size > MAX_DOCUMENT_SIZE_BYTES);
+    const accepted = incoming.filter((f) => f.size <= MAX_DOCUMENT_SIZE_BYTES);
+    setTenderDocumentFiles((prev) => [...prev, ...accepted]);
+    setTenderDocumentError(
+      oversized.length > 0
+        ? `${oversized.map((f) => f.name).join(', ')} ${oversized.length === 1 ? 'exceeds' : 'exceed'} the 10MB limit and ${oversized.length === 1 ? "wasn't" : "weren't"} added.`
+        : ''
+    );
+  };
+
+  const handleRemoveTenderDocument = (index: number) => {
+    setTenderDocumentFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleCreateOpportunity = async (e: React.FormEvent) => {
     e.preventDefault();
     setTenderSubmitting(true);
@@ -832,13 +853,35 @@ export function Workspaces({
         contactDetails: tenderContact,
       });
       setMyOpportunities([created, ...myOpportunities]);
+
+      let uploadFailures = 0;
+      if (tenderDocumentFiles.length > 0) {
+        const uploaded: OpportunityDocument[] = [];
+        for (const file of tenderDocumentFiles) {
+          try {
+            uploaded.push(await uploadOpportunityDocument(activeOrg.id, created.id, file, tenderDocumentIsPublic));
+          } catch {
+            uploadFailures += 1;
+          }
+        }
+        if (uploaded.length > 0) {
+          setDocsByOpportunity((prev) => ({ ...prev, [created.id]: uploaded }));
+        }
+      }
+
       setTenderTitle('');
       setTenderSummary('');
       setTenderDescription('');
       setTenderValue('');
       setTenderDeadline('');
       setTenderContact('');
-      setTendersFeedback('Tender submitted for admin review. It will go live once approved.');
+      setTenderDocumentFiles([]);
+      setTenderDocumentError('');
+      setTendersFeedback(
+        uploadFailures > 0
+          ? `Tender submitted for admin review, but ${uploadFailures} document${uploadFailures === 1 ? '' : 's'} failed to upload — attach ${uploadFailures === 1 ? 'it' : 'them'} again from the Documents panel below.`
+          : 'Tender submitted for admin review. It will go live once approved.'
+      );
     } catch (err: any) {
       setTendersFeedback(`Error: ${err.message || 'Could not submit tender.'}`);
     } finally {
@@ -1690,9 +1733,21 @@ export function Workspaces({
           </div>
         ) : (
           <>
-            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-              <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Publish New Tender</h4>
-              <form onSubmit={handleCreateOpportunity} className="space-y-4">
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-xs overflow-hidden">
+              <div className="bg-[#0F172A] px-6 py-5 flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+                  <FileSearch className="h-4.5 w-4.5 text-emerald-400" />
+                </div>
+                <div>
+                  <h4 className="font-display font-bold text-white text-sm">Publish New Tender</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    The fields below capture the key facts for search and alerts. Attach the official notice
+                    (bidding document, lots, bid security schedule, eligibility requirements, etc.) so bidders
+                    get the full detail your form fields can't hold.
+                  </p>
+                </div>
+              </div>
+              <form onSubmit={handleCreateOpportunity} className="p-6 space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase">Tender Title</label>
                   <input
@@ -1817,9 +1872,69 @@ export function Workspaces({
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Tender Documents</label>
+                  <label
+                    htmlFor="tender-document-input"
+                    className="mt-1.5 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl px-6 py-8 text-center cursor-pointer transition-colors hover:border-emerald-400 hover:bg-emerald-50/40"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
+                      <FileUp className="h-4.5 w-4.5 text-emerald-600" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700">
+                      Drop the official bidding document here, or click to browse
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      PDF or Word, up to 10MB each — bid data sheets, lot schedules, forms, and addenda all welcome
+                    </p>
+                    <input
+                      id="tender-document-input"
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.xls,.xlsx"
+                      className="hidden"
+                      onChange={(e) => {
+                        handleTenderDocumentSelect(e.target.files);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+
+                  {tenderDocumentError && (
+                    <p className="mt-2 text-[11px] text-red-600 font-medium">{tenderDocumentError}</p>
+                  )}
+
+                  {tenderDocumentFiles.length > 0 && (
+                    <ul className="mt-3 space-y-1.5">
+                      {tenderDocumentFiles.map((file, idx) => (
+                        <li key={`${file.name}-${idx}`} className="flex items-center justify-between gap-2 text-xs bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                          <span className="flex items-center gap-2 min-w-0 text-slate-700">
+                            <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <span className="truncate font-medium">{file.name}</span>
+                            <span className="text-slate-400 shrink-0">{formatFileSize(file.size)}</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTenderDocument(idx)}
+                            className="text-slate-400 hover:text-red-600 cursor-pointer shrink-0"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <label className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer w-fit">
+                    <input type="checkbox" checked={tenderDocumentIsPublic} onChange={(e) => setTenderDocumentIsPublic(e.target.checked)} />
+                    Public (visible to anyone viewing this tender, not just subscribers)
+                  </label>
+                </div>
+
                 <button
                   type="submit" disabled={tenderSubmitting}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 shadow-sm shadow-emerald-600/20"
                 >
                   {tenderSubmitting ? 'Publishing…' : 'Publish Tender'}
                 </button>
