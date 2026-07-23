@@ -1217,3 +1217,40 @@ the real reference IFAD document produces a correct file chip (name + size). Con
 `button.bg-emerald-600 { background-color: #0F172A !important }` rule (an intentional, existing design-
 system convention, not a regression) is what makes the new "Publish Tender" button render navy, matching
 every other primary button in the dashboard.
+
+## 34. Fixed role-boundary error: admins had access to procurement tooling (2026-07-23)
+
+User-flagged design error: the three roles in this product are System Admin, Tender Publisher (paid
+subscriber), and Tender Viewer (paid subscriber) — and system admins must not have procurement tooling at
+all. That tooling (publishing/managing tenders, tracking a bid pipeline, maintaining a supplier profile,
+requesting bid support) belongs exclusively to Publisher/Viewer subscriber accounts.
+
+**Root cause**: the sidebar's "Procurement" nav group (Tenders, My Pipeline, Supplier Profile, Support
+Services) was shown unconditionally to every organization — gated only on the org's own `is_buyer`/
+entitlement state, never on `isPlatformAdmin`. Every other subscriber-only group (`Advertising`) was
+already correctly hidden for admins; `Procurement` was the one group that slipped through. In practice this
+meant a platform admin whose own org happens to be a real buyer (SaloneReach's own operating org is) would
+see and could use the exact same "Publish New Tender" self-service form as a paying Publisher — a real
+conflict of interest, since that same admin account also has the power to approve/reject tenders in Tender
+Review.
+
+**Fix**: wrapped the "Procurement" nav group in `!isPlatformAdmin`, the same pattern already used for
+`Advertising` (`App.tsx`). Also added a defensive in-body guard to all four subscriber-only tab renders in
+`Workspaces.tsx` (`tenders`, `pipeline`, `supplier-profile`, `services`) that show a short explanatory
+message pointing admins to the correct oversight tool instead (Tender Review, Service Requests, etc.) —
+matching the codebase's existing convention of guarding admin-only tab bodies against non-admins, just in
+the reverse direction. Admins keep their real oversight tools unchanged: Discovery, Social Media
+Advertising, and Platform Admin (Tender Review, Verification Requests, Subscription Requests, Service
+Requests, Advertising Requests, Platform Analytics, Super Admin Desk) are all still there.
+
+**Not changed**: RLS still lets `is_platform_admin()` bypass ownership checks on `opportunities` and
+related tables — that's a distinct, intentional support/moderation capability (fixing a stuck record on a
+subscriber's behalf), not the self-service publishing UI this fix removes, so it was left alone. Also did
+not touch the real `FaxaRa` org's live `is_buyer: true` flag — whether the admin's own operating org should
+carry buyer status is a data/product decision distinct from "should the admin's dashboard show publishing
+tools," and wasn't asked for.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Visually verified via the sandbox's
+mock-data-then-revert technique (temporarily forced `isPlatformAdmin: true` in `App.tsx`, screenshotted the
+sidebar — confirmed no Procurement group appears, while Discovery/Social Media Advertising/Platform Admin
+still do — then reverted and confirmed with `diff` that `App.tsx` matches the pre-mock version exactly).

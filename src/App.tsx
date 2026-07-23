@@ -186,7 +186,13 @@ function MainApp() {
         { id: 'overview', label: 'Overview', icon: BarChart2 },
       ]
     },
-    {
+    // Subscriber-only self-service tooling: publishing/tracking/managing
+    // tenders is a paid-subscriber (Publisher/Viewer) activity, not
+    // something a platform admin's own account should be doing -- an admin
+    // publishing and then being the one who reviews/approves tenders would
+    // be a conflict of interest. Admins get their own oversight tools in
+    // the "Platform Admin" group below (Tender Review, etc.) instead.
+    ...(!isPlatformAdmin ? [{
       group: "Procurement",
       items: [
         { id: 'tenders', label: 'Tenders', icon: FileSearch },
@@ -194,7 +200,7 @@ function MainApp() {
         { id: 'supplier-profile', label: 'Supplier Profile', icon: Award },
         { id: 'services', label: 'Support Services', icon: UserCheck },
       ]
-    },
+    }] : []),
     // Advertiser-tier subscribers only -- hidden entirely (not shown-then-
     // blocked) unless the org's org has the business_advertising
     // entitlement. No directory/event-promotion browsing tools here, just

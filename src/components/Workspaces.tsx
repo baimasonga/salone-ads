@@ -1652,6 +1652,14 @@ export function Workspaces({
 
   // TENDERS WORKSPACE (Procurement)
   if (activeTab === 'tenders') {
+    if (isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          Publishing and managing tenders is subscriber tooling for Tender Publishers, not platform admins.
+          Use Tender Review under Platform Admin to approve, correct, or reject subscriber-submitted tenders.
+        </div>
+      );
+    }
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
@@ -2114,6 +2122,13 @@ export function Workspaces({
 
   // SUPPLIER PROFILE WORKSPACE
   if (activeTab === 'supplier-profile') {
+    if (isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          Supplier profiles are subscriber tooling for Tender Publishers/Viewers, not platform admins.
+        </div>
+      );
+    }
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
@@ -2309,6 +2324,14 @@ export function Workspaces({
 
   // BID SUPPORT SERVICES WORKSPACE (buyers & suppliers)
   if (activeTab === 'services') {
+    if (isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          Requesting bid support is subscriber tooling for Tender Publishers/Viewers, not platform admins.
+          Use Service Requests under Platform Admin to fulfill subscriber requests.
+        </div>
+      );
+    }
     const serviceTypeLabels: Record<ServiceType, string> = {
       document_retrieval: 'Document Retrieval',
       tender_clarification: 'Tender Clarification',
@@ -2693,6 +2716,13 @@ export function Workspaces({
 
   // SUPPLIER PIPELINE WORKSPACE
   if (activeTab === 'pipeline') {
+    if (isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          Tracking bid pipelines is subscriber tooling for Tender Publishers/Viewers, not platform admins.
+        </div>
+      );
+    }
     const stageColor = (stage: PipelineStage) =>
       stage === 'won' ? 'bg-emerald-100 text-emerald-800' :
       stage === 'lost' || stage === 'withdrawn' ? 'bg-slate-200 text-slate-600' :
