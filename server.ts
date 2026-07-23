@@ -110,6 +110,14 @@ async function startServer() {
       }
     }
 
+    // 'captions'/'copy' and 'ideas' generate multiple discrete variants that
+    // become individual Content Studio drafts -- ask Gemini for structured
+    // JSON so the client can render one card per variant instead of a single
+    // blob of text the admin has to hand-parse. 'script' and 'brief' are
+    // each naturally a single block of prose, so they stay plain text.
+    const structuredFormat: "captions" | "ideas" | null =
+      option === "captions" || option === "copy" ? "captions" : option === "ideas" ? "ideas" : null;
+
     try {
       // Lazy check and fallback to local interactive completion model if no custom key exists
       const hasKey = process.env.GEMINI_API_KEY &&
@@ -117,8 +125,11 @@ async function startServer() {
                      process.env.GEMINI_API_KEY.trim() !== "";
 
       if (!hasKey) {
-        const mockResponse = getMockAIResponse(prompt, option, toneOfVoice, brandName);
-        res.json({ text: mockResponse });
+        if (structuredFormat) {
+          res.json({ format: structuredFormat, items: getMockAIVariants(structuredFormat, prompt, toneOfVoice, brandName) });
+        } else {
+          res.json({ format: "text", text: getMockAIResponse(prompt, option, toneOfVoice, brandName) });
+        }
         return;
       }
 
@@ -153,21 +164,14 @@ async function startServer() {
 
       // Tailor instructions based on selected option
       let targetedPrompt = prompt;
-      if (option === 'captions' || option === 'copy') {
-        targetedPrompt = `Generate 3 high-converting social media post captions/copy variants based on this topic or objective: "${prompt}".
-For each variant, provide:
-1. A short catchy Headline/Hook
-2. The Body Caption (include appropriate local emojis and call-to-actions, e.g., WhatsApp ordering info or local delivery highlights)
-3. 4-5 relevant hashtags (e.g. #SaloneReach, #EatSalone, plus custom ones).
-Format with clear separators so it is easy to read.`;
-      } else if (option === 'ideas') {
-        targetedPrompt = `Generate 4 highly creative and actionable social media content ideas or campaign themes based on this brand goal or topic: "${prompt}".
-For each idea, provide:
-1. Title of the idea
-2. Brief Concept details (why it works for this audience)
-3. Recommended Platform/Channel (e.g., Facebook, WhatsApp, TikTok, Instagram)
-4. Concrete Execution Step (how to launch it).
-Format with clear separators.`;
+      if (structuredFormat === "captions") {
+        targetedPrompt = `Generate exactly 3 high-converting social media post caption variants based on this topic or objective: "${prompt}".
+Respond with ONLY a valid JSON array (no markdown, no commentary, no code fences) of exactly 3 objects, each shaped exactly like:
+{"headline": "a short catchy headline/hook", "body": "the full caption text, including appropriate local emojis and a call-to-action such as WhatsApp ordering info or local delivery highlights", "hashtags": ["#Tag1", "#Tag2", "#Tag3"]}`;
+      } else if (structuredFormat === "ideas") {
+        targetedPrompt = `Generate exactly 4 highly creative and actionable social media content ideas based on this brand goal or topic: "${prompt}".
+Respond with ONLY a valid JSON array (no markdown, no commentary, no code fences) of exactly 4 objects, each shaped exactly like:
+{"title": "idea title", "concept": "brief concept detail, why it works for this audience", "platform": "recommended platform, e.g. Facebook, WhatsApp, TikTok, Instagram", "executionStep": "one concrete step to launch it"}`;
       } else if (option === 'script') {
         targetedPrompt = `Generate a professional radio or television advertisement script based on this product/goal: "${prompt}". Include character directions, sound effect cues [SFX], and a strong Leonean call to action.`;
       } else if (option === 'brief') {
@@ -180,10 +184,25 @@ Format with clear separators.`;
         config: {
           systemInstruction: systemInstruction,
           temperature: 0.75,
+          ...(structuredFormat ? { responseMimeType: "application/json" } : {}),
         }
       });
 
-      res.json({ text: response.text });
+      const rawText = response.text || "";
+
+      if (structuredFormat) {
+        const items = parseJsonArrayLoose(rawText);
+        if (items) {
+          res.json({ format: structuredFormat, items });
+          return;
+        }
+        // Gemini didn't return parseable JSON despite the instruction -- fall
+        // back to showing the raw text rather than erroring the whole request.
+        res.json({ format: "text", text: rawText || "No content returned." });
+        return;
+      }
+
+      res.json({ format: "text", text: rawText || "No content returned." });
     } catch (err: any) {
       console.error("Gemini Server Error:", err);
       res.status(500).json({
@@ -278,6 +297,84 @@ Format with clear separators.`;
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[OK] Server listening on http://0.0.0.0:${PORT} in ${process.env.NODE_ENV || "development"} mode`);
   });
+}
+
+// Gemini is instructed to return raw JSON, but models occasionally wrap it in
+// a markdown code fence despite that instruction -- strip one if present
+// before parsing, and return null (never throw) so the caller can fall back
+// to plain text instead of failing the whole request.
+function parseJsonArrayLoose(raw: string): any[] | null {
+  if (!raw) return null;
+  let cleaned = raw.trim();
+  const fenceMatch = cleaned.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenceMatch) cleaned = fenceMatch[1].trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Structured local fallback for 'captions'/'ideas' when no Gemini key is
+// configured -- mirrors getMockAIResponse's flavor text below, but shaped as
+// discrete items instead of one text blob, matching what the real Gemini
+// call returns for these two modes.
+function getMockAIVariants(
+  format: "captions" | "ideas",
+  prompt: string,
+  toneOfVoice?: string,
+  brandName?: string
+): any[] {
+  const tone = toneOfVoice || "Warm, Honest, Proudly Leonean";
+  const name = brandName || "Sierra Organic";
+
+  if (format === "ideas") {
+    return [
+      {
+        title: "Our Farmers, Our Heroes Video Series",
+        concept: `Short video profiles highlighting smallholder farmers sourcing for ${name}, in a "${tone}" tone.`,
+        platform: "Facebook & TikTok",
+        executionStep: "Post a 30-second clip of a farmer sharing their harvest story with a warm, personal caption.",
+      },
+      {
+        title: "Taste of Home Diaspora Giveaway",
+        concept: "Encourage diaspora followers to share their favorite home memory for a chance to gift goods to their family.",
+        platform: "WhatsApp & Facebook",
+        executionStep: "Create an eye-catching graphic asking for stories in the comments.",
+      },
+      {
+        title: "Behind-the-Scenes Packing Day",
+        concept: "Real-time, transparent showcase of quality control and safe shipping of goods.",
+        platform: "Facebook Stories",
+        executionStep: "Take vertical snapshot photos showing neat packaging and happy drivers.",
+      },
+      {
+        title: "Weekly Interactive Polls",
+        concept: `Ask customers what local recipes they want tips on, tied to this goal: "${prompt}".`,
+        platform: "WhatsApp Business Status",
+        executionStep: "Post a status update poll using standard Leonean culinary favorites.",
+      },
+    ];
+  }
+
+  return [
+    {
+      headline: "Pure, Fresh, Proudly Local",
+      body: `Pure, fresh, and harvested directly from our rich soils by ${name}. Bring genuine home flavor back to your dinner table! Order local, support local farmers, and feel Salone pride. 🌾💚`,
+      hashtags: ["#SaloneReach", "#EatSalone", "#ProudlyLeonean"],
+    },
+    {
+      headline: "Home, Delivered",
+      body: `Send premium local products from ${name} directly to your family in Freetown with zero hassle. Safe, local, and empowering. Sponsored with love. 🇸🇱`,
+      hashtags: ["#SaloneReach", "#DiasporaLove"],
+    },
+    {
+      headline: "Taste You Trust",
+      body: `Feed your family with the finest organic quality from ${name}. Taste you remember, standards you trust. Delivered in 48 hours.`,
+      hashtags: ["#EatSalone", "#SaloneReach"],
+    },
+  ];
 }
 
 // Multi-template local simulated responses for low-bandwidth / offline or local key fallback

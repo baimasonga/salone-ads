@@ -13,6 +13,8 @@ import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, Socia
 import {
   createCampaign,
   createContentItem,
+  updateContentItem,
+  deleteContentItem,
   updateLeadStatus as apiUpdateLeadStatus,
   createDirectoryListing,
   claimDirectoryListing,
@@ -202,13 +204,20 @@ export function Workspaces({
   const [aiPrompt, setAiPrompt] = useState('Grow Sierra Leone native red rice among diaspora families in Maryland, USA.');
   const [aiOption, setAiOption] = useState<'brief' | 'copy' | 'script' | 'ideas' | 'captions'>('captions');
   const [aiOutput, setAiOutput] = useState('');
+  const [aiFormat, setAiFormat] = useState<'text' | 'captions' | 'ideas'>('text');
+  const [aiCaptionItems, setAiCaptionItems] = useState<{ headline: string; body: string; hashtags: string[] }[]>([]);
+  const [aiIdeaItems, setAiIdeaItems] = useState<{ title: string; concept: string; platform: string; executionStep: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [savingAllAiItems, setSavingAllAiItems] = useState(false);
 
   const handleCallAI = async () => {
     setAiLoading(true);
     setAiError('');
     setAiOutput('');
+    setAiFormat('text');
+    setAiCaptionItems([]);
+    setAiIdeaItems([]);
     try {
       const {
         data: { session },
@@ -231,7 +240,16 @@ export function Workspaces({
       const data = await response.json();
       if (data.error) {
         setAiError(data.error.message || 'AI completions failed.');
+      } else if (data.format === 'captions' && Array.isArray(data.items)) {
+        setAiFormat('captions');
+        setAiCaptionItems(data.items);
+        setAiOutput(data.text || '');
+      } else if (data.format === 'ideas' && Array.isArray(data.items)) {
+        setAiFormat('ideas');
+        setAiIdeaItems(data.items);
+        setAiOutput(data.text || '');
       } else {
+        setAiFormat('text');
         setAiOutput(data.text || 'No content returned.');
       }
     } catch (err: any) {
@@ -242,38 +260,190 @@ export function Workspaces({
   };
 
   // --- Content Editor States ---
+  const defaultScheduledDate = () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const [editingContentId, setEditingContentId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editType, setEditType] = useState<'Social Post' | 'WhatsApp Promo' | 'Video Script' | 'Radio Brief' | 'Email News'>('Social Post');
   const [editPlatform, setEditPlatform] = useState('Facebook');
   const [editHeadline, setEditHeadline] = useState('');
   const [editBody, setEditBody] = useState('');
+  const [editHashtagsInput, setEditHashtagsInput] = useState('#SaloneReach, #EatSalone');
+  const [editScheduledDate, setEditScheduledDate] = useState(defaultScheduledDate());
+  const [editStatus, setEditStatus] = useState<ContentItem['status']>('Draft');
   const [contentFeedback, setContentFeedback] = useState('');
+  const [deletingContentId, setDeletingContentId] = useState<string | null>(null);
+  const [contentStatusUpdatingId, setContentStatusUpdatingId] = useState<string | null>(null);
 
   const [contentSubmitting, setContentSubmitting] = useState(false);
+
+  const resetContentComposer = () => {
+    setEditingContentId(null);
+    setEditTitle('');
+    setEditType('Social Post');
+    setEditPlatform('Facebook');
+    setEditHeadline('');
+    setEditBody('');
+    setEditHashtagsInput('#SaloneReach, #EatSalone');
+    setEditScheduledDate(defaultScheduledDate());
+    setEditStatus('Draft');
+  };
+
+  const handleEditContentItem = (item: ContentItem) => {
+    setEditingContentId(item.id);
+    setEditTitle(item.title);
+    setEditType(item.contentType);
+    setEditPlatform(item.platform);
+    setEditHeadline(item.headline);
+    setEditBody(item.bodyText);
+    setEditHashtagsInput(item.hashtags.join(', '));
+    setEditScheduledDate(item.scheduledDate || defaultScheduledDate());
+    setEditStatus(item.status);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const parseHashtagsInput = (input: string): string[] =>
+    input
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .map((tag) => (tag.startsWith('#') ? tag : `#${tag}`));
 
   const handleSaveContent = async (e: React.FormEvent) => {
     e.preventDefault();
     setContentSubmitting(true);
     try {
-      const newItem = await createContentItem(activeOrg.id, {
-        title: editTitle || 'Custom Content Item',
-        contentType: editType,
-        platform: editPlatform,
-        headline: editHeadline || 'Harvested with Local Pride',
-        bodyText: editBody || 'Premium supply directly sourced from Bo cooperative.',
-        hashtags: ['#SaloneReach', '#EatSalone'],
-        scheduledDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      });
-      setContentItems([newItem, ...contentItems]);
-      setEditTitle('');
-      setEditHeadline('');
-      setEditBody('');
-      setContentFeedback('Draft template saved and added to the content index!');
+      if (editingContentId) {
+        const current = contentItems.find((c) => c.id === editingContentId);
+        const updated = await updateContentItem(editingContentId, {
+          title: editTitle || 'Custom Content Item',
+          contentType: editType,
+          platform: editPlatform,
+          headline: editHeadline || 'Harvested with Local Pride',
+          bodyText: editBody || 'Premium supply directly sourced from Bo cooperative.',
+          hashtags: parseHashtagsInput(editHashtagsInput),
+          scheduledDate: editScheduledDate,
+          status: editStatus,
+          version: (current?.version ?? 1) + 1,
+        });
+        setContentItems(contentItems.map((c) => (c.id === updated.id ? updated : c)));
+        setContentFeedback('Content item updated.');
+      } else {
+        const newItem = await createContentItem(activeOrg.id, {
+          title: editTitle || 'Custom Content Item',
+          contentType: editType,
+          platform: editPlatform,
+          headline: editHeadline || 'Harvested with Local Pride',
+          bodyText: editBody || 'Premium supply directly sourced from Bo cooperative.',
+          hashtags: parseHashtagsInput(editHashtagsInput),
+          scheduledDate: editScheduledDate,
+        });
+        setContentItems([newItem, ...contentItems]);
+        setContentFeedback('Draft template saved and added to the content index!');
+      }
+      resetContentComposer();
     } catch (err: any) {
       setContentFeedback(`Error: ${err.message || 'Could not save content item.'}`);
     } finally {
       setContentSubmitting(false);
       setTimeout(() => setContentFeedback(''), 4000);
+    }
+  };
+
+  const handleDeleteContentItem = async (item: ContentItem) => {
+    if (!confirm(`Delete "${item.title}"? This cannot be undone.`)) return;
+    setDeletingContentId(item.id);
+    const previous = contentItems;
+    setContentItems(contentItems.filter((c) => c.id !== item.id));
+    try {
+      await deleteContentItem(item.id);
+      if (editingContentId === item.id) resetContentComposer();
+    } catch (err: any) {
+      setContentItems(previous);
+      setContentFeedback(`Error: ${err.message || 'Could not delete content item.'}`);
+      setTimeout(() => setContentFeedback(''), 4000);
+    } finally {
+      setDeletingContentId(null);
+    }
+  };
+
+  const handleChangeContentStatus = async (item: ContentItem, status: ContentItem['status']) => {
+    if (status === item.status) return;
+    setContentStatusUpdatingId(item.id);
+    const previous = contentItems;
+    setContentItems(contentItems.map((c) => (c.id === item.id ? { ...c, status } : c)));
+    try {
+      const updated = await updateContentItem(item.id, { status, version: item.version + 1 });
+      setContentItems((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      if (editingContentId === item.id) setEditStatus(status);
+    } catch (err: any) {
+      setContentItems(previous);
+      setContentFeedback(`Error: ${err.message || 'Could not update status.'}`);
+      setTimeout(() => setContentFeedback(''), 4000);
+    } finally {
+      setContentStatusUpdatingId(null);
+    }
+  };
+
+  const handleUseCaptionInComposer = (item: { headline: string; body: string; hashtags: string[] }) => {
+    resetContentComposer();
+    setEditTitle(item.headline.slice(0, 60));
+    setEditHeadline(item.headline);
+    setEditBody(item.body);
+    setEditHashtagsInput((item.hashtags || []).join(', '));
+    setContentFeedback('Loaded into the Composer — review and save.');
+    setTimeout(() => setContentFeedback(''), 4000);
+  };
+
+  const handleUseIdeaInComposer = (idea: { title: string; concept: string; platform: string; executionStep: string }) => {
+    resetContentComposer();
+    setEditTitle(idea.title.slice(0, 60));
+    setEditPlatform(idea.platform || 'Facebook');
+    setEditHeadline(idea.title);
+    setEditBody(`${idea.concept}\n\nHow to execute: ${idea.executionStep}`);
+    setContentFeedback('Loaded into the Composer — review and save.');
+    setTimeout(() => setContentFeedback(''), 4000);
+  };
+
+  const handleSaveAllAiItems = async () => {
+    setSavingAllAiItems(true);
+    try {
+      const created: ContentItem[] = [];
+      if (aiFormat === 'captions') {
+        for (const item of aiCaptionItems) {
+          created.push(
+            await createContentItem(activeOrg.id, {
+              title: item.headline?.slice(0, 60) || 'AI Caption',
+              contentType: 'Social Post',
+              platform: editPlatform || 'Facebook',
+              headline: item.headline || '',
+              bodyText: item.body || '',
+              hashtags: item.hashtags || [],
+              scheduledDate: defaultScheduledDate(),
+            })
+          );
+        }
+      } else if (aiFormat === 'ideas') {
+        for (const idea of aiIdeaItems) {
+          created.push(
+            await createContentItem(activeOrg.id, {
+              title: idea.title?.slice(0, 60) || 'AI Idea',
+              contentType: 'Social Post',
+              platform: idea.platform || editPlatform || 'Facebook',
+              headline: idea.title || '',
+              bodyText: `${idea.concept || ''}\n\nHow to execute: ${idea.executionStep || ''}`,
+              hashtags: ['#SaloneReach', '#EatSalone'],
+              scheduledDate: defaultScheduledDate(),
+            })
+          );
+        }
+      }
+      setContentItems([...created, ...contentItems]);
+      setContentFeedback(`Saved ${created.length} item${created.length === 1 ? '' : 's'} as drafts.`);
+    } catch (err: any) {
+      setContentFeedback(`Error: ${err.message || 'Could not save AI items.'}`);
+    } finally {
+      setSavingAllAiItems(false);
+      setTimeout(() => setContentFeedback(''), 5000);
     }
   };
 
@@ -1550,7 +1720,7 @@ export function Workspaces({
 
         {overviewTier === 'Free' && (
           <div className="bg-[#0F172A] text-white p-6 text-center space-y-3 rounded-2xl">
-            <h3 className="font-display font-bold text-sm uppercase">Subscribe for full tender access</h3>
+            <h3 className="font-display font-bold text-sm uppercase !text-white">Subscribe for full tender access</h3>
             <p className="text-sm text-slate-300 max-w-md mx-auto">
               Viewer plans unlock full tender details and alerts. Publisher plans add the ability to post your own
               tenders.
@@ -1747,7 +1917,7 @@ export function Workspaces({
                   <FileSearch className="h-4.5 w-4.5 text-emerald-400" />
                 </div>
                 <div>
-                  <h4 className="font-display font-bold text-white text-sm">Publish New Tender</h4>
+                  <h4 className="font-display font-bold !text-white text-sm">Publish New Tender</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     The fields below capture the key facts for search and alerts. Attach the official notice
                     (bidding document, lots, bid security schedule, eligibility requirements, etc.) so bidders
@@ -3041,12 +3211,19 @@ export function Workspaces({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
         {/* Left Side: Template Editor */}
         <div className="lg:col-span-7 bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
-          <div>
-            <h3 className="font-display font-bold text-slate-900 text-lg">Central Content Composer</h3>
-            <p className="text-xs text-slate-500">Draft templates manually or trigger our server-side AI assistant on the right panel.</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-display font-bold text-slate-900 text-lg">Central Content Composer</h3>
+              <p className="text-xs text-slate-500">Draft templates manually or trigger our server-side AI assistant on the right panel.</p>
+            </div>
+            {editingContentId && (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 shrink-0">
+                Editing
+              </span>
+            )}
           </div>
           {contentFeedback && (
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm p-3.5 rounded-xl font-semibold">
+            <div className={`text-sm p-3.5 rounded-xl font-semibold ${contentFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
               {contentFeedback}
             </div>
           )}
@@ -3111,25 +3288,116 @@ export function Workspaces({
                 className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500 font-sans"
               />
             </div>
-            <button type="submit" disabled={contentSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-              {contentSubmitting ? 'Saving…' : 'Save Draft Template'}
-            </button>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Hashtags</label>
+                <input
+                  type="text"
+                  placeholder="#SaloneReach, #EatSalone"
+                  value={editHashtagsInput}
+                  onChange={(e) => setEditHashtagsInput(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Comma-separated</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Scheduled Date</label>
+                <input
+                  type="date"
+                  value={editScheduledDate}
+                  onChange={(e) => setEditScheduledDate(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                />
+              </div>
+            </div>
+            {editingContentId && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Status</label>
+                <select
+                  value={editStatus}
+                  onChange={(e: any) => setEditStatus(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                >
+                  <option>Draft</option>
+                  <option>Awaiting Review</option>
+                  <option>Approved</option>
+                  <option>Scheduled</option>
+                  <option>Published</option>
+                  <option>Failed</option>
+                </select>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <button type="submit" disabled={contentSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                {contentSubmitting ? 'Saving…' : editingContentId ? 'Save Changes' : 'Save Draft Template'}
+              </button>
+              {editingContentId && (
+                <button type="button" onClick={resetContentComposer} className="text-xs font-semibold text-slate-500 hover:underline cursor-pointer">
+                  Cancel edit
+                </button>
+              )}
+            </div>
           </form>
 
           {/* List of drafts */}
           <div className="border-t border-slate-100 pt-6 space-y-4">
             <h4 className="font-display font-bold text-slate-800 text-sm">Stored Content Catalog ({contentItems.length})</h4>
             <div className="space-y-3">
-              {contentItems.map((item) => (
-                <div key={item.id} className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-slate-800 text-sm">{item.title}</span>
-                    <span className="bg-slate-200 text-slate-700 font-mono text-[10px] px-2 py-0.5 rounded-full">{item.contentType}</span>
+              {contentItems.length === 0 && (
+                <p className="text-xs text-slate-400">No content items yet — save a draft above or generate one with AI.</p>
+              )}
+              {contentItems.map((item) => {
+                const statusColor: Record<ContentItem['status'], string> = {
+                  Draft: 'bg-slate-200 text-slate-600',
+                  'Awaiting Review': 'bg-blue-100 text-blue-800',
+                  Approved: 'bg-amber-100 text-amber-800',
+                  Scheduled: 'bg-indigo-100 text-indigo-800',
+                  Published: 'bg-emerald-100 text-emerald-800',
+                  Failed: 'bg-red-100 text-red-700',
+                };
+                return (
+                  <div key={item.id} className={`bg-slate-50 border rounded-xl p-4 ${editingContentId === item.id ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-100'}`}>
+                    <div className="flex justify-between items-start gap-3 mb-2">
+                      <span className="font-bold text-slate-800 text-sm">{item.title}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="bg-slate-200 text-slate-700 font-mono text-[10px] px-2 py-0.5 rounded-full">{item.contentType}</span>
+                        <select
+                          value={item.status}
+                          disabled={contentStatusUpdatingId === item.id}
+                          onChange={(e: any) => handleChangeContentStatus(item, e.target.value)}
+                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border-0 cursor-pointer disabled:opacity-50 ${statusColor[item.status]}`}
+                        >
+                          <option>Draft</option>
+                          <option>Awaiting Review</option>
+                          <option>Approved</option>
+                          <option>Scheduled</option>
+                          <option>Published</option>
+                          <option>Failed</option>
+                        </select>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 font-medium italic">"{item.headline}"</p>
+                    <p className="text-[11px] text-slate-500 mt-2 leading-relaxed line-clamp-2">{item.bodyText}</p>
+                    {item.hashtags.length > 0 && (
+                      <p className="text-[10px] text-emerald-600 font-mono mt-2">{item.hashtags.join(' ')}</p>
+                    )}
+                    <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100">
+                      <span className="text-[10px] text-slate-400 font-mono">{item.platform} · {item.scheduledDate || 'unscheduled'}</span>
+                      <button type="button" onClick={() => handleEditContentItem(item)} className="ml-auto text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer">
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteContentItem(item)}
+                        disabled={deletingContentId === item.id}
+                        className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50"
+                      >
+                        {deletingContentId === item.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-600 font-medium italic">"{item.headline}"</p>
-                  <p className="text-[11px] text-slate-500 mt-2 leading-relaxed line-clamp-2">{item.bodyText}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -3140,7 +3408,7 @@ export function Workspaces({
             <div className="inline-flex items-center gap-2 bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs px-3 py-1 rounded-full font-mono uppercase tracking-widest">
               <Sparkles className="h-3.5 w-3.5 animate-pulse" /> AI Campaign Assistant
             </div>
-            <h3 className="font-display font-bold text-xl uppercase tracking-wider">Localized Coprocessor</h3>
+            <h3 className="font-display font-bold text-xl uppercase tracking-wider !text-white">Localized Coprocessor</h3>
             <p className="text-emerald-200 text-xs leading-relaxed">
               Connect to our secure server-side Gemini 3.5 API. Generate high-conversion social captions, content marketing ideas, briefs, or audio/video scripts tailored for Sierra Leonean audiences.
             </p>
@@ -3243,7 +3511,65 @@ export function Workspaces({
                 <span>{aiError}</span>
               </div>
             )}
-            {aiOutput && (
+            {!aiLoading && aiFormat === 'captions' && aiCaptionItems.length > 0 && (
+              <div className="space-y-3">
+                {aiCaptionItems.map((item, idx) => (
+                  <div key={idx} className="bg-emerald-900/40 border border-emerald-800 p-3.5 rounded-xl text-left space-y-1.5">
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Variant {idx + 1}</span>
+                    <p className="text-xs font-bold text-white">{item.headline}</p>
+                    <p className="text-[11px] text-emerald-100 leading-relaxed whitespace-pre-wrap">{item.body}</p>
+                    {item.hashtags?.length > 0 && (
+                      <p className="text-[10px] text-emerald-400 font-mono">{item.hashtags.join(' ')}</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleUseCaptionInComposer(item)}
+                      className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                    >
+                      Use in Composer
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleSaveAllAiItems}
+                  disabled={savingAllAiItems}
+                  className="w-full py-2 bg-emerald-800 border border-emerald-700 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {savingAllAiItems ? 'Saving…' : `Save All ${aiCaptionItems.length} as Drafts`}
+                </button>
+              </div>
+            )}
+            {!aiLoading && aiFormat === 'ideas' && aiIdeaItems.length > 0 && (
+              <div className="space-y-3">
+                {aiIdeaItems.map((idea, idx) => (
+                  <div key={idx} className="bg-emerald-900/40 border border-emerald-800 p-3.5 rounded-xl text-left space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-white">{idea.title}</p>
+                      <span className="text-[9px] font-mono text-emerald-400 shrink-0 ml-2">{idea.platform}</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-100 leading-relaxed">{idea.concept}</p>
+                    <p className="text-[10px] text-emerald-300 italic">→ {idea.executionStep}</p>
+                    <button
+                      type="button"
+                      onClick={() => handleUseIdeaInComposer(idea)}
+                      className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                    >
+                      Use in Composer
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleSaveAllAiItems}
+                  disabled={savingAllAiItems}
+                  className="w-full py-2 bg-emerald-800 border border-emerald-700 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {savingAllAiItems ? 'Saving…' : `Save All ${aiIdeaItems.length} as Drafts`}
+                </button>
+              </div>
+            )}
+            {!aiLoading && aiFormat === 'text' && aiOutput && (
               <div className="space-y-3">
                 <div className="bg-emerald-900/40 border border-emerald-800 p-4 rounded-xl text-xs text-emerald-100 font-mono overflow-y-auto max-h-56 text-left whitespace-pre-wrap">
                   {aiOutput}
@@ -3253,7 +3579,8 @@ export function Workspaces({
                     type="button"
                     onClick={() => {
                       navigator.clipboard.writeText(aiOutput);
-                      alert('Copied output response text!');
+                      setContentFeedback('Copied to clipboard.');
+                      setTimeout(() => setContentFeedback(''), 3000);
                     }}
                     className="py-2 bg-emerald-800 border border-emerald-700 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer"
                   >
@@ -3262,16 +3589,13 @@ export function Workspaces({
                   <button
                     type="button"
                     onClick={() => {
+                      resetContentComposer();
                       setEditBody(aiOutput);
-                      setEditTitle(`AI ${aiOption === 'ideas' ? 'Ideas' : 'Captions'} - ${aiPrompt.slice(0, 20)}...`);
-                      if (aiOption === 'ideas') {
-                        setEditType('Social Post');
-                        setEditHeadline('New Content Ideas Generation');
-                      } else {
-                        setEditType('Social Post');
-                        setEditHeadline('Generated Social Media Captions');
-                      }
-                      alert('Loaded content into the Central Content Composer on the left!');
+                      setEditTitle(`AI ${aiOption === 'script' ? 'Script' : 'Brief'} - ${aiPrompt.slice(0, 20)}...`);
+                      setEditType(aiOption === 'script' ? 'Radio Brief' : 'Social Post');
+                      setEditHeadline(aiOption === 'script' ? 'Generated Radio/TV Script' : 'Generated Campaign Brief');
+                      setContentFeedback('Loaded into the Composer — review and save.');
+                      setTimeout(() => setContentFeedback(''), 4000);
                     }}
                     className="py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer"
                   >
@@ -3280,7 +3604,7 @@ export function Workspaces({
                 </div>
               </div>
             )}
-            {!aiLoading && !aiOutput && !aiError && (
+            {!aiLoading && !aiError && aiFormat === 'text' && !aiOutput && (
               <div className="text-xs text-emerald-400 italic">
                 No completions loaded. Enter prompts above to trigger instant completions.
               </div>

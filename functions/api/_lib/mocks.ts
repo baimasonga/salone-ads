@@ -2,6 +2,78 @@
 // server.ts's getMockAIResponse / getMockProcurementAIResponse exactly, so
 // behavior is identical whether the app runs on the Express server or here.
 
+// Mirrors server.ts's parseJsonArrayLoose exactly.
+export function parseJsonArrayLoose(raw: string): any[] | null {
+  if (!raw) return null;
+  let cleaned = raw.trim();
+  const fenceMatch = cleaned.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenceMatch) cleaned = fenceMatch[1].trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Mirrors server.ts's getMockAIVariants exactly.
+export function getMockAIVariants(
+  format: 'captions' | 'ideas',
+  prompt: string,
+  toneOfVoice?: string,
+  brandName?: string
+): any[] {
+  const tone = toneOfVoice || 'Warm, Honest, Proudly Leonean';
+  const name = brandName || 'Sierra Organic';
+
+  if (format === 'ideas') {
+    return [
+      {
+        title: 'Our Farmers, Our Heroes Video Series',
+        concept: `Short video profiles highlighting smallholder farmers sourcing for ${name}, in a "${tone}" tone.`,
+        platform: 'Facebook & TikTok',
+        executionStep: 'Post a 30-second clip of a farmer sharing their harvest story with a warm, personal caption.',
+      },
+      {
+        title: 'Taste of Home Diaspora Giveaway',
+        concept: 'Encourage diaspora followers to share their favorite home memory for a chance to gift goods to their family.',
+        platform: 'WhatsApp & Facebook',
+        executionStep: 'Create an eye-catching graphic asking for stories in the comments.',
+      },
+      {
+        title: 'Behind-the-Scenes Packing Day',
+        concept: 'Real-time, transparent showcase of quality control and safe shipping of goods.',
+        platform: 'Facebook Stories',
+        executionStep: 'Take vertical snapshot photos showing neat packaging and happy drivers.',
+      },
+      {
+        title: 'Weekly Interactive Polls',
+        concept: `Ask customers what local recipes they want tips on, tied to this goal: "${prompt}".`,
+        platform: 'WhatsApp Business Status',
+        executionStep: 'Post a status update poll using standard Leonean culinary favorites.',
+      },
+    ];
+  }
+
+  return [
+    {
+      headline: 'Pure, Fresh, Proudly Local',
+      body: `Pure, fresh, and harvested directly from our rich soils by ${name}. Bring genuine home flavor back to your dinner table! Order local, support local farmers, and feel Salone pride. 🌾💚`,
+      hashtags: ['#SaloneReach', '#EatSalone', '#ProudlyLeonean'],
+    },
+    {
+      headline: 'Home, Delivered',
+      body: `Send premium local products from ${name} directly to your family in Freetown with zero hassle. Safe, local, and empowering. Sponsored with love. 🇸🇱`,
+      hashtags: ['#SaloneReach', '#DiasporaLove'],
+    },
+    {
+      headline: 'Taste You Trust',
+      body: `Feed your family with the finest organic quality from ${name}. Taste you remember, standards you trust. Delivered in 48 hours.`,
+      hashtags: ['#EatSalone', '#SaloneReach'],
+    },
+  ];
+}
+
 export function getMockAIResponse(prompt: string, option: string, toneOfVoice?: string, brandName?: string): string {
   const tone = toneOfVoice || 'Warm, Honest, Proudly Leonean';
   const name = brandName || 'Sierra Organic';

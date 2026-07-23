@@ -306,6 +306,30 @@ export async function createContentItem(
   return mapContentItem(row);
 }
 
+export async function updateContentItem(
+  id: string,
+  patch: Partial<Pick<ContentItem, 'title' | 'contentType' | 'platform' | 'headline' | 'bodyText' | 'hashtags' | 'scheduledDate' | 'status'>> & { version: number }
+): Promise<ContentItem> {
+  const dbPatch: Record<string, unknown> = { version: patch.version };
+  if (patch.title !== undefined) dbPatch.title = patch.title;
+  if (patch.contentType !== undefined) dbPatch.content_type = patch.contentType;
+  if (patch.platform !== undefined) dbPatch.platform = patch.platform;
+  if (patch.headline !== undefined) dbPatch.headline = patch.headline;
+  if (patch.bodyText !== undefined) dbPatch.body_text = patch.bodyText;
+  if (patch.hashtags !== undefined) dbPatch.hashtags = patch.hashtags;
+  if (patch.scheduledDate !== undefined) dbPatch.scheduled_date = patch.scheduledDate;
+  if (patch.status !== undefined) dbPatch.status = patch.status;
+  const row = unwrap(
+    await supabase.from('content_items').update(dbPatch).eq('id', id).select('*').single()
+  );
+  return mapContentItem(row);
+}
+
+export async function deleteContentItem(id: string): Promise<void> {
+  const { error } = await supabase.from('content_items').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function updateLeadStatus(leadId: string, status: Lead['status']): Promise<Lead> {
   const row = unwrap(
     await supabase.from('leads').update({ status }).eq('id', leadId).select('*').single()

@@ -1254,3 +1254,46 @@ tools," and wasn't asked for.
 mock-data-then-revert technique (temporarily forced `isPlatformAdmin: true` in `App.tsx`, screenshotted the
 sidebar — confirmed no Procurement group appears, while Discovery/Social Media Advertising/Platform Admin
 still do — then reverted and confirmed with `diff` that `App.tsx` matches the pre-mock version exactly).
+
+## 35. Content Studio: real edit/delete/status workflow + structured AI output (2026-07-23)
+
+Content Studio was a one-way funnel: drafts saved but could never be edited, deleted, or moved through a
+status lifecycle, hashtags were hardcoded to the same two tags on every save regardless of content, and the
+AI assistant's multi-variant output (3 captions or 4 ideas per request) came back as one undifferentiated
+text blob that had to be hand-parsed before "Use in Composer" was usable for anything but the first idea.
+
+**Edit/delete/status** (`api.ts`, `Workspaces.tsx`): added `updateContentItem()`/`deleteContentItem()`.
+The composer now has a real edit mode — clicking "Edit" on any catalog item loads it back into the form
+(with an "Editing" badge and a Status field that only appears in edit mode), "Save Changes" updates in place
+instead of always inserting, and each catalog card gets its own Delete button (optimistic removal, rolled
+back on failure) and an inline status dropdown (Draft/Awaiting Review/Approved/Scheduled/Published/Failed)
+for fast status changes without opening the full editor. Hashtags and Scheduled Date are now real, editable
+fields (comma-separated input, normalized to `#Tag` form) instead of two fields that were always silently
+overwritten to the same hardcoded values on every save.
+
+**Structured AI output** (`server.ts`, `functions/api/gemini/generate.ts` + `_lib/shared.ts`/`_lib/mocks.ts`
+for the not-yet-deployed Cloudflare Pages path, kept in sync): the 'captions' and 'ideas' modes now prompt
+Gemini for a JSON array (`responseMimeType: application/json`) shaped as `{headline, body, hashtags}` or
+`{title, concept, platform, executionStep}` per item, parsed server-side with a fence-stripping, throws-
+never `parseJsonArrayLoose()` that falls back to plain text if the model doesn't comply. 'script' and
+'brief' stay plain text — each is naturally one block of prose, not discrete items. The client renders each
+variant as its own card with its own "Use in Composer" button (now correctly fills headline/body/hashtags
+per-variant instead of dumping the whole response into the body field with a generic placeholder headline),
+plus a "Save All N as Drafts" bulk action. The mock (no-API-key) fallback returns the same structured shape
+so behavior is identical with or without a real Gemini key.
+
+**Also fixed while in this file**: two more instances of the invisible-heading bug from §24 (Tailwind's
+plain `text-white` losing to the global `h1-h4 { color: #0F172A !important }` rule) — the AI panel's
+"Localized Coprocessor" heading and the "Subscribe for full tender access" CTA heading were both rendering
+navy-on-navy. Also found and fixed one just introduced in the previous pass: the "Publish New Tender" banner
+heading (§33) had the same bug (`text-white` without the `!` modifier). A repo-wide grep for
+`<h[1-4]...text-white` without the `!` prefix now returns zero remaining matches.
+
+**Verification**: `tsc --noEmit` and `npm run build` both clean. Verified via the sandbox's mock-data-then-
+revert technique combined with Playwright network interception of `/api/gemini/generate` (since this
+sandbox blocks the real Gemini endpoint too) — confirmed both captions and ideas render as separate cards
+with correct data, confirmed "Use in Composer" fills the composer exactly (no manual parsing needed anymore),
+confirmed edit mode loads an existing item correctly, and confirmed a failed status-change/delete (blocked
+network) shows a clear error banner and rolls the optimistic UI change back cleanly rather than crashing —
+no `pageerror`s in any of these flows. `App.tsx` confirmed byte-identical to its pre-mock state via `diff`
+after reverting.
