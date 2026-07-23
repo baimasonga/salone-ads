@@ -78,7 +78,7 @@ const FAQS = [
   { q: 'How do buyers get their tenders published?', a: 'Verified buyers submit tenders through their dashboard. Every submission goes through admin review — for accuracy and legitimacy — before it appears on the public feed.' },
   { q: "What's the difference between Professional and Business plans?", a: 'Professional unlocks full tender details, documents, and real-time alerts for suppliers. Business adds the ability to publish your own tenders and submit business or event adverts.' },
   { q: 'How does business advertising work?', a: 'Business and Enterprise subscribers submit what they want advertised through their dashboard. Our team designs, builds, and runs it on social media — you track platform, reach, and run count from the same screen.' },
-  { q: 'Which countries does SaloneReach cover?', a: 'Sierra Leone and Liberia today, with a regional West Africa expansion roadmap.' },
+  { q: 'Which countries does Manohub cover?', a: 'Sierra Leone and Liberia today, with a regional West Africa expansion roadmap.' },
 ];
 
 export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
@@ -426,7 +426,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
             </h2>
             <p className="text-slate-600 leading-relaxed max-w-lg">
               Whichever side of a tender you're on — or if you're simply promoting your business —
-              SaloneReach has a subscription tier built around what you actually need.
+              Manohub has a subscription tier built around what you actually need.
             </p>
           </div>
 
@@ -697,7 +697,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               <div className="w-8 h-8 border border-white/30 flex items-center justify-center shrink-0">
                 <div className="w-4 h-4 border-2 border-white"></div>
               </div>
-              <span className="font-display font-bold text-white text-lg">SaloneReach</span>
+              <span className="font-display font-bold text-white text-lg">Manohub</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed max-w-xs">
               Sierra Leone's tender and procurement platform — connecting buyers, suppliers, and advertisers
@@ -722,8 +722,8 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
 
           <div className="flex flex-col gap-3">
             <span className="font-mono text-[10px] uppercase tracking-widest text-white font-bold">Get In Touch</span>
-            <a href="mailto:hello@salonereach.com" className="text-xs hover:text-white transition-colors flex items-center gap-1.5">
-              <Mail className="h-3.5 w-3.5" /> hello@salonereach.com
+            <a href="mailto:hello@manohub.com" className="text-xs hover:text-white transition-colors flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5" /> hello@manohub.com
             </a>
             <span className="text-xs flex items-center gap-1.5">
               <MessageCircle className="h-3.5 w-3.5" /> WhatsApp support in-app
@@ -733,7 +733,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
 
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 pt-6">
           <p className="text-xs text-slate-500 text-center md:text-left">
-            © 2026 SaloneReach. Designed with love and Salone pride for local communities.
+            © 2026 Manohub. Designed with love and Salone pride for local communities.
           </p>
           <p className="text-xs text-slate-500">Connecting Sierra Leone to the globe.</p>
         </div>

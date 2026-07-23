@@ -59,17 +59,17 @@ export function getMockAIVariants(
     {
       headline: 'Pure, Fresh, Proudly Local',
       body: `Pure, fresh, and harvested directly from our rich soils by ${name}. Bring genuine home flavor back to your dinner table! Order local, support local farmers, and feel Salone pride. 🌾💚`,
-      hashtags: ['#SaloneReach', '#EatSalone', '#ProudlyLeonean'],
+      hashtags: ['#Manohub', '#EatSalone', '#ProudlyLeonean'],
     },
     {
       headline: 'Home, Delivered',
       body: `Send premium local products from ${name} directly to your family in Freetown with zero hassle. Safe, local, and empowering. Sponsored with love. 🇸🇱`,
-      hashtags: ['#SaloneReach', '#DiasporaLove'],
+      hashtags: ['#Manohub', '#DiasporaLove'],
     },
     {
       headline: 'Taste You Trust',
       body: `Feed your family with the finest organic quality from ${name}. Taste you remember, standards you trust. Delivered in 48 hours.`,
-      hashtags: ['#EatSalone', '#SaloneReach'],
+      hashtags: ['#EatSalone', '#Manohub'],
     },
   ];
 }
@@ -106,7 +106,7 @@ Variant 2 (Diaspora Connection):
 "Send premium local products from ${name} directly to your family in Freetown with zero hassle. Safe, local, and empowering. Sponsored with love. 🇸🇱"
 
 Variant 3 (Modern / Everyday):
-"Feed your family with the finest organic quality from ${name}. Taste you remember, standards you trust. Delivered in 48 hours. #EatSalone #SaloneReach"`;
+"Feed your family with the finest organic quality from ${name}. Taste you remember, standards you trust. Delivered in 48 hours. #EatSalone #Manohub"`;
   } else if (option === 'ideas') {
     return `[LOCAL BACKUP AI CONTENT IDEAS GENERATION]
 Brand Context: ${name}
@@ -187,7 +187,7 @@ export function getMockContentPlan(campaignName: string, startDate: string, endD
       platform: 'Facebook',
       headline: `Introducing: ${campaignName}`,
       body: `[LOCAL BACKUP CONTENT PLAN] ${name} is excited to launch "${campaignName}"! Stay tuned for more details. 🌾`,
-      hashtags: ['#SaloneReach', '#EatSalone'],
+      hashtags: ['#Manohub', '#EatSalone'],
       scheduledDate: dateAt(0),
     },
     {
@@ -196,7 +196,7 @@ export function getMockContentPlan(campaignName: string, startDate: string, endD
       platform: 'WhatsApp',
       headline: `Don't miss out — ${campaignName}`,
       body: `[LOCAL BACKUP CONTENT PLAN] Reminder from ${name}: "${campaignName}" is still going strong. Message us to find out more.`,
-      hashtags: ['#SaloneReach'],
+      hashtags: ['#Manohub'],
       scheduledDate: dateAt(0.5),
     },
     {
@@ -205,7 +205,7 @@ export function getMockContentPlan(campaignName: string, startDate: string, endD
       platform: 'Facebook & Instagram',
       headline: `Last chance: ${campaignName}`,
       body: `[LOCAL BACKUP CONTENT PLAN] ${name} wraps up "${campaignName}" soon — don't miss your chance to get involved.`,
-      hashtags: ['#SaloneReach', '#EatSalone'],
+      hashtags: ['#Manohub', '#EatSalone'],
       scheduledDate: dateAt(0.9),
     },
   ];

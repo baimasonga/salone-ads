@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export type Lang = 'en' | 'fr';
 
-const STORAGE_KEY = 'salonereach-lang';
+const STORAGE_KEY = 'manohub-lang';
 
 const dictionary = {
   signIn: { en: 'Sign In / Get Started', fr: 'Se connecter / Commencer' },

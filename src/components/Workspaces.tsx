@@ -667,7 +667,7 @@ export function Workspaces({
   const [editPlatform, setEditPlatform] = useState('Facebook');
   const [editHeadline, setEditHeadline] = useState('');
   const [editBody, setEditBody] = useState('');
-  const [editHashtagsInput, setEditHashtagsInput] = useState('#SaloneReach, #EatSalone');
+  const [editHashtagsInput, setEditHashtagsInput] = useState('#Manohub, #EatSalone');
   const [editScheduledDate, setEditScheduledDate] = useState(defaultScheduledDate());
   const [editStatus, setEditStatus] = useState<ContentItem['status']>('Draft');
   const [contentFeedback, setContentFeedback] = useState('');
@@ -683,7 +683,7 @@ export function Workspaces({
     setEditPlatform('Facebook');
     setEditHeadline('');
     setEditBody('');
-    setEditHashtagsInput('#SaloneReach, #EatSalone');
+    setEditHashtagsInput('#Manohub, #EatSalone');
     setEditScheduledDate(defaultScheduledDate());
     setEditStatus('Draft');
   };
@@ -831,7 +831,7 @@ export function Workspaces({
               platform: idea.platform || editPlatform || 'Facebook',
               headline: idea.title || '',
               bodyText: `${idea.concept || ''}\n\nHow to execute: ${idea.executionStep || ''}`,
-              hashtags: ['#SaloneReach', '#EatSalone'],
+              hashtags: ['#Manohub', '#EatSalone'],
               scheduledDate: defaultScheduledDate(),
             })
           );
@@ -3929,7 +3929,7 @@ export function Workspaces({
                 <label className="block text-xs font-bold text-slate-500 uppercase">Hashtags</label>
                 <input
                   type="text"
-                  placeholder="#SaloneReach, #EatSalone"
+                  placeholder="#Manohub, #EatSalone"
                   value={editHashtagsInput}
                   onChange={(e) => setEditHashtagsInput(e.target.value)}
                   className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
@@ -4648,7 +4648,7 @@ export function Workspaces({
                   <label className="block text-[10px] font-bold text-slate-500 uppercase">Account / Handle</label>
                   <input
                     type="text" required
-                    placeholder="@salonereach"
+                    placeholder="@manohub"
                     value={newChannelAccountName}
                     onChange={(e) => setNewChannelAccountName(e.target.value)}
                     className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
@@ -5380,7 +5380,7 @@ export function Workspaces({
                         platform: 'Facebook & WhatsApp',
                         headline: ev.title,
                         bodyText: `Join us for ${ev.title} — ${ev.date} at ${ev.location}. Don't miss it!`,
-                        hashtags: ['#SaloneReach', '#EatSalone'],
+                        hashtags: ['#Manohub', '#EatSalone'],
                         scheduledDate: ev.scheduledDate,
                       });
                       setContentItems([newItem, ...contentItems]);
@@ -5530,7 +5530,7 @@ export function Workspaces({
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
           <h3 className="font-display font-bold text-slate-900 text-lg">Team Roles & Secure Invites</h3>
           <p className="text-xs text-slate-500">
-            Add existing SaloneReach users to {activeOrg.name}.
+            Add existing Manohub users to {activeOrg.name}.
             {teamLimit !== null && ` Your plan allows up to ${teamLimit} team member${teamLimit === 1 ? '' : 's'}.`}
           </p>
 
@@ -5544,7 +5544,7 @@ export function Workspaces({
             <input
               type="email"
               required
-              placeholder="colleague@example.com (must already have a SaloneReach account)"
+              placeholder="colleague@example.com (must already have a Manohub account)"
               value={teamEmail}
               onChange={(e) => setTeamEmail(e.target.value)}
               className="flex-1 border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"

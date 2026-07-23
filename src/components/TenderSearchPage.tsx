@@ -145,7 +145,7 @@ export function TenderSearchPage() {
     <div className="min-h-screen bg-[#F8FAFC] border-4 md:border-8 border-[#0F172A]">
       <header className="bg-white border-b border-[#0F172A] px-6 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[#0F172A] font-display font-black tracking-widest uppercase text-sm">
-          <ArrowLeft className="h-4 w-4" /> SaloneReach Tenders
+          <ArrowLeft className="h-4 w-4" /> Manohub Tenders
         </Link>
         <div className="flex items-center gap-4">
           <div className="flex items-center border border-slate-200 text-[10px] font-mono uppercase tracking-widest">

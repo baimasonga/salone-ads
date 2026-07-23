@@ -1,6 +1,6 @@
-# SaloneReach - Digital Growth Platform for Sierra Leone
+# Manohub - Digital Growth Platform for Sierra Leone
 
-SaloneReach is a high-performance, mobile-first digital growth and advertising platform engineered specifically for Sierra Leonean businesses, local creators, and diaspora sponsors.
+Manohub is a high-performance, mobile-first digital growth and advertising platform engineered specifically for Sierra Leonean businesses, local creators, and diaspora sponsors.
 
 The platform bridges the gap between Sierra Leone's domestic economy (such as parboiled native rice cooperatives, local concerts, and verified business registries) and the affluent diaspora communities across the United Kingdom, United States, and Canada.
 
@@ -8,7 +8,7 @@ The platform bridges the gap between Sierra Leone's domestic economy (such as pa
 
 ## 🚀 Phase 0: Foundation Architecture
 
-This repository holds the fully compiled, linted, and production-ready **Phase 0 Foundation** of SaloneReach. It is constructed as a secure, full-stack, unified Node.js application (React 19 SPA + Express proxy container) to address CORS limitations, avoid client-side API key exposures, and perform seamless local operations.
+This repository holds the fully compiled, linted, and production-ready **Phase 0 Foundation** of Manohub. It is constructed as a secure, full-stack, unified Node.js application (React 19 SPA + Express proxy container) to address CORS limitations, avoid client-side API key exposures, and perform seamless local operations.
 
 ### Key Capabilities Installed
 1. **Landing Portal**: Custom high-contrast layout incorporating our **Emerald Sky** design ethos, targeting localized conversion.

@@ -1,9 +1,9 @@
-# SaloneReach Implementation Plan
+# Manohub Implementation Plan
 
 > **⚠️ Superseded by a product pivot — read this first.** This document describes the *original*
-> ad-platform-only vision. SaloneReach has since pivoted: **tenders/procurement are now the subscriber-
+> ad-platform-only vision. Manohub has since pivoted: **tenders/procurement are now the subscriber-
 > facing product**, and everything below (Campaigns, Content Studio, Media Library, Calendar, Tracking,
-> Directory, Influencers, Events, Tourism) is now **admin-only internal tooling** used by the SaloneReach
+> Directory, Influencers, Events, Tourism) is now **admin-only internal tooling** used by the Manohub
 > team itself to run its own promotion — never sold to or seen by paying subscribers. The phase table below
 > is updated to reflect real status, but for the actual detailed, chronological build log (what's real,
 > what's mocked, what's verified, and why), see **`docs/procurement-expansion-assessment.md`** — that is

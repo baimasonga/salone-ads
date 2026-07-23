@@ -1414,3 +1414,20 @@ links, Campaigns shows the health-check button, real per-card activity line, and
 panel with checkboxes, and Analytics shows the new charts and campaign-attribution select rendering
 correctly (including their empty states, since the mock dataset has no click data yet). Zero `pageerror`s
 across the run. `App.tsx` confirmed byte-identical to its pre-mock state via `diff` after reverting.
+
+## 38. Renamed the product to Manohub (2026-07-23)
+
+User rejected "SaloneReach" (too narrowly Sierra-Leone-branded for a platform that now spans Sierra Leone
+and Liberia via the Mano River Union region) and picked **Manohub** from a shortlist of Mano-themed name
+options. Renamed every live reference across the codebase: UI copy (header/footer brand mark, landing page,
+auth screens, tender search header), `index.html` title, `metadata.json`, `package.json`/`package-lock.json`
+package name, README, CI workflow name, Cloudflare config (`wrangler.toml` project name,
+`wrangler.containers.toml` container/binding names, `worker/index.ts`'s `ManohubContainer` class and env
+binding), the i18n localStorage key, and mock/placeholder content (hashtags, email, handle). `tsc --noEmit`
+clean for both the app and the worker tsconfig, and `npm run build` clean.
+
+Left this changelog's prior entries (§1-37) referring to the old name untouched — they're a dated historical
+record of decisions made under that name at the time, not living product copy, so rewriting them would
+misrepresent when the rename actually happened. Also left `docs/product-requirements.md`,
+`docs/implementation-plan.md`, `docs/architecture.md`, and `docs/cloudflare-deployment.md`'s brand mentions
+updated to Manohub since those are living specs describing the current product, not a log.

@@ -92,7 +92,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
             <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
               <div className="w-4 h-4 border-2 border-white"></div>
             </div>
-            <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">SaloneReach</span>
+            <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">Manohub</span>
           </div>
           <h2 className="font-display font-black text-2xl text-[#0F172A] uppercase tracking-tight">Configure active organization</h2>
           <p className="mt-2 text-sm text-slate-500">
@@ -241,7 +241,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
           <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
             <div className="w-4 h-4 border-2 border-white"></div>
           </div>
-          <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">SaloneReach</span>
+          <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">Manohub</span>
         </div>
         <h2 className="font-display font-black text-2xl text-[#0F172A] uppercase tracking-tight">
           {mode === 'signin' ? 'Sign In' : 'Create Account'}

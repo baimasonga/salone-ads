@@ -32,7 +32,7 @@ options both make sense:
   works on the Workers runtime, by just not depending on it. Rate limiting is a KV-backed
   fixed-window counter shared across both AI routes, matching the original Express app's behavior
   (one `express-rate-limit` instance was reused for both routes there too).
-- Deploy: `npm run deploy:pages` (`wrangler pages deploy dist --project-name=salonereach`).
+- Deploy: `npm run deploy:pages` (`wrangler pages deploy dist --project-name=manohub`).
 - Needs before deploying: a Cloudflare API token (`Pages: Edit`, `Workers KV Storage: Edit`,
   `Account Settings: Read`), account ID, a KV namespace bound as `RATE_LIMIT_KV` in
   `wrangler.toml` (create with `wrangler kv namespace create RATE_LIMIT_KV`, then fill in the id),
@@ -97,7 +97,7 @@ a sandbox restriction, not a Dockerfile problem). Before relying on this path, r
 
 ```
 wrangler deploy --config wrangler.containers.toml --dry-run
-docker build -t salonereach-test .   # needs a real .env in the build context first
+docker build -t manohub-test .   # needs a real .env in the build context first
 ```
 
 and fix whatever wrangler's own error messages point at — that will resolve any field-naming gaps

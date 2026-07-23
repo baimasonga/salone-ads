@@ -175,7 +175,7 @@ function MainApp() {
   // Define sidebar navigation items grouped logically.
   // Social media advertising (Campaigns, Content Studio, Calendar, Media
   // Library, Audiences, Social Accounts, Analytics, CRM Leads, Brand Kit) is
-  // internal SaloneReach-team tooling, not a customer-facing feature — only
+  // internal Manohub-team tooling, not a customer-facing feature — only
   // shown to platform admins. This is a UI convenience only; the real
   // boundary is the RLS policies on those tables (they now require
   // is_platform_admin(), see docs/procurement-expansion-assessment.md).
@@ -448,7 +448,7 @@ function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSi
               <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
                 <div className="w-4 h-4 border-2 border-white"></div>
               </div>
-              <span className="font-display font-black tracking-widest text-lg uppercase text-[#0F172A]">SaloneReach</span>
+              <span className="font-display font-black tracking-widest text-lg uppercase text-[#0F172A]">Manohub</span>
             </div>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-[#0F172A] hover:bg-slate-100 p-1 cursor-pointer">
               <X className="h-5 w-5" />
@@ -629,7 +629,7 @@ function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSi
             <span className="text-[#10B981]">14ms</span>
           </div>
           <div className="ml-auto opacity-50 tracking-widest uppercase text-[9px]">
-            SaloneReach v2.4 // Build Complete
+            Manohub v2.4 // Build Complete
           </div>
         </footer>
       </div>

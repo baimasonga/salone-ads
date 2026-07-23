@@ -1,26 +1,26 @@
-# SaloneReach Product Requirements Document (PRD)
+# Manohub Product Requirements Document (PRD)
 
 > **⚠️ Superseded by a product pivot — read this first.** This PRD describes the *original*
-> ad-platform-only positioning. SaloneReach has since pivoted: **tender/procurement discovery for
+> ad-platform-only positioning. Manohub has since pivoted: **tender/procurement discovery for
 > Sierra Leone and Liberia is now the subscriber-facing product** (public landing page, sector/district
 > directory, tender alerts, Buyer/Supplier subscriber tiers). Everything described below (Campaigns,
 > Content Studio, Media Library, Calendar, Tracking Links, Directory, Influencers, Events, Tourism) still
-> exists in the codebase, but is now **admin-only internal tooling** the SaloneReach team uses to run its
+> exists in the codebase, but is now **admin-only internal tooling** the Manohub team uses to run its
 > own promotion — it is not sold to or visible to paying subscribers. For the actual current requirements,
 > scope, and build log, see **`docs/procurement-expansion-assessment.md`**, which is the live source of
 > truth for this project. The sections below are kept for historical context on the original ad-platform
 > module, which is still real and functional, just no longer the product's front door.
 
 ## 1. Overview and Positioning (original, ad-platform-only vision)
-SaloneReach is the digital growth and advertising platform connecting Sierra Leonean businesses, organizations, creators, and communities with local and global audiences (diaspora, NGOs, investors, and tourists).
+Manohub is the digital growth and advertising platform connecting Sierra Leonean businesses, organizations, creators, and communities with local and global audiences (diaspora, NGOs, investors, and tourists).
 
 ### Positioning Statement
-> SaloneReach is the digital growth and advertising platform connecting Sierra Leonean businesses, organizations, creators, and communities with audiences in Sierra Leone and around the world.
+> Manohub is the digital growth and advertising platform connecting Sierra Leonean businesses, organizations, creators, and communities with audiences in Sierra Leone and around the world.
 
 ### Current Positioning Statement (see `procurement-expansion-assessment.md` for full detail)
-> SaloneReach is a tender and procurement discovery platform for Sierra Leone and Liberia, helping
+> Manohub is a tender and procurement discovery platform for Sierra Leone and Liberia, helping
 > suppliers find and win public and private sector opportunities, with an internal ad-platform module
-> the SaloneReach team uses to promote the product itself.
+> the Manohub team uses to promote the product itself.
 
 ## 2. Target Audience
 *   **Businesses in Sierra Leone:** Seeking local and international customer acquisition, brand visibility, and direct marketing channels.
