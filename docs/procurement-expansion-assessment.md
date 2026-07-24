@@ -1458,3 +1458,28 @@ SALONEREACH. Now `Mano<span>hub</span>`.
 Playwright with mocked Supabase REST responses in both populated and empty states — both render correctly
 with zero page errors. Left the tender browse/detail and logged-in dashboard layouts on their current
 composition (not part of this pass); they already inherit the same theme.
+
+## 40. Tenders browse + subscriber dashboard recomposed to the prototype (2026-07-23)
+
+Continued the layout/composition pass (theme unchanged) onto the other two prototype screens:
+
+**Tenders browse (`TenderSearchPage.tsx`)** — restructured to prototype screen 03: a "Live Tenders" eyebrow +
+heading, a single inline search row (keyword + sector/country/district/type selects + Search), a status chip
+row (All / Open / Closing soon / Featured — client-side filters over the loaded results) with a live results
+count, clear-filters, and the authed save-search action, then richer icon-led result rows (sector icon,
+ref·sector·district meta, title, buyer, and a right column with featured pill, value, and colour-coded
+deadline urgency). Added a dashed-border empty state. All existing behaviour kept: URL-param filters, the
+five real taxonomy fetches, saved-search create/apply/delete, i18n, currency formatting.
+
+**Subscriber dashboard (the non-admin `overview` tab in `Workspaces.tsx`)** — recomposed to prototype screen
+04: a welcome header with an org monogram, plan tier, and Find-tenders / New-saved-search actions; a 4-up
+stat row (recommended matches, saved searches, alerts, pipeline); a two-column body with a "Recommended for
+you" tender list (newly wired via `fetchRecommendedOpportunities` added to the overview data effect) and a
+"Saved searches" panel; the Free-tier upsell band retained. Only the one contained `overview && !admin`
+render block and its data effect changed — the rest of the 5.7k-line file is untouched.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean. The public Tenders page was screenshot-verified
+via `vite preview` + Playwright (mocked Supabase REST) in populated and empty states, zero page errors. The
+subscriber dashboard is auth-gated (the sandbox can't authenticate to render it), so it was verified by
+typecheck + build + code review rather than a live screenshot; its data fetches all have `.catch` fallbacks
+and every section has an explicit empty state.
