@@ -4,7 +4,7 @@ import {
   ArrowRight, ArrowUpRight, CheckCircle, Sparkles, Bell, FileSearch, ClipboardCheck, Megaphone,
   Search, KeyRound, Send, MapPin, Menu, X, Wheat, HardHat, Mountain, Wifi, Landmark,
   HeartPulse, GraduationCap, Palmtree, Zap, Truck, Briefcase, HandHeart, Building2, ChevronDown,
-  Mail, MessageCircle, Bookmark, Clock, Coins,
+  Mail, MessageCircle, Bookmark, Clock, Coins, Store, ShoppingBag, Ticket,
 } from 'lucide-react';
 import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, OpportunityListItem, TaxonomyOption } from '../lib/procurementApi';
 
@@ -64,6 +64,22 @@ function sectorIcon(name: string) {
   if (n.includes('ngo') || n.includes('develop')) return HandHeart;
   return Building2;
 }
+
+// Advertising categories showcased on the homepage marquee. These are the
+// kinds of businesses Manohub promotes (the ad team designs & runs each
+// campaign) — a marketing showcase, not a feed of live third-party ads.
+const ADVERT_CATEGORIES = [
+  { name: 'Business', desc: 'Shops, brands & local enterprises', icon: Store },
+  { name: 'Goods & Services', desc: 'Products and everyday services', icon: ShoppingBag },
+  { name: 'Healthcare', desc: 'Clinics, pharmacies & health services', icon: HeartPulse },
+  { name: 'Transportation', desc: 'Logistics, transport & delivery', icon: Truck },
+  { name: 'Events', desc: 'Concerts, launches & promotions', icon: Ticket },
+  { name: 'Hospitality & Tourism', desc: 'Hotels, restaurants & travel', icon: Palmtree },
+  { name: 'Financial Services', desc: 'Banks, fintech & insurance', icon: Landmark },
+  { name: 'Education', desc: 'Schools, training & courses', icon: GraduationCap },
+  { name: 'Agriculture', desc: 'Farms, produce & agribusiness', icon: Wheat },
+  { name: 'Construction', desc: 'Builders, materials & trades', icon: HardHat },
+];
 
 const HOW_IT_WORKS = [
   { num: '01', icon: Search, title: 'Search, free', body: 'Browse every published tender by sector, district, or keyword — no account needed to look.' },
@@ -142,7 +158,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const navLinks = [
     { href: '#explorer', label: 'Live Tenders' },
     { href: '#how', label: 'How It Works' },
-    { href: '#features', label: 'Features' },
+    { href: '#advertise', label: 'Advertise' },
     { href: '#pricing', label: 'Pricing' },
   ];
 
@@ -616,94 +632,50 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
         </div>
       </section>
 
-      {/* ============================ FEATURES BENTO ============================ */}
-      <section id="features" className="py-14 bg-white border-b border-slate-100 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col gap-8">
+      {/* ============================ ADVERTISE (scrolling banner) ============================ */}
+      <section id="advertise" className="py-14 bg-white border-b border-slate-100 overflow-hidden">
+        <style dangerouslySetInnerHTML={{ __html: `
+          .mh-marquee-wrap { width: 100%; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
+          .mh-marquee-track { display: flex; gap: 16px; width: max-content; padding: 4px 8px; animation: mh-marquee 48s linear infinite; }
+          .mh-marquee-wrap:hover .mh-marquee-track { animation-play-state: paused; }
+          @keyframes mh-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+          @media (prefers-reduced-motion: reduce) { .mh-marquee-track { animation: none; } }
+        ` }} />
+        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
           <div className="max-w-2xl flex flex-col gap-2">
-            <span className="text-emerald-600 font-bold tracking-widest text-xs uppercase font-mono">Everything in one place</span>
+            <span className="text-emerald-600 font-bold tracking-widest text-xs uppercase font-mono">More than tenders</span>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-              Search, alerts, publishing, and a private pipeline
+              Advertise your business across the region
             </h2>
+            <p className="text-slate-600 leading-relaxed">
+              Manohub isn't only procurement. Shops, service providers, healthcare, transport operators and
+              event organisers promote what they do to buyers and communities across Sierra Leone and Liberia
+              — our team designs, builds, and runs each campaign for you.
+            </p>
           </div>
+          <button onClick={onGetStarted} className="shrink-0 bg-emerald-600 text-white font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:bg-emerald-700 transition-colors cursor-pointer inline-flex items-center gap-2 self-start sm:self-auto">
+            <Megaphone className="h-4 w-4" /> Advertise your business
+          </button>
+        </div>
 
-          <div className="grid md:grid-cols-12 gap-4 w-full">
-            {/* AI Assistant */}
-            <div className="md:col-span-8 border border-slate-200 hover:border-[#0F172A] transition-colors p-6 bg-white flex flex-col md:flex-row gap-6 items-center">
-              <div className="space-y-3 flex-1">
-                <div className="border border-emerald-200 bg-emerald-50 text-emerald-700 font-mono font-bold text-[10px] px-3 py-1 uppercase tracking-wider inline-block">
-                  Gemini AI-Powered
-                </div>
-                <h3 className="font-display font-bold text-xl text-slate-900">AI Tender Assistant</h3>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Plain-language explanations of dense tender documents, plus automatic sector
-                  suggestions when buyers publish — so nothing gets misfiled or missed.
-                </p>
-              </div>
-              <div className="bg-slate-50 border border-slate-200 p-4 w-full md:w-72 space-y-2 font-mono text-xs shrink-0 text-left">
-                <div className="text-emerald-600 flex items-center gap-1.5 font-bold">
-                  <Sparkles className="h-3.5 w-3.5" /> explain_tender
-                </div>
-                <p className="text-slate-500 italic">"In plain terms: this tender needs a registered supplier who can deliver &amp; install office furniture in Freetown within 30 days of award. Bid bond: 2%."</p>
-                <div className="border-t border-slate-200 pt-2 text-slate-400">Plain-language summary</div>
-              </div>
-            </div>
-
-            {/* Alerts */}
-            <div className="md:col-span-4 border border-slate-200 hover:border-[#0F172A] transition-colors p-6 bg-white flex flex-col justify-between">
-              <div>
-                <div className="h-9 w-9 border border-[#0F172A] bg-blue-50 flex items-center justify-center mb-4">
-                  <Bell className="h-4 w-4 text-blue-700" />
-                </div>
-                <h3 className="font-display font-bold text-lg text-slate-900 mb-1.5">Saved Searches &amp; Alerts</h3>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Save a search once — by sector, district, or keyword — and get notified the moment a
-                  matching tender is published, amended, or approaching its deadline.
-                </p>
-              </div>
-              <div className="border-t border-slate-200 pt-3 mt-4 flex justify-between items-center text-xs text-slate-500 font-mono">
-                <span>In-app + email</span>
-                <span className="text-emerald-600 font-semibold flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> Active</span>
-              </div>
-            </div>
-
-            {/* Buyer Publishing */}
-            <div className="md:col-span-4 border border-slate-200 hover:border-[#0F172A] transition-colors p-6 bg-white flex flex-col justify-between">
-              <div>
-                <div className="h-9 w-9 border border-[#0F172A] bg-purple-50 flex items-center justify-center mb-4">
-                  <ClipboardCheck className="h-4 w-4 text-purple-700" />
-                </div>
-                <h3 className="font-display font-bold text-lg text-slate-900 mb-1.5">Buyer Publishing Workflow</h3>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Verified buyers submit tenders for admin review before they go live, keeping the
-                  marketplace clean and trustworthy.
-                </p>
-              </div>
-              <div className="border-t border-slate-200 pt-3 mt-4 text-xs text-slate-400 font-mono uppercase tracking-wider">
-                Admin-reviewed
-              </div>
-            </div>
-
-            {/* Supplier Pipeline */}
-            <div className="md:col-span-8 border border-slate-200 hover:border-[#0F172A] transition-colors p-6 bg-white flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="border border-amber-200 bg-amber-50 text-amber-800 font-mono text-[10px] font-semibold px-3 py-1 uppercase tracking-wider inline-block">
-                  Private To You
-                </div>
-                <h3 className="font-display font-bold text-xl text-slate-900">Bid Pipeline &amp; Documents</h3>
-                <p className="text-slate-600 text-sm leading-relaxed">
-                  Track every tender you're pursuing from saved through won or lost, upload supporting
-                  documents, and download buyer-published materials — never visible to other suppliers.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-3 border-t border-slate-200">
-                {['Saved', 'Preparing', 'Submitted', 'Won / Lost'].map((label, i) => (
-                  <div key={label} className={`text-center ${i > 0 ? 'border-l border-slate-200' : ''}`}>
-                    <span className="block font-mono text-emerald-600 font-bold text-sm">{label}</span>
-                    <span className="text-[10px] text-slate-400">Stage {i + 1}</span>
+        {/* Scrolling category banner (full-bleed) */}
+        <div className="mt-8 mh-marquee-wrap">
+          <div className="mh-marquee-track">
+            {[...ADVERT_CATEGORIES, ...ADVERT_CATEGORIES].map((cat, i) => {
+              const Icon = cat.icon;
+              return (
+                <div key={i} className="w-64 shrink-0 bg-white border border-[#0F172A] p-5">
+                  <div className="flex items-center justify-between">
+                    <span className="w-11 h-11 border border-[#0F172A] bg-emerald-50 flex items-center justify-center">
+                      <Icon className="h-5 w-5 text-emerald-700" />
+                    </span>
+                    <span className="font-mono text-[9px] uppercase tracking-widest text-slate-400">Sponsored</span>
                   </div>
-                ))}
-              </div>
-            </div>
+                  <h3 className="font-display font-bold text-base text-slate-900 mt-4">{cat.name}</h3>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">{cat.desc}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -889,7 +861,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
             <span className="font-mono text-[10px] uppercase tracking-widest text-white font-bold">Platform</span>
             <a href="#explorer" className="text-xs hover:text-white transition-colors">Live Tenders</a>
             <a href="#sectors" className="text-xs hover:text-white transition-colors">Browse By Sector</a>
-            <a href="#features" className="text-xs hover:text-white transition-colors">Features</a>
+            <a href="#advertise" className="text-xs hover:text-white transition-colors">Advertise</a>
             <a href="#pricing" className="text-xs hover:text-white transition-colors">Pricing</a>
           </div>
 
