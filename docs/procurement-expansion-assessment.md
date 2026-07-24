@@ -1566,3 +1566,13 @@ poster). Added the `html-to-image` dependency (client-side DOM→PNG; no server 
 This is a first version on the Gradient tokens already shared — the templates can be swapped/extended to the
 owner's exact Claude Design export when uploaded. `tsc`/`build` clean; the poster creative screenshot-
 verified on the detail page with zero page errors.
+
+**Follow-ups (same pass):**
+- **Subscriber preview**: the subscriber "My Adverts" request form now shows a live creative of *their own*
+  advert (org name + subject + description + category) as they type, with format tabs and a "Download my
+  advert (PNG)" button — the business sees its ad designed the moment it fills the form.
+- **Save creative for social hand-off**: new public `advert-creatives` storage bucket (migration
+  `advert_creatives_storage`; authenticated insert, public read) + `uploadAdvertCreative(dataUrl)` and a
+  `creative_url` column on `adverts`. The admin form's "Save for social" button exports the PNG, uploads it,
+  and attaches the public URL to the advert on publish; the admin list links the stored "creative PNG".
+  (Distinct from `media_url`, which stays an optional business *photo* composited into the poster.)

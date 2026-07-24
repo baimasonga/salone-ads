@@ -139,6 +139,7 @@ import {
   createAdvert,
   updateAdvert,
   deleteAdvert,
+  uploadAdvertCreative,
   Advert,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
@@ -1999,18 +2000,53 @@ export function Workspaces({
   const [publishedAdverts, setPublishedAdverts] = useState<Advert[]>([]);
   const [advForm, setAdvForm] = useState({
     title: '', category: 'business', businessName: '', summary: '', content: '',
-    mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '',
+    mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '',
   });
   const [advSaving, setAdvSaving] = useState(false);
   const [advFormat, setAdvFormat] = useState<AdvertFormat>('poster');
+  const [savingCreative, setSavingCreative] = useState(false);
   const creativeRef = useRef<HTMLDivElement>(null);
 
-  // Export the auto-generated creative to a PNG for social / print use.
+  // Export a rendered creative node to a PNG data URL (2x).
+  const exportCreativePng = (node: HTMLElement | null) =>
+    node ? toPng(node, { pixelRatio: 2, cacheBust: true }) : Promise.reject(new Error('nothing to export'));
+
+  // Download the auto-generated creative as a PNG for social / print use.
   const handleDownloadCreative = async () => {
-    if (!creativeRef.current) return;
     try {
-      const dataUrl = await toPng(creativeRef.current, { pixelRatio: 2, cacheBust: true });
+      const dataUrl = await exportCreativePng(creativeRef.current);
       const name = (advForm.title || 'advert').toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'advert';
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `${name}-${advFormat}.png`;
+      a.click();
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: could not export the creative (${err?.message || 'unknown'}).`);
+    }
+  };
+
+  // Save the exported creative to storage and attach it to this advert (for
+  // social hand-off). The public URL is stored on the advert as creative_url.
+  const handleSaveCreativeForSocial = async () => {
+    setSavingCreative(true);
+    try {
+      const dataUrl = await exportCreativePng(creativeRef.current);
+      const url = await uploadAdvertCreative(dataUrl);
+      setAdvForm((f) => ({ ...f, creativeUrl: url }));
+      setAdvertisementFeedback('Creative saved — it will attach to the advert when you publish.');
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: could not save the creative (${err?.message || 'unknown'}).`);
+    } finally {
+      setSavingCreative(false);
+    }
+  };
+
+  // Subscriber-side preview of their own advert as they fill the request form.
+  const subCreativeRef = useRef<HTMLDivElement>(null);
+  const handleDownloadSubCreative = async () => {
+    try {
+      const dataUrl = await exportCreativePng(subCreativeRef.current);
+      const name = (adSubject || 'advert').toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'advert';
       const a = document.createElement('a');
       a.href = dataUrl;
       a.download = `${name}-${advFormat}.png`;
@@ -2061,10 +2097,11 @@ export function Workspaces({
         mediaUrl: advForm.mediaUrl || null,
         socialPlatform: advForm.socialPlatform || null,
         socialUrl: advForm.socialUrl || null,
+        creativeUrl: advForm.creativeUrl || null,
         status: 'live',
       });
       setPublishedAdverts([created, ...publishedAdverts]);
-      setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '' });
+      setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '' });
       setAdvertisementFeedback('Advert published to the site.');
     } catch (err: any) {
       setAdvertisementFeedback(`Error: ${err.message || 'Could not publish advert.'}`);
@@ -3285,6 +3322,34 @@ export function Workspaces({
               </button>
             </form>
 
+            {/* Live creative preview — your advert, designed automatically */}
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-display font-bold text-slate-900 text-sm">Your advert, designed automatically</h4>
+                <div className="flex items-center gap-1">
+                  {(['poster', 'strip', 'square'] as AdvertFormat[]).map((f) => (
+                    <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">This is generated from your details as you type. Our team refines and runs it — you can download it too.</p>
+              <div className="bg-slate-50 border border-slate-200 p-3 max-w-md">
+                <CreativeScaler format={advFormat}>
+                  <AdvertCreative
+                    ref={subCreativeRef}
+                    format={advFormat}
+                    businessName={activeOrg.name}
+                    headline={adSubject || 'Your headline goes here'}
+                    body={adDescription}
+                    category={categoryLabels[adCategory]}
+                  />
+                </CreativeScaler>
+              </div>
+              <button type="button" onClick={handleDownloadSubCreative} className="mt-3 border border-emerald-600 text-emerald-700 font-mono text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-emerald-600 hover:text-white transition-colors cursor-pointer">
+                Download my advert (PNG)
+              </button>
+            </div>
+
             <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
               <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Requests</h4>
               {myAdvertisements.length === 0 ? (
@@ -3461,9 +3526,19 @@ export function Workspaces({
                 />
               </CreativeScaler>
             </div>
-            <button type="button" onClick={handleDownloadCreative} className="mt-2 w-full border border-[#0F172A] text-[#0F172A] font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-[#0F172A] hover:text-white transition-colors cursor-pointer">
-              Download PNG
-            </button>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button type="button" onClick={handleDownloadCreative} className="border border-[#0F172A] text-[#0F172A] font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-[#0F172A] hover:text-white transition-colors cursor-pointer">
+                Download PNG
+              </button>
+              <button type="button" onClick={handleSaveCreativeForSocial} disabled={savingCreative} className="border border-emerald-600 text-emerald-700 font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-emerald-600 hover:text-white transition-colors cursor-pointer disabled:opacity-50">
+                {savingCreative ? 'Saving…' : 'Save for social'}
+              </button>
+            </div>
+            {advForm.creativeUrl && (
+              <p className="mt-2 text-[11px] text-emerald-700">
+                Creative saved · <a href={advForm.creativeUrl} target="_blank" rel="noopener noreferrer" className="underline">open PNG</a> — attaches on publish.
+              </p>
+            )}
           </div>
           </div>
 
@@ -3478,6 +3553,7 @@ export function Workspaces({
                     <p className="text-xs text-slate-500 mt-0.5">
                       {adv.category} · {adv.status}
                       {adv.socialUrl && <> · <a href={adv.socialUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">social post</a></>}
+                      {adv.creativeUrl && <> · <a href={adv.creativeUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">creative PNG</a></>}
                       {' · '}<Link to={`/adverts/${adv.slug}`} target="_blank" className="text-emerald-600 hover:underline">/adverts/{adv.slug}</Link>
                     </p>
                   </div>

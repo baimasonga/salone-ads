@@ -1590,13 +1590,14 @@ export interface Advert {
   mediaUrl: string | null;
   socialPlatform: string | null;
   socialUrl: string | null;
+  creativeUrl: string | null;
   status: AdvertStatus;
   publishedAt: string | null;
   createdAt: string;
 }
 
 const ADVERT_SELECT =
-  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, status, published_at, created_at';
+  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, status, published_at, created_at';
 
 function mapAdvert(row: any): Advert {
   return {
@@ -1610,10 +1611,21 @@ function mapAdvert(row: any): Advert {
     mediaUrl: row.media_url ?? null,
     socialPlatform: row.social_platform ?? null,
     socialUrl: row.social_url ?? null,
+    creativeUrl: row.creative_url ?? null,
     status: row.status,
     publishedAt: row.published_at ?? null,
     createdAt: row.created_at,
   };
+}
+
+// Upload an exported creative PNG (data URL) to the public advert-creatives
+// bucket and return its public URL — for social/print hand-off.
+export async function uploadAdvertCreative(dataUrl: string): Promise<string> {
+  const blob = await (await fetch(dataUrl)).blob();
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+  const { error } = await supabase.storage.from('advert-creatives').upload(path, blob, { contentType: 'image/png', upsert: false });
+  if (error) throw error;
+  return supabase.storage.from('advert-creatives').getPublicUrl(path).data.publicUrl;
 }
 
 // Public: live adverts for the homepage banner (anon-readable via RLS).
@@ -1658,6 +1670,7 @@ export interface CreateAdvertInput {
   mediaUrl?: string | null;
   socialPlatform?: string | null;
   socialUrl?: string | null;
+  creativeUrl?: string | null;
   status?: AdvertStatus;
   orgId?: string | null;
   requestId?: string | null;
@@ -1681,6 +1694,7 @@ export async function createAdvert(input: CreateAdvertInput): Promise<Advert> {
       media_url: input.mediaUrl ?? null,
       social_platform: input.socialPlatform ?? null,
       social_url: input.socialUrl ?? null,
+      creative_url: input.creativeUrl ?? null,
       status,
       org_id: input.orgId ?? null,
       request_id: input.requestId ?? null,
@@ -1702,6 +1716,7 @@ export interface UpdateAdvertInput {
   mediaUrl?: string | null;
   socialPlatform?: string | null;
   socialUrl?: string | null;
+  creativeUrl?: string | null;
   status?: AdvertStatus;
 }
 
@@ -1715,6 +1730,7 @@ export async function updateAdvert(id: string, updates: UpdateAdvertInput): Prom
   if (updates.mediaUrl !== undefined) patch.media_url = updates.mediaUrl;
   if (updates.socialPlatform !== undefined) patch.social_platform = updates.socialPlatform;
   if (updates.socialUrl !== undefined) patch.social_url = updates.socialUrl;
+  if (updates.creativeUrl !== undefined) patch.creative_url = updates.creativeUrl;
   if (updates.status !== undefined) {
     patch.status = updates.status;
     if (updates.status === 'live') patch.published_at = new Date().toISOString();
