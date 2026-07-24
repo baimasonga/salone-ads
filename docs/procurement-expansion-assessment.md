@@ -1431,3 +1431,30 @@ record of decisions made under that name at the time, not living product copy, s
 misrepresent when the rename actually happened. Also left `docs/product-requirements.md`,
 `docs/implementation-plan.md`, `docs/architecture.md`, and `docs/cloudflare-deployment.md`'s brand mentions
 updated to Manohub since those are living specs describing the current product, not a log.
+
+## 39. Landing page recomposed to the uploaded design prototype (2026-07-23)
+
+User supplied a full "Gradient" design-kit prototype (tokens, a static HTML mockup, and screenshots) from
+Claude Design and initially asked to change the UI. After I proposed swapping the global theme to the new
+Iris/violet token system, they clarified: **keep the existing global theme (navy/emerald "Geometric
+Balance"), only change the placement of elements and content to follow the reference.** So this pass is a
+layout/composition rebuild of `LandingPage.tsx` only — no colours, fonts, radius, or `index.css` touched.
+
+Recomposed the home to mirror the prototype's information architecture, rendered entirely in the current
+theme: a dark hero with a LIVE badge, the "Every public tender in one place — search, bid, win." headline,
+an inline keyword+sector search, popular-sector chips, and a floating "matched tender" card plus a 2×2 live
+stats grid; a "Notices from" trust strip (real buyer names, hidden when empty); a three-column live explorer
+(Sectors with counts · featured tender cards · Closing-soon list with a Get-alerts CTA); full How-it-works
+cards; Who-we-serve; the features bento; pricing; FAQ; and a closing "Start finding tenders today" CTA band.
+All data stays real (`searchOpportunities`/`fetchSectors`/`fetchDistricts`/`fetchCountries`), and every new
+block has an honest empty state — with 0 published tenders today the hero card is explicitly labelled
+"EXAMPLE TENDER" rather than passing an illustrative row off as live.
+
+Also fixed a latent rename bug the earlier sed pass missed: the nav wordmark was split as
+`Salone<span>Reach</span>`, so the literal string "SaloneReach" never matched and the header still read
+SALONEREACH. Now `Mano<span>hub</span>`.
+
+**Verification**: `tsc --noEmit` and `npm run build` clean; rendered the built SPA via `vite preview` and
+Playwright with mocked Supabase REST responses in both populated and empty states — both render correctly
+with zero page errors. Left the tender browse/detail and logged-in dashboard layouts on their current
+composition (not part of this pass); they already inherit the same theme.
