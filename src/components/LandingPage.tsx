@@ -364,6 +364,53 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
             </Link>
           </div>
 
+          {!loadingLatest && latest.length === 0 ? (
+            <div className="flex flex-col gap-5">
+              {/* Empty state: full-width sector grid so the row doesn't read as blank */}
+              <div id="sectors" className="bg-white border border-slate-200">
+                <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                  <span className="font-display font-bold text-sm text-slate-900">Browse by sector</span>
+                  <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5">{sectors.length || 0} sectors</span>
+                </div>
+                {sectors.length === 0 ? (
+                  <p className="px-5 py-8 text-xs text-slate-400 text-center">Loading sectors…</p>
+                ) : (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-px bg-slate-200">
+                    {sectors.map((sector) => {
+                      const Icon = sectorIcon(sector.name);
+                      return (
+                        <Link
+                          key={sector.id}
+                          to={`/tenders?sector=${sector.id}`}
+                          className="flex items-center gap-3 px-5 py-4 bg-white hover:bg-slate-50 transition-colors group"
+                        >
+                          <span className="w-9 h-9 border border-slate-200 bg-emerald-50 flex items-center justify-center shrink-0">
+                            <Icon className="h-4 w-4 text-emerald-700" />
+                          </span>
+                          <span className="flex-1 text-sm font-medium text-slate-700 group-hover:text-emerald-700 transition-colors min-w-0 truncate">{sector.name}</span>
+                          <ArrowUpRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-emerald-600 shrink-0" />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {/* Slim alert CTA band */}
+              <div className="bg-[#0F172A] text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-5">
+                <div className="flex items-start gap-3">
+                  <FileSearch className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-display font-bold text-sm !text-white">No tenders published yet</p>
+                    <p className="text-xs text-slate-300 mt-0.5 max-w-md">New opportunities appear here the moment they clear admin review. Get alerted so you never miss one.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={onGetStarted} className="bg-emerald-500 text-[#0F172A] font-mono text-xs font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-emerald-400 transition-colors cursor-pointer">Get Alerted</button>
+                  <Link to="/tenders" className="border border-white/25 text-white font-mono text-xs font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-white/10 transition-colors">Browse Tenders</Link>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="grid lg:grid-cols-12 gap-5 items-start">
             {/* Sectors */}
             <aside id="sectors" className="lg:col-span-3 bg-white border border-slate-200">
@@ -471,6 +518,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               </button>
             </aside>
           </div>
+          )}
         </div>
       </section>
 
