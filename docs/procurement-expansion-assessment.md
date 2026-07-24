@@ -1483,3 +1483,27 @@ via `vite preview` + Playwright (mocked Supabase REST) in populated and empty st
 subscriber dashboard is auth-gated (the sandbox can't authenticate to render it), so it was verified by
 typecheck + build + code review rather than a live screenshot; its data fetches all have `.catch` fallbacks
 and every section has an explicit empty state.
+
+## 41. Tenders page rebuilt pixel-for-pixel to the supplied MANOHUB Tenders mockup (2026-07-23)
+
+The product owner supplied a fully-designed "MANOHUB Tenders" HTML mockup (the Gradient design kit applied
+to this page) and asked to redo the procurement page *exactly* as attached. Rebuilt `TenderSearchPage.tsx`
+to reproduce it precisely: the navy `#0d1b2a` outer frame around a white app card; a mono wordmark nav with
+EN/FR toggle and SIGN IN / GET STARTED; a "LIVE TENDERS" eyebrow + "Procurement Opportunities" heading in
+Hanken Grotesk; the inline search + four filter selects + SEARCH button at 46px/6px-radius; the ALL / OPEN /
+CLOSING SOON / FEATURED status chip row with a results count; and the exact tender rows — 64px mint icon
+tile, `Works · Sector · 📍District` mono meta line, 19px title, buyer, and a right column with the FEATURED
+badge, tag-iconed value, colour-coded deadline (amber ≤7 days, green beyond), and the dim deadline date.
+The content sits on the mockup's `#f4f6f8` dotted-radial background with a subtle grain overlay.
+
+The app's global theme (the "geometric" navy/emerald look) is enforced app-wide via `!important` rules in
+`index.css` (sharp corners, Outfit headings, mono-uppercase buttons, navy-bordered inputs). Rather than
+change those globally — the owner wants the rest of the app left as-is — this page carries a **scoped**
+`<style>` block (everything under a `.mh-tenders` wrapper) that re-establishes Hanken Grotesk, JetBrains
+Mono, 6px radius, and the green focus ring for this page only, plus inline styles for exact colours and
+spacing. Added Hanken Grotesk (and heavier JetBrains Mono weights) to the Google-Fonts import. All real
+behaviour is retained: URL-param filters, the five taxonomy fetches, saved-search create/apply/delete,
+client-side status filtering, i18n toggle, currency formatting.
+
+**Verification**: `tsc --noEmit` + `npm run build` clean; screenshotted via `vite preview` + Playwright in
+populated and empty states — both match the mockup with zero page errors.
