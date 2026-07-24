@@ -1507,3 +1507,36 @@ client-side status filtering, i18n toggle, currency formatting.
 
 **Verification**: `tsc --noEmit` + `npm run build` clean; screenshotted via `vite preview` + Playwright in
 populated and empty states — both match the mockup with zero page errors.
+
+## 42. Real on-site adverts: public banner, detail page, admin publishing (2026-07-23)
+
+Product owner clarified adverts must show on the site (not only run on social): clicking an on-site advert
+should open its details and link out to the social post, and the social creative should reference the
+advert's Manohub page. The embedded architecture question — "which of the two updates the other?" — is
+answered **Manohub is the source of truth**: we have no social-platform API credentials, so social can't be
+authoritative; instead the admin authors the advert once in Manohub (title, content, media, category,
+business) and stores the social post URL on the record. On-site display + the social post both derive from
+that single row; editing in Manohub updates the site instantly; the social post is a published copy that
+links back. Nothing needs syncing.
+
+Built the full loop:
+- **Schema** (`create_public_adverts`): new `public.adverts` table (slug, title, category, business_name,
+  summary, content, media_url, social_platform, social_url, status draft/live/archived, org_id, request_id,
+  published_at). RLS: anon/authenticated may `select` **only `status='live'`** rows; `is_platform_admin()`
+  gets `ALL`. Live-tested: an anonymous role sees only the live row, not drafts.
+- **API** (`procurementApi.ts`): public `fetchLiveAdverts()` / `fetchAdvertBySlug()`, admin `fetchAllAdverts`
+  / `createAdvert` (auto-slug) / `updateAdvert` (status→live stamps published_at) / `deleteAdvert`.
+- **Public detail page** (`AdvertDetailPage.tsx`, route `/adverts/:slug`): media, category, title, business,
+  content, a "View on {platform} ↗" button (the social link) and an "Advertise your business" CTA. Honest
+  not-found state for non-live/absent slugs.
+- **Homepage banner**: the scrolling marquee now shows **real live adverts** (image/title/business/category,
+  linking to the detail page) when any exist, and falls back to the advert-category showcase when none —
+  so it's truthful whether or not real adverts are published.
+- **Admin publishing** (admin Advertising tab): a "Publish an advert to the site" form (title, business,
+  category, image URL, summary, full content, social platform + post URL) that creates a live advert, plus a
+  list with archive/set-live/delete and links to the public page and the social post.
+
+**Verification**: `tsc`/`build` clean; RLS live-tested (anon sees live only); Playwright-screenshotted the
+homepage banner with mocked live adverts and the `/adverts/:slug` detail page (View-on-Facebook + CTA) —
+zero page errors. No adverts seeded into production, so the homepage keeps the category fallback until an
+admin publishes real ones.

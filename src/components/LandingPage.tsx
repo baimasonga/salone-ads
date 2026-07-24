@@ -6,7 +6,7 @@ import {
   HeartPulse, GraduationCap, Palmtree, Zap, Truck, Briefcase, HandHeart, Building2, ChevronDown,
   Mail, MessageCircle, Bookmark, Clock, Coins, Store, ShoppingBag, Ticket,
 } from 'lucide-react';
-import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, OpportunityListItem, TaxonomyOption } from '../lib/procurementApi';
+import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchLiveAdverts, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -119,6 +119,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const [districtCount, setDistrictCount] = useState(0);
   const [countryCount, setCountryCount] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [liveAdverts, setLiveAdverts] = useState<Advert[]>([]);
 
   useEffect(() => {
     searchOpportunities({})
@@ -128,6 +129,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       })
       .catch(() => setLatest([]))
       .finally(() => setLoadingLatest(false));
+    fetchLiveAdverts().then(setLiveAdverts).catch(() => setLiveAdverts([]));
     Promise.all([fetchSectors(), fetchDistricts(), fetchCountries()])
       .then(([s, d, c]) => {
         setSectors(s);
@@ -658,24 +660,45 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           </button>
         </div>
 
-        {/* Scrolling category banner (full-bleed) */}
+        {/* Scrolling banner — real live adverts when published, else the
+            categories businesses can promote (full-bleed). */}
         <div className="mt-8 mh-marquee-wrap">
           <div className="mh-marquee-track">
-            {[...ADVERT_CATEGORIES, ...ADVERT_CATEGORIES].map((cat, i) => {
-              const Icon = cat.icon;
-              return (
-                <div key={i} className="w-64 shrink-0 bg-white border border-[#0F172A] p-5">
-                  <div className="flex items-center justify-between">
-                    <span className="w-11 h-11 border border-[#0F172A] bg-emerald-50 flex items-center justify-center">
-                      <Icon className="h-5 w-5 text-emerald-700" />
-                    </span>
-                    <span className="font-mono text-[9px] uppercase tracking-widest text-slate-400">Sponsored</span>
-                  </div>
-                  <h3 className="font-display font-bold text-base text-slate-900 mt-4">{cat.name}</h3>
-                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">{cat.desc}</p>
-                </div>
-              );
-            })}
+            {liveAdverts.length > 0
+              ? [...liveAdverts, ...liveAdverts].map((ad, i) => (
+                  <Link key={`ad-${i}`} to={`/adverts/${ad.slug}`} className="w-64 shrink-0 bg-white border border-[#0F172A] overflow-hidden group">
+                    {ad.mediaUrl ? (
+                      <img src={ad.mediaUrl} alt={ad.title} className="w-full h-28 object-cover border-b border-[#0F172A]" />
+                    ) : (
+                      <div className="w-full h-28 bg-[#0F172A] flex items-center justify-center border-b border-[#0F172A]">
+                        <Store className="h-7 w-7 text-emerald-400" />
+                      </div>
+                    )}
+                    <div className="p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[9px] uppercase tracking-widest text-emerald-700">{ad.category}</span>
+                        <span className="font-mono text-[9px] uppercase tracking-widest text-slate-400">Sponsored</span>
+                      </div>
+                      <h3 className="font-display font-bold text-sm text-slate-900 mt-2 leading-snug truncate group-hover:text-emerald-700 transition-colors">{ad.title}</h3>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">{ad.businessName}</p>
+                    </div>
+                  </Link>
+                ))
+              : [...ADVERT_CATEGORIES, ...ADVERT_CATEGORIES].map((cat, i) => {
+                  const Icon = cat.icon;
+                  return (
+                    <div key={i} className="w-64 shrink-0 bg-white border border-[#0F172A] p-5">
+                      <div className="flex items-center justify-between">
+                        <span className="w-11 h-11 border border-[#0F172A] bg-emerald-50 flex items-center justify-center">
+                          <Icon className="h-5 w-5 text-emerald-700" />
+                        </span>
+                        <span className="font-mono text-[9px] uppercase tracking-widest text-slate-400">Category</span>
+                      </div>
+                      <h3 className="font-display font-bold text-base text-slate-900 mt-4">{cat.name}</h3>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">{cat.desc}</p>
+                    </div>
+                  );
+                })}
           </div>
         </div>
       </section>

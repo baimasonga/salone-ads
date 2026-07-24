@@ -133,6 +133,11 @@ import {
   updateAdvertisementReport,
   AdvertisementRequest,
   AdvertisementCategory,
+  fetchAllAdverts,
+  createAdvert,
+  updateAdvert,
+  deleteAdvert,
+  Advert,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
 
@@ -1987,6 +1992,15 @@ export function Workspaces({
   const [adDescription, setAdDescription] = useState('');
   const [adSubmitting, setAdSubmitting] = useState(false);
 
+  // Admin: published adverts shown on the public site (Manohub is the source
+  // of truth; the social post links back).
+  const [publishedAdverts, setPublishedAdverts] = useState<Advert[]>([]);
+  const [advForm, setAdvForm] = useState({
+    title: '', category: 'business', businessName: '', summary: '', content: '',
+    mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '',
+  });
+  const [advSaving, setAdvSaving] = useState(false);
+
   useEffect(() => {
     if (activeTab !== 'advertising' || isPlatformAdmin) return;
     setAdvertisementsLoading(true);
@@ -2002,11 +2016,63 @@ export function Workspaces({
   useEffect(() => {
     if (activeTab !== 'admin-advertising' || !isPlatformAdmin) return;
     setAdvertisementsLoading(true);
-    fetchAllAdvertisementRequests()
-      .then(setAllAdvertisements)
+    Promise.all([fetchAllAdvertisementRequests(), fetchAllAdverts().catch(() => [])])
+      .then(([reqs, adverts]) => {
+        setAllAdvertisements(reqs);
+        setPublishedAdverts(adverts);
+      })
       .catch((err: any) => setAdvertisementFeedback(`Error: ${err.message || 'Could not load advertising requests.'}`))
       .finally(() => setAdvertisementsLoading(false));
   }, [activeTab, isPlatformAdmin]);
+
+  const handlePublishAdvert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!advForm.title.trim() || !advForm.businessName.trim()) {
+      setAdvertisementFeedback('Error: Advert title and business name are required.');
+      return;
+    }
+    setAdvSaving(true);
+    try {
+      const created = await createAdvert({
+        title: advForm.title,
+        category: advForm.category,
+        businessName: advForm.businessName,
+        summary: advForm.summary || null,
+        content: advForm.content,
+        mediaUrl: advForm.mediaUrl || null,
+        socialPlatform: advForm.socialPlatform || null,
+        socialUrl: advForm.socialUrl || null,
+        status: 'live',
+      });
+      setPublishedAdverts([created, ...publishedAdverts]);
+      setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '' });
+      setAdvertisementFeedback('Advert published to the site.');
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err.message || 'Could not publish advert.'}`);
+    } finally {
+      setAdvSaving(false);
+    }
+  };
+
+  const handleToggleAdvertStatus = async (adv: Advert) => {
+    const next = adv.status === 'live' ? 'archived' : 'live';
+    try {
+      const updated = await updateAdvert(adv.id, { status: next });
+      setPublishedAdverts(publishedAdverts.map((a) => (a.id === adv.id ? updated : a)));
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err.message || 'Could not update advert.'}`);
+    }
+  };
+
+  const handleDeleteAdvert = async (id: string) => {
+    const prev = publishedAdverts;
+    setPublishedAdverts(publishedAdverts.filter((a) => a.id !== id));
+    try {
+      await deleteAdvert(id);
+    } catch {
+      setPublishedAdverts(prev);
+    }
+  };
 
   const handleSubmitAdvertisement = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -3318,6 +3384,63 @@ export function Workspaces({
               ))}
             </div>
           )}
+        </div>
+
+        {/* Publish adverts to the public site */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Landmark className="h-5 w-5 text-emerald-600" /> Adverts on the site
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Publish an advert so it shows on the public homepage and gets its own detail page. Manohub is the
+            source of truth — paste the social post link so visitors can jump to the campaign; the social post
+            should reference this advert's page back on Manohub.
+          </p>
+
+          <form onSubmit={handlePublishAdvert} className="mt-4 grid sm:grid-cols-2 gap-3">
+            <input value={advForm.title} onChange={(e) => setAdvForm({ ...advForm, title: e.target.value })} placeholder="Advert title" className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <input value={advForm.businessName} onChange={(e) => setAdvForm({ ...advForm, businessName: e.target.value })} placeholder="Business name" className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <select value={advForm.category} onChange={(e) => setAdvForm({ ...advForm, category: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
+              {['business', 'goods', 'service', 'healthcare', 'transportation', 'event', 'hospitality', 'finance', 'education', 'agriculture'].map((c) => (
+                <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+              ))}
+            </select>
+            <input value={advForm.mediaUrl} onChange={(e) => setAdvForm({ ...advForm, mediaUrl: e.target.value })} placeholder="Image URL (optional)" className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <input value={advForm.summary} onChange={(e) => setAdvForm({ ...advForm, summary: e.target.value })} placeholder="Short summary (one line)" className="border border-slate-200 rounded-lg p-2 text-sm sm:col-span-2" />
+            <textarea value={advForm.content} onChange={(e) => setAdvForm({ ...advForm, content: e.target.value })} placeholder="Full advert content" rows={3} className="border border-slate-200 rounded-lg p-2 text-sm sm:col-span-2" />
+            <select value={advForm.socialPlatform} onChange={(e) => setAdvForm({ ...advForm, socialPlatform: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
+              {['Facebook', 'Instagram', 'WhatsApp', 'TikTok', 'X', 'YouTube', 'LinkedIn'].map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <input value={advForm.socialUrl} onChange={(e) => setAdvForm({ ...advForm, socialUrl: e.target.value })} placeholder="Social post URL (https://…)" className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <button type="submit" disabled={advSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm cursor-pointer disabled:opacity-50 sm:col-span-2 justify-self-start">
+              {advSaving ? 'Publishing…' : 'Publish advert'}
+            </button>
+          </form>
+
+          <div className="mt-6 space-y-3">
+            {publishedAdverts.length === 0 ? (
+              <p className="text-xs text-slate-400">No adverts published yet.</p>
+            ) : (
+              publishedAdverts.map((adv) => (
+                <div key={adv.id} className="border border-slate-100 rounded-xl p-4 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <h4 className="font-semibold text-slate-800 text-sm truncate">{adv.title} — {adv.businessName}</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {adv.category} · {adv.status}
+                      {adv.socialUrl && <> · <a href={adv.socialUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">social post</a></>}
+                      {' · '}<Link to={`/adverts/${adv.slug}`} target="_blank" className="text-emerald-600 hover:underline">/adverts/{adv.slug}</Link>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button onClick={() => handleToggleAdvertStatus(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
+                      {adv.status === 'live' ? 'Archive' : 'Set live'}
+                    </button>
+                    <button onClick={() => handleDeleteAdvert(adv.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     );

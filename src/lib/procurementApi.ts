@@ -1572,3 +1572,159 @@ export async function updateAdvertisementReport(id: string, updates: UpdateAdver
   const { error } = await supabase.from('advertisement_requests').update(patch).eq('id', id);
   if (error) throw error;
 }
+
+// ── Public adverts (shown on the site) ──────────────────────────────────────
+// Manohub is the source of truth: an admin authors the advert here and stores
+// the social post URL once it's live. Public visitors can read status='live'
+// rows only (RLS); the detail page links out to the social platform.
+export type AdvertStatus = 'draft' | 'live' | 'archived';
+
+export interface Advert {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  businessName: string;
+  summary: string | null;
+  content: string;
+  mediaUrl: string | null;
+  socialPlatform: string | null;
+  socialUrl: string | null;
+  status: AdvertStatus;
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+const ADVERT_SELECT =
+  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, status, published_at, created_at';
+
+function mapAdvert(row: any): Advert {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    category: row.category,
+    businessName: row.business_name,
+    summary: row.summary ?? null,
+    content: row.content ?? '',
+    mediaUrl: row.media_url ?? null,
+    socialPlatform: row.social_platform ?? null,
+    socialUrl: row.social_url ?? null,
+    status: row.status,
+    publishedAt: row.published_at ?? null,
+    createdAt: row.created_at,
+  };
+}
+
+// Public: live adverts for the homepage banner (anon-readable via RLS).
+export async function fetchLiveAdverts(limit = 20): Promise<Advert[]> {
+  const { data, error } = await supabase
+    .from('adverts')
+    .select(ADVERT_SELECT)
+    .eq('status', 'live')
+    .order('published_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map(mapAdvert);
+}
+
+// Public: single advert detail by slug (only resolves if live, per RLS).
+export async function fetchAdvertBySlug(slug: string): Promise<Advert | null> {
+  const { data, error } = await supabase
+    .from('adverts')
+    .select(ADVERT_SELECT)
+    .eq('slug', slug)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapAdvert(data) : null;
+}
+
+// Admin: every advert (draft/live/archived) for the fulfillment/publish queue.
+export async function fetchAllAdverts(): Promise<Advert[]> {
+  const { data, error } = await supabase
+    .from('adverts')
+    .select(ADVERT_SELECT)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapAdvert);
+}
+
+export interface CreateAdvertInput {
+  title: string;
+  category: string;
+  businessName: string;
+  summary?: string | null;
+  content: string;
+  mediaUrl?: string | null;
+  socialPlatform?: string | null;
+  socialUrl?: string | null;
+  status?: AdvertStatus;
+  orgId?: string | null;
+  requestId?: string | null;
+}
+
+// Admin: create an advert. Generates a unique slug from the title.
+export async function createAdvert(input: CreateAdvertInput): Promise<Advert> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const base = slugify(input.title);
+  const slug = `${base}-${Math.random().toString(36).slice(2, 7)}`;
+  const status = input.status ?? 'draft';
+  const { data, error } = await supabase
+    .from('adverts')
+    .insert({
+      slug,
+      title: input.title,
+      category: input.category,
+      business_name: input.businessName,
+      summary: input.summary ?? null,
+      content: input.content,
+      media_url: input.mediaUrl ?? null,
+      social_platform: input.socialPlatform ?? null,
+      social_url: input.socialUrl ?? null,
+      status,
+      org_id: input.orgId ?? null,
+      request_id: input.requestId ?? null,
+      created_by: user?.id ?? null,
+      published_at: status === 'live' ? new Date().toISOString() : null,
+    })
+    .select(ADVERT_SELECT)
+    .single();
+  if (error) throw error;
+  return mapAdvert(data);
+}
+
+export interface UpdateAdvertInput {
+  title?: string;
+  category?: string;
+  businessName?: string;
+  summary?: string | null;
+  content?: string;
+  mediaUrl?: string | null;
+  socialPlatform?: string | null;
+  socialUrl?: string | null;
+  status?: AdvertStatus;
+}
+
+export async function updateAdvert(id: string, updates: UpdateAdvertInput): Promise<Advert> {
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.title !== undefined) patch.title = updates.title;
+  if (updates.category !== undefined) patch.category = updates.category;
+  if (updates.businessName !== undefined) patch.business_name = updates.businessName;
+  if (updates.summary !== undefined) patch.summary = updates.summary;
+  if (updates.content !== undefined) patch.content = updates.content;
+  if (updates.mediaUrl !== undefined) patch.media_url = updates.mediaUrl;
+  if (updates.socialPlatform !== undefined) patch.social_platform = updates.socialPlatform;
+  if (updates.socialUrl !== undefined) patch.social_url = updates.socialUrl;
+  if (updates.status !== undefined) {
+    patch.status = updates.status;
+    if (updates.status === 'live') patch.published_at = new Date().toISOString();
+  }
+  const { data, error } = await supabase.from('adverts').update(patch).eq('id', id).select(ADVERT_SELECT).single();
+  if (error) throw error;
+  return mapAdvert(data);
+}
+
+export async function deleteAdvert(id: string): Promise<void> {
+  const { error } = await supabase.from('adverts').delete().eq('id', id);
+  if (error) throw error;
+}
