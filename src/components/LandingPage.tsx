@@ -365,48 +365,75 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           </div>
 
           {!loadingLatest && latest.length === 0 ? (
-            <div className="flex flex-col gap-5">
-              {/* Empty state: full-width sector grid so the row doesn't read as blank */}
-              <div id="sectors" className="bg-white border border-slate-200">
-                <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-                  <span className="font-display font-bold text-sm text-slate-900">Browse by sector</span>
-                  <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5">{sectors.length || 0} sectors</span>
-                </div>
-                {sectors.length === 0 ? (
-                  <p className="px-5 py-8 text-xs text-slate-400 text-center">Loading sectors…</p>
-                ) : (
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-px bg-slate-200">
-                    {sectors.map((sector) => {
-                      const Icon = sectorIcon(sector.name);
-                      return (
-                        <Link
-                          key={sector.id}
-                          to={`/tenders?sector=${sector.id}`}
-                          className="flex items-center gap-3 px-5 py-4 bg-white hover:bg-slate-50 transition-colors group"
-                        >
-                          <span className="w-9 h-9 border border-slate-200 bg-emerald-50 flex items-center justify-center shrink-0">
-                            <Icon className="h-4 w-4 text-emerald-700" />
-                          </span>
-                          <span className="flex-1 text-sm font-medium text-slate-700 group-hover:text-emerald-700 transition-colors min-w-0 truncate">{sector.name}</span>
-                          <ArrowUpRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-emerald-600 shrink-0" />
-                        </Link>
-                      );
-                    })}
+            <div className="flex flex-col gap-6">
+              <div className="grid lg:grid-cols-[300px_1fr] gap-6 items-stretch">
+                {/* Sectors */}
+                <div id="sectors" className="bg-white border border-[#0F172A]">
+                  <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-200">
+                    <span className="font-display font-bold text-[15px] text-slate-900">Sectors</span>
+                    <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{sectors.length || 0}</span>
                   </div>
-                )}
+                  {sectors.length === 0 ? (
+                    <p className="px-4 py-8 text-xs text-slate-400 text-center">Loading sectors…</p>
+                  ) : (
+                    <div>
+                      {sectors.map((sector) => {
+                        const Icon = sectorIcon(sector.name);
+                        return (
+                          <Link
+                            key={sector.id}
+                            to={`/tenders?sector=${sector.id}`}
+                            className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors group"
+                          >
+                            <Icon className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <span className="flex-1 text-sm font-medium text-slate-800 group-hover:text-emerald-700 transition-colors min-w-0 truncate">{sector.name}</span>
+                            <span className="font-mono text-xs text-slate-400 shrink-0">{latest.filter((op) => op.sector === sector.name).length}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: empty card + closing-soon bar */}
+                <div className="flex flex-col gap-4">
+                  <div className="flex-1 bg-white border border-[#0F172A] flex flex-col items-center justify-center text-center px-10 py-12">
+                    <div className="w-16 h-16 border border-dashed border-slate-300 flex items-center justify-center text-slate-300">
+                      <FileSearch className="h-7 w-7" />
+                    </div>
+                    <h3 className="font-display font-bold text-xl text-slate-900 mt-5 tracking-tight">No tenders published yet</h3>
+                    <p className="text-sm text-slate-500 leading-relaxed max-w-md mt-2">New opportunities go live here as soon as they clear admin review.</p>
+                    <div className="flex items-center gap-3.5 mt-6">
+                      <button onClick={onGetStarted} className="font-mono text-xs font-bold uppercase tracking-widest text-emerald-700 bg-white border border-[#0F172A] px-4 py-2.5 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors cursor-pointer">Get Alerted</button>
+                      <Link to="/tenders" className="inline-flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-widest text-emerald-700 hover:text-emerald-800 transition-colors">Browse all tenders <ArrowUpRight className="h-3.5 w-3.5" /></Link>
+                    </div>
+                  </div>
+                  <div className="bg-white border border-[#0F172A] px-4 py-3.5 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-2.5">
+                      <Bell className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="font-display font-bold text-sm text-slate-900">Closing soon</span>
+                      <span className="text-[13px] text-slate-500">Nothing closing soon yet.</span>
+                    </div>
+                    <button onClick={onGetStarted} className="font-mono text-[11px] font-bold uppercase tracking-widest text-emerald-700 bg-white border border-[#0F172A] px-3.5 py-2 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors cursor-pointer shrink-0">Get alerts for these</button>
+                  </div>
+                </div>
               </div>
-              {/* Slim alert CTA band */}
-              <div className="bg-[#0F172A] text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-5">
-                <div className="flex items-start gap-3">
-                  <FileSearch className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-display font-bold text-sm !text-white">No tenders published yet</p>
-                    <p className="text-xs text-slate-300 mt-0.5 max-w-md">New opportunities appear here the moment they clear admin review. Get alerted so you never miss one.</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={onGetStarted} className="bg-emerald-500 text-[#0F172A] font-mono text-xs font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-emerald-400 transition-colors cursor-pointer">Get Alerted</button>
-                  <Link to="/tenders" className="border border-white/25 text-white font-mono text-xs font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-white/10 transition-colors">Browse Tenders</Link>
+
+              {/* How it works (per the Live Opportunities reference) */}
+              <div className="mt-4">
+                <div className="text-center font-mono text-xs font-bold uppercase tracking-widest text-emerald-600 mb-4">How it works</div>
+                <div className="bg-white border border-[#0F172A] grid sm:grid-cols-3">
+                  {[
+                    { n: '1', title: 'Browse by sector', body: `Filter live opportunities across ${sectors.length || 12} industries.` },
+                    { n: '2', title: 'Set up alerts', body: 'Get notified the moment a matching tender opens.' },
+                    { n: '3', title: 'Submit your bid', body: 'Apply directly and track every submission.' },
+                  ].map((step, i) => (
+                    <div key={step.n} className={`px-8 py-7 ${i < 2 ? 'sm:border-r border-b sm:border-b-0 border-slate-200' : ''}`}>
+                      <div className="w-9 h-9 border border-[#0F172A] flex items-center justify-center font-mono text-sm font-bold text-slate-900">{step.n}</div>
+                      <h3 className="font-display font-bold text-base text-slate-900 mt-4">{step.title}</h3>
+                      <p className="text-[13.5px] text-slate-500 leading-relaxed mt-1.5">{step.body}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -522,7 +549,8 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
         </div>
       </section>
 
-      {/* ============================ HOW IT WORKS ============================ */}
+      {/* ============================ HOW IT WORKS (hidden when empty — the explorer shows its own) ============================ */}
+      {(loadingLatest || latest.length > 0) && (
       <section id="how" className="px-6 py-14 bg-white border-b border-slate-100">
         <div className="max-w-7xl mx-auto">
           <div className="text-center">
@@ -548,6 +576,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           </div>
         </div>
       </section>
+      )}
 
       {/* ============================ WHO WE SERVE ============================ */}
       <section id="audience" className="py-14 bg-slate-50 border-b border-slate-100 px-6">
