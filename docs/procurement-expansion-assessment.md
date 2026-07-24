@@ -1576,3 +1576,20 @@ verified on the detail page with zero page errors.
   `creative_url` column on `adverts`. The admin form's "Save for social" button exports the PNG, uploads it,
   and attaches the public URL to the advert on publish; the admin list links the stored "creative PNG".
   (Distinct from `media_url`, which stays an optional business *photo* composited into the poster.)
+
+## 44. Advert copy AI-polish + per-business brand accent/logo (2026-07-23)
+
+- **AI polish**: new `/api/gemini/advert-copy` route (server.ts + `functions/api/gemini/advert-copy.ts`
+  mirror + `getMockAdvertCopy`/`parseJsonObjectLoose` in both) returns a tightened `{headline, body}` from
+  the raw subject/description. `aiPolishAdvertCopy()` client fn + a "Polish copy with AI" button on the admin
+  publish form and a "Polish my wording with AI" button on the subscriber request form — both rewrite the
+  headline/body in place. No key → a light local cleanup (mock), same fallback pattern as the other Gemini
+  routes.
+- **Brand accent + logo**: `accent_color` and `logo_url` columns on `adverts` (migration
+  `advert_brand_fields`), threaded through the Advert model, create/update, `AdvertCreative`
+  (`accentColor` overrides the aurora gradient on the category pill / rule / strip bar; `logoUrl` replaces
+  the Manohub mark with the business's own logo top-left), the admin form (a colour picker + logo URL
+  input), and the detail page. So each business's creative can carry its own colour and logo.
+
+**Verification**: app + worker `tsc` and `npm run build` clean; the accent override screenshot-verified on
+the detail poster (teal pill/rule from a custom `accent_color`) with zero page errors.

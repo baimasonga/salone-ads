@@ -140,6 +140,7 @@ import {
   updateAdvert,
   deleteAdvert,
   uploadAdvertCreative,
+  aiPolishAdvertCopy,
   Advert,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
@@ -2001,10 +2002,32 @@ export function Workspaces({
   const [advForm, setAdvForm] = useState({
     title: '', category: 'business', businessName: '', summary: '', content: '',
     mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '',
+    accentColor: '#5d4ee0', logoUrl: '',
   });
   const [advSaving, setAdvSaving] = useState(false);
   const [advFormat, setAdvFormat] = useState<AdvertFormat>('poster');
   const [savingCreative, setSavingCreative] = useState(false);
+  const [polishingCopy, setPolishingCopy] = useState(false);
+
+  // AI polish: tighten the admin's advert subject/body into headline + body.
+  const handlePolishAdvertCopy = async () => {
+    if (!advForm.title.trim()) {
+      setAdvertisementFeedback('Error: enter a subject/title first so AI has something to polish.');
+      return;
+    }
+    setPolishingCopy(true);
+    try {
+      const { headline, body } = await aiPolishAdvertCopy({
+        businessName: advForm.businessName, category: advForm.category,
+        subject: advForm.title, description: advForm.summary || advForm.content,
+      });
+      setAdvForm((f) => ({ ...f, title: headline, summary: body }));
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err?.message || 'AI polish failed.'}`);
+    } finally {
+      setPolishingCopy(false);
+    }
+  };
   const creativeRef = useRef<HTMLDivElement>(null);
 
   // Export a rendered creative node to a PNG data URL (2x).
@@ -2043,6 +2066,23 @@ export function Workspaces({
 
   // Subscriber-side preview of their own advert as they fill the request form.
   const subCreativeRef = useRef<HTMLDivElement>(null);
+  const [polishingSub, setPolishingSub] = useState(false);
+  const handlePolishSubCopy = async () => {
+    if (!adSubject.trim()) {
+      setAdvertisementFeedback('Error: enter a subject first so AI has something to polish.');
+      return;
+    }
+    setPolishingSub(true);
+    try {
+      const { headline, body } = await aiPolishAdvertCopy({ businessName: activeOrg.name, category: adCategory, subject: adSubject, description: adDescription });
+      setAdSubject(headline);
+      setAdDescription(body);
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err?.message || 'AI polish failed.'}`);
+    } finally {
+      setPolishingSub(false);
+    }
+  };
   const handleDownloadSubCreative = async () => {
     try {
       const dataUrl = await exportCreativePng(subCreativeRef.current);
@@ -2098,10 +2138,12 @@ export function Workspaces({
         socialPlatform: advForm.socialPlatform || null,
         socialUrl: advForm.socialUrl || null,
         creativeUrl: advForm.creativeUrl || null,
+        accentColor: advForm.accentColor || null,
+        logoUrl: advForm.logoUrl || null,
         status: 'live',
       });
       setPublishedAdverts([created, ...publishedAdverts]);
-      setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '' });
+      setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '', accentColor: '#5d4ee0', logoUrl: '' });
       setAdvertisementFeedback('Advert published to the site.');
     } catch (err: any) {
       setAdvertisementFeedback(`Error: ${err.message || 'Could not publish advert.'}`);
@@ -3316,6 +3358,9 @@ export function Workspaces({
                 <label className="block text-xs font-bold text-slate-500 uppercase">Describe what you need advertised</label>
                 <textarea required rows={3} value={adDescription} onChange={(e) => setAdDescription(e.target.value)}
                   className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                <button type="button" onClick={handlePolishSubCopy} disabled={polishingSub} className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer disabled:opacity-50">
+                  <Sparkles className="h-3.5 w-3.5" /> {polishingSub ? 'Polishing…' : 'Polish my wording with AI'}
+                </button>
               </div>
               <button type="submit" disabled={adSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
                 {adSubmitting ? 'Submitting…' : 'Submit Request'}
@@ -3492,7 +3537,17 @@ export function Workspaces({
             </select>
             <input value={advForm.mediaUrl} onChange={(e) => setAdvForm({ ...advForm, mediaUrl: e.target.value })} placeholder="Image URL (optional)" className="border border-slate-200 rounded-lg p-2 text-sm" />
             <input value={advForm.summary} onChange={(e) => setAdvForm({ ...advForm, summary: e.target.value })} placeholder="Short summary (one line)" className="border border-slate-200 rounded-lg p-2 text-sm sm:col-span-2" />
-            <textarea value={advForm.content} onChange={(e) => setAdvForm({ ...advForm, content: e.target.value })} placeholder="Full advert content" rows={3} className="border border-slate-200 rounded-lg p-2 text-sm sm:col-span-2" />
+            <textarea value={advForm.content} onChange={(e) => setAdvForm({ ...advForm, content: e.target.value })} placeholder="Full advert content" rows={3} className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <button type="button" onClick={handlePolishAdvertCopy} disabled={polishingCopy} className="justify-self-start inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer disabled:opacity-50">
+              <Sparkles className="h-3.5 w-3.5" /> {polishingCopy ? 'Polishing…' : 'Polish copy with AI'}
+            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex items-center gap-2 text-xs text-slate-600 border border-slate-200 rounded-lg p-2">
+                Brand colour
+                <input type="color" value={advForm.accentColor} onChange={(e) => setAdvForm({ ...advForm, accentColor: e.target.value })} className="h-6 w-8 cursor-pointer border-0 bg-transparent p-0" />
+              </label>
+              <input value={advForm.logoUrl} onChange={(e) => setAdvForm({ ...advForm, logoUrl: e.target.value })} placeholder="Logo URL (optional)" className="border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
             <select value={advForm.socialPlatform} onChange={(e) => setAdvForm({ ...advForm, socialPlatform: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
               {['Facebook', 'Instagram', 'WhatsApp', 'TikTok', 'X', 'YouTube', 'LinkedIn'].map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
@@ -3523,6 +3578,8 @@ export function Workspaces({
                   category={advForm.category}
                   mediaUrl={advForm.mediaUrl || null}
                   platform={advForm.socialPlatform}
+                  accentColor={advForm.accentColor}
+                  logoUrl={advForm.logoUrl || null}
                 />
               </CreativeScaler>
             </div>

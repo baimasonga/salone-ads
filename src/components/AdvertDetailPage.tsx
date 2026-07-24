@@ -72,6 +72,8 @@ export function AdvertDetailPage() {
                     mediaUrl={advert.mediaUrl}
                     platform={advert.socialPlatform}
                     ctaUrl={advert.socialUrl}
+                    accentColor={advert.accentColor}
+                    logoUrl={advert.logoUrl}
                   />
                 </CreativeScaler>
               </div>

@@ -22,6 +22,8 @@ export interface AdvertCreativeProps {
   platform?: string | null;
   ctaUrl?: string | null;
   format?: AdvertFormat;
+  accentColor?: string | null;
+  logoUrl?: string | null;
 }
 
 const SANS = "'Hanken Grotesk', system-ui, sans-serif";
@@ -65,22 +67,24 @@ export function CreativeScaler({ format = 'poster', children }: { format?: Adver
 }
 
 export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(function AdvertCreative(
-  { businessName, headline, body, category, mediaUrl, platform, ctaUrl, format = 'poster' },
+  { businessName, headline, body, category, mediaUrl, platform, ctaUrl, format = 'poster', accentColor, logoUrl },
   ref,
 ) {
   const { w, h } = CREATIVE_SIZE[format];
   const cat = (category || 'Advert').toUpperCase();
   const cta = platform ? `Find us on ${platform}` : ctaUrl ? 'Learn more' : 'Advertised on Manohub';
+  const accentBg = accentColor || AURORA; // brand colour overrides the default gradient accent
+  const logo = logoUrl ? <img src={logoUrl} alt="" crossOrigin="anonymous" style={{ height: 30, maxWidth: 150, objectFit: 'contain', display: 'block' }} /> : null;
 
   // ── Newspaper strip: high-contrast black-on-white classified look ──
   if (format === 'strip') {
     return (
       <div ref={ref} style={{ width: w, height: h, background: '#ffffff', border: '3px solid #0d1b2a', display: 'flex', fontFamily: SANS, overflow: 'hidden' }}>
-        <div style={{ width: 10, background: AURORA, flex: 'none' }} />
+        <div style={{ width: 10, background: accentBg, flex: 'none' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '26px 30px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.14em', color: '#159a6b' }}>{cat}</span>
-            <Wordmark light />
+            {logo || <Wordmark light />}
           </div>
           <div style={{ fontFamily: SANS, fontWeight: 800, fontSize: 40, lineHeight: 1.02, letterSpacing: '-0.02em', color: '#0d1b2a', margin: '10px 0' }}>{headline}</div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
@@ -101,13 +105,13 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
       <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'flex', flexDirection: 'column', padding: isSquare ? '40px 44px' : '44px 46px' }}>
         {/* top */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Wordmark />
+          {logo || <Wordmark />}
           <span style={{ fontFamily: MONO, fontSize: 10.5, fontWeight: 600, letterSpacing: '0.16em', color: 'rgba(255,255,255,0.6)' }}>SPONSORED</span>
         </div>
 
         {/* category pill */}
         <div style={{ marginTop: isSquare ? 26 : 30 }}>
-          <span style={{ display: 'inline-block', fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: '#fff', background: AURORA, padding: '7px 14px', borderRadius: 999 }}>{cat}</span>
+          <span style={{ display: 'inline-block', fontFamily: MONO, fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', color: '#fff', background: accentBg, padding: '7px 14px', borderRadius: 999 }}>{cat}</span>
         </div>
 
         {/* headline */}
@@ -128,7 +132,7 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
         )}
 
         {/* gradient rule */}
-        <div style={{ height: 3, borderRadius: 999, background: AURORA, margin: isSquare ? '22px 0 18px' : '26px 0 20px' }} />
+        <div style={{ height: 3, borderRadius: 999, background: accentBg, margin: isSquare ? '22px 0 18px' : '26px 0 20px' }} />
 
         {/* footer: brand + CTA */}
         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>

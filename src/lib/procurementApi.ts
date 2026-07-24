@@ -1462,6 +1462,27 @@ export async function aiExplainTender(tenderText: string): Promise<string> {
   return callProcurementAI('explain_tender', tenderText);
 }
 
+// Tighten raw advert input into a punchy { headline, body } for the creative.
+export async function aiPolishAdvertCopy(input: {
+  businessName?: string;
+  category?: string;
+  subject: string;
+  description?: string;
+}): Promise<{ headline: string; body: string }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const response = await fetch('/api/gemini/advert-copy', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  });
+  const data = await response.json();
+  if (data.error) throw new Error(data.error.message || 'AI copy assist failed.');
+  return { headline: data.headline || input.subject, body: data.body || input.description || '' };
+}
+
 // --- Advertiser subscribers: "My Adverts" (submit + read-only report) ---
 //
 // This is deliberately narrow. An Advertiser-tier subscriber never gets
@@ -1591,13 +1612,15 @@ export interface Advert {
   socialPlatform: string | null;
   socialUrl: string | null;
   creativeUrl: string | null;
+  accentColor: string | null;
+  logoUrl: string | null;
   status: AdvertStatus;
   publishedAt: string | null;
   createdAt: string;
 }
 
 const ADVERT_SELECT =
-  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, status, published_at, created_at';
+  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, accent_color, logo_url, status, published_at, created_at';
 
 function mapAdvert(row: any): Advert {
   return {
@@ -1612,6 +1635,8 @@ function mapAdvert(row: any): Advert {
     socialPlatform: row.social_platform ?? null,
     socialUrl: row.social_url ?? null,
     creativeUrl: row.creative_url ?? null,
+    accentColor: row.accent_color ?? null,
+    logoUrl: row.logo_url ?? null,
     status: row.status,
     publishedAt: row.published_at ?? null,
     createdAt: row.created_at,
@@ -1671,6 +1696,8 @@ export interface CreateAdvertInput {
   socialPlatform?: string | null;
   socialUrl?: string | null;
   creativeUrl?: string | null;
+  accentColor?: string | null;
+  logoUrl?: string | null;
   status?: AdvertStatus;
   orgId?: string | null;
   requestId?: string | null;
@@ -1695,6 +1722,8 @@ export async function createAdvert(input: CreateAdvertInput): Promise<Advert> {
       social_platform: input.socialPlatform ?? null,
       social_url: input.socialUrl ?? null,
       creative_url: input.creativeUrl ?? null,
+      accent_color: input.accentColor ?? null,
+      logo_url: input.logoUrl ?? null,
       status,
       org_id: input.orgId ?? null,
       request_id: input.requestId ?? null,
@@ -1717,6 +1746,8 @@ export interface UpdateAdvertInput {
   socialPlatform?: string | null;
   socialUrl?: string | null;
   creativeUrl?: string | null;
+  accentColor?: string | null;
+  logoUrl?: string | null;
   status?: AdvertStatus;
 }
 
@@ -1731,6 +1762,8 @@ export async function updateAdvert(id: string, updates: UpdateAdvertInput): Prom
   if (updates.socialPlatform !== undefined) patch.social_platform = updates.socialPlatform;
   if (updates.socialUrl !== undefined) patch.social_url = updates.socialUrl;
   if (updates.creativeUrl !== undefined) patch.creative_url = updates.creativeUrl;
+  if (updates.accentColor !== undefined) patch.accent_color = updates.accentColor;
+  if (updates.logoUrl !== undefined) patch.logo_url = updates.logoUrl;
   if (updates.status !== undefined) {
     patch.status = updates.status;
     if (updates.status === 'live') patch.published_at = new Date().toISOString();

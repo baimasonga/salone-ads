@@ -413,6 +413,59 @@ Respond with ONLY a valid JSON array (no markdown, no commentary, no code fences
     }
   });
 
+  app.post("/api/gemini/advert-copy", requireUser, aiRateLimiter, async (req, res) => {
+    const { businessName, category, subject, description, toneOfVoice } = req.body;
+    if (typeof subject !== "string" || subject.trim().length === 0) {
+      res.status(400).json({ error: { message: "subject is required" } });
+      return;
+    }
+    for (const [key, value] of Object.entries({ businessName, category, description, toneOfVoice })) {
+      if (value !== undefined && value !== null && (typeof value !== "string" || value.length > MAX_FIELD_LENGTH)) {
+        res.status(400).json({ error: { message: `${key} must be a string under ${MAX_FIELD_LENGTH} characters.` } });
+        return;
+      }
+    }
+
+    try {
+      const hasKey = process.env.GEMINI_API_KEY &&
+                     process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY" &&
+                     process.env.GEMINI_API_KEY.trim() !== "";
+      if (!hasKey) {
+        res.json(getMockAdvertCopy(subject, description));
+        return;
+      }
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+      });
+
+      const tone = (toneOfVoice as string) || "Confident, warm, plain-spoken";
+      const systemInstruction = `You are an advertising copywriter for a Sierra Leone / Liberia marketplace. Write short, punchy, honest ad copy in this tone: "${tone}". No emojis, no hype words like "revolutionary".`;
+      const prompt = `Tighten this into advert copy for "${businessName || "a local business"}"${category ? ` (category: ${category})` : ""}.
+Subject: ${subject}
+Details: ${description || "not specified"}
+
+Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exactly like:
+{"headline": "punchy headline, max ~7 words", "body": "1-2 sentence advert body, max ~30 words"}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: { systemInstruction, temperature: 0.7, responseMimeType: "application/json" }
+      });
+
+      const parsed = parseJsonObjectLoose(response.text || "");
+      res.json(parsed && parsed.headline ? { headline: String(parsed.headline), body: String(parsed.body || "") } : getMockAdvertCopy(subject, description));
+    } catch (err: any) {
+      console.error("Gemini Advert Copy Error:", err);
+      res.status(500).json({
+        error: { code: "GEMINI_ERROR", message: "An error occurred calling the AI assist service. Please try again shortly." }
+      });
+    }
+  });
+
   // Vite Middleware Setup
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -448,6 +501,27 @@ function parseJsonArrayLoose(raw: string): any[] | null {
   } catch {
     return null;
   }
+}
+
+function parseJsonObjectLoose(raw: string): Record<string, any> | null {
+  if (!raw) return null;
+  let cleaned = raw.trim();
+  const fenceMatch = cleaned.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenceMatch) cleaned = fenceMatch[1].trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Local fallback advert copy when no Gemini key is configured -- a light
+// cleanup of the subject/description into headline + body.
+function getMockAdvertCopy(subject: string, description?: string): { headline: string; body: string } {
+  const headline = subject.trim().replace(/\.$/, "").slice(0, 60) || "Now available";
+  const body = (description || subject).trim().replace(/\s+/g, " ").slice(0, 140);
+  return { headline, body };
 }
 
 // Structured local fallback for 'captions'/'ideas' when no Gemini key is
