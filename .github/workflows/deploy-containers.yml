@@ -6,12 +6,26 @@ name: Deploy to Cloudflare Containers
 # for why that build can't happen from a sandboxed dev session.
 
 on:
+  # Auto-deploy the live container on every push to main (code changes only —
+  # doc-only pushes are ignored). This is deliberately the ONLY reliable path:
+  # manual workflow_dispatch runs kept getting pointed at a stale branch/commit,
+  # so the running container never picked up merged work. On a push event the
+  # `inputs.dry_run` context is empty (falsy), so the deploy step runs for real.
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   workflow_dispatch:
     inputs:
       dry_run:
         description: 'Dry run only (validates wrangler.containers.toml without deploying)'
         type: boolean
         default: true
+
+concurrency:
+  group: deploy-containers
+  cancel-in-progress: false
 
 jobs:
   deploy:
