@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import JSZip from 'jszip';
+import { toPng } from 'html-to-image';
 import { Link } from 'react-router-dom';
+import { AdvertCreative, CreativeScaler, AdvertFormat } from './AdvertCreative';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
@@ -2000,6 +2002,23 @@ export function Workspaces({
     mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '',
   });
   const [advSaving, setAdvSaving] = useState(false);
+  const [advFormat, setAdvFormat] = useState<AdvertFormat>('poster');
+  const creativeRef = useRef<HTMLDivElement>(null);
+
+  // Export the auto-generated creative to a PNG for social / print use.
+  const handleDownloadCreative = async () => {
+    if (!creativeRef.current) return;
+    try {
+      const dataUrl = await toPng(creativeRef.current, { pixelRatio: 2, cacheBust: true });
+      const name = (advForm.title || 'advert').toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'advert';
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `${name}-${advFormat}.png`;
+      a.click();
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: could not export the creative (${err?.message || 'unknown'}).`);
+    }
+  };
 
   useEffect(() => {
     if (activeTab !== 'advertising' || isPlatformAdmin) return;
@@ -3397,7 +3416,8 @@ export function Workspaces({
             should reference this advert's page back on Manohub.
           </p>
 
-          <form onSubmit={handlePublishAdvert} className="mt-4 grid sm:grid-cols-2 gap-3">
+          <div className="mt-4 grid lg:grid-cols-2 gap-6 items-start">
+          <form onSubmit={handlePublishAdvert} className="grid grid-cols-1 gap-3">
             <input value={advForm.title} onChange={(e) => setAdvForm({ ...advForm, title: e.target.value })} placeholder="Advert title" className="border border-slate-200 rounded-lg p-2 text-sm" />
             <input value={advForm.businessName} onChange={(e) => setAdvForm({ ...advForm, businessName: e.target.value })} placeholder="Business name" className="border border-slate-200 rounded-lg p-2 text-sm" />
             <select value={advForm.category} onChange={(e) => setAdvForm({ ...advForm, category: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
@@ -3412,10 +3432,40 @@ export function Workspaces({
               {['Facebook', 'Instagram', 'WhatsApp', 'TikTok', 'X', 'YouTube', 'LinkedIn'].map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
             <input value={advForm.socialUrl} onChange={(e) => setAdvForm({ ...advForm, socialUrl: e.target.value })} placeholder="Social post URL (https://…)" className="border border-slate-200 rounded-lg p-2 text-sm" />
-            <button type="submit" disabled={advSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm cursor-pointer disabled:opacity-50 sm:col-span-2 justify-self-start">
+            <button type="submit" disabled={advSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm cursor-pointer disabled:opacity-50 justify-self-start">
               {advSaving ? 'Publishing…' : 'Publish advert'}
             </button>
           </form>
+
+          {/* Auto-generated creative — updates live as the form is filled */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Auto-generated creative</span>
+              <div className="flex items-center gap-1">
+                {(['poster', 'strip', 'square'] as AdvertFormat[]).map((f) => (
+                  <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
+                ))}
+              </div>
+            </div>
+            <div className="border border-slate-200 bg-slate-50 p-3">
+              <CreativeScaler format={advFormat}>
+                <AdvertCreative
+                  ref={creativeRef}
+                  format={advFormat}
+                  businessName={advForm.businessName || 'Your Business'}
+                  headline={advForm.title || 'Your headline goes here'}
+                  body={advForm.summary || advForm.content}
+                  category={advForm.category}
+                  mediaUrl={advForm.mediaUrl || null}
+                  platform={advForm.socialPlatform}
+                />
+              </CreativeScaler>
+            </div>
+            <button type="button" onClick={handleDownloadCreative} className="mt-2 w-full border border-[#0F172A] text-[#0F172A] font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-[#0F172A] hover:text-white transition-colors cursor-pointer">
+              Download PNG
+            </button>
+          </div>
+          </div>
 
           <div className="mt-6 space-y-3">
             {publishedAdverts.length === 0 ? (

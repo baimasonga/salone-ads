@@ -1540,3 +1540,29 @@ Built the full loop:
 homepage banner with mocked live adverts and the `/adverts/:slug` detail page (View-on-Facebook + CTA) —
 zero page errors. No adverts seeded into production, so the homepage keeps the category fallback until an
 admin publishes real ones.
+
+## 43. Auto-generated advert creatives from the design system (2026-07-23)
+
+Product owner wanted adverts to be *designed automatically* — like a magazine/newspaper/TV ad — as soon as
+the advert form is filled/submitted, using their Claude Design design system. Implemented **templated
+creative generation** (the design system is the templates; nothing is AI-invented per creative):
+
+- **`AdvertCreative.tsx`** — a `forwardRef` component that renders a finished, on-brand advert from the
+  advert fields in three formats via `CREATIVE_SIZE`: **poster** (600×760, magazine), **strip** (960×250,
+  newspaper classified), **square** (700×700, social). Built from the Gradient tokens (Hanken Grotesk +
+  JetBrains Mono, dusk+mesh gradient, aurora accent). Plus `CreativeScaler`, a ResizeObserver wrapper that
+  shrinks the fixed-size creative to fit its container while keeping the export node full-resolution.
+- **Admin publish form** (Workspaces → Advertising) now shows a **live creative preview** that updates as
+  the fields are typed, format tabs (poster/strip/square), and a **Download PNG** button that exports the
+  creative via `html-to-image` (`toPng`, 2× pixel ratio) for social/print use.
+- **Public `/adverts/:slug`** renders the same generated poster as its hero, so what the admin previews is
+  exactly what visitors see — no separate image asset needed (the creative is generated on the fly from the
+  advert's fields everywhere: admin preview, detail page, and downloadable PNG).
+
+Design note: because the creative is generated deterministically from the fields + template, the on-site
+advert never needs an uploaded image; `media_url` is optional (a photo, if given, is composited into the
+poster). Added the `html-to-image` dependency (client-side DOM→PNG; no server render needed).
+
+This is a first version on the Gradient tokens already shared — the templates can be swapped/extended to the
+owner's exact Claude Design export when uploaded. `tsc`/`build` clean; the poster creative screenshot-
+verified on the detail page with zero page errors.

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, ExternalLink, Megaphone, Store } from 'lucide-react';
 import { fetchAdvertBySlug, Advert } from '../lib/procurementApi';
+import { AdvertCreative, CreativeScaler } from './AdvertCreative';
 
 function platformLabel(p: string | null): string {
   if (!p) return 'social media';
@@ -58,13 +59,23 @@ export function AdvertDetailPage() {
 
         {!loading && advert && (
           <article className="bg-white border border-[#0F172A]">
-            {advert.mediaUrl ? (
-              <img src={advert.mediaUrl} alt={advert.title} className="w-full max-h-96 object-cover border-b border-[#0F172A]" />
-            ) : (
-              <div className="w-full h-40 bg-[#0F172A] flex items-center justify-center border-b border-[#0F172A]">
-                <Store className="h-10 w-10 text-emerald-400" />
+            {/* Auto-generated creative from the Manohub design system */}
+            <div className="bg-slate-50 border-b border-[#0F172A] p-5">
+              <div className="max-w-[600px] mx-auto">
+                <CreativeScaler format="poster">
+                  <AdvertCreative
+                    format="poster"
+                    businessName={advert.businessName}
+                    headline={advert.title}
+                    body={advert.summary || advert.content}
+                    category={advert.category}
+                    mediaUrl={advert.mediaUrl}
+                    platform={advert.socialPlatform}
+                    ctaUrl={advert.socialUrl}
+                  />
+                </CreativeScaler>
               </div>
-            )}
+            </div>
 
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-2 flex-wrap">
