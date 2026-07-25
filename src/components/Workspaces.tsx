@@ -141,6 +141,9 @@ import {
   deleteAdvert,
   uploadAdvertCreative,
   uploadAdvertImage,
+  buildAdvertSharePack,
+  fetchAdvertAnalyticsSummary,
+  AdvertAnalyticsSummary,
   aiPolishAdvertCopy,
   Advert,
 } from '../lib/procurementApi';
@@ -164,30 +167,6 @@ interface WorkspacesProps {
   setSocialConnections: React.Dispatch<React.SetStateAction<SocialConnection[]>>;
   brandKit: BrandKit;
   setBrandKit: React.Dispatch<React.SetStateAction<BrandKit>>;
-}
-
-// Build ready-to-paste social captions for a published advert, each ending with
-// the advert's public Manohub page — the source-of-truth hand-off (no platform
-// API keys needed; the advertiser copies these into each channel).
-function buildSharePack(adv: Advert): { key: string; label: string; text: string }[] {
-  const base = typeof window !== 'undefined' ? window.location.origin : 'https://manohub.com';
-  const url = `${base}/adverts/${adv.slug}`;
-  const title = adv.title.trim();
-  const biz = adv.businessName.trim();
-  const summary = (adv.summary || adv.content || '').trim();
-  const catTag = adv.category ? `#${adv.category.replace(/[^a-zA-Z0-9]+/g, '')}` : '';
-  const tags = [catTag, '#Manohub', '#SierraLeone', '#Liberia'].filter(Boolean).join(' ');
-  const wa = `📣 ${title}\n\n${summary}\n\n— ${biz}\n👉 Details & contact: ${url}`;
-  const fb = `${title}\n\n${summary}\n\nBrought to you by ${biz} on Manohub.\nFull details 👉 ${url}\n\n${tags}`;
-  const ig = `${title} ✨\n${summary}\n\n${biz} — see the full advert 👉 ${url}\n(link in bio)\n\n${tags} #ManoRiver`;
-  let x = `${title} — ${biz}. ${url} ${catTag} #Manohub`.trim();
-  if (x.length > 280) x = `${title.slice(0, 180)}… ${url} #Manohub`;
-  return [
-    { key: 'whatsapp', label: 'WhatsApp', text: wa },
-    { key: 'facebook', label: 'Facebook', text: fb },
-    { key: 'instagram', label: 'Instagram', text: ig },
-    { key: 'x', label: 'X / Twitter', text: x },
-  ];
 }
 
 export function Workspaces({
@@ -2019,11 +1998,26 @@ export function Workspaces({
   const [adCategory, setAdCategory] = useState<AdvertisementCategory>('business');
   const [adSubject, setAdSubject] = useState('');
   const [adDescription, setAdDescription] = useState('');
+  const [adMediaUrl, setAdMediaUrl] = useState('');
+  const [adUploading, setAdUploading] = useState(false);
+
+  const handleUploadRequestPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setAdUploading(true);
+    try {
+      setAdMediaUrl(await uploadAdvertImage(file, 'photo'));
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err?.message || 'Upload failed.'}`);
+    } finally {
+      setAdUploading(false);
+    }
+  };
   const [adSubmitting, setAdSubmitting] = useState(false);
 
   // Admin: published adverts shown on the public site (Manohub is the source
   // of truth; the social post links back).
   const [publishedAdverts, setPublishedAdverts] = useState<Advert[]>([]);
+  const [advAnalytics, setAdvAnalytics] = useState<AdvertAnalyticsSummary | null>(null);
   const [advForm, setAdvForm] = useState({
     title: '', category: 'business', businessName: '', summary: '', content: '',
     mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '',
@@ -2202,10 +2196,11 @@ export function Workspaces({
   useEffect(() => {
     if (activeTab !== 'admin-advertising' || !isPlatformAdmin) return;
     setAdvertisementsLoading(true);
-    Promise.all([fetchAllAdvertisementRequests(), fetchAllAdverts().catch(() => [])])
-      .then(([reqs, adverts]) => {
+    Promise.all([fetchAllAdvertisementRequests(), fetchAllAdverts().catch(() => []), fetchAdvertAnalyticsSummary().catch(() => null)])
+      .then(([reqs, adverts, analytics]) => {
         setAllAdvertisements(reqs);
         setPublishedAdverts(adverts);
+        setAdvAnalytics(analytics);
       })
       .catch((err: any) => setAdvertisementFeedback(`Error: ${err.message || 'Could not load advertising requests.'}`))
       .finally(() => setAdvertisementsLoading(false));
@@ -2270,10 +2265,11 @@ export function Workspaces({
     e.preventDefault();
     setAdSubmitting(true);
     try {
-      const created = await submitAdvertisementRequest(activeOrg.id, { category: adCategory, subject: adSubject, description: adDescription });
+      const created = await submitAdvertisementRequest(activeOrg.id, { category: adCategory, subject: adSubject, description: adDescription, mediaUrl: adMediaUrl || null });
       setMyAdvertisements([created, ...myAdvertisements]);
       setAdSubject('');
       setAdDescription('');
+      setAdMediaUrl('');
       setAdvertisementFeedback('Request submitted. Our team will design and run your advert.');
     } catch (err: any) {
       setAdvertisementFeedback(`Error: ${err.message || 'Could not submit request.'}`);
@@ -3456,6 +3452,21 @@ export function Workspaces({
                   <Sparkles className="h-3.5 w-3.5" /> {polishingSub ? 'Polishing…' : 'Polish my wording with AI'}
                 </button>
               </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Photo (optional)</label>
+                <div className="mt-1 flex items-center gap-2">
+                  <label className="shrink-0 cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 hover:bg-slate-50">
+                    {adUploading ? 'Uploading…' : adMediaUrl ? 'Change photo' : 'Upload photo'}
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadRequestPhoto(e.target.files?.[0])} />
+                  </label>
+                  {adMediaUrl && (
+                    <>
+                      <img src={adMediaUrl} alt="" className="h-9 w-9 object-cover rounded-lg border border-slate-200" />
+                      <button type="button" onClick={() => setAdMediaUrl('')} className="text-xs text-slate-400 hover:text-red-500 cursor-pointer">Remove</button>
+                    </>
+                  )}
+                </div>
+              </div>
               <button type="submit" disabled={adSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
                 {adSubmitting ? 'Submitting…' : 'Submit Request'}
               </button>
@@ -3491,6 +3502,7 @@ export function Workspaces({
                     headline={adSubject || 'Your headline goes here'}
                     body={adDescription}
                     category={categoryLabels[adCategory]}
+                    mediaUrl={adMediaUrl || null}
                   />
                 </CreativeScaler>
               </div>
@@ -3568,9 +3580,16 @@ export function Workspaces({
               {allAdvertisements.map((ad) => (
                 <div key={ad.id} className="border border-slate-100 rounded-xl p-4">
                   <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h4 className="font-semibold text-slate-800 text-sm">{ad.subject} — {ad.orgName}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{categoryLabels[ad.category]}: {ad.description}</p>
+                    <div className="flex items-start gap-3 min-w-0">
+                      {ad.mediaUrl && (
+                        <a href={ad.mediaUrl} target="_blank" rel="noopener noreferrer" className="shrink-0" title="Attached photo — open full size">
+                          <img src={ad.mediaUrl} alt="" className="h-12 w-12 object-cover rounded-lg border border-slate-200" />
+                        </a>
+                      )}
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-slate-800 text-sm">{ad.subject} — {ad.orgName}</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">{categoryLabels[ad.category]}: {ad.description}</p>
+                      </div>
                     </div>
                     <select value={ad.status} onChange={(e) => handleUpdateAdvertisement(ad.id, { status: e.target.value as AdvertisementRequest['status'] })}
                       className="text-xs border border-slate-200 rounded-lg p-1 bg-white shrink-0">
@@ -3629,6 +3648,23 @@ export function Workspaces({
             source of truth — paste the social post link so visitors can jump to the campaign; the social post
             should reference this advert's page back on Manohub.
           </p>
+
+          {advAnalytics && (
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { label: 'Total views', value: advAnalytics.viewsTotal, sub: `${advAnalytics.views7d} in 7d · ${advAnalytics.views30d} in 30d` },
+                { label: 'Total clicks', value: advAnalytics.clicksTotal, sub: `${advAnalytics.clicks7d} in 7d · ${advAnalytics.clicks30d} in 30d` },
+                { label: 'Live adverts', value: advAnalytics.liveCount, sub: 'showing on the site' },
+                { label: 'Click-through', value: `${advAnalytics.viewsTotal > 0 ? Math.round((advAnalytics.clicksTotal / advAnalytics.viewsTotal) * 100) : 0}%`, sub: 'clicks ÷ views' },
+              ].map((s) => (
+                <div key={s.label} className="border border-slate-100 rounded-xl p-3 bg-slate-50/60">
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{s.label}</p>
+                  <p className="text-xl font-display font-bold text-slate-900 mt-0.5">{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{s.sub}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="mt-4 grid lg:grid-cols-2 gap-6 items-start">
           <form onSubmit={handlePublishAdvert} className="grid grid-cols-1 gap-3">
@@ -3779,7 +3815,7 @@ export function Workspaces({
                   {sharePackId === adv.id && (
                     <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
                       <p className="text-[11px] text-slate-500">Copy a caption into each platform — each already links back to this advert on Manohub. Attach the creative PNG or a kit image as the post picture.</p>
-                      {buildSharePack(adv).map((cap) => (
+                      {buildAdvertSharePack(adv).map((cap) => (
                         <div key={cap.key} className="border border-slate-200 rounded-lg p-2.5">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{cap.label}</span>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, ExternalLink, Megaphone, Store } from 'lucide-react';
-import { fetchAdvertBySlug, trackAdvertView, trackAdvertClick, Advert } from '../lib/procurementApi';
+import { ArrowLeft, Loader2, ExternalLink, Megaphone, Store, Share2, Check, Copy } from 'lucide-react';
+import { fetchAdvertBySlug, trackAdvertView, trackAdvertClick, buildAdvertSharePack, Advert } from '../lib/procurementApi';
 import { AdvertCreative, CreativeScaler } from './AdvertCreative';
 
 function platformLabel(p: string | null): string {
@@ -14,6 +14,15 @@ export function AdvertDetailPage() {
   const [advert, setAdvert] = useState<Advert | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const copyCaption = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1600);
+    } catch { /* clipboard unavailable */ }
+  };
 
   useEffect(() => {
     if (!slug) return;
@@ -118,6 +127,31 @@ export function AdvertDetailPage() {
                 <Link to="/#advertise" className="border border-[#0F172A] text-[#0F172A] font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:bg-[#0F172A] hover:text-white transition-colors inline-flex items-center gap-2">
                   <Megaphone className="h-3.5 w-3.5" /> Advertise your business
                 </Link>
+              </div>
+
+              {/* Share this advert — ready-to-paste captions linking back here */}
+              <div className="mt-8 pt-6 border-t border-slate-100">
+                <div className="flex items-center gap-2 text-slate-900">
+                  <Share2 className="h-4 w-4 text-emerald-600" />
+                  <h2 className="font-display font-bold text-sm">Share this advert</h2>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">Copy a caption for any platform — each already links back to this page.</p>
+                <div className="mt-3 space-y-2">
+                  {buildAdvertSharePack(advert).map((cap) => (
+                    <div key={cap.key} className="border border-slate-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{cap.label}</span>
+                        <button
+                          onClick={() => copyCaption(cap.key, cap.text)}
+                          className="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer inline-flex items-center gap-1"
+                        >
+                          {copiedKey === cap.key ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
+                        </button>
+                      </div>
+                      <pre className="text-xs text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{cap.text}</pre>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </article>

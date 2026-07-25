@@ -1698,3 +1698,25 @@ Four follow-ups that turn the creative generator into a complete advertiser loop
 **Verification**: `tsc` + `npm run build` clean; storage policies confirm authenticated upload +
 public read; the tracking RPCs were exercised against the live DB (2 views / 1 click on a temp
 advert, then cleaned up); the share-pack caption builder was checked for content and the ≤280 X limit.
+
+## 50. Advert follow-ups: subscriber photo upload, analytics trend, public share pack (2026-07-25)
+
+Three more advert refinements:
+
+- **Subscriber request photo** — `advertisement_requests.media_url` (migration
+  `advertisement_request_media`). The subscriber "My Adverts" form gained an Upload photo control
+  (via `uploadAdvertImage`) that feeds the live creative preview and is stored with the request; the
+  admin fulfillment queue shows the attached photo as a thumbnail so it can be reused when publishing.
+- **Analytics trend (7d/30d)** — new `advert_events` table logs each view/click with a timestamp
+  (written by the extended `track_advert_view` / `track_advert_click` RPCs; admin-only SELECT, cascade
+  on advert delete). `get_advert_analytics_summary()` (SECURITY DEFINER, admin-guarded) returns
+  lifetime + last 7/30-day view & click totals, surfaced as a four-stat strip (total views, total
+  clicks, live count, click-through %) atop the admin advertising panel. Migration
+  `advert_events_and_summary`.
+- **Public share pack** — `buildSharePack` was promoted to `buildAdvertSharePack` in procurementApi
+  (shared by admin + public). The public `/adverts/:slug` page now has a "Share this advert" section
+  with per-platform copy-to-clipboard captions, so any visitor can reshare with a link back.
+
+**Verification**: `tsc` + `npm run build` clean; the events logging, counter increments, summary-query
+shape and cascade cleanup were exercised against the live DB; the shared caption builder was validated
+earlier (content + ≤280 X limit).

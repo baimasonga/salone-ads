@@ -1505,12 +1505,16 @@ export interface AdvertisementRequest {
   description: string;
   status: AdvertisementStatus;
   platform: string | null;
+  mediaUrl: string | null;
   reachCount: number | null;
   runCount: number | null;
   startDate: string | null;
   endDate: string | null;
   createdAt: string;
 }
+
+const AD_REQUEST_SELECT =
+  'id, org_id, category, subject, description, status, platform, media_url, reach_count, run_count, start_date, end_date, created_at';
 
 function mapAdvertisementRequest(row: any): AdvertisementRequest {
   return {
@@ -1521,6 +1525,7 @@ function mapAdvertisementRequest(row: any): AdvertisementRequest {
     description: row.description,
     status: row.status,
     platform: row.platform,
+    mediaUrl: row.media_url ?? null,
     reachCount: row.reach_count,
     runCount: row.run_count,
     startDate: row.start_date,
@@ -1531,7 +1536,7 @@ function mapAdvertisementRequest(row: any): AdvertisementRequest {
 
 export async function submitAdvertisementRequest(
   orgId: string,
-  input: { category: AdvertisementCategory; subject: string; description: string }
+  input: { category: AdvertisementCategory; subject: string; description: string; mediaUrl?: string | null }
 ): Promise<AdvertisementRequest> {
   const {
     data: { user },
@@ -1545,8 +1550,9 @@ export async function submitAdvertisementRequest(
       category: input.category,
       subject: input.subject,
       description: input.description,
+      media_url: input.mediaUrl ?? null,
     })
-    .select('id, org_id, category, subject, description, status, platform, reach_count, run_count, start_date, end_date, created_at')
+    .select(AD_REQUEST_SELECT)
     .single();
   if (error) throw error;
   return mapAdvertisementRequest(data);
@@ -1555,7 +1561,7 @@ export async function submitAdvertisementRequest(
 export async function fetchMyAdvertisements(orgId: string): Promise<AdvertisementRequest[]> {
   const { data, error } = await supabase
     .from('advertisement_requests')
-    .select('id, org_id, category, subject, description, status, platform, reach_count, run_count, start_date, end_date, created_at')
+    .select(AD_REQUEST_SELECT)
     .eq('org_id', orgId)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -1567,7 +1573,7 @@ export async function fetchMyAdvertisements(orgId: string): Promise<Advertisemen
 export async function fetchAllAdvertisementRequests(): Promise<AdvertisementRequest[]> {
   const { data, error } = await supabase
     .from('advertisement_requests')
-    .select('id, org_id, category, subject, description, status, platform, reach_count, run_count, start_date, end_date, created_at, organizations(name)')
+    .select(`${AD_REQUEST_SELECT}, organizations(name)`)
     .order('created_at', { ascending: true });
   if (error) throw error;
   return (data ?? []).map((row: any) => ({ ...mapAdvertisementRequest(row), orgName: row.organizations?.name }));
@@ -1704,6 +1710,56 @@ export async function trackAdvertView(slug: string): Promise<void> {
 }
 export async function trackAdvertClick(id: string): Promise<void> {
   try { await supabase.rpc('track_advert_click', { p_id: id }); } catch { /* ignore */ }
+}
+
+export interface AdvertAnalyticsSummary {
+  viewsTotal: number;
+  clicksTotal: number;
+  liveCount: number;
+  views7d: number;
+  clicks7d: number;
+  views30d: number;
+  clicks30d: number;
+}
+
+// Admin-only: lifetime + last 7/30 day view & click totals across all adverts.
+export async function fetchAdvertAnalyticsSummary(): Promise<AdvertAnalyticsSummary> {
+  const { data, error } = await supabase.rpc('get_advert_analytics_summary');
+  if (error) throw error;
+  const d = (data ?? {}) as any;
+  return {
+    viewsTotal: Number(d.views_total ?? 0),
+    clicksTotal: Number(d.clicks_total ?? 0),
+    liveCount: Number(d.live_count ?? 0),
+    views7d: Number(d.views_7d ?? 0),
+    clicks7d: Number(d.clicks_7d ?? 0),
+    views30d: Number(d.views_30d ?? 0),
+    clicks30d: Number(d.clicks_30d ?? 0),
+  };
+}
+
+// Ready-to-paste social captions for a published advert, each ending with the
+// advert's public Manohub page — the source-of-truth hand-off (no platform API
+// keys). Shared by the admin publisher and the public detail page.
+export function buildAdvertSharePack(adv: Advert): { key: string; label: string; text: string }[] {
+  const base = typeof window !== 'undefined' ? window.location.origin : 'https://manohub.com';
+  const url = `${base}/adverts/${adv.slug}`;
+  const title = adv.title.trim();
+  const biz = adv.businessName.trim();
+  const summary = (adv.summary || adv.content || '').trim();
+  const catTag = adv.category ? `#${adv.category.replace(/[^a-zA-Z0-9]+/g, '')}` : '';
+  const tags = [catTag, '#Manohub', '#SierraLeone', '#Liberia'].filter(Boolean).join(' ');
+  const wa = `📣 ${title}\n\n${summary}\n\n— ${biz}\n👉 Details & contact: ${url}`;
+  const fb = `${title}\n\n${summary}\n\nBrought to you by ${biz} on Manohub.\nFull details 👉 ${url}\n\n${tags}`;
+  const ig = `${title} ✨\n${summary}\n\n${biz} — see the full advert 👉 ${url}\n(link in bio)\n\n${tags} #ManoRiver`;
+  let x = `${title} — ${biz}. ${url} ${catTag} #Manohub`.trim();
+  if (x.length > 280) x = `${title.slice(0, 180)}… ${url} #Manohub`;
+  return [
+    { key: 'whatsapp', label: 'WhatsApp', text: wa },
+    { key: 'facebook', label: 'Facebook', text: fb },
+    { key: 'instagram', label: 'Instagram', text: ig },
+    { key: 'x', label: 'X / Twitter', text: x },
+  ];
 }
 
 // Admin: every advert (draft/live/archived) for the fulfillment/publish queue.
