@@ -1762,6 +1762,29 @@ export function buildAdvertSharePack(adv: Advert): { key: string; label: string;
   ];
 }
 
+// The public URL of an advert's Manohub page.
+export function advertPublicUrl(adv: Advert): string {
+  const base = typeof window !== 'undefined' ? window.location.origin : 'https://manohub.com';
+  return `${base}/adverts/${adv.slug}`;
+}
+
+// One-click distribution: platform share-intent links that open each app's
+// composer with the caption + advert link pre-filled, so posting is one tap.
+export function buildAdvertShareIntents(adv: Advert): { key: string; label: string; href: string }[] {
+  const url = advertPublicUrl(adv);
+  const short = `${adv.title} — ${adv.businessName}`;
+  const u = encodeURIComponent(url);
+  const waText = encodeURIComponent(`${short}\n${url}`);
+  const xText = encodeURIComponent(short);
+  const tgText = encodeURIComponent(short);
+  return [
+    { key: 'whatsapp', label: 'WhatsApp', href: `https://wa.me/?text=${waText}` },
+    { key: 'facebook', label: 'Facebook', href: `https://www.facebook.com/sharer/sharer.php?u=${u}` },
+    { key: 'x', label: 'X', href: `https://twitter.com/intent/tweet?text=${xText}&url=${u}` },
+    { key: 'telegram', label: 'Telegram', href: `https://t.me/share/url?url=${u}&text=${tgText}` },
+  ];
+}
+
 // Admin: every advert (draft/live/archived) for the fulfillment/publish queue.
 export async function fetchAllAdverts(): Promise<Advert[]> {
   const { data, error } = await supabase

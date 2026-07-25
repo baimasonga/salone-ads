@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, ExternalLink, Megaphone, Store, Share2, Check, Copy } from 'lucide-react';
-import { fetchAdvertBySlug, trackAdvertView, trackAdvertClick, buildAdvertSharePack, Advert } from '../lib/procurementApi';
+import { fetchAdvertBySlug, trackAdvertView, trackAdvertClick, buildAdvertSharePack, buildAdvertShareIntents, advertPublicUrl, Advert } from '../lib/procurementApi';
 import { AdvertCreative, CreativeScaler } from './AdvertCreative';
 
 function platformLabel(p: string | null): string {
@@ -22,6 +22,32 @@ export function AdvertDetailPage() {
       setCopiedKey(key);
       setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1600);
     } catch { /* clipboard unavailable */ }
+  };
+
+  // Native share sheet (mobile) — attaches the creative image when supported,
+  // so a tap opens WhatsApp/Facebook/etc. with the ad card + link ready to send.
+  const nativeShare = async (adv: Advert) => {
+    void trackAdvertClick(adv.id);
+    const url = advertPublicUrl(adv);
+    const text = `${adv.title} — ${adv.businessName}`;
+    const nav = navigator as any;
+    try {
+      if (adv.creativeUrl && nav.canShare) {
+        try {
+          const resp = await fetch(adv.creativeUrl);
+          const blob = await resp.blob();
+          const file = new File([blob], `${adv.slug}.png`, { type: blob.type || 'image/png' });
+          if (nav.canShare({ files: [file] })) {
+            await nav.share({ files: [file], title: text, text, url });
+            return;
+          }
+        } catch { /* fall through to text-only share */ }
+      }
+      if (nav.share) { await nav.share({ title: text, text, url }); return; }
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      setCopiedKey('native');
+      setTimeout(() => setCopiedKey((k) => (k === 'native' ? null : k)), 1600);
+    } catch { /* user cancelled */ }
   };
 
   useEffect(() => {
@@ -135,8 +161,32 @@ export function AdvertDetailPage() {
                   <Share2 className="h-4 w-4 text-emerald-600" />
                   <h2 className="font-display font-bold text-sm">Share this advert</h2>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Copy a caption for any platform — each already links back to this page.</p>
-                <div className="mt-3 space-y-2">
+                <p className="text-xs text-slate-500 mt-1">Post it to your networks — one tap opens the app with the ad and link ready to send.</p>
+
+                {/* One-click distribution */}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => nativeShare(advert)}
+                    className="bg-[#0F172A] text-white font-mono text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-[#1e293b] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Share2 className="h-3.5 w-3.5" /> Share
+                  </button>
+                  {buildAdvertShareIntents(advert).map((it) => (
+                    <a
+                      key={it.key}
+                      href={it.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => void trackAdvertClick(advert.id)}
+                      className="border border-slate-200 text-slate-700 font-mono text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 hover:border-[#0F172A] hover:text-[#0F172A] transition-colors cursor-pointer"
+                    >
+                      {it.label}
+                    </a>
+                  ))}
+                </div>
+
+                <p className="text-[11px] text-slate-400 mt-4">Or copy a ready-made caption:</p>
+                <div className="mt-2 space-y-2">
                   {buildAdvertSharePack(advert).map((cap) => (
                     <div key={cap.key} className="border border-slate-200 rounded-lg p-3">
                       <div className="flex items-center justify-between mb-1">

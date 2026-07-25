@@ -142,6 +142,7 @@ import {
   uploadAdvertCreative,
   uploadAdvertImage,
   buildAdvertSharePack,
+  buildAdvertShareIntents,
   fetchAdvertAnalyticsSummary,
   AdvertAnalyticsSummary,
   aiPolishAdvertCopy,
@@ -2214,6 +2215,15 @@ export function Workspaces({
     }
     setAdvSaving(true);
     try {
+      // Guarantee an og:image for social unfurling: if no creative was saved,
+      // capture the current preview and upload it before publishing.
+      let creativeUrl = advForm.creativeUrl || null;
+      if (!creativeUrl && creativeRef.current) {
+        try {
+          const dataUrl = await exportCreativePng(creativeRef.current);
+          creativeUrl = await uploadAdvertCreative(dataUrl);
+        } catch { /* non-fatal: publish without a saved creative */ }
+      }
       const created = await createAdvert({
         title: advForm.title,
         category: advForm.category,
@@ -2223,7 +2233,7 @@ export function Workspaces({
         mediaUrl: advForm.mediaUrl || null,
         socialPlatform: advForm.socialPlatform || null,
         socialUrl: advForm.socialUrl || null,
-        creativeUrl: advForm.creativeUrl || null,
+        creativeUrl,
         accentColor: advForm.accentColor || null,
         logoUrl: advForm.logoUrl || null,
         theme: advTheme,
@@ -3814,7 +3824,14 @@ export function Workspaces({
                   </div>
                   {sharePackId === adv.id && (
                     <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
-                      <p className="text-[11px] text-slate-500">Copy a caption into each platform — each already links back to this advert on Manohub. Attach the creative PNG or a kit image as the post picture.</p>
+                      <div className="flex flex-wrap gap-2">
+                        {buildAdvertShareIntents(adv).map((it) => (
+                          <a key={it.key} href={it.href} target="_blank" rel="noopener noreferrer" className="border border-slate-200 text-slate-700 font-mono text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:border-[#0F172A] hover:text-[#0F172A] transition-colors cursor-pointer">
+                            Post to {it.label}
+                          </a>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-slate-500">One-click posts open each app pre-filled. Or copy a caption below — each links back to this advert on Manohub. Attach the creative PNG or a kit image as the post picture.</p>
                       {buildAdvertSharePack(adv).map((cap) => (
                         <div key={cap.key} className="border border-slate-200 rounded-lg p-2.5">
                           <div className="flex items-center justify-between mb-1">

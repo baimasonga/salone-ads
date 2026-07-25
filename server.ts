@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import { createClient } from "@supabase/supabase-js";
@@ -53,6 +54,47 @@ const aiRateLimiter = rateLimit({
 
 const MAX_PROMPT_LENGTH = 2000;
 const MAX_FIELD_LENGTH = 300;
+
+// Escape a string for safe insertion into an HTML attribute / text node.
+function htmlEscape(s: string): string {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Inject Open Graph + Twitter Card meta into the base index.html so a shared
+// advert link unfurls as a rich visual ad card in social feeds (WhatsApp,
+// Facebook, X, LinkedIn, Telegram). Crawlers don't run JS, so this has to be
+// server-rendered; real users still get the SPA that hydrates over it.
+function injectAdvertMeta(
+  html: string,
+  adv: { title: string; business_name: string; summary?: string | null; content?: string | null; category?: string | null; creative_url?: string | null; media_url?: string | null },
+  url: string,
+): string {
+  const title = `${adv.title} — ${adv.business_name} · Manohub`;
+  const desc = (adv.summary || adv.content || `${adv.business_name} on Manohub`).slice(0, 200);
+  const image = adv.creative_url || adv.media_url || "";
+  const tags = [
+    `<title>${htmlEscape(title)}</title>`,
+    `<meta name="description" content="${htmlEscape(desc)}" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:site_name" content="Manohub" />`,
+    `<meta property="og:title" content="${htmlEscape(title)}" />`,
+    `<meta property="og:description" content="${htmlEscape(desc)}" />`,
+    `<meta property="og:url" content="${htmlEscape(url)}" />`,
+    image ? `<meta property="og:image" content="${htmlEscape(image)}" />` : "",
+    image ? `<meta property="og:image:alt" content="${htmlEscape(adv.title)}" />` : "",
+    `<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}" />`,
+    `<meta name="twitter:title" content="${htmlEscape(title)}" />`,
+    `<meta name="twitter:description" content="${htmlEscape(desc)}" />`,
+    image ? `<meta name="twitter:image" content="${htmlEscape(image)}" />` : "",
+  ].filter(Boolean).join("\n    ");
+  // Drop the static <title> from the template, then inject before </head>.
+  return html.replace(/<title>[\s\S]*?<\/title>/i, "").replace("</head>", `    ${tags}\n  </head>`);
+}
 
 async function startServer() {
   const app = express();
@@ -475,7 +517,32 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
+    const indexHtml = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
     app.use(express.static(distPath));
+
+    // Rich social unfurl: serve advert detail pages with injected OG/Twitter
+    // meta so a shared link renders as a visual ad card in feeds. Falls back to
+    // the plain SPA shell for unknown/not-live slugs.
+    app.get("/adverts/:slug", async (req, res) => {
+      let out = indexHtml;
+      try {
+        if (supabaseAuthClient) {
+          const { data } = await supabaseAuthClient
+            .from("adverts")
+            .select("slug, title, business_name, summary, content, category, creative_url, media_url, status")
+            .eq("slug", req.params.slug)
+            .maybeSingle();
+          if (data && data.status === "live") {
+            const base = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+            out = injectAdvertMeta(indexHtml, data, `${base}/adverts/${data.slug}`);
+          }
+        }
+      } catch {
+        /* fall back to the default shell */
+      }
+      res.set("Content-Type", "text/html; charset=utf-8").send(out);
+    });
+
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });

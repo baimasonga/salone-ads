@@ -1720,3 +1720,30 @@ Three more advert refinements:
 **Verification**: `tsc` + `npm run build` clean; the events logging, counter increments, summary-query
 shape and cascade cleanup were exercised against the live DB; the shared caption builder was validated
 earlier (content + ≤280 X limit).
+
+## 51. Advertising distribution engine: social link unfurling + one-click share (2026-07-25)
+
+The engine that puts Manohub adverts in front of social-media users — the substitute for buying
+traditional (TV / radio / newspaper) placement — without paid platform APIs. Two self-contained parts:
+
+- **Rich link unfurling (server-rendered OG/Twitter meta)** — `server.ts` now serves
+  `/adverts/:slug` with injected Open Graph + Twitter Card tags (title, description, and the advert's
+  creative as `og:image`, `summary_large_image`). Crawlers don't run JS, so this is done server-side
+  on the container that already serves prod, before the SPA catch-all; unknown/not-live slugs fall
+  back to the plain shell. Result: a shared advert link renders as a **visual ad card** in WhatsApp /
+  Facebook / X / LinkedIn / Telegram feeds. `injectAdvertMeta` HTML-escapes all fields and yields
+  exactly one `<title>`.
+- **Guaranteed og:image** — publishing now auto-captures and uploads the current creative when none
+  was saved, so every live advert always has an image to unfurl.
+- **One-click distribution** — `buildAdvertShareIntents` builds pre-filled share-composer links
+  (WhatsApp `wa.me`, Facebook sharer, X intent, Telegram) and the public detail page adds a native
+  **Web Share** button that attaches the creative image file where the browser supports it (ideal for
+  the mobile / WhatsApp-first audience). Both the public page and the admin published list now lead
+  with one-tap "post to platform" buttons above the copy-paste captions. Each share also counts as a
+  click via `trackAdvertClick`.
+
+**Verification**: `tsc` + `npm run build` clean (server bundle rebuilt); `injectAdvertMeta` was run
+against the real `dist/index.html` and produced all OG/Twitter tags with a single valid `<head>`; the
+share-intent URLs were validated as well-formed. (The route's live Supabase read can't be exercised in
+this sandbox — egress to Supabase is allowlist-blocked — but it uses the same anon client as the
+working `/r/:code` route and runs in the production container.)
