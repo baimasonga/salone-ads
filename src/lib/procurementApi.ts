@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { fetchMyOrganization } from './api';
 
 export interface TaxonomyOption {
   id: string;
@@ -973,19 +974,12 @@ function mapResponse(row: any): OpportunityResponse {
   };
 }
 
-// The signed-in user's first organization (for public pages without a workspace
-// context). Returns null if not signed in or not a member of any org.
+// Use the same verified, persisted organization context as the dashboard.
+// fetchMyOrganization validates the stored id against the current user's
+// visible memberships before returning it.
 export async function fetchMyOrgId(): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data, error } = await supabase
-    .from('organization_members')
-    .select('org_id, created_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-    .limit(1);
-  if (error) return null;
-  return data && data.length > 0 ? data[0].org_id : null;
+  const organization = await fetchMyOrganization();
+  return organization?.id ?? null;
 }
 
 // Public social-proof count of active responders on a tender.

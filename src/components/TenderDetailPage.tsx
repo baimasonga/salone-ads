@@ -45,6 +45,9 @@ function formatMoney(value: number, currencyCode: string | null, currencies: Cur
   return `${symbol} ${value.toLocaleString()}`.trim();
 }
 
+const MAX_RESPONSE_NOTE_LENGTH = 500;
+const RESPONSE_OPEN_STATUSES = new Set(['published', 'amended', 'deadline_extended']);
+
 export function TenderDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const [opportunity, setOpportunity] = useState<OpportunityDetail | null>(null);
@@ -68,6 +71,8 @@ export function TenderDetailPage() {
   const [responseCount, setResponseCount] = useState(0);
   const [respondNote, setRespondNote] = useState('');
   const [respondBusy, setRespondBusy] = useState(false);
+  const [responseNotice, setResponseNotice] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const { lang, setLang, t } = useLanguage();
 
   useEffect(() => {
@@ -118,6 +123,17 @@ export function TenderDetailPage() {
       .catch((err: any) => setError(err.message || 'Could not load this tender.'))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleExplainTender = async () => {
     if (!opportunity) return;
@@ -170,18 +186,38 @@ export function TenderDetailPage() {
     }
   };
 
-  const isClosed = !!opportunity && !!opportunity.submissionDeadline && new Date(opportunity.submissionDeadline).getTime() < Date.now();
+  const isStatusClosed = !!opportunity && !RESPONSE_OPEN_STATUSES.has(opportunity.statusCode);
+  const isDeadlinePassed = !!opportunity?.submissionDeadline && new Date(opportunity.submissionDeadline).getTime() < Date.now();
+  const isClosed = isStatusClosed || isDeadlinePassed;
 
   const handleRespond = async (kind: ResponseKind) => {
     if (!opportunity || !myOrgId) return;
+    const note = respondNote.trim();
+    if (!isOnline) {
+      setResponseNotice({ kind: 'error', message: 'You are offline. Reconnect to the internet and try again.' });
+      return;
+    }
+    if (isClosed) {
+      setResponseNotice({ kind: 'error', message: 'This tender is no longer accepting responses.' });
+      return;
+    }
+    if (note.length > MAX_RESPONSE_NOTE_LENGTH) {
+      setResponseNotice({ kind: 'error', message: `Your note must be ${MAX_RESPONSE_NOTE_LENGTH} characters or fewer.` });
+      return;
+    }
     setRespondBusy(true);
+    setResponseNotice(null);
     try {
-      const res = await submitResponse({ opportunityId: opportunity.id, orgId: myOrgId, kind, note: respondNote.trim() || null });
+      const res = await submitResponse({ opportunityId: opportunity.id, orgId: myOrgId, kind, note: note || null });
       const wasNew = !myResponse;
       setMyResponse(res);
       if (wasNew) setResponseCount((c) => c + 1);
-    } catch {
-      /* surfaced by the RLS/insert failing; keep UI state */
+      setResponseNotice({
+        kind: 'success',
+        message: kind === 'intent_to_bid' ? 'Your intent to bid was registered.' : 'Your interest was registered.',
+      });
+    } catch (err: any) {
+      setResponseNotice({ kind: 'error', message: err.message || 'Your response could not be submitted. Please try again.' });
     } finally {
       setRespondBusy(false);
     }
@@ -189,13 +225,20 @@ export function TenderDetailPage() {
 
   const handleWithdraw = async () => {
     if (!myResponse) return;
+    if (!isOnline) {
+      setResponseNotice({ kind: 'error', message: 'You are offline. Reconnect to the internet and try again.' });
+      return;
+    }
+    if (!window.confirm('Withdraw this tender response? The buyer will no longer see it as active.')) return;
     setRespondBusy(true);
+    setResponseNotice(null);
     try {
       await withdrawResponse(myResponse.id);
       setMyResponse(null);
       setResponseCount((c) => Math.max(0, c - 1));
-    } catch {
-      /* keep state */
+      setResponseNotice({ kind: 'success', message: 'Your tender response was withdrawn.' });
+    } catch (err: any) {
+      setResponseNotice({ kind: 'error', message: err.message || 'Your response could not be withdrawn. Please try again.' });
     } finally {
       setRespondBusy(false);
     }
@@ -222,7 +265,7 @@ export function TenderDetailPage() {
               FR
             </button>
           </div>
-          <Link to="/" className="text-xs font-mono uppercase tracking-widest text-emerald-700 hover:underline">
+          <Link to="/?auth=signin" className="text-xs font-mono uppercase tracking-widest text-emerald-700 hover:underline">
             {t('signIn')}
           </Link>
         </div>
@@ -321,11 +364,33 @@ export function TenderDetailPage() {
                 )}
               </div>
 
+              {!isOnline && (
+                <p role="status" className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2.5 mt-3">
+                  You are offline. Tender details remain visible, but responses are disabled until you reconnect.
+                </p>
+              )}
+              {responseNotice && (
+                <p
+                  role={responseNotice.kind === 'error' ? 'alert' : 'status'}
+                  className={`text-xs border p-2.5 mt-3 ${
+                    responseNotice.kind === 'error'
+                      ? 'text-red-700 bg-red-50 border-red-200'
+                      : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                  }`}
+                >
+                  {responseNotice.message}
+                </p>
+              )}
+
               {isClosed ? (
-                <p className="text-sm text-slate-500 mt-3">Submissions have closed for this tender.</p>
+                <p className="text-sm text-slate-500 mt-3">
+                  {isDeadlinePassed
+                    ? 'The submission deadline has passed and this tender is not accepting responses.'
+                    : `This tender is ${opportunity.statusLabel.toLowerCase()} and is not accepting responses.`}
+                </p>
               ) : !isAuthed ? (
                 <p className="text-sm text-slate-600 mt-3">
-                  <Link to="/" className="text-emerald-700 font-semibold hover:underline">Sign in</Link> with a subscribed account to register your interest or intent to bid.
+                  <Link to="/?auth=signin" className="text-emerald-700 font-semibold hover:underline">Sign in</Link> with a subscribed account to register your interest or intent to bid.
                 </p>
               ) : !myOrgId ? (
                 <p className="text-sm text-slate-600 mt-3">Set up your organisation profile to respond to tenders.</p>
@@ -343,11 +408,11 @@ export function TenderDetailPage() {
                   <p className="text-xs text-slate-500 mt-2">The buyer can see your organisation in their responses list. Prepare your bid before the deadline.</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {myResponse.kind === 'interest' && (
-                      <button onClick={() => handleRespond('intent_to_bid')} disabled={respondBusy} className="btn-geometric flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                      <button onClick={() => handleRespond('intent_to_bid')} disabled={respondBusy || !isOnline} className="btn-geometric flex items-center gap-2 cursor-pointer disabled:opacity-50">
                         Upgrade to intent to bid
                       </button>
                     )}
-                    <button onClick={handleWithdraw} disabled={respondBusy} className="btn-geometric-secondary cursor-pointer disabled:opacity-50">Withdraw</button>
+                    <button onClick={handleWithdraw} disabled={respondBusy || !isOnline} className="btn-geometric-secondary cursor-pointer disabled:opacity-50">Withdraw</button>
                   </div>
                 </div>
               ) : (
@@ -356,15 +421,19 @@ export function TenderDetailPage() {
                   <textarea
                     value={respondNote}
                     onChange={(e) => setRespondNote(e.target.value)}
+                    maxLength={MAX_RESPONSE_NOTE_LENGTH}
                     placeholder="Optional note to the buyer (capabilities, questions, partnership interest)…"
                     rows={2}
                     className="mt-3 w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 focus:bg-white focus:outline-emerald-500"
                   />
+                  <p className="text-[10px] text-slate-400 font-mono text-right mt-1">
+                    {respondNote.length}/{MAX_RESPONSE_NOTE_LENGTH}
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <button onClick={() => handleRespond('intent_to_bid')} disabled={respondBusy} className="btn-geometric flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                    <button onClick={() => handleRespond('intent_to_bid')} disabled={respondBusy || !isOnline} className="btn-geometric flex items-center gap-2 cursor-pointer disabled:opacity-50">
                       <Handshake className="h-4 w-4" /> {respondBusy ? 'Submitting…' : 'Intent to bid'}
                     </button>
-                    <button onClick={() => handleRespond('interest')} disabled={respondBusy} className="btn-geometric-secondary flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                    <button onClick={() => handleRespond('interest')} disabled={respondBusy || !isOnline} className="btn-geometric-secondary flex items-center gap-2 cursor-pointer disabled:opacity-50">
                       Express interest
                     </button>
                   </div>

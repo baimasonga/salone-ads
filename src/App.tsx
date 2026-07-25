@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import {
@@ -14,38 +14,63 @@ import {
 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
 import { AuthScreens } from './components/AuthScreens';
-import { Workspaces } from './components/Workspaces';
-import { TenderSearchPage } from './components/TenderSearchPage';
-import { TenderDetailPage } from './components/TenderDetailPage';
-import { AdvertDetailPage } from './components/AdvertDetailPage';
-import { AdvertsFeedPage } from './components/AdvertsFeedPage';
 import { supabase } from './lib/supabaseClient';
-import { fetchMyOrganization, fetchOrgBundle, fetchDirectoryProfiles, fetchInfluencerProfiles, fetchMyPlatformRole } from './lib/api';
+import {
+  fetchMyOrganizations,
+  fetchOrgBundle,
+  fetchDirectoryProfiles,
+  fetchInfluencerProfiles,
+  fetchMyPlatformRole,
+  getStoredActiveOrganizationId,
+  storeActiveOrganizationId,
+} from './lib/api';
 import { fetchMyNotifications, markNotificationRead, AppNotification, hasFeature } from './lib/procurementApi';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
 
 type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
 
+const Workspaces = lazy(() => import('./components/Workspaces').then((module) => ({ default: module.Workspaces })));
+const TenderSearchPage = lazy(() => import('./components/TenderSearchPage').then((module) => ({ default: module.TenderSearchPage })));
+const TenderDetailPage = lazy(() => import('./components/TenderDetailPage').then((module) => ({ default: module.TenderDetailPage })));
+const AdvertDetailPage = lazy(() => import('./components/AdvertDetailPage').then((module) => ({ default: module.AdvertDetailPage })));
+const AdvertsFeedPage = lazy(() => import('./components/AdvertsFeedPage').then((module) => ({ default: module.AdvertsFeedPage })));
+
+function PageLoader() {
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center border-4 md:border-8 border-[#0F172A]">
+      <div role="status" className="flex items-center gap-3 text-xs font-mono uppercase tracking-widest text-slate-500">
+        <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/tenders" element={<TenderSearchPage />} />
-      <Route path="/tenders/:slug" element={<TenderDetailPage />} />
-      <Route path="/adverts" element={<AdvertsFeedPage />} />
-      <Route path="/adverts/:slug" element={<AdvertDetailPage />} />
-      <Route path="/*" element={<MainApp />} />
-    </Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/tenders" element={<TenderSearchPage />} />
+        <Route path="/tenders/:slug" element={<TenderDetailPage />} />
+        <Route path="/adverts" element={<AdvertsFeedPage />} />
+        <Route path="/adverts/:slug" element={<AdvertDetailPage />} />
+        <Route path="/*" element={<MainApp />} />
+      </Routes>
+    </Suspense>
   );
 }
 
 function MainApp() {
   const [session, setSession] = useState<Session | null>(null);
-  const [view, setView] = useState<ViewState>('landing');
+  const [view, setView] = useState<ViewState>(() => {
+    const requestedAuthView = new URLSearchParams(window.location.search).get('auth');
+    return requestedAuthView === 'signin' ? 'signin' : requestedAuthView === 'signup' ? 'signup' : 'landing';
+  });
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState('');
 
   // --- HYDRATED DATA STATES (populated from Supabase once authenticated) ---
   const [activeOrg, setActiveOrg] = useState<Organization | null>(null);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -60,9 +85,10 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const loadWorkspace = useCallback(async (activeSession: Session | null) => {
+  const loadWorkspace = useCallback(async (activeSession: Session | null, preferredOrgId?: string) => {
     if (!activeSession) {
       setActiveOrg(null);
+      setOrganizations([]);
       setBrandKit(null);
       setCampaigns([]);
       setContentItems([]);
@@ -80,11 +106,16 @@ function MainApp() {
     setWorkspaceLoading(true);
     setWorkspaceError('');
     try {
-      const org = await fetchMyOrganization();
-      if (!org) {
+      const availableOrganizations = await fetchMyOrganizations();
+      if (availableOrganizations.length === 0) {
+        setOrganizations([]);
         setView('onboarding');
         return;
       }
+      const savedOrgId = preferredOrgId || getStoredActiveOrganizationId(activeSession.user.id);
+      const org = availableOrganizations.find((item) => item.id === savedOrgId) ?? availableOrganizations[0];
+      storeActiveOrganizationId(activeSession.user.id, org.id);
+      setOrganizations(availableOrganizations);
       const [bundle, directory, influencers, platformRole, advertisingEntitled] = await Promise.all([
         fetchOrgBundle(org.id),
         fetchDirectoryProfiles(),
@@ -127,6 +158,12 @@ function MainApp() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setActiveTab('overview');
+  };
+
+  const handleOrganizationChange = async (orgId: string) => {
+    if (!session || orgId === activeOrg?.id) return;
+    setActiveTab('overview');
+    await loadWorkspace(session, orgId);
   };
 
   // --- RENDERING ROUTE SEGMENTS ---
@@ -265,6 +302,9 @@ function MainApp() {
   return (
     <DashboardShell
       activeOrg={activeOrg}
+      organizations={organizations}
+      onOrganizationChange={handleOrganizationChange}
+      organizationSwitching={workspaceLoading}
       activeTab={activeTab}
       setActiveTab={setActiveTab}
       sidebarOpen={sidebarOpen}
@@ -302,6 +342,9 @@ function MainApp() {
 
 interface DashboardShellProps {
   activeOrg: Organization;
+  organizations: Organization[];
+  onOrganizationChange: (orgId: string) => void;
+  organizationSwitching: boolean;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   sidebarOpen: boolean;
@@ -367,7 +410,19 @@ function NavGroupBlock({
   );
 }
 
-function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSidebarOpen, navGroups, onLogout, children }: DashboardShellProps) {
+function DashboardShell({
+  activeOrg,
+  organizations,
+  onOrganizationChange,
+  organizationSwitching,
+  activeTab,
+  setActiveTab,
+  sidebarOpen,
+  setSidebarOpen,
+  navGroups,
+  onLogout,
+  children,
+}: DashboardShellProps) {
   const orgNavGroups = navGroups.filter((g) => !g.adminOnly);
   const adminNavGroups = navGroups.filter((g) => g.adminOnly);
 
@@ -462,7 +517,21 @@ function DashboardShell({ activeOrg, activeTab, setActiveTab, sidebarOpen, setSi
           {/* Org Scoped Pill */}
           <div className="border border-[#0F172A] bg-white p-3.5 text-left shadow-xs">
             <span className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.25em] block">SYSTEM.CONTEXT</span>
-            <span className="font-extrabold text-sm block mt-0.5 text-[#0F172A] truncate">{activeOrg.name}</span>
+            {organizations.length > 1 ? (
+              <select
+                value={activeOrg.id}
+                onChange={(event) => onOrganizationChange(event.target.value)}
+                disabled={organizationSwitching}
+                aria-label="Active organisation"
+                className="font-extrabold text-sm block mt-1 text-[#0F172A] bg-white border border-slate-300 w-full px-2 py-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {organizations.map((organization) => (
+                  <option key={organization.id} value={organization.id}>{organization.name}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="font-extrabold text-sm block mt-0.5 text-[#0F172A] truncate">{activeOrg.name}</span>
+            )}
             <span className="text-[10px] text-slate-600 font-mono mt-1 block">PLAN: Trial Tier</span>
           </div>
 

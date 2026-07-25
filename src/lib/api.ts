@@ -158,15 +158,63 @@ function unwrap<T>({ data, error }: { data: T | null; error: any }): T {
 
 // --- fetchers ---
 
-export async function fetchMyOrganization(): Promise<Organization | null> {
+const ACTIVE_ORG_STORAGE_PREFIX = 'manohub.activeOrganization';
+
+function activeOrgStorageKey(userId: string): string {
+  return `${ACTIVE_ORG_STORAGE_PREFIX}.${userId}`;
+}
+
+export function getStoredActiveOrganizationId(userId: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(activeOrgStorageKey(userId));
+  } catch {
+    return null;
+  }
+}
+
+export function storeActiveOrganizationId(userId: string, orgId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(activeOrgStorageKey(userId), orgId);
+  } catch {
+    // Private browsing or a storage policy can disable localStorage. The
+    // verified organization remains active for the current session.
+  }
+}
+
+export async function fetchMyOrganizations(): Promise<Organization[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
   const { data, error } = await supabase
     .from('organization_members')
     .select('organizations(*)')
-    .limit(1)
-    .maybeSingle();
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true });
   if (error) throw error;
-  if (!data || !data.organizations) return null;
-  return mapOrganization(data.organizations);
+
+  return (data ?? [])
+    .map((membership: any) => membership.organizations)
+    .filter(Boolean)
+    .map(mapOrganization);
+}
+
+export async function fetchMyOrganization(preferredOrgId?: string | null): Promise<Organization | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const organizations = await fetchMyOrganizations();
+  if (organizations.length === 0) return null;
+
+  const requestedId = preferredOrgId || getStoredActiveOrganizationId(user.id);
+  const selected = organizations.find((org) => org.id === requestedId) ?? organizations[0];
+  storeActiveOrganizationId(user.id, selected.id);
+  return selected;
 }
 
 export async function fetchMyPlatformRole(): Promise<'user' | 'researcher' | 'admin'> {

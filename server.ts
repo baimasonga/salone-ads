@@ -10,7 +10,7 @@ import { createServer as createViteServer } from "vite";
 dotenv.config();
 
 // Typed environment configuration audit
-const REQUIRED_ENV_VARS = ["APP_URL", "VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"];
+const REQUIRED_ENV_VARS = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"];
 const MISSING_VARS = REQUIRED_ENV_VARS.filter(key => !process.env[key]);
 if (MISSING_VARS.length > 0) {
   console.warn(`[WARN] Missing environment variables in system context: ${MISSING_VARS.join(", ")}`);
@@ -63,6 +63,29 @@ function htmlEscape(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function configuredAppOrigin(): string | null {
+  const value = process.env.APP_URL?.trim();
+  if (!value || value.includes('REPLACE_WITH_') || value === 'MY_APP_URL') return null;
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+function requestOrigin(req: express.Request): string | null {
+  const configured = configuredAppOrigin();
+  if (configured) return configured;
+
+  const host = req.get('host');
+  if (!host || !/^[a-z0-9.-]+(?::\d{1,5})?$/i.test(host)) return null;
+  const forwardedProtocol = req.get('x-forwarded-proto')?.split(',')[0].trim();
+  const protocol = forwardedProtocol === 'http' || forwardedProtocol === 'https' ? forwardedProtocol : req.protocol;
+  return `${protocol}://${host}`;
 }
 
 // Inject Open Graph + Twitter Card meta into the base index.html so a shared
@@ -533,8 +556,8 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
             .eq("slug", req.params.slug)
             .maybeSingle();
           if (data && data.status === "live") {
-            const base = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
-            out = injectAdvertMeta(indexHtml, data, `${base}/adverts/${data.slug}`);
+            const base = requestOrigin(req);
+            if (base) out = injectAdvertMeta(indexHtml, data, `${base}/adverts/${data.slug}`);
           }
         }
       } catch {
