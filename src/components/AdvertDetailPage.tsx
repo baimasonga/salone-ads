@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, ExternalLink, Megaphone, Store } from 'lucide-react';
-import { fetchAdvertBySlug, Advert } from '../lib/procurementApi';
+import { fetchAdvertBySlug, trackAdvertView, trackAdvertClick, Advert } from '../lib/procurementApi';
 import { AdvertCreative, CreativeScaler } from './AdvertCreative';
 
 function platformLabel(p: string | null): string {
@@ -22,7 +22,10 @@ export function AdvertDetailPage() {
     fetchAdvertBySlug(slug)
       .then((a) => {
         if (!a || a.status !== 'live') setNotFound(true);
-        else setAdvert(a);
+        else {
+          setAdvert(a);
+          void trackAdvertView(a.slug);
+        }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
@@ -104,6 +107,7 @@ export function AdvertDetailPage() {
                     href={advert.socialUrl}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => void trackAdvertClick(advert.id)}
                     className="bg-emerald-600 text-white font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:bg-emerald-700 transition-colors inline-flex items-center gap-2"
                   >
                     View on {platformLabel(advert.socialPlatform)} <ExternalLink className="h-3.5 w-3.5" />

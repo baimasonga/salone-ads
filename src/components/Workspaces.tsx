@@ -140,6 +140,7 @@ import {
   updateAdvert,
   deleteAdvert,
   uploadAdvertCreative,
+  uploadAdvertImage,
   aiPolishAdvertCopy,
   Advert,
 } from '../lib/procurementApi';
@@ -163,6 +164,30 @@ interface WorkspacesProps {
   setSocialConnections: React.Dispatch<React.SetStateAction<SocialConnection[]>>;
   brandKit: BrandKit;
   setBrandKit: React.Dispatch<React.SetStateAction<BrandKit>>;
+}
+
+// Build ready-to-paste social captions for a published advert, each ending with
+// the advert's public Manohub page — the source-of-truth hand-off (no platform
+// API keys needed; the advertiser copies these into each channel).
+function buildSharePack(adv: Advert): { key: string; label: string; text: string }[] {
+  const base = typeof window !== 'undefined' ? window.location.origin : 'https://manohub.com';
+  const url = `${base}/adverts/${adv.slug}`;
+  const title = adv.title.trim();
+  const biz = adv.businessName.trim();
+  const summary = (adv.summary || adv.content || '').trim();
+  const catTag = adv.category ? `#${adv.category.replace(/[^a-zA-Z0-9]+/g, '')}` : '';
+  const tags = [catTag, '#Manohub', '#SierraLeone', '#Liberia'].filter(Boolean).join(' ');
+  const wa = `📣 ${title}\n\n${summary}\n\n— ${biz}\n👉 Details & contact: ${url}`;
+  const fb = `${title}\n\n${summary}\n\nBrought to you by ${biz} on Manohub.\nFull details 👉 ${url}\n\n${tags}`;
+  const ig = `${title} ✨\n${summary}\n\n${biz} — see the full advert 👉 ${url}\n(link in bio)\n\n${tags} #ManoRiver`;
+  let x = `${title} — ${biz}. ${url} ${catTag} #Manohub`.trim();
+  if (x.length > 280) x = `${title.slice(0, 180)}… ${url} #Manohub`;
+  return [
+    { key: 'whatsapp', label: 'WhatsApp', text: wa },
+    { key: 'facebook', label: 'Facebook', text: fb },
+    { key: 'instagram', label: 'Instagram', text: ig },
+    { key: 'x', label: 'X / Twitter', text: x },
+  ];
 }
 
 export function Workspaces({
@@ -2008,6 +2033,70 @@ export function Workspaces({
   const [advFormat, setAdvFormat] = useState<AdvertFormat>('square');
   const [advTheme, setAdvTheme] = useState<AdvertTheme>('dark');
   const [advWithPhoto, setAdvWithPhoto] = useState(true);
+  const [advUploading, setAdvUploading] = useState<'photo' | 'logo' | null>(null);
+
+  // Upload an advert photo/logo file and set its public URL on the form.
+  const handleUploadAdvertImage = async (file: File | undefined, kind: 'photo' | 'logo') => {
+    if (!file) return;
+    setAdvUploading(kind);
+    try {
+      const url = await uploadAdvertImage(file, kind);
+      setAdvForm((f) => ({ ...f, [kind === 'photo' ? 'mediaUrl' : 'logoUrl']: url }));
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err?.message || 'Upload failed.'}`);
+    } finally {
+      setAdvUploading(null);
+    }
+  };
+
+  // "Download the kit": render every format off-screen, capture each to PNG and
+  // zip them so an advertiser gets all channel sizes in one download.
+  const KIT_FORMATS: AdvertFormat[] = ['square', 'story', 'landscape', 'banner', 'editorial'];
+  const kitRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [kitExporting, setKitExporting] = useState(false);
+  const [sharePackId, setSharePackId] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopyCaption = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1600);
+    } catch {
+      setAdvertisementFeedback('Error: could not copy to clipboard.');
+    }
+  };
+
+  useEffect(() => {
+    if (!kitExporting) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        try { await (document as any).fonts?.ready; } catch { /* ignore */ }
+        await new Promise((r) => setTimeout(r, 500));
+        const zip = new JSZip();
+        const slug = (advForm.title || 'advert').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'advert';
+        for (const f of KIT_FORMATS) {
+          const node = kitRefs.current[f];
+          if (!node) continue;
+          const dataUrl = await exportCreativePng(node);
+          zip.file(`manohub-${slug}-${f}.png`, dataUrl.split(',')[1], { base64: true });
+        }
+        const blob = await zip.generateAsync({ type: 'blob' });
+        if (cancelled) return;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `manohub-${slug}-kit.zip`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (err: any) {
+        setAdvertisementFeedback(`Error: ${err?.message || 'Kit export failed.'}`);
+      } finally {
+        if (!cancelled) setKitExporting(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [kitExporting]);
   const [savingCreative, setSavingCreative] = useState(false);
   const [polishingCopy, setPolishingCopy] = useState(false);
 
@@ -3550,7 +3639,14 @@ export function Workspaces({
                 <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
               ))}
             </select>
-            <input value={advForm.mediaUrl} onChange={(e) => setAdvForm({ ...advForm, mediaUrl: e.target.value })} placeholder="Image URL (optional)" className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <div className="flex items-center gap-2">
+              <label className="shrink-0 cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">
+                {advUploading === 'photo' ? 'Uploading…' : advForm.mediaUrl ? 'Change photo' : 'Upload photo'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadAdvertImage(e.target.files?.[0], 'photo')} />
+              </label>
+              <input value={advForm.mediaUrl} onChange={(e) => setAdvForm({ ...advForm, mediaUrl: e.target.value })} placeholder="…or paste image URL" className="flex-1 min-w-0 border border-slate-200 rounded-lg p-2 text-sm" />
+              {advForm.mediaUrl && <button type="button" onClick={() => setAdvForm({ ...advForm, mediaUrl: '' })} className="shrink-0 text-xs text-slate-400 hover:text-red-500 cursor-pointer">Clear</button>}
+            </div>
             <input value={advForm.summary} onChange={(e) => setAdvForm({ ...advForm, summary: e.target.value })} placeholder="Short summary (one line)" className="border border-slate-200 rounded-lg p-2 text-sm sm:col-span-2" />
             <textarea value={advForm.content} onChange={(e) => setAdvForm({ ...advForm, content: e.target.value })} placeholder="Full advert content" rows={3} className="border border-slate-200 rounded-lg p-2 text-sm" />
             <button type="button" onClick={handlePolishAdvertCopy} disabled={polishingCopy} className="justify-self-start inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer disabled:opacity-50">
@@ -3561,7 +3657,10 @@ export function Workspaces({
                 Brand colour
                 <input type="color" value={advForm.accentColor} onChange={(e) => setAdvForm({ ...advForm, accentColor: e.target.value })} className="h-6 w-8 cursor-pointer border-0 bg-transparent p-0" />
               </label>
-              <input value={advForm.logoUrl} onChange={(e) => setAdvForm({ ...advForm, logoUrl: e.target.value })} placeholder="Logo URL (optional)" className="border border-slate-200 rounded-lg p-2 text-sm" />
+              <label className="cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">
+                {advUploading === 'logo' ? 'Uploading…' : advForm.logoUrl ? 'Change logo' : 'Upload logo'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadAdvertImage(e.target.files?.[0], 'logo')} />
+              </label>
             </div>
             <select value={advForm.socialPlatform} onChange={(e) => setAdvForm({ ...advForm, socialPlatform: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
               {['Facebook', 'Instagram', 'WhatsApp', 'TikTok', 'X', 'YouTube', 'LinkedIn'].map((p) => <option key={p} value={p}>{p}</option>)}
@@ -3616,6 +3715,31 @@ export function Workspaces({
                 {savingCreative ? 'Saving…' : 'Save for social'}
               </button>
             </div>
+            <button type="button" onClick={() => setKitExporting(true)} disabled={kitExporting} className="mt-2 w-full border border-slate-300 text-slate-700 font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50">
+              {kitExporting ? 'Building kit…' : 'Download the kit (all 5 sizes · ZIP)'}
+            </button>
+            {/* Off-screen full-res render of every format for the kit ZIP */}
+            {kitExporting && (
+              <div style={{ position: 'fixed', left: -99999, top: 0, opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
+                {KIT_FORMATS.map((f) => (
+                  <div key={f} ref={(el) => { kitRefs.current[f] = el; }}>
+                    <AdvertCreative
+                      format={f}
+                      theme={advTheme}
+                      withPhoto={advWithPhoto}
+                      businessName={advForm.businessName || 'Your Business'}
+                      headline={advForm.title || 'Your headline goes here'}
+                      body={advForm.summary || advForm.content}
+                      category={advForm.category}
+                      mediaUrl={advForm.mediaUrl || null}
+                      platform={advForm.socialPlatform}
+                      accentColor={advForm.accentColor}
+                      logoUrl={advForm.logoUrl || null}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
             {advForm.creativeUrl && (
               <p className="mt-2 text-[11px] text-emerald-700">
                 Creative saved · <a href={advForm.creativeUrl} target="_blank" rel="noopener noreferrer" className="underline">open PNG</a> — attaches on publish.
@@ -3629,22 +3753,45 @@ export function Workspaces({
               <p className="text-xs text-slate-400">No adverts published yet.</p>
             ) : (
               publishedAdverts.map((adv) => (
-                <div key={adv.id} className="border border-slate-100 rounded-xl p-4 flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <h4 className="font-semibold text-slate-800 text-sm truncate">{adv.title} — {adv.businessName}</h4>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {adv.category} · {adv.status}
-                      {adv.socialUrl && <> · <a href={adv.socialUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">social post</a></>}
-                      {adv.creativeUrl && <> · <a href={adv.creativeUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">creative PNG</a></>}
-                      {' · '}<Link to={`/adverts/${adv.slug}`} target="_blank" className="text-emerald-600 hover:underline">/adverts/{adv.slug}</Link>
-                    </p>
+                <div key={adv.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-slate-800 text-sm truncate">{adv.title} — {adv.businessName}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {adv.category} · {adv.status}
+                        {' · '}<span title="Detail-page views">👁 {adv.viewCount.toLocaleString()}</span>
+                        {' · '}<span title="'View on social' clicks">↗ {adv.clickCount.toLocaleString()}</span>
+                        {adv.socialUrl && <> · <a href={adv.socialUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">social post</a></>}
+                        {adv.creativeUrl && <> · <a href={adv.creativeUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">creative PNG</a></>}
+                        {' · '}<Link to={`/adverts/${adv.slug}`} target="_blank" className="text-emerald-600 hover:underline">/adverts/{adv.slug}</Link>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button onClick={() => setSharePackId((id) => (id === adv.id ? null : adv.id))} className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer">
+                        {sharePackId === adv.id ? 'Hide share pack' : 'Share pack'}
+                      </button>
+                      <button onClick={() => handleToggleAdvertStatus(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
+                        {adv.status === 'live' ? 'Archive' : 'Set live'}
+                      </button>
+                      <button onClick={() => handleDeleteAdvert(adv.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <button onClick={() => handleToggleAdvertStatus(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
-                      {adv.status === 'live' ? 'Archive' : 'Set live'}
-                    </button>
-                    <button onClick={() => handleDeleteAdvert(adv.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
-                  </div>
+                  {sharePackId === adv.id && (
+                    <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
+                      <p className="text-[11px] text-slate-500">Copy a caption into each platform — each already links back to this advert on Manohub. Attach the creative PNG or a kit image as the post picture.</p>
+                      {buildSharePack(adv).map((cap) => (
+                        <div key={cap.key} className="border border-slate-200 rounded-lg p-2.5">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{cap.label}</span>
+                            <button onClick={() => handleCopyCaption(`${adv.id}-${cap.key}`, cap.text)} className="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer">
+                              {copiedKey === `${adv.id}-${cap.key}` ? 'Copied ✓' : 'Copy'}
+                            </button>
+                          </div>
+                          <pre className="text-xs text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{cap.text}</pre>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
             )}

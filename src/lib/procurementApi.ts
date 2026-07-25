@@ -1617,13 +1617,15 @@ export interface Advert {
   theme: 'dark' | 'light';
   format: 'square' | 'story' | 'landscape' | 'banner' | 'editorial';
   withPhoto: boolean;
+  viewCount: number;
+  clickCount: number;
   status: AdvertStatus;
   publishedAt: string | null;
   createdAt: string;
 }
 
 const ADVERT_SELECT =
-  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, accent_color, logo_url, theme, format, with_photo, status, published_at, created_at';
+  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, accent_color, logo_url, theme, format, with_photo, view_count, click_count, status, published_at, created_at';
 
 function mapAdvert(row: any): Advert {
   return {
@@ -1643,6 +1645,8 @@ function mapAdvert(row: any): Advert {
     theme: row.theme ?? 'dark',
     format: row.format ?? 'square',
     withPhoto: row.with_photo ?? true,
+    viewCount: row.view_count ?? 0,
+    clickCount: row.click_count ?? 0,
     status: row.status,
     publishedAt: row.published_at ?? null,
     createdAt: row.created_at,
@@ -1655,6 +1659,17 @@ export async function uploadAdvertCreative(dataUrl: string): Promise<string> {
   const blob = await (await fetch(dataUrl)).blob();
   const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
   const { error } = await supabase.storage.from('advert-creatives').upload(path, blob, { contentType: 'image/png', upsert: false });
+  if (error) throw error;
+  return supabase.storage.from('advert-creatives').getPublicUrl(path).data.publicUrl;
+}
+
+// Upload an advert photo or logo (a real image file) to the public
+// advert-creatives bucket and return its public URL. Used by the advert forms
+// so advertisers can add an image without hosting one themselves.
+export async function uploadAdvertImage(file: File, kind: 'photo' | 'logo' = 'photo'): Promise<string> {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const path = `${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage.from('advert-creatives').upload(path, file, { contentType: file.type || undefined, upsert: false });
   if (error) throw error;
   return supabase.storage.from('advert-creatives').getPublicUrl(path).data.publicUrl;
 }
@@ -1680,6 +1695,15 @@ export async function fetchAdvertBySlug(slug: string): Promise<Advert | null> {
     .maybeSingle();
   if (error) throw error;
   return data ? mapAdvert(data) : null;
+}
+
+// Public analytics: count a detail-page view / a "view on social" click.
+// Best-effort — failures are swallowed so they never break the page.
+export async function trackAdvertView(slug: string): Promise<void> {
+  try { await supabase.rpc('track_advert_view', { p_slug: slug }); } catch { /* ignore */ }
+}
+export async function trackAdvertClick(id: string): Promise<void> {
+  try { await supabase.rpc('track_advert_click', { p_id: id }); } catch { /* ignore */ }
 }
 
 // Admin: every advert (draft/live/archived) for the fulfillment/publish queue.

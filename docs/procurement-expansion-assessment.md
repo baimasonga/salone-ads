@@ -1675,3 +1675,26 @@ subscriber format toggles, and the public detail page's hero max-width all inclu
 
 **Verification**: `tsc` + `npm run build` clean; both editorial variants (photo + green text-forward)
 rendered from the real component and screenshot-checked against the exported 1K/1L reference frames.
+
+## 49. Advert templates → usable end-to-end: uploads, kit ZIP, share pack, analytics (2026-07-25)
+
+Four follow-ups that turn the creative generator into a complete advertiser loop:
+
+- **Photo & logo upload** — `uploadAdvertImage(file, kind)` uploads a real image to the public
+  `advert-creatives` bucket (authenticated insert, public read). The admin publish form's photo and
+  logo fields are now upload controls (paste-URL still works as a fallback).
+- **Download the kit** — one button renders every format (square/story/landscape/banner/editorial)
+  off-screen at full resolution, captures each with html-to-image and zips them (JSZip) as
+  `manohub-<slug>-kit.zip`, so an advertiser gets all channel sizes in one download.
+- **Social share pack** — `buildSharePack(advert)` produces ready-to-paste WhatsApp / Facebook /
+  Instagram / X captions, each ending with the advert's public Manohub URL (X auto-trimmed ≤280).
+  Exposed per advert in the admin published list with copy-to-clipboard — the source-of-truth
+  hand-off with no platform API keys.
+- **Advert analytics** — `view_count` / `click_count` columns plus SECURITY DEFINER RPCs
+  `track_advert_view(slug)` / `track_advert_click(id)` (granted to anon) let the public detail page
+  count a view on load and a click on "View on {platform}" without broad table access. Counts show
+  inline in the admin published list (👁 views · ↗ clicks). Migration `advert_view_click_counters`.
+
+**Verification**: `tsc` + `npm run build` clean; storage policies confirm authenticated upload +
+public read; the tracking RPCs were exercised against the live DB (2 views / 1 click on a temp
+advert, then cleaned up); the share-pack caption builder was checked for content and the ≤280 X limit.
