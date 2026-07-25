@@ -51,3 +51,5 @@ export default {
     return container.fetch(request);
   },
 };
+
+// Deployment marker: rebuild the container after analytics UI publication.
