@@ -61,6 +61,8 @@ export interface OpportunityDocument {
 }
 
 export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024; // 10MB — keep uploads reasonable on slow connections.
+const MAX_ADVERT_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_ADVERT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 const LIST_SELECT = `
   id, slug, title, buyer_name, submission_deadline, estimated_value, currency_code, is_featured, review_note, view_count,
@@ -1767,7 +1769,14 @@ function mapAdvert(row: any): Advert {
 // bucket and return its public URL — for social/print hand-off.
 export async function uploadAdvertCreative(dataUrl: string): Promise<string> {
   const blob = await (await fetch(dataUrl)).blob();
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+  if (blob.size > MAX_ADVERT_IMAGE_SIZE_BYTES) {
+    throw new Error('Creative is too large — please keep images under 10MB.');
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Please sign in before uploading a creative.');
+  const path = `${user.id}/generated/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
   const { error } = await supabase.storage.from('advert-creatives').upload(path, blob, { contentType: 'image/png', upsert: false });
   if (error) throw error;
   return supabase.storage.from('advert-creatives').getPublicUrl(path).data.publicUrl;
@@ -1777,8 +1786,18 @@ export async function uploadAdvertCreative(dataUrl: string): Promise<string> {
 // advert-creatives bucket and return its public URL. Used by the advert forms
 // so advertisers can add an image without hosting one themselves.
 export async function uploadAdvertImage(file: File, kind: 'photo' | 'logo' = 'photo'): Promise<string> {
+  if (file.size > MAX_ADVERT_IMAGE_SIZE_BYTES) {
+    throw new Error('Image is too large — please keep images under 10MB.');
+  }
+  if (!ALLOWED_ADVERT_IMAGE_TYPES.has(file.type)) {
+    throw new Error('Unsupported image type. Use JPEG, PNG, WebP, or GIF.');
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Please sign in before uploading an image.');
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-  const path = `${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const path = `${user.id}/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await supabase.storage.from('advert-creatives').upload(path, file, { contentType: file.type || undefined, upsert: false });
   if (error) throw error;
   return supabase.storage.from('advert-creatives').getPublicUrl(path).data.publicUrl;

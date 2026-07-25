@@ -5,10 +5,15 @@ Target project: `rffjehmbrycztiekcyho` (`Manohub`).
 This directory contains the reproducible database baseline for a fresh Manohub
 Supabase project.
 
-## Authoritative migration
+## Migration order
 
 Run `full_setup.sql` once, as the project owner, in the target project's SQL
 Editor or through an authenticated migration runner.
+
+Then run `03_security_hardening.sql`. It contains the post-baseline advisor
+repairs for Storage access, RPC authorization, RLS execution plans, extension
+placement, and foreign-key indexes. It is idempotent and is also required for
+fresh projects.
 
 The migration is atomic and includes:
 
@@ -76,8 +81,8 @@ where id in (
 order by id;
 ```
 
-Expected counts are 51 public tables, 51 RLS-enabled public tables, 32 public
-functions, and four Storage buckets.
+Expected counts after both migrations are 51 public tables, 51 RLS-enabled
+public tables, 32 application functions in `public`, and four Storage buckets.
 
 Run the Supabase security and performance advisors after the migration.
 
