@@ -10,6 +10,8 @@
 create extension if not exists "pgcrypto";
 create extension if not exists "pg_trgm";
 
+begin;
+
 -- ========================= TABLES =========================
 CREATE TABLE IF NOT EXISTS public.ad_campaigns (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -851,38 +853,11 @@ begin
   insert into public.organization_members (org_id, user_id, role)
   values (new_org.id, auth.uid(), 'owner');
 
-  insert into public.brand_kits (org_id, brand_name, legal_name, mission, tagline, tone_of_voice, prohibited_terminology)
-  values (
-    new_org.id,
-    resolved_name,
-    resolved_name || ' Ltd',
-    'Bring organic native Sierra Leone flavors to families globally',
-    'Harvested with Local Pride, Shared with Global Love',
-    'Warm, Honest, Proudly Leonean',
-    array['cheap','artificial','fake']
-  );
-
-  insert into public.social_connections (org_id, platform, account_name, status, connection_health) values
-    (new_org.id, 'Facebook & Instagram', 'SaloneReach Sandbox', 'Sandbox', 'Healthy'),
-    (new_org.id, 'WhatsApp Business API', 'SaloneReach Broadcast', 'Connected', 'Healthy'),
-    (new_org.id, 'TikTok Creator Hub', 'Unconfigured Platform', 'Not Configured', 'None'),
-    (new_org.id, 'LinkedIn Professional Profile', 'SaloneReach Corporate', 'Expired', 'Warning');
-
-  insert into public.campaigns (org_id, name, description, objective, status, total_budget, start_date, end_date, channels, district, diaspora_market) values
-    (new_org.id, 'Christmas Homecoming Festival', 'Attracting diaspora tourists in the UK and US to Lumley Beach and historic Bunce Island for festive concerts and heritage tours.', 'Tourism & Bookings', 'Active', 45000000, '2026-12-01', '2026-12-31', array['Facebook Video','Instagram Ads','WhatsApp Broadcast'], 'Western Area Urban', 'United Kingdom'),
-    (new_org.id, 'Native Parboiled Rice Launch', 'Promoting local organic long-grain parboiled rice processed in Bo. Scoping diaspora sponsorships to buy food directly for parents back home.', 'Product Sales', 'Scheduled', 15000000, '2026-08-01', '2026-09-15', array['WhatsApp click campaign','TikTok Challenge','Manual Flyer Package'], 'Bo', 'United States'),
-    (new_org.id, 'Kenema Cocoa Brand Brief', 'Creative brand awareness targeting craft chocolatiers and organic suppliers in North America looking for direct sustainable trade partnerships.', 'Investor Enquiries', 'Planning', 8000000, '2026-09-01', '2026-10-31', array['LinkedIn Organic','YouTube Video'], 'Kenema', 'Canada');
-
-  insert into public.content_items (org_id, title, content_type, platform, headline, body_text, hashtags, scheduled_date, status, version) values
-    (new_org.id, 'Lumley Beach Concert Reel', 'Video Script', 'Instagram / TikTok', 'Feel the sand, hear the beat!', 'Are you ready for the ultimate December homecoming? Lumley beach, live African drums, traditional cuisine, and performance from top Salone musicians. Secure your early bird passes before slots run out.', array['#SweetSalone','#Homecoming2026','#SaloneReach','#LumleyBeats'], '2026-12-05', 'Approved', 2),
-    (new_org.id, 'Diaspora Native Rice Promo', 'WhatsApp Promo', 'WhatsApp', 'Buy Organic Native Rice for Family Back Home!', 'Tired of expensive wire transfer fees to feed your parents? Buy a bag of parboiled native rice grown with love in Bo. We deliver directly to Freetown, Makeni, and Bo within 48 hours. Support local growers directly!', array['#EatSalone','#SupportBoGrowers','#DiasporaGives'], '2026-08-10', 'Scheduled', 1),
-    (new_org.id, 'Sustainable Cocoa Trade Thread', 'Social Post', 'LinkedIn', 'Single-Origin, Single-Harvest Sustainable Cocoa', 'We are transforming eastern Sierra Leone into a premium hub for single-harvest organic cocoa. Our network of 500 smallholder growers in Kenema guarantees complete traceability and zero chemical processing. Direct fairtrade shipping now open.', array['#KenemaCocoa','#SustainableTrade','#SaloneReach','#OrganicChocolate'], '2026-09-02', 'Draft', 1);
-
-  insert into public.leads (org_id, name, email, telephone, whatsapp, district, source, status, estimated_value) values
-    (new_org.id, 'Mohamed Bangura', 'mohamed.b@gmail.com', '+44 7712 345678', '+447712345678', 'London Hub', 'Christmas Homecoming Festival', 'Qualified', 12500000),
-    (new_org.id, 'Aminata Kallon', 'aminata_k@hotmail.com', '+232 76 456789', '+23276456789', 'Western Area Urban', 'Native Parboiled Rice Launch', 'Converted', 2400000),
-    (new_org.id, 'Jeffrey Jenkins', 'j.jenkins@chocolatiers.com', '+1 301 555 1212', '+13015551212', 'Maryland Hub', 'Kenema Cocoa Brand Brief', 'New', 180000000),
-    (new_org.id, 'Sarah Kamara', 'skamara@ngoworld.org', '+232 30 998877', '+23230998877', 'Bo', 'Native Parboiled Rice Launch', 'Proposal Sent', 35000000);
+  -- Start each organization with a clean workspace. The previous live
+  -- function inserted SaloneReach demo campaigns, content, connections and
+  -- personal-looking leads into every new customer account.
+  insert into public.brand_kits (org_id, brand_name, legal_name)
+  values (new_org.id, resolved_name, resolved_name || ' Ltd');
 
   return new_org;
 end;
@@ -2017,3 +1992,77 @@ insert into public.plan_features (id,plan_id,feature_key,feature_label,limit_val
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- ===== DATA API GRANTS =====
+-- New Supabase projects no longer expose newly-created public objects
+-- automatically. RLS remains the row-level security boundary.
+grant usage on schema public to anon, authenticated, service_role;
+grant select on all tables in schema public to anon;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant all privileges on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to authenticated, service_role;
+
+-- SECURITY DEFINER functions must not inherit PostgreSQL's default PUBLIC
+-- execute privilege. Only application-facing RPCs and RLS helpers are exposed.
+revoke execute on all functions in schema public from public, anon, authenticated;
+grant execute on all functions in schema public to service_role;
+
+do $grants$
+declare
+  fn regprocedure;
+begin
+  for fn in
+    select p.oid::regprocedure
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = any (array[
+        'get_opportunity_detail',
+        'increment_opportunity_view',
+        'is_opportunity_publicly_visible',
+        'is_org_member',
+        'is_platform_admin',
+        'resolve_tracking_link',
+        'track_advert_click',
+        'track_advert_view',
+        'user_has_tender_feature'
+      ])
+  loop
+    execute format('grant execute on function %s to anon', fn);
+  end loop;
+
+  for fn in
+    select p.oid::regprocedure
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname = any (array[
+        'admin_set_organization_verification',
+        'create_organization',
+        'generate_deadline_reminders',
+        'get_admin_analytics_summary',
+        'get_advert_analytics_summary',
+        'get_campaign_reach',
+        'get_opportunity_detail',
+        'get_opportunity_response_count',
+        'get_org_feature_limit',
+        'increment_opportunity_view',
+        'invite_team_member',
+        'is_opportunity_publicly_visible',
+        'is_org_member',
+        'is_platform_admin',
+        'log_audit_event',
+        'org_has_feature',
+        'resolve_tracking_link',
+        'run_campaign_health_check',
+        'track_advert_click',
+        'track_advert_view',
+        'user_has_tender_feature'
+      ])
+  loop
+    execute format('grant execute on function %s to authenticated', fn);
+  end loop;
+end
+$grants$;
+
+commit;
