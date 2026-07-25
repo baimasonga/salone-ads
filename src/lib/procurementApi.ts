@@ -945,6 +945,108 @@ export async function markNotificationRead(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// --- Tender responses: suppliers express interest / intent to bid ---
+
+export type ResponseKind = 'interest' | 'intent_to_bid';
+
+export interface OpportunityResponse {
+  id: string;
+  opportunityId: string;
+  orgId: string;
+  orgName?: string;
+  kind: ResponseKind;
+  note: string | null;
+  status: 'active' | 'withdrawn';
+  createdAt: string;
+}
+
+function mapResponse(row: any): OpportunityResponse {
+  return {
+    id: row.id,
+    opportunityId: row.opportunity_id,
+    orgId: row.org_id,
+    orgName: row.organizations?.name,
+    kind: row.kind,
+    note: row.note ?? null,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+// The signed-in user's first organization (for public pages without a workspace
+// context). Returns null if not signed in or not a member of any org.
+export async function fetchMyOrgId(): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('org_id, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .limit(1);
+  if (error) return null;
+  return data && data.length > 0 ? data[0].org_id : null;
+}
+
+// Public social-proof count of active responders on a tender.
+export async function fetchResponseCount(opportunityId: string): Promise<number> {
+  const { data, error } = await supabase.rpc('get_opportunity_response_count', { p_opportunity_id: opportunityId });
+  if (error) return 0;
+  return Number(data ?? 0);
+}
+
+// The current org's response to a tender, if any.
+export async function fetchMyResponse(opportunityId: string, orgId: string): Promise<OpportunityResponse | null> {
+  const { data, error } = await supabase
+    .from('opportunity_responses')
+    .select('id, opportunity_id, org_id, kind, note, status, created_at')
+    .eq('opportunity_id', opportunityId)
+    .eq('org_id', orgId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapResponse(data) : null;
+}
+
+// Create or update this org's response (upsert on the unique pair).
+export async function submitResponse(input: { opportunityId: string; orgId: string; kind: ResponseKind; note?: string | null }): Promise<OpportunityResponse> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('opportunity_responses')
+    .upsert(
+      {
+        opportunity_id: input.opportunityId,
+        org_id: input.orgId,
+        user_id: user?.id ?? null,
+        kind: input.kind,
+        note: input.note ?? null,
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'opportunity_id,org_id' },
+    )
+    .select('id, opportunity_id, org_id, kind, note, status, created_at')
+    .single();
+  if (error) throw error;
+  return mapResponse(data);
+}
+
+export async function withdrawResponse(id: string): Promise<void> {
+  const { error } = await supabase.from('opportunity_responses').update({ status: 'withdrawn', updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw error;
+}
+
+// Buyer view: all active responses to one of their tenders (with org names).
+export async function fetchOpportunityResponses(opportunityId: string): Promise<OpportunityResponse[]> {
+  const { data, error } = await supabase
+    .from('opportunity_responses')
+    .select('id, opportunity_id, org_id, kind, note, status, created_at, organizations(name)')
+    .eq('opportunity_id', opportunityId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapResponse);
+}
+
 // --- Team accounts ---
 
 export interface TeamMember {

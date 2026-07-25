@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Bookmark, BookmarkCheck, FileText, ExternalLink, Trophy, History, UserPlus, UserCheck, Sparkle } from 'lucide-react';
+import { ArrowLeft, Loader2, Bookmark, BookmarkCheck, FileText, ExternalLink, Trophy, History, UserPlus, UserCheck, Sparkle, Handshake, Users, Check } from 'lucide-react';
 import {
   fetchOpportunityBySlug,
   fetchOpportunityDocuments,
@@ -14,10 +14,18 @@ import {
   setFollowingBuyer,
   incrementOpportunityView,
   aiExplainTender,
+  fetchMyOrgId,
+  hasFeature,
+  fetchMyResponse,
+  submitResponse,
+  withdrawResponse,
+  fetchResponseCount,
   OpportunityDetail,
   OpportunityDocument,
   OpportunityAward,
   OpportunityAmendment,
+  OpportunityResponse,
+  ResponseKind,
   CurrencyOption,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
@@ -54,6 +62,12 @@ export function TenderDetailPage() {
   const [aiExplaining, setAiExplaining] = useState(false);
   const [aiError, setAiError] = useState('');
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
+  const [myOrgId, setMyOrgId] = useState<string | null>(null);
+  const [canRespond, setCanRespond] = useState(false);
+  const [myResponse, setMyResponse] = useState<OpportunityResponse | null>(null);
+  const [responseCount, setResponseCount] = useState(0);
+  const [respondNote, setRespondNote] = useState('');
+  const [respondBusy, setRespondBusy] = useState(false);
   const { lang, setLang, t } = useLanguage();
 
   useEffect(() => {
@@ -79,12 +93,25 @@ export function TenderDetailPage() {
         setCurrencies(currencyList);
         setAward(awardInfo);
         setAmendments(amendmentHistory);
+        setResponseCount(await fetchResponseCount(op.id));
         const authed = !!session.data.session;
         setIsAuthed(authed);
         if (authed) {
           setSaved(await isOpportunitySaved(op.id));
           if (op.buyerOrgId) {
             setFollowingBuyerState(await isFollowingBuyer(op.buyerOrgId));
+          }
+          const orgId = await fetchMyOrgId();
+          setMyOrgId(orgId);
+          if (orgId) {
+            const [entitledViewer, entitledPublisher, existing] = await Promise.all([
+              hasFeature(orgId, 'tender_alerts_and_details').catch(() => false),
+              hasFeature(orgId, 'tender_publishing').catch(() => false),
+              fetchMyResponse(op.id, orgId).catch(() => null),
+            ]);
+            setCanRespond(entitledViewer || entitledPublisher);
+            setMyResponse(existing && existing.status === 'active' ? existing : null);
+            if (existing?.note) setRespondNote(existing.note);
           }
         }
       })
@@ -140,6 +167,37 @@ export function TenderDetailPage() {
       /* keep prior state on failure */
     } finally {
       setFollowToggling(false);
+    }
+  };
+
+  const isClosed = !!opportunity && !!opportunity.submissionDeadline && new Date(opportunity.submissionDeadline).getTime() < Date.now();
+
+  const handleRespond = async (kind: ResponseKind) => {
+    if (!opportunity || !myOrgId) return;
+    setRespondBusy(true);
+    try {
+      const res = await submitResponse({ opportunityId: opportunity.id, orgId: myOrgId, kind, note: respondNote.trim() || null });
+      const wasNew = !myResponse;
+      setMyResponse(res);
+      if (wasNew) setResponseCount((c) => c + 1);
+    } catch {
+      /* surfaced by the RLS/insert failing; keep UI state */
+    } finally {
+      setRespondBusy(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!myResponse) return;
+    setRespondBusy(true);
+    try {
+      await withdrawResponse(myResponse.id);
+      setMyResponse(null);
+      setResponseCount((c) => Math.max(0, c - 1));
+    } catch {
+      /* keep state */
+    } finally {
+      setRespondBusy(false);
     }
   };
 
@@ -248,6 +306,70 @@ export function TenderDetailPage() {
                   <span className="text-red-700 font-bold">{formatDate(opportunity.submissionDeadline)}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Respond to this tender — express interest / signal intent to bid */}
+            <div className="bg-white border-2 border-[#0F172A] p-6">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <h2 className="font-display font-bold text-slate-900 text-sm uppercase flex items-center gap-2">
+                  <Handshake className="h-4 w-4 text-emerald-600" /> Respond to this tender
+                </h2>
+                {responseCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-500">
+                    <Users className="h-3.5 w-3.5" /> {responseCount} supplier{responseCount === 1 ? '' : 's'} responded
+                  </span>
+                )}
+              </div>
+
+              {isClosed ? (
+                <p className="text-sm text-slate-500 mt-3">Submissions have closed for this tender.</p>
+              ) : !isAuthed ? (
+                <p className="text-sm text-slate-600 mt-3">
+                  <Link to="/" className="text-emerald-700 font-semibold hover:underline">Sign in</Link> with a subscribed account to register your interest or intent to bid.
+                </p>
+              ) : !myOrgId ? (
+                <p className="text-sm text-slate-600 mt-3">Set up your organisation profile to respond to tenders.</p>
+              ) : !canRespond ? (
+                <p className="text-sm text-slate-600 mt-3">Responding to tenders needs a <span className="font-semibold">Viewer or Publisher</span> subscription. Ask our team to activate one for your organisation.</p>
+              ) : myResponse ? (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 text-emerald-700">
+                    <Check className="h-4 w-4" />
+                    <span className="text-sm font-semibold">
+                      You’ve registered {myResponse.kind === 'intent_to_bid' ? 'intent to bid' : 'interest'} on this tender.
+                    </span>
+                  </div>
+                  {myResponse.note && <p className="text-xs text-slate-500 mt-1.5 italic">“{myResponse.note}”</p>}
+                  <p className="text-xs text-slate-500 mt-2">The buyer can see your organisation in their responses list. Prepare your bid before the deadline.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {myResponse.kind === 'interest' && (
+                      <button onClick={() => handleRespond('intent_to_bid')} disabled={respondBusy} className="btn-geometric flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                        Upgrade to intent to bid
+                      </button>
+                    )}
+                    <button onClick={handleWithdraw} disabled={respondBusy} className="btn-geometric-secondary cursor-pointer disabled:opacity-50">Withdraw</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3">
+                  <p className="text-sm text-slate-600">Let the buyer know your organisation is in the running — and keep this tender on your dashboard.</p>
+                  <textarea
+                    value={respondNote}
+                    onChange={(e) => setRespondNote(e.target.value)}
+                    placeholder="Optional note to the buyer (capabilities, questions, partnership interest)…"
+                    rows={2}
+                    className="mt-3 w-full border border-slate-200 rounded-lg p-2.5 text-sm bg-slate-50 focus:bg-white focus:outline-emerald-500"
+                  />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button onClick={() => handleRespond('intent_to_bid')} disabled={respondBusy} className="btn-geometric flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                      <Handshake className="h-4 w-4" /> {respondBusy ? 'Submitting…' : 'Intent to bid'}
+                    </button>
+                    <button onClick={() => handleRespond('interest')} disabled={respondBusy} className="btn-geometric-secondary flex items-center gap-2 cursor-pointer disabled:opacity-50">
+                      Express interest
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {opportunity.summary && (

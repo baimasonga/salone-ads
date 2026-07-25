@@ -1809,3 +1809,27 @@ Two loose ends in the admin advertising flow (both in the `admin-advertising` ta
 **Verification**: `tsc` + `npm run build` clean. (Advert tables confirmed empty — a fresh system, not a
 bug.) Remaining known gaps are all credential-blocked: real email/WhatsApp alert delivery (§task 44),
 Cloudflare Pages deploy secrets, and direct auto-posting to social platform APIs.
+
+## 55. Tender responses: suppliers express interest / intent to bid (2026-07-25)
+
+The biggest missing procurement capability — suppliers could discover tenders but not respond to them.
+(The alert engine + notification bell, saves, follow-buyer, documents, awards and amendments already
+existed.) Added a full supplier-response loop:
+
+- **Schema** (migration `opportunity_responses`): `opportunity_responses` (opportunity_id, org_id,
+  kind `interest`/`intent_to_bid`, note, status `active`/`withdrawn`, unique per opportunity+org). RLS:
+  supplier org members manage their own **only if entitled** (`user_has_tender_feature('tender_alerts_and_details'|'tender_publishing')`);
+  the tender's buyer org reads responses to its tenders; admins all. Public
+  `get_opportunity_response_count()` for social proof.
+- **API**: `fetchMyOrgId`, `fetchResponseCount`, `fetchMyResponse`, `submitResponse` (upsert),
+  `withdrawResponse`, `fetchOpportunityResponses` (buyer).
+- **Supplier UI** — a "Respond to this tender" card on `TenderDetailPage`: deadline-gated (closed →
+  message), auth-gated (sign-in prompt), entitlement-gated (subscribe prompt), else Express interest /
+  Intent to bid with an optional note; shows current status, upgrade interest→intent, and withdraw. A
+  "N suppliers responded" badge gives public social proof.
+- **Buyer UI** — each published tender in the buyer Tenders workspace gained a "Responses (N)" panel
+  listing respondent org, note and kind (Interested / Intent to bid).
+
+**Verification**: `tsc` + `npm run build` clean; against the live DB the count RPC, the response insert,
+the buyer-view join and the unique upsert-on-conflict were all exercised on a temp opportunity, then
+cleaned up. (Remaining natural follow-up: bid-document upload to a private per-tender bucket.)

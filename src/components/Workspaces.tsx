@@ -49,6 +49,8 @@ import {
 import { computeLeadScore, leadPriorityLabel } from '../lib/leadScoring';
 import {
   fetchMyOpportunities,
+  fetchOpportunityResponses,
+  OpportunityResponse,
   enableBuyerMode,
   createOpportunity,
   closeOpportunity,
@@ -1586,6 +1588,21 @@ export function Workspaces({
   const [docsByOpportunity, setDocsByOpportunity] = useState<Record<string, OpportunityDocument[]>>({});
   const [docIsPublic, setDocIsPublic] = useState(true);
   const [uploadingDocFor, setUploadingDocFor] = useState<string | null>(null);
+  const [expandedRespId, setExpandedRespId] = useState<string | null>(null);
+  const [responsesByOpp, setResponsesByOpp] = useState<Record<string, OpportunityResponse[]>>({});
+
+  const toggleResponsesPanel = async (opportunityId: string) => {
+    if (expandedRespId === opportunityId) { setExpandedRespId(null); return; }
+    setExpandedRespId(opportunityId);
+    if (!responsesByOpp[opportunityId]) {
+      try {
+        const res = await fetchOpportunityResponses(opportunityId);
+        setResponsesByOpp((prev) => ({ ...prev, [opportunityId]: res }));
+      } catch (err: any) {
+        setTendersFeedback(`Error: ${err.message || 'Could not load responses.'}`);
+      }
+    }
+  };
 
   const toggleDocsPanel = async (opportunityId: string) => {
     if (expandedDocsId === opportunityId) {
@@ -3140,7 +3157,32 @@ export function Workspaces({
                           <button onClick={() => toggleDocsPanel(op.id)} className="text-xs text-slate-500 hover:underline cursor-pointer flex items-center gap-1">
                             <FileText className="h-3 w-3" /> Documents ({docsByOpportunity[op.id]?.length ?? '…'})
                           </button>
+                          <button onClick={() => toggleResponsesPanel(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer flex items-center gap-1">
+                            <Bell className="h-3 w-3" /> Responses ({responsesByOpp[op.id]?.length ?? '…'})
+                          </button>
                         </div>
+
+                        {expandedRespId === op.id && (
+                          <div className="mt-3 border-t border-slate-100 pt-3">
+                            {(responsesByOpp[op.id] ?? []).length === 0 ? (
+                              <p className="text-xs text-slate-400">No supplier responses yet.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                {(responsesByOpp[op.id] ?? []).map((r) => (
+                                  <div key={r.id} className="flex items-start justify-between gap-3 text-xs bg-slate-50 rounded-lg px-3 py-2">
+                                    <div className="min-w-0">
+                                      <span className="font-semibold text-slate-800">{r.orgName || 'A supplier'}</span>
+                                      {r.note && <p className="text-slate-500 mt-0.5 italic truncate">“{r.note}”</p>}
+                                    </div>
+                                    <span className={`shrink-0 font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${r.kind === 'intent_to_bid' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-600 bg-white border-slate-200'}`}>
+                                      {r.kind === 'intent_to_bid' ? 'Intent to bid' : 'Interested'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {expandedDocsId === op.id && (
                           <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
