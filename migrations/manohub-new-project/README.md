@@ -15,6 +15,13 @@ repairs for Storage access, RPC authorization, RLS execution plans, extension
 placement, and foreign-key indexes. It is idempotent and is also required for
 fresh projects.
 
+For a new production environment that needs safe demonstration content, run
+`04_demo_seed.sql` after the hardening migration. It adds only conspicuously
+labelled fictional records, uses reserved `.example` domains, and can be rerun
+without duplicating data. Apply `05_publish_demo_seed.sql` last; this keeps the
+sample opportunities public even when the normal buyer review-transition
+trigger is enabled.
+
 The migration is atomic and includes:
 
 - PostgreSQL extensions

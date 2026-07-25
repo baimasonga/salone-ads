@@ -37,5 +37,5 @@ new_sqlite_classes = ["ManohubContainer"]
 # auth check), separately from being baked into the frontend at *build*
 # time by the Dockerfile — see Dockerfile's comment.
 [vars]
-VITE_SUPABASE_URL = "https://uhmukiqslcxoxzozeiyy.supabase.co"
-VITE_SUPABASE_ANON_KEY = "sb_publishable_OaAns7uQ0PPfVhqtugqekQ_jmK0m_mY"
+VITE_SUPABASE_URL = "https://rffjehmbrycztiekcyho.supabase.co"
+VITE_SUPABASE_ANON_KEY = "sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk"

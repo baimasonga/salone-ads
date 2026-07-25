@@ -57,8 +57,8 @@ jobs:
         # in wrangler.containers.toml's [vars].
         run: |
           cat > .env <<'EOF'
-          VITE_SUPABASE_URL=https://uhmukiqslcxoxzozeiyy.supabase.co
-          VITE_SUPABASE_ANON_KEY=sb_publishable_OaAns7uQ0PPfVhqtugqekQ_jmK0m_mY
+          VITE_SUPABASE_URL=https://rffjehmbrycztiekcyho.supabase.co
+          VITE_SUPABASE_ANON_KEY=sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
           EOF
 
       - name: Deploy container (builds Docker image, pushes it, deploys the Worker)
