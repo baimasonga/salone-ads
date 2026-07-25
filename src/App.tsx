@@ -246,11 +246,11 @@ function MainApp() {
     // blocked) unless the org's org has the business_advertising
     // entitlement. No directory/event-promotion browsing tools here, just
     // the submission form + read-only fulfillment report.
-    ...(!isPlatformAdmin && canAdvertise ? [{
+    ...((isPlatformAdmin || canAdvertise) ? [{
       group: "Advertising",
       items: [
         { id: 'campaign-performance', label: 'Campaign Performance', icon: BarChart2 },
-        { id: 'advertising', label: 'My Adverts', icon: Sparkles },
+        ...(!isPlatformAdmin ? [{ id: 'advertising', label: 'My Adverts', icon: Sparkles }] : []),
       ]
     }] : []),
     ...(isPlatformAdmin ? [{
@@ -267,7 +267,6 @@ function MainApp() {
       group: "Social Media Advertising",
       adminOnly: true,
       items: [
-        { id: 'campaign-performance', label: 'Campaign Performance', icon: BarChart2 },
         { id: 'campaigns', label: 'Campaigns', icon: Compass },
         { id: 'content', label: 'Content Studio', icon: Sparkles },
         { id: 'calendar', label: 'Calendar', icon: Calendar },
