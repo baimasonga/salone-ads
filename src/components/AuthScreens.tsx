@@ -9,6 +9,8 @@ interface AuthScreensProps {
   onSuccess: () => void;
 }
 
+const GOOGLE_AUTH_ENABLED = import.meta.env.VITE_GOOGLE_AUTH_ENABLED === 'true';
+
 export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps) {
   // Credentials States
   const [email, setEmail] = useState('');
@@ -40,7 +42,10 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: fullName } },
+          options: {
+            data: { full_name: fullName },
+            emailRedirectTo: window.location.origin,
+          },
         });
         if (error) throw error;
         if (!data.session) {
@@ -59,7 +64,10 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
 
   const handleGoogleSignIn = async () => {
     setAuthError('');
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
     if (error) setAuthError(error.message);
   };
 
@@ -348,7 +356,8 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                 </button>
               </form>
 
-              <div className="mt-6 border-t border-[#0F172A] pt-6">
+              {GOOGLE_AUTH_ENABLED && (
+                <div className="mt-6 border-t border-[#0F172A] pt-6">
                 <button
                   onClick={handleGoogleSignIn}
                   className="w-full flex items-center justify-center gap-3 px-4 py-2 border border-[#0F172A] rounded-none bg-white hover:bg-slate-50 font-mono text-xs font-bold uppercase tracking-widest text-[#0F172A] transition-colors cursor-pointer"
@@ -373,7 +382,8 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                   </svg>
                   <span>Continue with Google</span>
                 </button>
-              </div>
+                </div>
+              )}
             </>
           )}
         </div>
