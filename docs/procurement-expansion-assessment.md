@@ -1766,3 +1766,28 @@ Two more engine pieces that make the reach loop land well:
 adverts and screenshot-checked (marketplace header, category chips, 3-up creative grid with correct
 themes/accents). og:image selection was covered by the earlier `injectAdvertMeta` check (now prefers
 `og_image_url`).
+
+## 53. Campaign layer: run windows, rotation, reach goals (2026-07-25)
+
+Turns one-off adverts into managed campaigns — the "engine" that runs a business's creatives over time.
+
+- **Schema** (migration `ad_campaigns_and_scheduling`): `ad_campaigns` (name, business, start_date,
+  end_date, reach_goal, status active/paused, org, admin-only RLS). `adverts` gained `campaign_id`
+  (ON DELETE SET NULL) plus denormalised `starts_at`/`ends_at`. The anon SELECT policy on `adverts`
+  now also requires the run window (`starts_at<=now<=ends_at`, null bounds = unbounded), so **all**
+  public reads — homepage marquee, `/adverts` feed, detail page, and the server OG route — respect the
+  schedule automatically with no query changes. `get_campaign_reach()` (admin-only, SECURITY DEFINER)
+  returns per-campaign member count + summed views/clicks.
+- **API**: `AdCampaign` type + `fetchAllCampaigns`/`createCampaign`/`setCampaignStatus`/`deleteCampaign`/
+  `fetchCampaignReach`; adverts carry `campaignId`/`startsAt`/`endsAt`. Pausing a campaign archives its
+  live creatives (pulls the whole campaign off-site instantly); resuming re-lives them.
+- **Admin UI** (imported under an `…AdCampaign` alias to avoid clashing with the existing content-studio
+  Campaign feature): a Campaigns card to create a campaign (name, business, start/end, reach goal) and a
+  list showing each campaign's derived phase (Active / Scheduled / Paused / Ended), member count, views/
+  clicks, a reach-goal progress bar, and pause/resume/delete. The publish form gained a campaign
+  selector that stamps the advert with the campaign's window on publish. Creatives assigned to a
+  campaign rotate through the marquee/feed while it is active.
+
+**Verification**: `tsc` + `npm run build` clean; against the live DB the window predicate was confirmed
+(in-window advert visible; future and past hidden), the reach aggregation returned the right totals, and
+pause archived the members — all test rows cleaned up afterwards.

@@ -8,7 +8,7 @@ import {
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
-  FileSearch, ExternalLink, Sparkle, Trophy, Landmark, X, Image as ImageIcon,
+  FileSearch, ExternalLink, Sparkle, Trophy, Landmark, Megaphone, X, Image as ImageIcon,
   ChevronLeft, ChevronRight, FileUp, Paperclip, Mail, MessageCircle, ShieldCheck,
   ArrowRight, Clock, Bookmark, Bell, MapPin
 } from 'lucide-react';
@@ -145,6 +145,13 @@ import {
   buildAdvertShareIntents,
   fetchAdvertAnalyticsSummary,
   AdvertAnalyticsSummary,
+  fetchAllCampaigns as fetchAllAdCampaigns,
+  createCampaign as createAdCampaign,
+  setCampaignStatus,
+  deleteCampaign as deleteAdCampaign,
+  fetchCampaignReach,
+  AdCampaign,
+  CampaignReach,
   aiPolishAdvertCopy,
   Advert,
 } from '../lib/procurementApi';
@@ -2019,6 +2026,60 @@ export function Workspaces({
   // of truth; the social post links back).
   const [publishedAdverts, setPublishedAdverts] = useState<Advert[]>([]);
   const [advAnalytics, setAdvAnalytics] = useState<AdvertAnalyticsSummary | null>(null);
+  const [adCampaigns, setAdCampaigns] = useState<AdCampaign[]>([]);
+  const [campaignReach, setCampaignReach] = useState<Record<string, CampaignReach>>({});
+  const [campForm, setCampForm] = useState({ name: '', businessName: '', startDate: '', endDate: '', reachGoal: '' });
+  const [campSaving, setCampSaving] = useState(false);
+  const [advCampaignId, setAdvCampaignId] = useState<string>(''); // publish-form assignment
+
+  const reloadAdCampaigns = async () => {
+    try {
+      const [cs, reach] = await Promise.all([fetchAllAdCampaigns(), fetchCampaignReach().catch(() => ({}))]);
+      setAdCampaigns(cs);
+      setCampaignReach(reach);
+    } catch { /* non-fatal */ }
+  };
+
+  const handleCreateAdCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!campForm.name.trim()) { setAdvertisementFeedback('Error: campaign name is required.'); return; }
+    setCampSaving(true);
+    try {
+      await createAdCampaign({
+        name: campForm.name,
+        businessName: campForm.businessName || undefined,
+        startDate: campForm.startDate || null,
+        endDate: campForm.endDate || null,
+        reachGoal: campForm.reachGoal ? Number(campForm.reachGoal) : null,
+        orgId: activeOrg?.id ?? null,
+      });
+      setCampForm({ name: '', businessName: '', startDate: '', endDate: '', reachGoal: '' });
+      await reloadAdCampaigns();
+      setAdvertisementFeedback('Campaign created.');
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err?.message || 'Could not create campaign.'}`);
+    } finally {
+      setCampSaving(false);
+    }
+  };
+
+  const handleToggleAdCampaign = async (c: AdCampaign) => {
+    try {
+      await setCampaignStatus(c.id, c.status === 'active' ? 'paused' : 'active');
+      await Promise.all([reloadAdCampaigns(), fetchAllAdverts().then(setPublishedAdverts).catch(() => {})]);
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err?.message || 'Could not update campaign.'}`);
+    }
+  };
+
+  const handleDeleteAdCampaign = async (id: string) => {
+    try {
+      await deleteAdCampaign(id);
+      await reloadAdCampaigns();
+    } catch (err: any) {
+      setAdvertisementFeedback(`Error: ${err?.message || 'Could not delete campaign.'}`);
+    }
+  };
   const [advForm, setAdvForm] = useState({
     title: '', category: 'business', businessName: '', summary: '', content: '',
     mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '',
@@ -2198,11 +2259,19 @@ export function Workspaces({
   useEffect(() => {
     if (activeTab !== 'admin-advertising' || !isPlatformAdmin) return;
     setAdvertisementsLoading(true);
-    Promise.all([fetchAllAdvertisementRequests(), fetchAllAdverts().catch(() => []), fetchAdvertAnalyticsSummary().catch(() => null)])
-      .then(([reqs, adverts, analytics]) => {
+    Promise.all([
+      fetchAllAdvertisementRequests(),
+      fetchAllAdverts().catch(() => []),
+      fetchAdvertAnalyticsSummary().catch(() => null),
+      fetchAllAdCampaigns().catch(() => []),
+      fetchCampaignReach().catch(() => ({})),
+    ])
+      .then(([reqs, adverts, analytics, camps, reach]) => {
         setAllAdvertisements(reqs);
         setPublishedAdverts(adverts);
         setAdvAnalytics(analytics);
+        setAdCampaigns(camps);
+        setCampaignReach(reach);
       })
       .catch((err: any) => setAdvertisementFeedback(`Error: ${err.message || 'Could not load advertising requests.'}`))
       .finally(() => setAdvertisementsLoading(false));
@@ -2215,6 +2284,7 @@ export function Workspaces({
       return;
     }
     setAdvSaving(true);
+    const selectedCampaign = advCampaignId ? adCampaigns.find((c) => c.id === advCampaignId) : undefined;
     try {
       // Guarantee an og:image for social unfurling: if no creative was saved,
       // capture the current preview and upload it before publishing.
@@ -2250,10 +2320,15 @@ export function Workspaces({
         theme: advTheme,
         format: advFormat,
         withPhoto: advWithPhoto,
+        campaignId: advCampaignId || null,
+        startsAt: selectedCampaign?.startDate ? new Date(selectedCampaign.startDate).toISOString() : null,
+        endsAt: selectedCampaign?.endDate ? new Date(`${selectedCampaign.endDate}T23:59:59`).toISOString() : null,
         status: 'live',
       });
       setPublishedAdverts([created, ...publishedAdverts]);
+      if (advCampaignId) void reloadAdCampaigns();
       setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '', accentColor: '#5d4ee0', logoUrl: '' });
+      setAdvCampaignId('');
       setAdvertisementFeedback('Advert published to the site.');
     } catch (err: any) {
       setAdvertisementFeedback(`Error: ${err.message || 'Could not publish advert.'}`);
@@ -3659,6 +3734,89 @@ export function Workspaces({
           )}
         </div>
 
+        {/* Campaigns: run windows, rotating creatives, reach goals */}
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-emerald-600" /> Campaigns
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Group a business's creatives into a campaign with a run window and a reach goal. Adverts assigned to a
+            campaign only show on the site during its dates, and rotate through the marquee and feed. Pause to pull the
+            whole campaign off the site instantly.
+          </p>
+
+          <form onSubmit={handleCreateAdCampaign} className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-2 items-end">
+            <div className="lg:col-span-2">
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Campaign name</label>
+              <input value={campForm.name} onChange={(e) => setCampForm({ ...campForm, name: e.target.value })} placeholder="e.g. Rokel Q3 push" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Business</label>
+              <input value={campForm.businessName} onChange={(e) => setCampForm({ ...campForm, businessName: e.target.value })} placeholder="Business" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Start</label>
+              <input type="date" value={campForm.startDate} onChange={(e) => setCampForm({ ...campForm, startDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">End</label>
+              <input type="date" value={campForm.endDate} onChange={(e) => setCampForm({ ...campForm, endDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Reach goal</label>
+              <input type="number" min={0} value={campForm.reachGoal} onChange={(e) => setCampForm({ ...campForm, reachGoal: e.target.value })} placeholder="e.g. 5000" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <button type="submit" disabled={campSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer disabled:opacity-50 lg:col-span-1">
+              {campSaving ? 'Creating…' : 'Add campaign'}
+            </button>
+          </form>
+
+          {adCampaigns.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {adCampaigns.map((c) => {
+                const reach = campaignReach[c.id] || { adverts: 0, views: 0, clicks: 0 };
+                const now = Date.now();
+                const started = !c.startDate || new Date(c.startDate).getTime() <= now;
+                const ended = c.endDate && new Date(`${c.endDate}T23:59:59`).getTime() < now;
+                const phase = c.status === 'paused' ? 'Paused' : ended ? 'Ended' : !started ? 'Scheduled' : 'Active';
+                const phaseColor = phase === 'Active' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : phase === 'Paused' ? 'text-amber-700 bg-amber-50 border-amber-200' : phase === 'Scheduled' ? 'text-sky-700 bg-sky-50 border-sky-200' : 'text-slate-500 bg-slate-50 border-slate-200';
+                const pct = c.reachGoal ? Math.min(100, Math.round((reach.views / c.reachGoal) * 100)) : null;
+                return (
+                  <div key={c.id} className="border border-slate-100 rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-slate-800 text-sm truncate">{c.name}</h4>
+                          <span className={`font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${phaseColor}`}>{phase}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {c.businessName || '—'} · {c.startDate || 'no start'} → {c.endDate || 'no end'} · {reach.adverts} creative{reach.adverts === 1 ? '' : 's'} · 👁 {reach.views.toLocaleString()} · ↗ {reach.clicks.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => handleToggleAdCampaign(c)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
+                          {c.status === 'active' ? 'Pause' : 'Resume'}
+                        </button>
+                        <button onClick={() => handleDeleteAdCampaign(c.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
+                      </div>
+                    </div>
+                    {pct !== null && (
+                      <div className="mt-2.5">
+                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+                          <span>Reach goal</span><span>{reach.views.toLocaleString()} / {c.reachGoal!.toLocaleString()} views ({pct}%)</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Publish adverts to the public site */}
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
           <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
@@ -3694,6 +3852,12 @@ export function Workspaces({
             <select value={advForm.category} onChange={(e) => setAdvForm({ ...advForm, category: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
               {['business', 'goods', 'service', 'healthcare', 'transportation', 'event', 'hospitality', 'finance', 'education', 'agriculture'].map((c) => (
                 <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+              ))}
+            </select>
+            <select value={advCampaignId} onChange={(e) => setAdvCampaignId(e.target.value)} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
+              <option value="">No campaign — runs immediately, no end date</option>
+              {adCampaigns.filter((c) => c.status === 'active').map((c) => (
+                <option key={c.id} value={c.id}>Campaign: {c.name}{c.startDate || c.endDate ? ` (${c.startDate || '…'} → ${c.endDate || '…'})` : ''}</option>
               ))}
             </select>
             <div className="flex items-center gap-2">

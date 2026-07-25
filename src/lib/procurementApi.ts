@@ -1626,13 +1626,16 @@ export interface Advert {
   withPhoto: boolean;
   viewCount: number;
   clickCount: number;
+  campaignId: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
   status: AdvertStatus;
   publishedAt: string | null;
   createdAt: string;
 }
 
 const ADVERT_SELECT =
-  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, og_image_url, accent_color, logo_url, theme, format, with_photo, view_count, click_count, status, published_at, created_at';
+  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, og_image_url, accent_color, logo_url, theme, format, with_photo, view_count, click_count, campaign_id, starts_at, ends_at, status, published_at, created_at';
 
 function mapAdvert(row: any): Advert {
   return {
@@ -1655,6 +1658,9 @@ function mapAdvert(row: any): Advert {
     withPhoto: row.with_photo ?? true,
     viewCount: row.view_count ?? 0,
     clickCount: row.click_count ?? 0,
+    campaignId: row.campaign_id ?? null,
+    startsAt: row.starts_at ?? null,
+    endsAt: row.ends_at ?? null,
     status: row.status,
     publishedAt: row.published_at ?? null,
     createdAt: row.created_at,
@@ -1813,6 +1819,9 @@ export interface CreateAdvertInput {
   theme?: 'dark' | 'light';
   format?: 'square' | 'story' | 'landscape' | 'banner' | 'editorial';
   withPhoto?: boolean;
+  campaignId?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
   status?: AdvertStatus;
   orgId?: string | null;
   requestId?: string | null;
@@ -1843,6 +1852,9 @@ export async function createAdvert(input: CreateAdvertInput): Promise<Advert> {
       theme: input.theme ?? 'dark',
       format: input.format ?? 'square',
       with_photo: input.withPhoto ?? true,
+      campaign_id: input.campaignId ?? null,
+      starts_at: input.startsAt ?? null,
+      ends_at: input.endsAt ?? null,
       status,
       org_id: input.orgId ?? null,
       request_id: input.requestId ?? null,
@@ -1871,6 +1883,9 @@ export interface UpdateAdvertInput {
   theme?: 'dark' | 'light';
   format?: 'square' | 'story' | 'landscape' | 'banner' | 'editorial';
   withPhoto?: boolean;
+  campaignId?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
   status?: AdvertStatus;
 }
 
@@ -1891,6 +1906,9 @@ export async function updateAdvert(id: string, updates: UpdateAdvertInput): Prom
   if (updates.theme !== undefined) patch.theme = updates.theme;
   if (updates.format !== undefined) patch.format = updates.format;
   if (updates.withPhoto !== undefined) patch.with_photo = updates.withPhoto;
+  if (updates.campaignId !== undefined) patch.campaign_id = updates.campaignId;
+  if (updates.startsAt !== undefined) patch.starts_at = updates.startsAt;
+  if (updates.endsAt !== undefined) patch.ends_at = updates.endsAt;
   if (updates.status !== undefined) {
     patch.status = updates.status;
     if (updates.status === 'live') patch.published_at = new Date().toISOString();
@@ -1902,5 +1920,99 @@ export async function updateAdvert(id: string, updates: UpdateAdvertInput): Prom
 
 export async function deleteAdvert(id: string): Promise<void> {
   const { error } = await supabase.from('adverts').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─────────────────────────── Ad campaigns ───────────────────────────
+// A campaign groups several advert creatives, gives them a run window and a
+// reach goal; its creatives rotate through the marquee/feed while it is active.
+
+export type CampaignStatus = 'active' | 'paused';
+
+export interface AdCampaign {
+  id: string;
+  name: string;
+  businessName: string;
+  startDate: string | null;
+  endDate: string | null;
+  reachGoal: number | null;
+  status: CampaignStatus;
+  createdAt: string;
+}
+
+export interface CampaignReach { adverts: number; views: number; clicks: number }
+
+const CAMPAIGN_SELECT = 'id, name, business_name, start_date, end_date, reach_goal, status, created_at';
+
+function mapCampaign(row: any): AdCampaign {
+  return {
+    id: row.id,
+    name: row.name,
+    businessName: row.business_name ?? '',
+    startDate: row.start_date ?? null,
+    endDate: row.end_date ?? null,
+    reachGoal: row.reach_goal ?? null,
+    status: row.status,
+    createdAt: row.created_at,
+  };
+}
+
+export async function fetchAllCampaigns(): Promise<AdCampaign[]> {
+  const { data, error } = await supabase.from('ad_campaigns').select(CAMPAIGN_SELECT).order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapCampaign);
+}
+
+// Reach summary keyed by campaign id: member count + summed views/clicks.
+export async function fetchCampaignReach(): Promise<Record<string, CampaignReach>> {
+  const { data, error } = await supabase.rpc('get_campaign_reach');
+  if (error) throw error;
+  return (data ?? {}) as Record<string, CampaignReach>;
+}
+
+export interface CreateCampaignInput {
+  name: string;
+  businessName?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  reachGoal?: number | null;
+  orgId?: string | null;
+}
+
+export async function createCampaign(input: CreateCampaignInput): Promise<AdCampaign> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from('ad_campaigns')
+    .insert({
+      name: input.name,
+      business_name: input.businessName ?? '',
+      start_date: input.startDate ?? null,
+      end_date: input.endDate ?? null,
+      reach_goal: input.reachGoal ?? null,
+      org_id: input.orgId ?? null,
+      created_by: user?.id ?? null,
+    })
+    .select(CAMPAIGN_SELECT)
+    .single();
+  if (error) throw error;
+  return mapCampaign(data);
+}
+
+// Pause/resume a campaign. Pausing archives its still-live creatives; resuming
+// re-lives them — so a paused campaign disappears from the site regardless of
+// its window, and the RLS window handles start/end automatically.
+export async function setCampaignStatus(id: string, status: CampaignStatus): Promise<void> {
+  const { error } = await supabase.from('ad_campaigns').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw error;
+  if (status === 'paused') {
+    await supabase.from('adverts').update({ status: 'archived' }).eq('campaign_id', id).eq('status', 'live');
+  } else {
+    await supabase.from('adverts').update({ status: 'live' }).eq('campaign_id', id).eq('status', 'archived');
+  }
+}
+
+export async function deleteCampaign(id: string): Promise<void> {
+  // adverts.campaign_id is ON DELETE SET NULL — creatives survive, unlinked.
+  const { error } = await supabase.from('ad_campaigns').delete().eq('id', id);
   if (error) throw error;
 }
