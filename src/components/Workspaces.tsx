@@ -2031,6 +2031,53 @@ export function Workspaces({
   const [campForm, setCampForm] = useState({ name: '', businessName: '', startDate: '', endDate: '', reachGoal: '' });
   const [campSaving, setCampSaving] = useState(false);
   const [advCampaignId, setAdvCampaignId] = useState<string>(''); // publish-form assignment
+  const [advEditingId, setAdvEditingId] = useState<string | null>(null); // editing an existing advert
+  const [advRequestId, setAdvRequestId] = useState<string | null>(null); // publishing from a request
+  const [advOrgId, setAdvOrgId] = useState<string | null>(null);
+
+  // Load a subscriber advert request into the publisher form for review + publish.
+  const loadRequestIntoPublisher = (req: AdvertisementRequest) => {
+    setAdvEditingId(null);
+    setAdvRequestId(req.id);
+    setAdvOrgId(req.orgId);
+    setAdvForm({
+      title: req.subject, category: req.category, businessName: req.orgName || '',
+      summary: req.description.length > 140 ? `${req.description.slice(0, 137)}…` : req.description,
+      content: req.description, mediaUrl: req.mediaUrl || '', socialPlatform: 'Facebook',
+      socialUrl: '', creativeUrl: '', accentColor: '#5d4ee0', logoUrl: '',
+    });
+    setAdvCampaignId('');
+    setAdvertisementFeedback('Loaded into the publisher below — review and Publish.');
+    document.getElementById('advert-publisher')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // Load a published advert into the form to edit it.
+  const loadAdvertForEdit = (adv: Advert) => {
+    setAdvRequestId(null);
+    setAdvOrgId(null);
+    setAdvEditingId(adv.id);
+    setAdvForm({
+      title: adv.title, category: adv.category, businessName: adv.businessName,
+      summary: adv.summary || '', content: adv.content, mediaUrl: adv.mediaUrl || '',
+      socialPlatform: adv.socialPlatform || 'Facebook', socialUrl: adv.socialUrl || '',
+      creativeUrl: adv.creativeUrl || '', accentColor: adv.accentColor || '#5d4ee0', logoUrl: adv.logoUrl || '',
+    });
+    setAdvFormat(adv.format);
+    setAdvTheme(adv.theme);
+    setAdvWithPhoto(adv.withPhoto);
+    setAdvCampaignId(adv.campaignId || '');
+    setAdvertisementFeedback('Editing this advert — make changes and Save.');
+    document.getElementById('advert-publisher')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const cancelAdvertEdit = () => {
+    setAdvEditingId(null);
+    setAdvRequestId(null);
+    setAdvOrgId(null);
+    setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '', accentColor: '#5d4ee0', logoUrl: '' });
+    setAdvCampaignId('');
+    setAdvertisementFeedback('');
+  };
 
   const reloadAdCampaigns = async () => {
     try {
@@ -2304,7 +2351,9 @@ export function Workspaces({
           ogImageUrl = await uploadAdvertCreative(dataUrl);
         } catch { /* non-fatal: fall back to creative/media for og:image */ }
       }
-      const created = await createAdvert({
+      const startsAt = selectedCampaign?.startDate ? new Date(selectedCampaign.startDate).toISOString() : null;
+      const endsAt = selectedCampaign?.endDate ? new Date(`${selectedCampaign.endDate}T23:59:59`).toISOString() : null;
+      const fields = {
         title: advForm.title,
         category: advForm.category,
         businessName: advForm.businessName,
@@ -2321,15 +2370,32 @@ export function Workspaces({
         format: advFormat,
         withPhoto: advWithPhoto,
         campaignId: advCampaignId || null,
-        startsAt: selectedCampaign?.startDate ? new Date(selectedCampaign.startDate).toISOString() : null,
-        endsAt: selectedCampaign?.endDate ? new Date(`${selectedCampaign.endDate}T23:59:59`).toISOString() : null,
-        status: 'live',
-      });
-      setPublishedAdverts([created, ...publishedAdverts]);
+        startsAt,
+        endsAt,
+      };
+      if (advEditingId) {
+        const updated = await updateAdvert(advEditingId, fields);
+        setPublishedAdverts(publishedAdverts.map((a) => (a.id === updated.id ? updated : a)));
+        setAdvertisementFeedback('Advert updated.');
+      } else {
+        const created = await createAdvert({ ...fields, status: 'live', requestId: advRequestId, orgId: advOrgId });
+        setPublishedAdverts([created, ...publishedAdverts]);
+        // Mark the originating request live so the subscriber sees progress.
+        if (advRequestId) {
+          try {
+            await updateAdvertisementReport(advRequestId, { status: 'live' });
+            setAllAdvertisements((prev) => prev.map((r) => (r.id === advRequestId ? { ...r, status: 'live' } : r)));
+          } catch { /* non-fatal */ }
+        }
+        setAdvertisementFeedback('Advert published to the site.');
+      }
       if (advCampaignId) void reloadAdCampaigns();
+      void fetchAdvertAnalyticsSummary().then(setAdvAnalytics).catch(() => {});
       setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '', accentColor: '#5d4ee0', logoUrl: '' });
       setAdvCampaignId('');
-      setAdvertisementFeedback('Advert published to the site.');
+      setAdvEditingId(null);
+      setAdvRequestId(null);
+      setAdvOrgId(null);
     } catch (err: any) {
       setAdvertisementFeedback(`Error: ${err.message || 'Could not publish advert.'}`);
     } finally {
@@ -3698,6 +3764,12 @@ export function Workspaces({
                   </div>
                   <div className="flex flex-wrap items-center gap-4 mt-3">
                     <button
+                      onClick={() => loadRequestIntoPublisher(ad)}
+                      className="text-xs font-bold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 hover:bg-emerald-100 cursor-pointer"
+                    >
+                      Load into publisher →
+                    </button>
+                    <button
                       onClick={() => {
                         const platform = prompt('Platform(s) the advert ran on:', ad.platform ?? '');
                         if (platform === null) return;
@@ -3818,9 +3890,12 @@ export function Workspaces({
         </div>
 
         {/* Publish adverts to the public site */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+        <div id="advert-publisher" className={`bg-white border rounded-2xl p-6 shadow-xs ${advEditingId ? 'border-emerald-300 ring-1 ring-emerald-200' : advRequestId ? 'border-sky-300 ring-1 ring-sky-200' : 'border-slate-100'}`}>
           <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-emerald-600" /> Adverts on the site
+            <Landmark className="h-5 w-5 text-emerald-600" /> {advEditingId ? 'Editing advert' : advRequestId ? 'Publishing a request' : 'Adverts on the site'}
+            {(advEditingId || advRequestId) && (
+              <button type="button" onClick={cancelAdvertEdit} className="ml-auto text-xs font-semibold text-slate-500 hover:underline cursor-pointer">Cancel</button>
+            )}
           </h3>
           <p className="text-xs text-slate-500 mt-1">
             Publish an advert so it shows on the public homepage and gets its own detail page. Manohub is the
@@ -3888,7 +3963,7 @@ export function Workspaces({
             </select>
             <input value={advForm.socialUrl} onChange={(e) => setAdvForm({ ...advForm, socialUrl: e.target.value })} placeholder="Social post URL (https://…)" className="border border-slate-200 rounded-lg p-2 text-sm" />
             <button type="submit" disabled={advSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm cursor-pointer disabled:opacity-50 justify-self-start">
-              {advSaving ? 'Publishing…' : 'Publish advert'}
+              {advSaving ? (advEditingId ? 'Saving…' : 'Publishing…') : advEditingId ? 'Save changes' : 'Publish advert'}
             </button>
           </form>
 
@@ -4006,6 +4081,7 @@ export function Workspaces({
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
+                      <button onClick={() => loadAdvertForEdit(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">Edit</button>
                       <button onClick={() => setSharePackId((id) => (id === adv.id ? null : adv.id))} className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer">
                         {sharePackId === adv.id ? 'Hide share pack' : 'Share pack'}
                       </button>

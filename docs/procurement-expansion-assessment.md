@@ -1791,3 +1791,21 @@ Turns one-off adverts into managed campaigns — the "engine" that runs a busine
 **Verification**: `tsc` + `npm run build` clean; against the live DB the window predicate was confirmed
 (in-window advert visible; future and past hidden), the reach aggregation returned the right totals, and
 pause archived the members — all test rows cleaned up afterwards.
+
+## 54. Advert workflow gaps closed: request→publisher bridge + edit published advert (2026-07-25)
+
+Two loose ends in the admin advertising flow (both in the `admin-advertising` tab):
+
+- **Fulfillment bridge** — subscriber advert requests were disconnected from the publisher (admin had
+  to retype everything). Each request now has a **"Load into publisher →"** button that prefills the
+  publish form (title/business/category/summary/content/photo) and links the request; on publish the
+  advert is created with `requestId`/`orgId` and the request is marked **live** so the subscriber sees
+  progress. The publisher card highlights (sky ring) and scrolls into view in "Publishing a request" mode.
+- **Edit a published advert** — the published list only had archive/delete. An **Edit** button now loads
+  the advert (copy, media, accent/logo, format/theme, photo-mode, campaign) into the form in edit mode
+  (emerald ring, "Save changes"); submit calls `updateAdvert`. A **Cancel** clears edit/request mode.
+  `handlePublishAdvert` now branches create-vs-update and refreshes the analytics strip after either.
+
+**Verification**: `tsc` + `npm run build` clean. (Advert tables confirmed empty — a fresh system, not a
+bug.) Remaining known gaps are all credential-blocked: real email/WhatsApp alert delivery (§task 44),
+Cloudflare Pages deploy secrets, and direct auto-posting to social platform APIs.
