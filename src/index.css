@@ -39,8 +39,10 @@ body {
   border-left: 1px solid #0F172A !important;
 }
 
-/* Sharp boxy components overrides */
-.rounded-2xl, .rounded-xl, .rounded-lg, .rounded-md {
+/* Sharp boxy components overrides.
+   Include pills and circular utility classes so every route follows the
+   same rectangular Manohub language. */
+.rounded-2xl, .rounded-xl, .rounded-lg, .rounded-md, .rounded, .rounded-full {
   border-radius: 0px !important;
 }
 
@@ -170,17 +172,21 @@ h1, h2, h3, h4 {
   color: #0F172A !important;
 }
 
-/* Custom progress bars & metric tracking widgets */
-.bg-emerald-500, .bg-blue-500, .bg-amber-500, .bg-indigo-500, .bg-purple-500 {
-  background-color: #0F172A !important;
+/* Figures remain easy to compare across every dashboard and public page. */
+.font-mono,
+table,
+[class*="text-3xl"],
+[class*="text-4xl"],
+[class*="text-5xl"] {
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* Keep Sierra Leone national colors intact where needed specifically for the flag icon */
-.flag-stripes .bg-emerald-500 {
-  background-color: #10B981 !important;
-}
-.flag-stripes .bg-blue-500 {
-  background-color: #3B82F6 !important;
-}
-
+/* Preserve Manohub's supporting palette for statistics, status and progress.
+   These accents communicate meaning; the surrounding page theme stays navy,
+   slate and white. */
+.bg-emerald-500 { background-color: #10B981 !important; }
+.bg-blue-500 { background-color: #3B82F6 !important; }
+.bg-amber-500 { background-color: #F59E0B !important; }
+.bg-indigo-500 { background-color: #6366F1 !important; }
+.bg-purple-500 { background-color: #A855F7 !important; }
 
