@@ -7,13 +7,14 @@ import { forwardRef, useEffect, useRef, useState, ReactNode } from 'react';
 // or newspaper ad, with no manual design work.
 // forwardRef so the rendered node can be exported to PNG (html-to-image).
 
-export type AdvertFormat = 'square' | 'story' | 'landscape';
+export type AdvertFormat = 'square' | 'story' | 'landscape' | 'banner';
 export type AdvertTheme = 'dark' | 'light';
 
 export const CREATIVE_SIZE: Record<AdvertFormat, { w: number; h: number }> = {
   square: { w: 1080, h: 1080 },
   story: { w: 1080, h: 1920 },
   landscape: { w: 1200, h: 628 },
+  banner: { w: 1280, h: 720 },
 };
 
 export interface AdvertCreativeProps {
@@ -39,6 +40,7 @@ const INK = '#0d1b2a';
 const IRIS = '#5d4ee0';
 const GREEN = '#159a6b';
 const DUSK = 'linear-gradient(150deg, #14141b 0%, #241f52 48%, #4a2f6e 82%, #6e3a63 100%)';
+const AURORA = 'linear-gradient(135deg, #5d4ee0 0%, #8f5be8 34%, #ef6aa0 70%, #ff8a6b 100%)';
 const MESH =
   'radial-gradient(48% 42% at 84% 12%, rgba(120,96,240,0.60) 0%, rgba(120,96,240,0) 100%), radial-gradient(46% 60% at 18% 96%, rgba(239,106,160,0.42) 0%, rgba(239,106,160,0) 100%), radial-gradient(40% 44% at 96% 88%, rgba(255,138,107,0.30) 0%, rgba(255,138,107,0) 100%)';
 
@@ -259,6 +261,43 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
     WebkitBoxOrient: 'vertical' as any,
     overflow: 'hidden',
   });
+
+  // ─────────────────────────── BANNER 1280×720 ───────────────────────────
+  // Wide hero: logo top-left, chip + rule + copy stacked on the left, a tall
+  // panel on the right. No photo → the panel becomes an aurora gradient block.
+  if (format === 'banner') {
+    return frame(
+      64,
+      <>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <Logo p={p} logoUrl={logoUrl} />
+          <div style={{ flex: 1 }} />
+          <div>
+            <CategoryChip label={cat} accent={accent} />
+          </div>
+          <div style={{ marginTop: 18 }}>
+            <AccentRule p={p} accent={accent} />
+          </div>
+          <div style={{ ...headlineStyle(52), marginTop: 18 }}>{headline}</div>
+          {body && <div style={{ ...bodyStyle(24, 700), marginTop: 18 }}>{body}</div>}
+          <div style={{ flex: 1 }} />
+          <div style={{ borderTop: `1px solid ${p.divider}`, paddingTop: 22 }}>
+            <BusinessRow p={p} businessName={name} cta={cta} accent={accent} fontSize={25} />
+            <div style={{ marginTop: 16 }}>
+              <Footer p={p} />
+            </div>
+          </div>
+        </div>
+        <div style={{ width: 440, flex: 'none', marginLeft: 48, display: 'flex' }}>
+          {showPhoto ? (
+            <PhotoPanel p={p} mediaUrl={mediaUrl} style={{ width: '100%', height: '100%' }} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', borderRadius: 22, background: AURORA }} />
+          )}
+        </div>
+      </>,
+    );
+  }
 
   // ─────────────────────────── STORY 1080×1920 ───────────────────────────
   if (format === 'story') {

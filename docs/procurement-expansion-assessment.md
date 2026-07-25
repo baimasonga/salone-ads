@@ -1640,3 +1640,22 @@ toggle), and the public detail page all carry it.
 **Verification**: `tsc` + `npm run build` clean; the 1C (text-forward square), 1D (green-accent),
 plus text-forward landscape and story variants rendered from the real component and screenshot-checked
 against the exported reference frames — layouts and accent theming match.
+
+## 47. Advert creatives: banner (1280×720) format from ad-template prompt 3 (2026-07-25)
+
+The third Claude Design export added a fourth format to `ManohubAdFrame`: **`banner` 1280×720**
+(YouTube thumbnail / X-Twitter / website banner) — frames 1I (dark, with photo) and 1J
+(light, `with-photo="false"`). Banner is a wide hero: logo top-left, then the category chip →
+accent rule → headline → body stacked on the left, with a tall panel on the right and the
+green-dot business + CTA + footer along the bottom of the left column.
+
+Banner's no-photo behaviour differs from the other formats: instead of hiding the panel
+(square/landscape text-forward), the right panel becomes an **aurora gradient** block
+(the `AURORA` iris→pink→coral gradient), matching reference frame 1J.
+
+`AdvertFormat` and `CREATIVE_SIZE` gained `banner`; the `adverts_format_check` constraint now
+allows it (migration `advert_format_banner`); the `Advert` model + create/update format unions,
+the admin + subscriber format toggles, and the public detail page's hero max-width all include it.
+
+**Verification**: `tsc` + `npm run build` clean; both banner variants (photo + aurora) rendered
+from the real component and screenshot-checked against the exported 1I/1J reference frames.

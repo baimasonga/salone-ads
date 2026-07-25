@@ -3378,7 +3378,7 @@ export function Workspaces({
                 <h4 className="font-display font-bold text-slate-900 text-sm">Your advert, designed automatically</h4>
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1">
-                    {(['square', 'story', 'landscape'] as AdvertFormat[]).map((f) => (
+                    {(['square', 'story', 'landscape', 'banner'] as AdvertFormat[]).map((f) => (
                       <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
                     ))}
                   </div>
@@ -3578,7 +3578,7 @@ export function Workspaces({
               <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Auto-generated creative</span>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
-                  {(['square', 'story', 'landscape'] as AdvertFormat[]).map((f) => (
+                  {(['square', 'story', 'landscape', 'banner'] as AdvertFormat[]).map((f) => (
                     <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
                   ))}
                 </div>
