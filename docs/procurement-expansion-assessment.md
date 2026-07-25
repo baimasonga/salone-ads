@@ -1622,3 +1622,21 @@ PNG export (html-to-image), AI copy polish, and brand accent/logo all continue t
 **Verification**: `tsc` + `npm run build` clean; all six format×theme variants rendered from
 the real component via an isolated Vite harness and screenshot-checked against the exported
 1A/1B (square), 1E (story) and 1G (landscape) reference frames — layouts, tokens and copy match.
+
+## 46. Advert creatives: text-forward (no-photo) variant from ad-template prompt 2 (2026-07-25)
+
+The user's second Claude Design export (`Manohub_Ad_Templates_second_promt.html`) kept the same
+`ManohubAdFrame` component but demonstrated two behaviours: `accent="#159a6b"` re-theming the chip,
+rule and CTA (already supported), and a new `with-photo="false"` — "photo slot empty → hides
+gracefully, text-forward".
+
+`AdvertCreative` gained a `withPhoto` prop (default `true`). When `false`, the photo panel is dropped
+and the copy goes full-width with a larger headline in all three formats (square 62→74px,
+story 78→92px, landscape 48→54px), matching the reference's text-forward frame 1C. A `with_photo`
+boolean column (migration `advert_with_photo`, default true) persists it; the `Advert` model,
+`ADVERT_SELECT`, `mapAdvert`, create/update inputs, the admin + subscriber preview (a Photo/Text
+toggle), and the public detail page all carry it.
+
+**Verification**: `tsc` + `npm run build` clean; the 1C (text-forward square), 1D (green-accent),
+plus text-forward landscape and story variants rendered from the real component and screenshot-checked
+against the exported reference frames — layouts and accent theming match.

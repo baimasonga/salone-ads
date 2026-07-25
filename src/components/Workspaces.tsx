@@ -2007,6 +2007,7 @@ export function Workspaces({
   const [advSaving, setAdvSaving] = useState(false);
   const [advFormat, setAdvFormat] = useState<AdvertFormat>('square');
   const [advTheme, setAdvTheme] = useState<AdvertTheme>('dark');
+  const [advWithPhoto, setAdvWithPhoto] = useState(true);
   const [savingCreative, setSavingCreative] = useState(false);
   const [polishingCopy, setPolishingCopy] = useState(false);
 
@@ -2143,6 +2144,7 @@ export function Workspaces({
         logoUrl: advForm.logoUrl || null,
         theme: advTheme,
         format: advFormat,
+        withPhoto: advWithPhoto,
         status: 'live',
       });
       setPublishedAdverts([created, ...publishedAdverts]);
@@ -3385,6 +3387,7 @@ export function Workspaces({
                       <button key={t} type="button" onClick={() => setAdvTheme(t)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advTheme === t ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{t}</button>
                     ))}
                   </div>
+                  <button type="button" onClick={() => setAdvWithPhoto((v) => !v)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advWithPhoto ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{advWithPhoto ? 'Photo' : 'Text'}</button>
                 </div>
               </div>
               <p className="text-xs text-slate-500 mb-3">This is generated from your details as you type. Our team refines and runs it — you can download it too.</p>
@@ -3394,6 +3397,7 @@ export function Workspaces({
                     ref={subCreativeRef}
                     format={advFormat}
                     theme={advTheme}
+                    withPhoto={advWithPhoto}
                     businessName={activeOrg.name}
                     headline={adSubject || 'Your headline goes here'}
                     body={adDescription}
@@ -3583,6 +3587,7 @@ export function Workspaces({
                     <button key={t} type="button" onClick={() => setAdvTheme(t)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advTheme === t ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{t}</button>
                   ))}
                 </div>
+                <button type="button" onClick={() => setAdvWithPhoto((v) => !v)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advWithPhoto ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{advWithPhoto ? 'Photo' : 'Text'}</button>
               </div>
             </div>
             <div className="border border-slate-200 bg-slate-50 p-3">
@@ -3591,6 +3596,7 @@ export function Workspaces({
                   ref={creativeRef}
                   format={advFormat}
                   theme={advTheme}
+                  withPhoto={advWithPhoto}
                   businessName={advForm.businessName || 'Your Business'}
                   headline={advForm.title || 'Your headline goes here'}
                   body={advForm.summary || advForm.content}

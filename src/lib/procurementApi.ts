@@ -1616,13 +1616,14 @@ export interface Advert {
   logoUrl: string | null;
   theme: 'dark' | 'light';
   format: 'square' | 'story' | 'landscape';
+  withPhoto: boolean;
   status: AdvertStatus;
   publishedAt: string | null;
   createdAt: string;
 }
 
 const ADVERT_SELECT =
-  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, accent_color, logo_url, theme, format, status, published_at, created_at';
+  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, accent_color, logo_url, theme, format, with_photo, status, published_at, created_at';
 
 function mapAdvert(row: any): Advert {
   return {
@@ -1641,6 +1642,7 @@ function mapAdvert(row: any): Advert {
     logoUrl: row.logo_url ?? null,
     theme: row.theme ?? 'dark',
     format: row.format ?? 'square',
+    withPhoto: row.with_photo ?? true,
     status: row.status,
     publishedAt: row.published_at ?? null,
     createdAt: row.created_at,
@@ -1704,6 +1706,7 @@ export interface CreateAdvertInput {
   logoUrl?: string | null;
   theme?: 'dark' | 'light';
   format?: 'square' | 'story' | 'landscape';
+  withPhoto?: boolean;
   status?: AdvertStatus;
   orgId?: string | null;
   requestId?: string | null;
@@ -1732,6 +1735,7 @@ export async function createAdvert(input: CreateAdvertInput): Promise<Advert> {
       logo_url: input.logoUrl ?? null,
       theme: input.theme ?? 'dark',
       format: input.format ?? 'square',
+      with_photo: input.withPhoto ?? true,
       status,
       org_id: input.orgId ?? null,
       request_id: input.requestId ?? null,
@@ -1758,6 +1762,7 @@ export interface UpdateAdvertInput {
   logoUrl?: string | null;
   theme?: 'dark' | 'light';
   format?: 'square' | 'story' | 'landscape';
+  withPhoto?: boolean;
   status?: AdvertStatus;
 }
 
@@ -1776,6 +1781,7 @@ export async function updateAdvert(id: string, updates: UpdateAdvertInput): Prom
   if (updates.logoUrl !== undefined) patch.logo_url = updates.logoUrl;
   if (updates.theme !== undefined) patch.theme = updates.theme;
   if (updates.format !== undefined) patch.format = updates.format;
+  if (updates.withPhoto !== undefined) patch.with_photo = updates.withPhoto;
   if (updates.status !== undefined) {
     patch.status = updates.status;
     if (updates.status === 'live') patch.published_at = new Date().toISOString();

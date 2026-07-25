@@ -28,6 +28,9 @@ export interface AdvertCreativeProps {
   theme?: AdvertTheme;
   accentColor?: string | null;
   logoUrl?: string | null;
+  // When false, the photo panel is hidden and the copy goes full-width /
+  // "text-forward" (larger headline). Defaults to true.
+  withPhoto?: boolean;
 }
 
 const SANS = "'Hanken Grotesk', system-ui, sans-serif";
@@ -213,7 +216,7 @@ export function CreativeScaler({ format = 'square', children }: { format?: Adver
 }
 
 export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(function AdvertCreative(
-  { businessName, headline, body, category, mediaUrl, platform, ctaUrl, format = 'square', theme = 'dark', accentColor, logoUrl },
+  { businessName, headline, body, category, mediaUrl, platform, ctaUrl, format = 'square', theme = 'dark', accentColor, logoUrl, withPhoto = true },
   ref,
 ) {
   const { w, h } = CREATIVE_SIZE[format];
@@ -222,6 +225,7 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
   const cat = (category || 'Advert').toUpperCase();
   const cta = platform ? `Find us on ${platform}` : ctaUrl ? 'Learn more' : 'Advertised on Manohub';
   const name = businessName || 'Your Business';
+  const showPhoto = withPhoto !== false; // false → text-forward, no photo panel
 
   // Shared frame wrapper: bg + mesh glow + scrim, positioned content layer.
   const frame = (pad: number, content: ReactNode) => (
@@ -265,14 +269,14 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
           <Logo p={p} logoUrl={logoUrl} />
           <CategoryChip label={cat} accent={accent} />
         </div>
-        <PhotoPanel p={p} mediaUrl={mediaUrl} style={{ marginTop: 44, width: '100%', height: 820, flex: 'none' }} />
-        <div style={{ marginTop: 40 }}>
+        {showPhoto && <PhotoPanel p={p} mediaUrl={mediaUrl} style={{ marginTop: 44, width: '100%', height: 820, flex: 'none' }} />}
+        <div style={{ marginTop: showPhoto ? 40 : 44 }}>
           <AccentRule p={p} accent={accent} />
         </div>
         <div style={{ flex: 1 }} />
-        <div style={headlineStyle(78)}>{headline}</div>
-        {body && <div style={{ ...bodyStyle(30), marginTop: 28 }}>{body}</div>}
-        <div style={{ flex: 1 }} />
+        <div style={headlineStyle(showPhoto ? 78 : 92)}>{headline}</div>
+        {body && <div style={{ ...bodyStyle(showPhoto ? 30 : 34), marginTop: 28 }}>{body}</div>}
+        <div style={{ flex: showPhoto ? 1 : 1.4 }} />
         <div style={{ marginBottom: 26 }}>
           <BusinessRow p={p} businessName={name} cta={cta} accent={accent} fontSize={32} />
         </div>
@@ -285,7 +289,6 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
 
   // ─────────────────────────── LANDSCAPE 1200×628 ───────────────────────────
   if (format === 'landscape') {
-    const hasPhoto = true; // always show the panel column for the magazine split
     return frame(
       56,
       <>
@@ -298,8 +301,8 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
             <AccentRule p={p} accent={accent} />
           </div>
           <div style={{ flex: 1 }} />
-          <div style={headlineStyle(48)}>{headline}</div>
-          {body && <div style={{ ...bodyStyle(22, 620), marginTop: 20 }}>{body}</div>}
+          <div style={headlineStyle(showPhoto ? 48 : 54)}>{headline}</div>
+          {body && <div style={{ ...bodyStyle(showPhoto ? 22 : 24, showPhoto ? 620 : 900), marginTop: 20 }}>{body}</div>}
           <div style={{ flex: 1 }} />
           <div style={{ borderTop: `1px solid ${p.divider}`, paddingTop: 22 }}>
             <BusinessRow p={p} businessName={name} cta={cta} accent={accent} fontSize={26} />
@@ -308,7 +311,7 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
             </div>
           </div>
         </div>
-        {hasPhoto && (
+        {showPhoto && (
           <div style={{ width: 360, flex: 'none', marginLeft: 48, display: 'flex' }}>
             <PhotoPanel p={p} mediaUrl={mediaUrl} style={{ width: '100%', height: '100%' }} />
           </div>
@@ -329,11 +332,11 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
         <AccentRule p={p} accent={accent} />
       </div>
       <div style={{ flex: 1, display: 'flex', gap: 56, marginTop: 40, minHeight: 0 }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', minWidth: 0, paddingBottom: 4 }}>
-          <div style={headlineStyle(62)}>{headline}</div>
-          {body && <div style={{ ...bodyStyle(26, 470), marginTop: 24 }}>{body}</div>}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: showPhoto ? 'flex-end' : 'center', minWidth: 0, paddingBottom: 4 }}>
+          <div style={headlineStyle(showPhoto ? 62 : 74)}>{headline}</div>
+          {body && <div style={{ ...bodyStyle(showPhoto ? 26 : 29, showPhoto ? 470 : 780), marginTop: 24 }}>{body}</div>}
         </div>
-        <PhotoPanel p={p} mediaUrl={mediaUrl} style={{ width: 400, flex: 'none' }} />
+        {showPhoto && <PhotoPanel p={p} mediaUrl={mediaUrl} style={{ width: 400, flex: 'none' }} />}
       </div>
       <div style={{ marginTop: 40 }}>
         <BusinessRow p={p} businessName={name} cta={cta} accent={accent} fontSize={30} />

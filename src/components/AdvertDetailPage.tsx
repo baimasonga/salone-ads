@@ -66,6 +66,7 @@ export function AdvertDetailPage() {
                   <AdvertCreative
                     format={advert.format}
                     theme={advert.theme}
+                    withPhoto={advert.withPhoto}
                     businessName={advert.businessName}
                     headline={advert.title}
                     body={advert.summary || advert.content}
