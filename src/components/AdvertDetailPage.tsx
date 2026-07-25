@@ -72,9 +72,12 @@ export function AdvertDetailPage() {
         <Link to="/" className="flex items-center gap-2 text-[#0F172A] font-display font-black tracking-widest uppercase text-sm">
           <ArrowLeft className="h-4 w-4" /> Manohub
         </Link>
-        <Link to="/#advertise" className="text-xs font-mono uppercase tracking-widest text-emerald-700 hover:underline flex items-center gap-1.5">
-          <Megaphone className="h-3.5 w-3.5" /> Advertise
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/adverts" className="text-xs font-mono uppercase tracking-widest text-slate-500 hover:text-[#0F172A] hover:underline">All adverts</Link>
+          <Link to="/#advertise" className="text-xs font-mono uppercase tracking-widest text-emerald-700 hover:underline flex items-center gap-1.5">
+            <Megaphone className="h-3.5 w-3.5" /> Advertise
+          </Link>
+        </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-10 text-left">

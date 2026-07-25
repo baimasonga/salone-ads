@@ -1618,6 +1618,7 @@ export interface Advert {
   socialPlatform: string | null;
   socialUrl: string | null;
   creativeUrl: string | null;
+  ogImageUrl: string | null;
   accentColor: string | null;
   logoUrl: string | null;
   theme: 'dark' | 'light';
@@ -1631,7 +1632,7 @@ export interface Advert {
 }
 
 const ADVERT_SELECT =
-  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, accent_color, logo_url, theme, format, with_photo, view_count, click_count, status, published_at, created_at';
+  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, og_image_url, accent_color, logo_url, theme, format, with_photo, view_count, click_count, status, published_at, created_at';
 
 function mapAdvert(row: any): Advert {
   return {
@@ -1646,6 +1647,7 @@ function mapAdvert(row: any): Advert {
     socialPlatform: row.social_platform ?? null,
     socialUrl: row.social_url ?? null,
     creativeUrl: row.creative_url ?? null,
+    ogImageUrl: row.og_image_url ?? null,
     accentColor: row.accent_color ?? null,
     logoUrl: row.logo_url ?? null,
     theme: row.theme ?? 'dark',
@@ -1805,6 +1807,7 @@ export interface CreateAdvertInput {
   socialPlatform?: string | null;
   socialUrl?: string | null;
   creativeUrl?: string | null;
+  ogImageUrl?: string | null;
   accentColor?: string | null;
   logoUrl?: string | null;
   theme?: 'dark' | 'light';
@@ -1834,6 +1837,7 @@ export async function createAdvert(input: CreateAdvertInput): Promise<Advert> {
       social_platform: input.socialPlatform ?? null,
       social_url: input.socialUrl ?? null,
       creative_url: input.creativeUrl ?? null,
+      og_image_url: input.ogImageUrl ?? null,
       accent_color: input.accentColor ?? null,
       logo_url: input.logoUrl ?? null,
       theme: input.theme ?? 'dark',
@@ -1861,6 +1865,7 @@ export interface UpdateAdvertInput {
   socialPlatform?: string | null;
   socialUrl?: string | null;
   creativeUrl?: string | null;
+  ogImageUrl?: string | null;
   accentColor?: string | null;
   logoUrl?: string | null;
   theme?: 'dark' | 'light';
@@ -1880,6 +1885,7 @@ export async function updateAdvert(id: string, updates: UpdateAdvertInput): Prom
   if (updates.socialPlatform !== undefined) patch.social_platform = updates.socialPlatform;
   if (updates.socialUrl !== undefined) patch.social_url = updates.socialUrl;
   if (updates.creativeUrl !== undefined) patch.creative_url = updates.creativeUrl;
+  if (updates.ogImageUrl !== undefined) patch.og_image_url = updates.ogImageUrl;
   if (updates.accentColor !== undefined) patch.accent_color = updates.accentColor;
   if (updates.logoUrl !== undefined) patch.logo_url = updates.logoUrl;
   if (updates.theme !== undefined) patch.theme = updates.theme;

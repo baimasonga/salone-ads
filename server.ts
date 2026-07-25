@@ -71,12 +71,12 @@ function htmlEscape(s: string): string {
 // server-rendered; real users still get the SPA that hydrates over it.
 function injectAdvertMeta(
   html: string,
-  adv: { title: string; business_name: string; summary?: string | null; content?: string | null; category?: string | null; creative_url?: string | null; media_url?: string | null },
+  adv: { title: string; business_name: string; summary?: string | null; content?: string | null; category?: string | null; og_image_url?: string | null; creative_url?: string | null; media_url?: string | null },
   url: string,
 ): string {
   const title = `${adv.title} — ${adv.business_name} · Manohub`;
   const desc = (adv.summary || adv.content || `${adv.business_name} on Manohub`).slice(0, 200);
-  const image = adv.creative_url || adv.media_url || "";
+  const image = adv.og_image_url || adv.creative_url || adv.media_url || "";
   const tags = [
     `<title>${htmlEscape(title)}</title>`,
     `<meta name="description" content="${htmlEscape(desc)}" />`,
@@ -529,7 +529,7 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
         if (supabaseAuthClient) {
           const { data } = await supabaseAuthClient
             .from("adverts")
-            .select("slug, title, business_name, summary, content, category, creative_url, media_url, status")
+            .select("slug, title, business_name, summary, content, category, og_image_url, creative_url, media_url, status")
             .eq("slug", req.params.slug)
             .maybeSingle();
           if (data && data.status === "live") {

@@ -701,6 +701,12 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                 })}
           </div>
         </div>
+
+        <div className="mt-6 flex justify-center">
+          <Link to="/adverts" className="border border-[#0F172A] text-[#0F172A] font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:bg-[#0F172A] hover:text-white transition-colors inline-flex items-center gap-2">
+            <Store className="h-3.5 w-3.5" /> Browse all adverts
+          </Link>
+        </div>
       </section>
 
       {/* ============================ PRICING ============================ */}

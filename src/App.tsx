@@ -18,6 +18,7 @@ import { Workspaces } from './components/Workspaces';
 import { TenderSearchPage } from './components/TenderSearchPage';
 import { TenderDetailPage } from './components/TenderDetailPage';
 import { AdvertDetailPage } from './components/AdvertDetailPage';
+import { AdvertsFeedPage } from './components/AdvertsFeedPage';
 import { supabase } from './lib/supabaseClient';
 import { fetchMyOrganization, fetchOrgBundle, fetchDirectoryProfiles, fetchInfluencerProfiles, fetchMyPlatformRole } from './lib/api';
 import { fetchMyNotifications, markNotificationRead, AppNotification, hasFeature } from './lib/procurementApi';
@@ -30,6 +31,7 @@ export default function App() {
     <Routes>
       <Route path="/tenders" element={<TenderSearchPage />} />
       <Route path="/tenders/:slug" element={<TenderDetailPage />} />
+      <Route path="/adverts" element={<AdvertsFeedPage />} />
       <Route path="/adverts/:slug" element={<AdvertDetailPage />} />
       <Route path="/*" element={<MainApp />} />
     </Routes>

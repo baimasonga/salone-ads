@@ -1747,3 +1747,22 @@ against the real `dist/index.html` and produced all OG/Twitter tags with a singl
 share-intent URLs were validated as well-formed. (The route's live Supabase read can't be exercised in
 this sandbox — egress to Supabase is allowlist-blocked — but it uses the same anon client as the
 working `/r/:code` route and runs in the production container.)
+
+## 52. Distribution engine, part 2: social-optimal OG image + public ad feed (2026-07-25)
+
+Two more engine pieces that make the reach loop land well:
+
+- **Social-optimal OG image (1200×628)** — new `adverts.og_image_url` (migration `advert_og_image`).
+  On publish the admin panel captures a dedicated off-screen **landscape** render (a persistent hidden
+  `AdvertCreative` fed by the live form) so the social feed card is always a pixel-perfect ~1.91:1 card,
+  independent of the advert's own format (story/editorial would otherwise crop badly). `server.ts`
+  prefers `og_image_url` for `og:image`, falling back to the creative then media.
+- **Public ad feed / marketplace** — new `AdvertsFeedPage` at `/adverts`: every live advert rendered as
+  its real square creative in a responsive grid, filterable by category, each linking to its detail page.
+  This is the discovery surface social click-throughs land on. Linked from the landing marquee ("Browse
+  all adverts") and the detail-page header ("All adverts").
+
+**Verification**: `tsc` + `npm run build` clean; `/adverts` rendered via `vite preview` with mocked live
+adverts and screenshot-checked (marketplace header, category chips, 3-up creative grid with correct
+themes/accents). og:image selection was covered by the earlier `injectAdvertMeta` check (now prefers
+`og_image_url`).

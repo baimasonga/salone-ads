@@ -2115,6 +2115,7 @@ export function Workspaces({
     }
   };
   const creativeRef = useRef<HTMLDivElement>(null);
+  const ogRef = useRef<HTMLDivElement>(null);
 
   // Export a rendered creative node to a PNG data URL (2x).
   const exportCreativePng = (node: HTMLElement | null) =>
@@ -2224,6 +2225,15 @@ export function Workspaces({
           creativeUrl = await uploadAdvertCreative(dataUrl);
         } catch { /* non-fatal: publish without a saved creative */ }
       }
+      // Always capture a social-optimal 1200×628 landscape card for the feed
+      // unfurl (og:image), independent of the advert's own format.
+      let ogImageUrl: string | null = null;
+      if (ogRef.current) {
+        try {
+          const dataUrl = await exportCreativePng(ogRef.current);
+          ogImageUrl = await uploadAdvertCreative(dataUrl);
+        } catch { /* non-fatal: fall back to creative/media for og:image */ }
+      }
       const created = await createAdvert({
         title: advForm.title,
         category: advForm.category,
@@ -2234,6 +2244,7 @@ export function Workspaces({
         socialPlatform: advForm.socialPlatform || null,
         socialUrl: advForm.socialUrl || null,
         creativeUrl,
+        ogImageUrl: ogImageUrl || creativeUrl,
         accentColor: advForm.accentColor || null,
         logoUrl: advForm.logoUrl || null,
         theme: advTheme,
@@ -3764,6 +3775,24 @@ export function Workspaces({
             <button type="button" onClick={() => setKitExporting(true)} disabled={kitExporting} className="mt-2 w-full border border-slate-300 text-slate-700 font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50">
               {kitExporting ? 'Building kit…' : 'Download the kit (all 5 sizes · ZIP)'}
             </button>
+            {/* Persistent off-screen 1200×628 landscape render → the social feed
+                card (og:image), captured on publish regardless of chosen format. */}
+            <div style={{ position: 'fixed', left: -99999, top: 0, opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
+              <AdvertCreative
+                ref={ogRef}
+                format="landscape"
+                theme={advTheme}
+                withPhoto={advWithPhoto}
+                businessName={advForm.businessName || 'Your Business'}
+                headline={advForm.title || 'Your headline goes here'}
+                body={advForm.summary || advForm.content}
+                category={advForm.category}
+                mediaUrl={advForm.mediaUrl || null}
+                platform={advForm.socialPlatform}
+                accentColor={advForm.accentColor}
+                logoUrl={advForm.logoUrl || null}
+              />
+            </div>
             {/* Off-screen full-res render of every format for the kit ZIP */}
             {kitExporting && (
               <div style={{ position: 'fixed', left: -99999, top: 0, opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
