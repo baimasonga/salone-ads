@@ -1615,7 +1615,7 @@ export interface Advert {
   accentColor: string | null;
   logoUrl: string | null;
   theme: 'dark' | 'light';
-  format: 'square' | 'story' | 'landscape' | 'banner';
+  format: 'square' | 'story' | 'landscape' | 'banner' | 'editorial';
   withPhoto: boolean;
   status: AdvertStatus;
   publishedAt: string | null;
@@ -1705,7 +1705,7 @@ export interface CreateAdvertInput {
   accentColor?: string | null;
   logoUrl?: string | null;
   theme?: 'dark' | 'light';
-  format?: 'square' | 'story' | 'landscape' | 'banner';
+  format?: 'square' | 'story' | 'landscape' | 'banner' | 'editorial';
   withPhoto?: boolean;
   status?: AdvertStatus;
   orgId?: string | null;
@@ -1761,7 +1761,7 @@ export interface UpdateAdvertInput {
   accentColor?: string | null;
   logoUrl?: string | null;
   theme?: 'dark' | 'light';
-  format?: 'square' | 'story' | 'landscape' | 'banner';
+  format?: 'square' | 'story' | 'landscape' | 'banner' | 'editorial';
   withPhoto?: boolean;
   status?: AdvertStatus;
 }

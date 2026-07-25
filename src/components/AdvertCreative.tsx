@@ -7,7 +7,7 @@ import { forwardRef, useEffect, useRef, useState, ReactNode } from 'react';
 // or newspaper ad, with no manual design work.
 // forwardRef so the rendered node can be exported to PNG (html-to-image).
 
-export type AdvertFormat = 'square' | 'story' | 'landscape' | 'banner';
+export type AdvertFormat = 'square' | 'story' | 'landscape' | 'banner' | 'editorial';
 export type AdvertTheme = 'dark' | 'light';
 
 export const CREATIVE_SIZE: Record<AdvertFormat, { w: number; h: number }> = {
@@ -15,6 +15,7 @@ export const CREATIVE_SIZE: Record<AdvertFormat, { w: number; h: number }> = {
   story: { w: 1080, h: 1920 },
   landscape: { w: 1200, h: 628 },
   banner: { w: 1280, h: 720 },
+  editorial: { w: 1080, h: 1350 },
 };
 
 export interface AdvertCreativeProps {
@@ -261,6 +262,49 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
     WebkitBoxOrient: 'vertical' as any,
     overflow: 'hidden',
   });
+
+  // ─────────────────── EDITORIAL / CLASSIFIED 1080×1350 ───────────────────
+  // Newspaper / print-poster look: paper background, thick ink border, a left
+  // accent bar, solid ink rules and a black headline. Always paper (theme is
+  // ignored); the accent recolours the left bar, chip, rule ends and CTA.
+  if (format === 'editorial') {
+    const paper = palette('light');
+    const inkRule = <div style={{ height: 3, background: INK }} />;
+    return (
+      <div ref={ref} style={{ position: 'relative', width: w, height: h, background: '#ffffff', fontFamily: SANS, overflow: 'hidden', border: `4px solid ${INK}`, boxSizing: 'border-box' }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 14, background: accent }} />
+        <div style={{ position: 'relative', height: '100%', boxSizing: 'border-box', paddingLeft: 64, paddingRight: 56, paddingTop: 52, paddingBottom: 52, display: 'flex', flexDirection: 'column' }}>
+          {/* masthead */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
+            <Logo p={paper} logoUrl={logoUrl} />
+            <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 600, letterSpacing: '0.16em', color: '#8b95a3' }}>MANOHUB.COM</span>
+          </div>
+          <div style={{ margin: '22px 0' }}>{inkRule}</div>
+          <div><CategoryChip label={cat} accent={accent} /></div>
+          <div style={{ ...headlineStyle(76), color: INK, marginTop: 16 }}>{headline}</div>
+          {body && <div style={{ ...bodyStyle(26, undefined), color: '#54606f', marginTop: 20 }}>{body}</div>}
+          {showPhoto ? (
+            mediaUrl ? (
+              <div style={{ marginTop: 30, flex: 1, minHeight: 0, overflow: 'hidden', border: `1px solid ${paper.panelBorder}` }}>
+                <img src={mediaUrl} alt="" crossOrigin="anonymous" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              </div>
+            ) : (
+              <div style={{ marginTop: 30, flex: 1, border: `1px dashed ${paper.panelBorder}`, background: paper.panelBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={paper.panelText} strokeWidth="1.6">
+                  <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" />
+                </svg>
+              </div>
+            )
+          ) : (
+            <div style={{ flex: 1 }} />
+          )}
+          <div style={{ marginTop: 30, marginBottom: 22 }}>{inkRule}</div>
+          <BusinessRow p={paper} businessName={name} cta={cta} accent={accent} fontSize={30} />
+          <div style={{ marginTop: 16 }}><Footer p={paper} /></div>
+        </div>
+      </div>
+    );
+  }
 
   // ─────────────────────────── BANNER 1280×720 ───────────────────────────
   // Wide hero: logo top-left, chip + rule + copy stacked on the left, a tall

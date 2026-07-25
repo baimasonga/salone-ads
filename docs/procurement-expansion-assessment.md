@@ -1659,3 +1659,19 @@ the admin + subscriber format toggles, and the public detail page's hero max-wid
 
 **Verification**: `tsc` + `npm run build` clean; both banner variants (photo + aurora) rendered
 from the real component and screenshot-checked against the exported 1I/1J reference frames.
+
+## 48. Advert creatives: editorial / classified (1080×1350) format from ad-template prompt 4 (2026-07-25)
+
+The fourth Claude Design export added a fifth format: **`editorial` 1080×1350** — "Portrait ·
+Newspaper / classified · print & poster" (frames 1K with photo, 1L green-accent text-forward).
+Unlike the social formats it is a fixed **paper** look (theme is ignored): white background, a thick
+ink outer border, a left accent bar, a `MANOHUB.COM` masthead, solid ink rules top and bottom, and a
+large black Hanken headline — the classic classified/public-notice feel. `with-photo="false"` drops
+the photo panel (text-forward); the `accent` recolours the left bar, chip, rule ends and CTA.
+
+`AdvertFormat` + `CREATIVE_SIZE` gained `editorial`; the `adverts_format_check` constraint now allows
+it (migration `advert_format_editorial`); the `Advert` model + create/update unions, the admin +
+subscriber format toggles, and the public detail page's hero max-width all include it.
+
+**Verification**: `tsc` + `npm run build` clean; both editorial variants (photo + green text-forward)
+rendered from the real component and screenshot-checked against the exported 1K/1L reference frames.

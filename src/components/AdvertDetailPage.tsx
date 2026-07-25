@@ -61,7 +61,7 @@ export function AdvertDetailPage() {
           <article className="bg-white border border-[#0F172A]">
             {/* Auto-generated creative from the Manohub design system */}
             <div className="bg-slate-50 border-b border-[#0F172A] p-5">
-              <div className={`${advert.format === 'square' ? 'max-w-[560px]' : advert.format === 'story' ? 'max-w-[420px]' : advert.format === 'banner' ? 'max-w-[820px]' : 'max-w-[720px]'} mx-auto`}>
+              <div className={`${advert.format === 'square' ? 'max-w-[560px]' : advert.format === 'story' ? 'max-w-[420px]' : advert.format === 'editorial' ? 'max-w-[500px]' : advert.format === 'banner' ? 'max-w-[820px]' : 'max-w-[720px]'} mx-auto`}>
                 <CreativeScaler format={advert.format}>
                   <AdvertCreative
                     format={advert.format}
