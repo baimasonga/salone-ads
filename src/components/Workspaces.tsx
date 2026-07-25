@@ -3929,8 +3929,8 @@ export function Workspaces({
                         <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
                           <span>Reach goal</span><span>{reach.views.toLocaleString()} / {c.reachGoal!.toLocaleString()} views ({pct}%)</span>
                         </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+                        <div className="h-1.5 bg-slate-100 overflow-hidden">
+                          <div className="h-full bg-emerald-600" style={{ width: `${pct}%` }} />
                         </div>
                       </div>
                     )}
@@ -3956,17 +3956,18 @@ export function Workspaces({
           </p>
 
           {advAnalytics && (
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="mt-5 border border-[#0F172A] bg-[#0F172A] grid grid-cols-2 lg:grid-cols-4 gap-px">
               {[
                 { label: 'Total views', value: advAnalytics.viewsTotal, sub: `${advAnalytics.views7d} in 7d · ${advAnalytics.views30d} in 30d` },
                 { label: 'Total clicks', value: advAnalytics.clicksTotal, sub: `${advAnalytics.clicks7d} in 7d · ${advAnalytics.clicks30d} in 30d` },
                 { label: 'Live adverts', value: advAnalytics.liveCount, sub: 'showing on the site' },
                 { label: 'Click-through', value: `${advAnalytics.viewsTotal > 0 ? Math.round((advAnalytics.clicksTotal / advAnalytics.viewsTotal) * 100) : 0}%`, sub: 'clicks ÷ views' },
-              ].map((s) => (
-                <div key={s.label} className="border border-slate-100 rounded-xl p-3 bg-slate-50/60">
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{s.label}</p>
-                  <p className="text-xl font-display font-bold text-slate-900 mt-0.5">{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{s.sub}</p>
+              ].map((s, index) => (
+                <div key={s.label} className="relative bg-white p-4 overflow-hidden">
+                  <i className={`absolute inset-x-0 top-0 h-1 ${index === 0 ? 'bg-indigo-600' : index === 1 ? 'bg-emerald-600' : index === 2 ? 'bg-amber-500' : 'bg-fuchsia-600'}`} />
+                  <p className="text-[9px] font-mono font-bold uppercase tracking-[0.16em] text-slate-500">{s.label}</p>
+                  <p className="mt-2 font-display text-3xl font-extrabold tracking-tight text-slate-950">{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</p>
+                  <p className="mt-1 text-[10px] text-slate-500">{s.sub}</p>
                 </div>
               ))}
             </div>
@@ -4379,14 +4380,14 @@ export function Workspaces({
       return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
     }
     const StatBlock = ({ title, stats }: { title: string; stats: { label: string; count: number }[] }) => (
-      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-        <h4 className="font-display font-bold text-slate-900 text-sm mb-3">{title}</h4>
+      <div className="bg-white border border-[#0F172A]">
+        <h4 className="border-b border-[#0F172A] px-5 py-4 font-display font-extrabold text-slate-950 text-sm">{title}</h4>
         {stats.length === 0 ? <p className="text-xs text-slate-400">No data yet.</p> : (
-          <div className="space-y-1.5">
+          <div>
             {stats.map((s, i) => (
-              <div key={i} className="flex items-center justify-between text-xs">
+              <div key={i} className={`flex items-center justify-between px-5 py-3 text-xs ${i > 0 ? 'border-t border-slate-200' : ''}`}>
                 <span className="text-slate-600">{s.label}</span>
-                <span className="font-mono font-bold text-slate-800">{s.count}</span>
+                <span className="font-display text-lg font-extrabold text-slate-950">{s.count.toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -4394,35 +4395,37 @@ export function Workspaces({
       </div>
     );
     return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-emerald-600" /> Platform Analytics
+      <div className="space-y-5 text-left">
+        <div className="border-b-2 border-[#0F172A] pb-5">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700">Manohub intelligence</span>
+          <h3 className="mt-1 font-display text-3xl font-extrabold tracking-tight text-slate-950 flex items-center gap-3">
+            <Landmark className="h-6 w-6 text-emerald-600" /> Platform Analytics
           </h3>
+          <p className="mt-1 text-sm text-slate-500">A clear view of marketplace participation, opportunities and procurement activity.</p>
         </div>
 
-        {analyticsFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{analyticsFeedback}</div>}
+        {analyticsFeedback && <div className="bg-red-50 border border-red-300 border-l-4 text-red-700 text-sm p-4">{analyticsFeedback}</div>}
 
         {analyticsLoading ? (
           <p className="text-xs text-slate-400">Loading…</p>
         ) : analytics ? (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white border border-slate-100 rounded-2xl p-5">
-                <span className="text-slate-400 font-semibold text-xs block">Organizations</span>
-                <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{analytics.total_organizations}</span>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-px border border-[#0F172A] bg-[#0F172A]">
+              <div className="bg-white border-t-4 border-indigo-600 p-5">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Organizations</span>
+                <span className="font-display font-extrabold text-4xl text-slate-950 block mt-3">{analytics.total_organizations.toLocaleString()}</span>
               </div>
-              <div className="bg-white border border-slate-100 rounded-2xl p-5">
-                <span className="text-slate-400 font-semibold text-xs block">Buyers</span>
-                <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{analytics.total_buyers}</span>
+              <div className="bg-white border-t-4 border-emerald-600 p-5">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Buyers</span>
+                <span className="font-display font-extrabold text-4xl text-slate-950 block mt-3">{analytics.total_buyers.toLocaleString()}</span>
               </div>
-              <div className="bg-white border border-slate-100 rounded-2xl p-5">
-                <span className="text-slate-400 font-semibold text-xs block">Suppliers</span>
-                <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{analytics.total_suppliers}</span>
+              <div className="bg-white border-t-4 border-amber-500 p-5">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Suppliers</span>
+                <span className="font-display font-extrabold text-4xl text-slate-950 block mt-3">{analytics.total_suppliers.toLocaleString()}</span>
               </div>
-              <div className="bg-white border border-slate-100 rounded-2xl p-5">
-                <span className="text-slate-400 font-semibold text-xs block">Verified Suppliers</span>
-                <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">{analytics.total_verified_suppliers}</span>
+              <div className="bg-white border-t-4 border-fuchsia-600 p-5">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Verified Suppliers</span>
+                <span className="font-display font-extrabold text-4xl text-emerald-700 block mt-3">{analytics.total_verified_suppliers.toLocaleString()}</span>
               </div>
             </div>
 
@@ -4432,14 +4435,14 @@ export function Workspaces({
               <StatBlock title="Opportunities by District" stats={analytics.opportunities_by_district} />
               <StatBlock title="Most Followed Buyers" stats={analytics.most_followed_buyers} />
               <StatBlock title="Active Subscriptions by Plan" stats={analytics.subscriptions_by_plan} />
-              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-                <h4 className="font-display font-bold text-slate-900 text-sm mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-purple-600" /> Contract Awards by Sector</h4>
+              <div className="bg-white border border-[#0F172A]">
+                <h4 className="border-b border-[#0F172A] px-5 py-4 font-display font-extrabold text-slate-950 text-sm flex items-center gap-2"><Trophy className="h-4 w-4 text-fuchsia-600" /> Contract Awards by Sector</h4>
                 {analytics.awards_by_sector.length === 0 ? <p className="text-xs text-slate-400">No awards recorded yet.</p> : (
-                  <div className="space-y-1.5">
+                  <div>
                     {analytics.awards_by_sector.map((s, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs">
+                      <div key={i} className={`flex items-center justify-between px-5 py-3 text-xs ${i > 0 ? 'border-t border-slate-200' : ''}`}>
                         <span className="text-slate-600">{s.label} ({s.count})</span>
-                        {s.total_value !== undefined && <span className="font-mono font-bold text-slate-800">Le {s.total_value.toLocaleString()}</span>}
+                        {s.total_value !== undefined && <span className="font-display text-base font-extrabold text-slate-950">Le {s.total_value.toLocaleString()}</span>}
                       </div>
                     ))}
                   </div>
@@ -4448,24 +4451,24 @@ export function Workspaces({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-                <h4 className="font-display font-bold text-slate-900 text-sm mb-3 flex items-center gap-2"><Eye className="h-4 w-4" /> Most Viewed Tenders</h4>
-                <div className="space-y-1.5">
+              <div className="bg-white border border-[#0F172A]">
+                <h4 className="border-b border-[#0F172A] px-5 py-4 font-display font-extrabold text-slate-950 text-sm flex items-center gap-2"><Eye className="h-4 w-4 text-indigo-600" /> Most Viewed Tenders</h4>
+                <div>
                   {analytics.most_viewed.map((v, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs">
+                    <div key={i} className={`flex items-center justify-between px-5 py-3 text-xs ${i > 0 ? 'border-t border-slate-200' : ''}`}>
                       <Link to={`/tenders/${v.slug}`} target="_blank" className="text-slate-600 hover:underline truncate">{v.title}</Link>
-                      <span className="font-mono font-bold text-slate-800 shrink-0 ml-2">{v.value}</span>
+                      <span className="font-display text-lg font-extrabold text-slate-950 shrink-0 ml-2">{v.value.toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-                <h4 className="font-display font-bold text-slate-900 text-sm mb-3 flex items-center gap-2"><Award className="h-4 w-4" /> Most Saved Tenders</h4>
-                <div className="space-y-1.5">
+              <div className="bg-white border border-[#0F172A]">
+                <h4 className="border-b border-[#0F172A] px-5 py-4 font-display font-extrabold text-slate-950 text-sm flex items-center gap-2"><Award className="h-4 w-4 text-amber-600" /> Most Saved Tenders</h4>
+                <div>
                   {analytics.most_saved.map((v, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs">
+                    <div key={i} className={`flex items-center justify-between px-5 py-3 text-xs ${i > 0 ? 'border-t border-slate-200' : ''}`}>
                       <Link to={`/tenders/${v.slug}`} target="_blank" className="text-slate-600 hover:underline truncate">{v.title}</Link>
-                      <span className="font-mono font-bold text-slate-800 shrink-0 ml-2">{v.value}</span>
+                      <span className="font-display text-lg font-extrabold text-slate-950 shrink-0 ml-2">{v.value.toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -5702,32 +5705,36 @@ export function Workspaces({
     const clicksLast7Days = clickSeries.slice(-7).reduce((sum, p) => sum + p.count, 0);
     const maxClickCount = Math.max(1, ...clickSeries.map((p) => p.count));
     return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-6">Real Tracking Link Performance</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-center">
-              <span className="text-xs text-slate-400 font-bold uppercase block">Active Tracking Links</span>
-              <span className="font-display font-extrabold text-2xl text-slate-800 block mt-2">{trackingLinks.length}</span>
+      <div className="space-y-5 text-left">
+        <div className="border-b-2 border-[#0F172A] pb-5">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700">Audience response</span>
+          <h3 className="mt-1 font-display text-3xl font-extrabold tracking-tight text-slate-950">Tracking Link Performance</h3>
+          <p className="mt-1 text-sm text-slate-500">See which links, days and campaigns are earning genuine attention.</p>
+        </div>
+        <div className="border border-[#0F172A] bg-[#0F172A]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px">
+            <div className="bg-white border-t-4 border-indigo-600 p-5">
+              <span className="font-mono text-[9px] tracking-widest text-slate-500 font-bold uppercase block">Active Tracking Links</span>
+              <span className="font-display font-extrabold text-4xl text-slate-950 block mt-3">{trackingLinks.length.toLocaleString()}</span>
             </div>
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-center">
-              <span className="text-xs text-slate-400 font-bold uppercase block">Total Clicks (All Time)</span>
-              <span className="font-display font-extrabold text-2xl text-slate-800 block mt-2">{totalClicks}</span>
+            <div className="bg-white border-t-4 border-emerald-600 p-5">
+              <span className="font-mono text-[9px] tracking-widest text-slate-500 font-bold uppercase block">Total Clicks (All Time)</span>
+              <span className="font-display font-extrabold text-4xl text-slate-950 block mt-3">{totalClicks.toLocaleString()}</span>
             </div>
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-center">
-              <span className="text-xs text-slate-400 font-bold uppercase block">Clicks (Last 7 Days)</span>
-              <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">{clicksLast7Days}</span>
+            <div className="bg-white border-t-4 border-amber-500 p-5">
+              <span className="font-mono text-[9px] tracking-widest text-slate-500 font-bold uppercase block">Clicks (Last 7 Days)</span>
+              <span className="font-display font-extrabold text-4xl text-emerald-700 block mt-3">{clicksLast7Days.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
         {/* Real click chart — from tracking_link_clicks, not a fixed mock array */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+        <div className="bg-white border border-[#0F172A] p-6">
           <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Daily Clicks (Last 12 Days)</h3>
           <div className="flex items-end gap-3 h-48 pt-6">
             {clickSeries.map((point) => (
               <div key={point.date} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                <div className="w-full bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-colors" style={{ height: `${(point.count / maxClickCount) * 100}%` }} />
+                <div className="w-full bg-emerald-600 hover:bg-emerald-700 transition-colors" style={{ height: `${(point.count / maxClickCount) * 100}%` }} />
                 <span className="text-[10px] text-slate-400 font-mono">{point.date.slice(5)}</span>
               </div>
             ))}
@@ -5735,7 +5742,7 @@ export function Workspaces({
         </div>
 
         {/* Clicks by day of week — real, from raw click timestamps over the last 90 days */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+        <div className="bg-white border border-[#0F172A] p-6">
           <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Clicks by Day of Week (Last 90 Days)</h3>
           {weekdayClicks.every((w) => w.count === 0) ? (
             <p className="text-xs text-slate-400">No click activity yet — this will fill in once your tracking links get real traffic.</p>
@@ -5746,7 +5753,7 @@ export function Workspaces({
                 return (
                   <div key={point.weekday} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
                     <span className="text-[10px] text-slate-500 font-mono">{point.count}</span>
-                    <div className="w-full bg-indigo-400 rounded-t-md hover:bg-indigo-500 transition-colors" style={{ height: `${(point.count / maxWeekday) * 100}%` }} />
+                    <div className="w-full bg-indigo-500 hover:bg-indigo-600 transition-colors" style={{ height: `${(point.count / maxWeekday) * 100}%` }} />
                     <span className="text-[10px] text-slate-400 font-mono">{point.weekday}</span>
                   </div>
                 );
@@ -5756,7 +5763,7 @@ export function Workspaces({
         </div>
 
         {/* Per-campaign click rollup — real, joins tracking_links.campaign_id to campaigns */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+        <div className="bg-white border border-[#0F172A] p-6">
           <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Clicks by Campaign</h3>
           {(() => {
             const rollup = new Map<string, { name: string; clicks: number; links: number }>();
