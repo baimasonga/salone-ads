@@ -61,10 +61,11 @@ export function AdvertDetailPage() {
           <article className="bg-white border border-[#0F172A]">
             {/* Auto-generated creative from the Manohub design system */}
             <div className="bg-slate-50 border-b border-[#0F172A] p-5">
-              <div className="max-w-[600px] mx-auto">
-                <CreativeScaler format="poster">
+              <div className={`${advert.format === 'square' ? 'max-w-[560px]' : advert.format === 'story' ? 'max-w-[420px]' : 'max-w-[720px]'} mx-auto`}>
+                <CreativeScaler format={advert.format}>
                   <AdvertCreative
-                    format="poster"
+                    format={advert.format}
+                    theme={advert.theme}
                     businessName={advert.businessName}
                     headline={advert.title}
                     body={advert.summary || advert.content}

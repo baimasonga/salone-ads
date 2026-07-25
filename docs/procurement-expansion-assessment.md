@@ -1593,3 +1593,32 @@ verified on the detail page with zero page errors.
 
 **Verification**: app + worker `tsc` and `npm run build` clean; the accent override screenshot-verified on
 the detail poster (teal pill/rule from a custom `accent_color`) with zero page errors.
+
+## 45. Advert creatives rebuilt to the "Manohub Ad Frame" design system (2026-07-25)
+
+The user exported a first ad-template set from Claude Design (`Manohub_Ad_Templates.html`) —
+a reusable `ManohubAdFrame` component with a clean prop contract
+(`format`, `theme`, `category`, `headline`, `body`, `business`, `cta`, plus logo/photo/accent).
+`src/components/AdvertCreative.tsx` was rebuilt to reproduce it faithfully:
+
+- **Formats** (real export dimensions): `square` 1080×1080 (Instagram/Facebook/WhatsApp/LinkedIn),
+  `story` 1080×1920 (Stories/Status), `landscape` 1200×628 (link previews).
+- **Themes**: `dark` (dusk gradient + top-right iris mesh glow, white headline) and
+  `light` (white, newspaper feel, ink headline). One palette table drives both.
+- **Shared anatomy** across all six variants: logo top-left (business logo, else MANOHUB
+  wordmark) · iris category chip top-right · short accent segment over a hairline rule ·
+  Hanken Grotesk headline + muted body · dashed/photo panel · green-dot business name +
+  accent "Find us on … →" CTA · "Sponsored on Manohub · manohub.com" footer.
+- The per-business **accent colour** overrides the iris on the chip, rule and CTA;
+  the **logo URL** replaces the wordmark. A real `mediaUrl` fills the photo panel.
+
+Two new columns (`adverts.theme`, `adverts.format`, checked + defaulted `dark`/`square`,
+migration `advert_theme_format`) persist the chosen variant per advert; the `Advert` model,
+`ADVERT_SELECT`, `mapAdvert`, and create/update inputs all carry them. The admin publish
+form and subscriber "My Adverts" preview gained **format + theme toggles**, and the public
+`/adverts/:slug` detail page now renders the advert's stored format/theme as its hero.
+PNG export (html-to-image), AI copy polish, and brand accent/logo all continue to work.
+
+**Verification**: `tsc` + `npm run build` clean; all six format×theme variants rendered from
+the real component via an isolated Vite harness and screenshot-checked against the exported
+1A/1B (square), 1E (story) and 1G (landscape) reference frames — layouts, tokens and copy match.

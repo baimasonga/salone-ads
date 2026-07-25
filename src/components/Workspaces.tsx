@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import JSZip from 'jszip';
 import { toPng } from 'html-to-image';
 import { Link } from 'react-router-dom';
-import { AdvertCreative, CreativeScaler, AdvertFormat } from './AdvertCreative';
+import { AdvertCreative, CreativeScaler, AdvertFormat, AdvertTheme } from './AdvertCreative';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
@@ -2005,7 +2005,8 @@ export function Workspaces({
     accentColor: '#5d4ee0', logoUrl: '',
   });
   const [advSaving, setAdvSaving] = useState(false);
-  const [advFormat, setAdvFormat] = useState<AdvertFormat>('poster');
+  const [advFormat, setAdvFormat] = useState<AdvertFormat>('square');
+  const [advTheme, setAdvTheme] = useState<AdvertTheme>('dark');
   const [savingCreative, setSavingCreative] = useState(false);
   const [polishingCopy, setPolishingCopy] = useState(false);
 
@@ -2140,6 +2141,8 @@ export function Workspaces({
         creativeUrl: advForm.creativeUrl || null,
         accentColor: advForm.accentColor || null,
         logoUrl: advForm.logoUrl || null,
+        theme: advTheme,
+        format: advFormat,
         status: 'live',
       });
       setPublishedAdverts([created, ...publishedAdverts]);
@@ -3371,10 +3374,17 @@ export function Workspaces({
             <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-display font-bold text-slate-900 text-sm">Your advert, designed automatically</h4>
-                <div className="flex items-center gap-1">
-                  {(['poster', 'strip', 'square'] as AdvertFormat[]).map((f) => (
-                    <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {(['square', 'story', 'landscape'] as AdvertFormat[]).map((f) => (
+                      <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {(['dark', 'light'] as AdvertTheme[]).map((t) => (
+                      <button key={t} type="button" onClick={() => setAdvTheme(t)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advTheme === t ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{t}</button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <p className="text-xs text-slate-500 mb-3">This is generated from your details as you type. Our team refines and runs it — you can download it too.</p>
@@ -3383,6 +3393,7 @@ export function Workspaces({
                   <AdvertCreative
                     ref={subCreativeRef}
                     format={advFormat}
+                    theme={advTheme}
                     businessName={activeOrg.name}
                     headline={adSubject || 'Your headline goes here'}
                     body={adDescription}
@@ -3561,10 +3572,17 @@ export function Workspaces({
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Auto-generated creative</span>
-              <div className="flex items-center gap-1">
-                {(['poster', 'strip', 'square'] as AdvertFormat[]).map((f) => (
-                  <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  {(['square', 'story', 'landscape'] as AdvertFormat[]).map((f) => (
+                    <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1">
+                  {(['dark', 'light'] as AdvertTheme[]).map((t) => (
+                    <button key={t} type="button" onClick={() => setAdvTheme(t)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advTheme === t ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{t}</button>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="border border-slate-200 bg-slate-50 p-3">
@@ -3572,6 +3590,7 @@ export function Workspaces({
                 <AdvertCreative
                   ref={creativeRef}
                   format={advFormat}
+                  theme={advTheme}
                   businessName={advForm.businessName || 'Your Business'}
                   headline={advForm.title || 'Your headline goes here'}
                   body={advForm.summary || advForm.content}

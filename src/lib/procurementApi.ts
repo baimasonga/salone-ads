@@ -1614,13 +1614,15 @@ export interface Advert {
   creativeUrl: string | null;
   accentColor: string | null;
   logoUrl: string | null;
+  theme: 'dark' | 'light';
+  format: 'square' | 'story' | 'landscape';
   status: AdvertStatus;
   publishedAt: string | null;
   createdAt: string;
 }
 
 const ADVERT_SELECT =
-  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, accent_color, logo_url, status, published_at, created_at';
+  'id, slug, title, category, business_name, summary, content, media_url, social_platform, social_url, creative_url, accent_color, logo_url, theme, format, status, published_at, created_at';
 
 function mapAdvert(row: any): Advert {
   return {
@@ -1637,6 +1639,8 @@ function mapAdvert(row: any): Advert {
     creativeUrl: row.creative_url ?? null,
     accentColor: row.accent_color ?? null,
     logoUrl: row.logo_url ?? null,
+    theme: row.theme ?? 'dark',
+    format: row.format ?? 'square',
     status: row.status,
     publishedAt: row.published_at ?? null,
     createdAt: row.created_at,
@@ -1698,6 +1702,8 @@ export interface CreateAdvertInput {
   creativeUrl?: string | null;
   accentColor?: string | null;
   logoUrl?: string | null;
+  theme?: 'dark' | 'light';
+  format?: 'square' | 'story' | 'landscape';
   status?: AdvertStatus;
   orgId?: string | null;
   requestId?: string | null;
@@ -1724,6 +1730,8 @@ export async function createAdvert(input: CreateAdvertInput): Promise<Advert> {
       creative_url: input.creativeUrl ?? null,
       accent_color: input.accentColor ?? null,
       logo_url: input.logoUrl ?? null,
+      theme: input.theme ?? 'dark',
+      format: input.format ?? 'square',
       status,
       org_id: input.orgId ?? null,
       request_id: input.requestId ?? null,
@@ -1748,6 +1756,8 @@ export interface UpdateAdvertInput {
   creativeUrl?: string | null;
   accentColor?: string | null;
   logoUrl?: string | null;
+  theme?: 'dark' | 'light';
+  format?: 'square' | 'story' | 'landscape';
   status?: AdvertStatus;
 }
 
@@ -1764,6 +1774,8 @@ export async function updateAdvert(id: string, updates: UpdateAdvertInput): Prom
   if (updates.creativeUrl !== undefined) patch.creative_url = updates.creativeUrl;
   if (updates.accentColor !== undefined) patch.accent_color = updates.accentColor;
   if (updates.logoUrl !== undefined) patch.logo_url = updates.logoUrl;
+  if (updates.theme !== undefined) patch.theme = updates.theme;
+  if (updates.format !== undefined) patch.format = updates.format;
   if (updates.status !== undefined) {
     patch.status = updates.status;
     if (updates.status === 'live') patch.published_at = new Date().toISOString();
