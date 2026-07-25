@@ -1,6643 +1,1636 @@
-import React, { useState, useEffect, useRef } from 'react';
-import JSZip from 'jszip';
-import { toPng } from 'html-to-image';
-import { Link } from 'react-router-dom';
-import { AdvertCreative, CreativeScaler, AdvertFormat, AdvertTheme } from './AdvertCreative';
-import {
-  BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
-  MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
-  Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
-  Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
-  FileSearch, ExternalLink, Sparkle, Trophy, Landmark, Megaphone, X, Image as ImageIcon,
-  ChevronLeft, ChevronRight, FileUp, Paperclip, Mail, MessageCircle, ShieldCheck,
-  ArrowRight, Clock, Bookmark, Bell, MapPin
-} from 'lucide-react';
-import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink, AudienceSegment } from '../types';
-import {
-  createCampaign,
-  updateCampaign,
-  deleteCampaign,
-  createContentItem,
-  updateContentItem,
-  deleteContentItem,
-  updateLeadStatus as apiUpdateLeadStatus,
-  createDirectoryListing,
-  claimDirectoryListing,
-  saveBrandKit,
-  createSocialConnection,
-  updateSocialConnection,
-  deleteSocialConnection,
-  createLead,
-  fetchMediaAssets,
-  uploadMediaAsset,
-  deleteMediaAsset,
-  getMediaAssetUrl,
-  fetchTrackingLinks,
-  createTrackingLink,
-  deleteTrackingLink,
-  fetchClickSeries,
-  ClickSeriesPoint,
-  fetchClicksByWeekday,
-  WeekdayClickPoint,
-  fetchAudienceSegments,
-  createAudienceSegment,
-  deleteAudienceSegment,
-  runCampaignHealthCheck,
-  fetchCampaignActivity,
-  CampaignActivity,
-} from '../lib/api';
-import { computeLeadScore, leadPriorityLabel } from '../lib/leadScoring';
-import {
-  fetchMyOpportunities,
-  fetchOpportunityResponses,
-  OpportunityResponse,
-  enableBuyerMode,
-  createOpportunity,
-  closeOpportunity,
-  cancelOpportunity,
-  resubmitForReview,
-  extendDeadline,
-  recordAward,
-  fetchSectors,
-  fetchDistricts,
-  fetchCountries,
-  fetchCurrencies,
-  CurrencyOption,
-  fetchOpportunityTypes,
-  fetchOpportunityDocuments,
-  uploadOpportunityDocument,
-  deleteOpportunityDocument,
-  getOpportunityDocumentUrl,
-  OpportunityDocument,
-  MAX_DOCUMENT_SIZE_BYTES,
-  fetchOpportunitiesForReview,
-  findSimilarTitledOpportunities,
-  approveOpportunity,
-  requestCorrection,
-  rejectOpportunity,
-  enableSupplierMode,
-  fetchSupplierProfile,
-  saveSupplierProfile,
-  submitVerificationRequest,
-  fetchMyVerificationRequests,
-  fetchVerificationQueue,
-  approveVerification,
-  rejectVerification,
-  OpportunityListItem,
-  ReviewQueueItem,
-  TaxonomyOption,
-  SupplierProfile,
-  VerificationRequest,
-  VerificationQueueItem,
-  fetchTeamMembers,
-  fetchTeamMemberLimit,
-  inviteTeamMember,
-  removeTeamMember,
-  fetchPlans,
-  fetchMySubscriptions,
-  requestSubscription,
-  updateSubscriptionNotes,
-  fetchPendingSubscriptions,
-  activateSubscription,
-  cancelSubscriptionRequest,
-  setOpportunityFeatured,
-  createServiceRequest,
-  fetchMyServiceRequests,
-  fetchAllServiceRequests,
-  fetchServiceRequestActivities,
-  addServiceRequestNote,
-  updateServiceRequestStatus,
-  quoteServiceRequest,
-  TeamMember,
-  Plan,
-  OrgSubscription,
-  PendingSubscription,
-  ServiceRequest,
-  ServiceRequestActivity,
-  ServiceType,
-  fetchPipeline,
-  addToPipeline,
-  updatePipelineRecord,
-  removeFromPipeline,
-  fetchSupplierSectorIds,
-  setSupplierSectorIds,
-  fetchRecommendedOpportunities,
-  fetchAdminAnalytics,
-  hasFeature,
-  fetchSavedSearches,
-  deleteSavedSearch,
-  SavedSearch,
-  aiSuggestSector,
-  PipelineRecord,
-  PipelineStage,
-  AdminAnalyticsSummary,
-  submitAdvertisementRequest,
-  fetchMyAdvertisements,
-  fetchAllAdvertisementRequests,
-  updateAdvertisementReport,
-  AdvertisementRequest,
-  AdvertisementCategory,
-  fetchAllAdverts,
-  createAdvert,
-  updateAdvert,
-  deleteAdvert,
-  uploadAdvertCreative,
-  uploadAdvertImage,
-  buildAdvertSharePack,
-  buildAdvertShareIntents,
-  fetchAdvertAnalyticsSummary,
-  AdvertAnalyticsSummary,
-  fetchAllCampaigns as fetchAllAdCampaigns,
-  createCampaign as createAdCampaign,
-  setCampaignStatus,
-  deleteCampaign as deleteAdCampaign,
-  fetchCampaignReach,
-  AdCampaign,
-  CampaignReach,
-  aiPolishAdvertCopy,
-  Advert,
-} from '../lib/procurementApi';
-import { supabase } from '../lib/supabaseClient';
-
-interface WorkspacesProps {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-  activeOrg: Organization;
-  isPlatformAdmin: boolean;
-  campaigns: Campaign[];
-  setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>;
-  contentItems: ContentItem[];
-  setContentItems: React.Dispatch<React.SetStateAction<ContentItem[]>>;
-  leads: Lead[];
-  setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
-  directoryProfiles: DirectoryProfile[];
-  setDirectoryProfiles: React.Dispatch<React.SetStateAction<DirectoryProfile[]>>;
-  influencerProfiles: InfluencerProfile[];
-  socialConnections: SocialConnection[];
-  setSocialConnections: React.Dispatch<React.SetStateAction<SocialConnection[]>>;
-  brandKit: BrandKit;
-  setBrandKit: React.Dispatch<React.SetStateAction<BrandKit>>;
-}
-
-export function Workspaces({
-  activeTab,
-  setActiveTab,
-  activeOrg,
-  isPlatformAdmin,
-  campaigns,
-  setCampaigns,
-  contentItems,
-  setContentItems,
-  leads,
-  setLeads,
-  directoryProfiles,
-  setDirectoryProfiles,
-  influencerProfiles,
-  socialConnections,
-  setSocialConnections,
-  brandKit,
-  setBrandKit
-}: WorkspacesProps) {
-
-  // --- Campaign Wizard States ---
-  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
-  const [newCampName, setNewCampName] = useState('');
-  const [newCampDesc, setNewCampDesc] = useState('');
-  const [newCampObjective, setNewCampObjective] = useState('WhatsApp enquiries');
-  const [newCampBudget, setNewCampBudget] = useState('5000000');
-  const [newCampDistrict, setNewCampDistrict] = useState('Western Area Urban');
-  const [newCampDiaspora, setNewCampDiaspora] = useState('United Kingdom');
-  const [newCampStatus, setNewCampStatus] = useState<Campaign['status']>('Planning');
-  const [campFeedback, setCampFeedback] = useState('');
-  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
-  const [campStatusUpdatingId, setCampStatusUpdatingId] = useState<string | null>(null);
-
-  const [campSubmitting, setCampSubmitting] = useState(false);
-
-  const resetCampaignForm = () => {
-    setEditingCampaignId(null);
-    setNewCampName('');
-    setNewCampDesc('');
-    setNewCampObjective('WhatsApp enquiries');
-    setNewCampBudget('5000000');
-    setNewCampDistrict('Western Area Urban');
-    setNewCampDiaspora('United Kingdom');
-    setNewCampStatus('Planning');
-  };
-
-  const handleEditCampaign = (camp: Campaign) => {
-    setEditingCampaignId(camp.id);
-    setNewCampName(camp.name);
-    setNewCampDesc(camp.description);
-    setNewCampObjective(camp.objective);
-    setNewCampBudget(String(camp.totalBudget));
-    setNewCampDistrict(camp.district || 'Western Area Urban');
-    setNewCampDiaspora(camp.diasporaMarket || 'United Kingdom');
-    setNewCampStatus(camp.status);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleDeleteCampaign = async (camp: Campaign) => {
-    if (!confirm(`Delete "${camp.name}"? This cannot be undone.`)) return;
-    setDeletingCampaignId(camp.id);
-    const previous = campaigns;
-    setCampaigns(campaigns.filter((c) => c.id !== camp.id));
-    try {
-      await deleteCampaign(camp.id);
-      if (editingCampaignId === camp.id) resetCampaignForm();
-    } catch (err: any) {
-      setCampaigns(previous);
-      setCampFeedback(`Error: ${err.message || 'Could not delete campaign.'}`);
-      setTimeout(() => setCampFeedback(''), 4000);
-    } finally {
-      setDeletingCampaignId(null);
-    }
-  };
-
-  const handleChangeCampaignStatus = async (camp: Campaign, status: Campaign['status']) => {
-    if (status === camp.status) return;
-    setCampStatusUpdatingId(camp.id);
-    const previous = campaigns;
-    setCampaigns(campaigns.map((c) => (c.id === camp.id ? { ...c, status } : c)));
-    try {
-      const updated = await updateCampaign(camp.id, { status });
-      setCampaigns((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-      if (editingCampaignId === camp.id) setNewCampStatus(status);
-    } catch (err: any) {
-      setCampaigns(previous);
-      setCampFeedback(`Error: ${err.message || 'Could not update status.'}`);
-      setTimeout(() => setCampFeedback(''), 4000);
-    } finally {
-      setCampStatusUpdatingId(null);
-    }
-  };
-
-  const handleCreateCampaign = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCampSubmitting(true);
-    try {
-      if (editingCampaignId) {
-        const updated = await updateCampaign(editingCampaignId, {
-          name: newCampName || 'Sponsorship Native Rice',
-          description: newCampDesc || 'Direct delivery promotion targeted for diaspora.',
-          objective: newCampObjective,
-          totalBudget: Number(newCampBudget) || 5000000,
-          district: newCampDistrict,
-          diasporaMarket: newCampDiaspora,
-          status: newCampStatus,
-        });
-        setCampaigns(campaigns.map((c) => (c.id === updated.id ? updated : c)));
-        setCampFeedback('Campaign plan updated.');
-      } else {
-        const newCamp = await createCampaign(activeOrg.id, {
-          name: newCampName || 'Sponsorship Native Rice',
-          description: newCampDesc || 'Direct delivery promotion targeted for diaspora.',
-          objective: newCampObjective,
-          totalBudget: Number(newCampBudget) || 5000000,
-          startDate: new Date().toISOString().split('T')[0],
-          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          channels: ['WhatsApp Broadcaster', 'Facebook organic'],
-          district: newCampDistrict,
-          diasporaMarket: newCampDiaspora
-        });
-        setCampaigns([newCamp, ...campaigns]);
-        setCampFeedback('Campaign plan successfully established and saved!');
-      }
-      resetCampaignForm();
-    } catch (err: any) {
-      setCampFeedback(`Error: ${err.message || 'Could not save campaign.'}`);
-    } finally {
-      setCampSubmitting(false);
-      setTimeout(() => setCampFeedback(''), 4000);
-    }
-  };
-
-  // --- Campaign Health/Activity States ---
-  const [campaignActivity, setCampaignActivity] = useState<Record<string, CampaignActivity>>({});
-  const [runningHealthCheck, setRunningHealthCheck] = useState(false);
-  const [healthCheckFeedback, setHealthCheckFeedback] = useState('');
-
-  useEffect(() => {
-    if (activeTab !== 'campaigns') return;
-    fetchCampaignActivity(activeOrg.id)
-      .then(setCampaignActivity)
-      .catch(() => {});
-  }, [activeTab, activeOrg.id]);
-
-  const handleRunHealthCheck = async () => {
-    setRunningHealthCheck(true);
-    setHealthCheckFeedback('');
-    try {
-      const flagged = await runCampaignHealthCheck();
-      setHealthCheckFeedback(
-        flagged > 0
-          ? `Found ${flagged} new issue${flagged === 1 ? '' : 's'} ‚Äî check the notification bell for details.`
-          : 'No new issues found. All campaigns look healthy.'
-      );
-    } catch (err: any) {
-      setHealthCheckFeedback(`Error: ${err.message || 'Could not run the health check.'}`);
-    } finally {
-      setRunningHealthCheck(false);
-      setTimeout(() => setHealthCheckFeedback(''), 6000);
-    }
-  };
-
-  // --- Content Planning Assistant States (suggest-only: preview, admin picks which to create) ---
-  interface ContentPlanSuggestion {
-    title: string;
-    contentType: string;
-    platform: string;
-    headline: string;
-    body: string;
-    hashtags: string[];
-    scheduledDate: string;
-  }
-  const VALID_CONTENT_TYPES = ['Social Post', 'WhatsApp Promo', 'Video Script', 'Radio Brief', 'Email News'];
-  const [contentPlanCampaignId, setContentPlanCampaignId] = useState<string | null>(null);
-  const [contentPlanItems, setContentPlanItems] = useState<ContentPlanSuggestion[]>([]);
-  const [contentPlanSelected, setContentPlanSelected] = useState<Set<number>>(new Set());
-  const [contentPlanLoading, setContentPlanLoading] = useState(false);
-  const [contentPlanError, setContentPlanError] = useState('');
-  const [creatingContentPlanDrafts, setCreatingContentPlanDrafts] = useState(false);
-
-  const handleSuggestContentPlan = async (camp: Campaign) => {
-    setContentPlanCampaignId(camp.id);
-    setContentPlanItems([]);
-    setContentPlanSelected(new Set());
-    setContentPlanError('');
-    setContentPlanLoading(true);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const response = await fetch('/api/gemini/content-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          campaignName: camp.name,
-          campaignObjective: camp.objective,
-          campaignDescription: camp.description,
-          startDate: camp.startDate || new Date().toISOString().split('T')[0],
-          endDate: camp.endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          toneOfVoice: brandKit.toneOfVoice,
-          brandName: brandKit.brandName,
-          tagline: brandKit.tagline,
-          mission: brandKit.mission,
-        }),
-      });
-      const data = await response.json();
-      if (data.error) {
-        setContentPlanError(data.error.message || 'Could not generate a content plan.');
-      } else {
-        const items: ContentPlanSuggestion[] = Array.isArray(data.items) ? data.items : [];
-        setContentPlanItems(items);
-        setContentPlanSelected(new Set(items.map((_, i) => i)));
-      }
-    } catch {
-      setContentPlanError('Failed to communicate with the AI assistant.');
-    } finally {
-      setContentPlanLoading(false);
-    }
-  };
-
-  const toggleContentPlanItem = (idx: number) => {
-    setContentPlanSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  };
-
-  const handleCreateSelectedDrafts = async () => {
-    if (!contentPlanCampaignId) return;
-    setCreatingContentPlanDrafts(true);
-    let failures = 0;
-    try {
-      const created: ContentItem[] = [];
-      for (const idx of contentPlanSelected) {
-        const item = contentPlanItems[idx];
-        if (!item) continue;
-        try {
-          created.push(
-            await createContentItem(activeOrg.id, {
-              title: String(item.title || 'AI Content Plan Draft').slice(0, 200),
-              contentType: (VALID_CONTENT_TYPES.includes(item.contentType) ? item.contentType : 'Social Post') as ContentItem['contentType'],
-              platform: item.platform || 'Facebook',
-              headline: item.headline || '',
-              bodyText: item.body || '',
-              hashtags: Array.isArray(item.hashtags) ? item.hashtags : [],
-              scheduledDate: item.scheduledDate || new Date().toISOString().split('T')[0],
-              campaignId: contentPlanCampaignId,
-            })
-          );
-        } catch {
-          failures += 1;
-        }
-      }
-      setContentItems([...created, ...contentItems]);
-      setCampaignActivity((prev) => ({
-        ...prev,
-        [contentPlanCampaignId]: {
-          campaignId: contentPlanCampaignId,
-          contentCount: (prev[contentPlanCampaignId]?.contentCount ?? 0) + created.length,
-          trackingLinkCount: prev[contentPlanCampaignId]?.trackingLinkCount ?? 0,
-          totalClicks: prev[contentPlanCampaignId]?.totalClicks ?? 0,
-        },
-      }));
-      setHealthCheckFeedback(
-        failures > 0
-          ? `Created ${created.length} draft${created.length === 1 ? '' : 's'}, ${failures} failed ‚Äî review in Content Studio.`
-          : `Created ${created.length} draft${created.length === 1 ? '' : 's'} ‚Äî review them in Content Studio.`
-      );
-      setContentPlanCampaignId(null);
-    } catch (err: any) {
-      setContentPlanError(`Error: ${err.message || 'Could not create drafts.'}`);
-    } finally {
-      setCreatingContentPlanDrafts(false);
-      setTimeout(() => setHealthCheckFeedback(''), 6000);
-    }
-  };
-
-  // --- AI Assistant States ---
-  const [aiPrompt, setAiPrompt] = useState('Grow Sierra Leone native red rice among diaspora families in Maryland, USA.');
-  const [aiOption, setAiOption] = useState<'brief' | 'copy' | 'script' | 'ideas' | 'captions'>('captions');
-  const [aiOutput, setAiOutput] = useState('');
-  const [aiFormat, setAiFormat] = useState<'text' | 'captions' | 'ideas'>('text');
-  const [aiCaptionItems, setAiCaptionItems] = useState<{ headline: string; body: string; hashtags: string[] }[]>([]);
-  const [aiIdeaItems, setAiIdeaItems] = useState<{ title: string; concept: string; platform: string; executionStep: string }[]>([]);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState('');
-  const [savingAllAiItems, setSavingAllAiItems] = useState(false);
-
-  const handleCallAI = async () => {
-    setAiLoading(true);
-    setAiError('');
-    setAiOutput('');
-    setAiFormat('text');
-    setAiCaptionItems([]);
-    setAiIdeaItems([]);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const response = await fetch('/api/gemini/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          prompt: aiPrompt,
-          option: aiOption,
-          toneOfVoice: brandKit.toneOfVoice,
-          brandName: brandKit.brandName,
-          tagline: brandKit.tagline,
-          mission: brandKit.mission
-        })
-      });
-      const data = await response.json();
-      if (data.error) {
-        setAiError(data.error.message || 'AI completions failed.');
-      } else if (data.format === 'captions' && Array.isArray(data.items)) {
-        setAiFormat('captions');
-        setAiCaptionItems(data.items);
-        setAiOutput(data.text || '');
-      } else if (data.format === 'ideas' && Array.isArray(data.items)) {
-        setAiFormat('ideas');
-        setAiIdeaItems(data.items);
-        setAiOutput(data.text || '');
-      } else {
-        setAiFormat('text');
-        setAiOutput(data.text || 'No content returned.');
-      }
-    } catch (err: any) {
-      setAiError('Failed to communicate with full-stack proxy. Check dev server logs.');
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  // --- Audience Segment States ---
-  const DIASPORA_MARKET_OPTIONS = ['United Kingdom', 'United States', 'Canada', 'Germany', 'Sweden'];
-  const [audienceDistricts, setAudienceDistricts] = useState<TaxonomyOption[]>([]);
-  const [audienceSegments, setAudienceSegments] = useState<AudienceSegment[]>([]);
-  const [audienceLoading, setAudienceLoading] = useState(false);
-  const [audienceFeedback, setAudienceFeedback] = useState('');
-  const [segmentName, setSegmentName] = useState('');
-  const [segmentDistricts, setSegmentDistricts] = useState<string[]>([]);
-  const [segmentDiasporaMarkets, setSegmentDiasporaMarkets] = useState<string[]>([]);
-  const [segmentInterestsInput, setSegmentInterestsInput] = useState('');
-  const [savingSegment, setSavingSegment] = useState(false);
-  const [deletingSegmentId, setDeletingSegmentId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (activeTab !== 'audiences') return;
-    setAudienceLoading(true);
-    fetchCountries()
-      .then(async (countries) => {
-        const sierraLeone = countries.find((c) => c.name === 'Sierra Leone') ?? countries[0];
-        const [districts, segments] = await Promise.all([
-          sierraLeone ? fetchDistricts(sierraLeone.id) : Promise.resolve([]),
-          fetchAudienceSegments(activeOrg.id),
-        ]);
-        setAudienceDistricts(districts);
-        setAudienceSegments(segments);
-      })
-      .catch((err: any) => setAudienceFeedback(`Error: ${err.message || 'Could not load audience data.'}`))
-      .finally(() => setAudienceLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  const toggleSegmentDistrict = (name: string) => {
-    setSegmentDistricts((prev) => (prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]));
-  };
-
-  const toggleSegmentDiasporaMarket = (name: string) => {
-    setSegmentDiasporaMarkets((prev) => (prev.includes(name) ? prev.filter((m) => m !== name) : [...prev, name]));
-  };
-
-  const resetSegmentForm = () => {
-    setSegmentName('');
-    setSegmentDistricts([]);
-    setSegmentDiasporaMarkets([]);
-    setSegmentInterestsInput('');
-  };
-
-  const handleSaveSegment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingSegment(true);
-    try {
-      const segment = await createAudienceSegment(activeOrg.id, {
-        name: segmentName,
-        districts: segmentDistricts,
-        diasporaMarkets: segmentDiasporaMarkets,
-        interests: segmentInterestsInput.split(',').map((t) => t.trim()).filter(Boolean),
-      });
-      setAudienceSegments([segment, ...audienceSegments]);
-      resetSegmentForm();
-      setAudienceFeedback('Audience segment saved.');
-    } catch (err: any) {
-      setAudienceFeedback(`Error: ${err.message || 'Could not save segment.'}`);
-    } finally {
-      setSavingSegment(false);
-      setTimeout(() => setAudienceFeedback(''), 4000);
-    }
-  };
-
-  const handleDeleteSegment = async (segment: AudienceSegment) => {
-    if (!confirm(`Delete "${segment.name}"?`)) return;
-    setDeletingSegmentId(segment.id);
-    const previous = audienceSegments;
-    setAudienceSegments(audienceSegments.filter((s) => s.id !== segment.id));
-    try {
-      await deleteAudienceSegment(segment.id);
-    } catch (err: any) {
-      setAudienceSegments(previous);
-      setAudienceFeedback(`Error: ${err.message || 'Could not delete segment.'}`);
-      setTimeout(() => setAudienceFeedback(''), 4000);
-    } finally {
-      setDeletingSegmentId(null);
-    }
-  };
-
-  // --- Social Accounts States (real manual channel tracking, no OAuth) ---
-  const [socialFeedback, setSocialFeedback] = useState('');
-  const [addingChannel, setAddingChannel] = useState(false);
-  const [newChannelPlatform, setNewChannelPlatform] = useState('');
-  const [newChannelAccountName, setNewChannelAccountName] = useState('');
-  const [newChannelStatus, setNewChannelStatus] = useState<SocialConnection['status']>('Sandbox');
-  const [savingChannel, setSavingChannel] = useState(false);
-  const [editingConnectionId, setEditingConnectionId] = useState<string | null>(null);
-  const [editConnAccountName, setEditConnAccountName] = useState('');
-  const [editConnStatus, setEditConnStatus] = useState<SocialConnection['status']>('Sandbox');
-  const [editConnHealth, setEditConnHealth] = useState<SocialConnection['connectionHealth']>('Healthy');
-  const [savingConnEdit, setSavingConnEdit] = useState(false);
-  const [deletingConnectionId, setDeletingConnectionId] = useState<string | null>(null);
-
-  const handleAddChannel = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingChannel(true);
-    try {
-      const conn = await createSocialConnection(activeOrg.id, {
-        platform: newChannelPlatform,
-        accountName: newChannelAccountName,
-        status: newChannelStatus,
-        connectionHealth: 'None',
-      });
-      setSocialConnections([conn, ...socialConnections]);
-      setNewChannelPlatform('');
-      setNewChannelAccountName('');
-      setNewChannelStatus('Sandbox');
-      setAddingChannel(false);
-      setSocialFeedback('Channel added.');
-    } catch (err: any) {
-      setSocialFeedback(`Error: ${err.message || 'Could not add channel.'}`);
-    } finally {
-      setSavingChannel(false);
-      setTimeout(() => setSocialFeedback(''), 4000);
-    }
-  };
-
-  const handleStartEditConnection = (conn: SocialConnection) => {
-    setEditingConnectionId(conn.id);
-    setEditConnAccountName(conn.accountName);
-    setEditConnStatus(conn.status);
-    setEditConnHealth(conn.connectionHealth);
-  };
-
-  const handleSaveConnectionEdit = async (id: string) => {
-    setSavingConnEdit(true);
-    try {
-      const updated = await updateSocialConnection(id, {
-        accountName: editConnAccountName,
-        status: editConnStatus,
-        connectionHealth: editConnHealth,
-      });
-      setSocialConnections(socialConnections.map((c) => (c.id === updated.id ? updated : c)));
-      setEditingConnectionId(null);
-    } catch (err: any) {
-      setSocialFeedback(`Error: ${err.message || 'Could not save channel.'}`);
-      setTimeout(() => setSocialFeedback(''), 4000);
-    } finally {
-      setSavingConnEdit(false);
-    }
-  };
-
-  const handleDeleteConnection = async (conn: SocialConnection) => {
-    if (!confirm(`Remove "${conn.platform}"?`)) return;
-    setDeletingConnectionId(conn.id);
-    const previous = socialConnections;
-    setSocialConnections(socialConnections.filter((c) => c.id !== conn.id));
-    try {
-      await deleteSocialConnection(conn.id);
-      if (editingConnectionId === conn.id) setEditingConnectionId(null);
-    } catch (err: any) {
-      setSocialConnections(previous);
-      setSocialFeedback(`Error: ${err.message || 'Could not remove channel.'}`);
-      setTimeout(() => setSocialFeedback(''), 4000);
-    } finally {
-      setDeletingConnectionId(null);
-    }
-  };
-
-  // --- Content Editor States ---
-  const defaultScheduledDate = () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const [editingContentId, setEditingContentId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editType, setEditType] = useState<'Social Post' | 'WhatsApp Promo' | 'Video Script' | 'Radio Brief' | 'Email News'>('Social Post');
-  const [editPlatform, setEditPlatform] = useState('Facebook');
-  const [editHeadline, setEditHeadline] = useState('');
-  const [editBody, setEditBody] = useState('');
-  const [editHashtagsInput, setEditHashtagsInput] = useState('#Manohub, #EatSalone');
-  const [editScheduledDate, setEditScheduledDate] = useState(defaultScheduledDate());
-  const [editStatus, setEditStatus] = useState<ContentItem['status']>('Draft');
-  const [contentFeedback, setContentFeedback] = useState('');
-  const [deletingContentId, setDeletingContentId] = useState<string | null>(null);
-  const [contentStatusUpdatingId, setContentStatusUpdatingId] = useState<string | null>(null);
-
-  const [contentSubmitting, setContentSubmitting] = useState(false);
-
-  const resetContentComposer = () => {
-    setEditingContentId(null);
-    setEditTitle('');
-    setEditType('Social Post');
-    setEditPlatform('Facebook');
-    setEditHeadline('');
-    setEditBody('');
-    setEditHashtagsInput('#Manohub, #EatSalone');
-    setEditScheduledDate(defaultScheduledDate());
-    setEditStatus('Draft');
-  };
-
-  const handleEditContentItem = (item: ContentItem) => {
-    setEditingContentId(item.id);
-    setEditTitle(item.title);
-    setEditType(item.contentType);
-    setEditPlatform(item.platform);
-    setEditHeadline(item.headline);
-    setEditBody(item.bodyText);
-    setEditHashtagsInput(item.hashtags.join(', '));
-    setEditScheduledDate(item.scheduledDate || defaultScheduledDate());
-    setEditStatus(item.status);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const parseHashtagsInput = (input: string): string[] =>
-    input
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-      .map((tag) => (tag.startsWith('#') ? tag : `#${tag}`));
-
-  const handleSaveContent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setContentSubmitting(true);
-    try {
-      if (editingContentId) {
-        const current = contentItems.find((c) => c.id === editingContentId);
-        const updated = await updateContentItem(editingContentId, {
-          title: editTitle || 'Custom Content Item',
-          contentType: editType,
-          platform: editPlatform,
-          headline: editHeadline || 'Harvested with Local Pride',
-          bodyText: editBody || 'Premium supply directly sourced from Bo cooperative.',
-          hashtags: parseHashtagsInput(editHashtagsInput),
-          scheduledDate: editScheduledDate,
-          status: editStatus,
-          version: (current?.version ?? 1) + 1,
-        });
-        setContentItems(contentItems.map((c) => (c.id === updated.id ? updated : c)));
-        setContentFeedback('Content item updated.');
-      } else {
-        const newItem = await createContentItem(activeOrg.id, {
-          title: editTitle || 'Custom Content Item',
-          contentType: editType,
-          platform: editPlatform,
-          headline: editHeadline || 'Harvested with Local Pride',
-          bodyText: editBody || 'Premium supply directly sourced from Bo cooperative.',
-          hashtags: parseHashtagsInput(editHashtagsInput),
-          scheduledDate: editScheduledDate,
-        });
-        setContentItems([newItem, ...contentItems]);
-        setContentFeedback('Draft template saved and added to the content index!');
-      }
-      resetContentComposer();
-    } catch (err: any) {
-      setContentFeedback(`Error: ${err.message || 'Could not save content item.'}`);
-    } finally {
-      setContentSubmitting(false);
-      setTimeout(() => setContentFeedback(''), 4000);
-    }
-  };
-
-  const handleDeleteContentItem = async (item: ContentItem) => {
-    if (!confirm(`Delete "${item.title}"? This cannot be undone.`)) return;
-    setDeletingContentId(item.id);
-    const previous = contentItems;
-    setContentItems(contentItems.filter((c) => c.id !== item.id));
-    try {
-      await deleteContentItem(item.id);
-      if (editingContentId === item.id) resetContentComposer();
-    } catch (err: any) {
-      setContentItems(previous);
-      setContentFeedback(`Error: ${err.message || 'Could not delete content item.'}`);
-      setTimeout(() => setContentFeedback(''), 4000);
-    } finally {
-      setDeletingContentId(null);
-    }
-  };
-
-  const handleChangeContentStatus = async (item: ContentItem, status: ContentItem['status']) => {
-    if (status === item.status) return;
-    setContentStatusUpdatingId(item.id);
-    const previous = contentItems;
-    setContentItems(contentItems.map((c) => (c.id === item.id ? { ...c, status } : c)));
-    try {
-      const updated = await updateContentItem(item.id, { status, version: item.version + 1 });
-      setContentItems((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-      if (editingContentId === item.id) setEditStatus(status);
-    } catch (err: any) {
-      setContentItems(previous);
-      setContentFeedback(`Error: ${err.message || 'Could not update status.'}`);
-      setTimeout(() => setContentFeedback(''), 4000);
-    } finally {
-      setContentStatusUpdatingId(null);
-    }
-  };
-
-  const handleUseCaptionInComposer = (item: { headline: string; body: string; hashtags: string[] }) => {
-    resetContentComposer();
-    setEditTitle(item.headline.slice(0, 60));
-    setEditHeadline(item.headline);
-    setEditBody(item.body);
-    setEditHashtagsInput((item.hashtags || []).join(', '));
-    setContentFeedback('Loaded into the Composer ‚Äî review and save.');
-    setTimeout(() => setContentFeedback(''), 4000);
-  };
-
-  const handleUseIdeaInComposer = (idea: { title: string; concept: string; platform: string; executionStep: string }) => {
-    resetContentComposer();
-    setEditTitle(idea.title.slice(0, 60));
-    setEditPlatform(idea.platform || 'Facebook');
-    setEditHeadline(idea.title);
-    setEditBody(`${idea.concept}\n\nHow to execute: ${idea.executionStep}`);
-    setContentFeedback('Loaded into the Composer ‚Äî review and save.');
-    setTimeout(() => setContentFeedback(''), 4000);
-  };
-
-  const handleSaveAllAiItems = async () => {
-    setSavingAllAiItems(true);
-    try {
-      const created: ContentItem[] = [];
-      if (aiFormat === 'captions') {
-        for (const item of aiCaptionItems) {
-          created.push(
-            await createContentItem(activeOrg.id, {
-              title: item.headline?.slice(0, 60) || 'AI Caption',
-              contentType: 'Social Post',
-              platform: editPlatform || 'Facebook',
-              headline: item.headline || '',
-              bodyText: item.body || '',
-              hashtags: item.hashtags || [],
-              scheduledDate: defaultScheduledDate(),
-            })
-          );
-        }
-      } else if (aiFormat === 'ideas') {
-        for (const idea of aiIdeaItems) {
-          created.push(
-            await createContentItem(activeOrg.id, {
-              title: idea.title?.slice(0, 60) || 'AI Idea',
-              contentType: 'Social Post',
-              platform: idea.platform || editPlatform || 'Facebook',
-              headline: idea.title || '',
-              bodyText: `${idea.concept || ''}\n\nHow to execute: ${idea.executionStep || ''}`,
-              hashtags: ['#Manohub', '#EatSalone'],
-              scheduledDate: defaultScheduledDate(),
-            })
-          );
-        }
-      }
-      setContentItems([...created, ...contentItems]);
-      setContentFeedback(`Saved ${created.length} item${created.length === 1 ? '' : 's'} as drafts.`);
-    } catch (err: any) {
-      setContentFeedback(`Error: ${err.message || 'Could not save AI items.'}`);
-    } finally {
-      setSavingAllAiItems(false);
-      setTimeout(() => setContentFeedback(''), 5000);
-    }
-  };
-
-  // --- Media Library States ---
-  const [lowBandwidthMode, setLowBandwidthMode] = useState(false);
-  const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([]);
-  const [mediaLoading, setMediaLoading] = useState(false);
-  const [mediaFeedback, setMediaFeedback] = useState('');
-  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-  const [uploadFolder, setUploadFolder] = useState('General');
-  const mediaFileInputRef = React.useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (activeTab !== 'media') return;
-    setMediaLoading(true);
-    fetchMediaAssets(activeOrg.id)
-      .then(setMediaAssets)
-      .catch((err: any) => setMediaFeedback(`Error: ${err.message || 'Could not load media assets.'}`))
-      .finally(() => setMediaLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  const handleMediaFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setIsUploadingMedia(true);
-    try {
-      const asset = await uploadMediaAsset(activeOrg.id, file, uploadFolder);
-      setMediaAssets([asset, ...mediaAssets]);
-      setMediaFeedback('Asset uploaded.');
-    } catch (err: any) {
-      setMediaFeedback(`Error: ${err.message || 'Could not upload asset.'}`);
-    } finally {
-      setIsUploadingMedia(false);
-      setTimeout(() => setMediaFeedback(''), 4000);
-    }
-  };
-
-  const handleDeleteMediaAsset = async (asset: MediaAsset) => {
-    const previous = mediaAssets;
-    setMediaAssets(mediaAssets.filter((a) => a.id !== asset.id));
-    try {
-      await deleteMediaAsset(asset);
-    } catch (err: any) {
-      setMediaAssets(previous);
-      setMediaFeedback(`Error: ${err.message || 'Could not delete asset.'}`);
-      setTimeout(() => setMediaFeedback(''), 4000);
-    }
-  };
-
-  const handleViewMediaAsset = async (asset: MediaAsset) => {
-    try {
-      const url = await getMediaAssetUrl(asset);
-      window.open(url, '_blank');
-    } catch (err: any) {
-      setMediaFeedback(`Error: ${err.message || 'Could not open asset.'}`);
-      setTimeout(() => setMediaFeedback(''), 4000);
-    }
-  };
-
-  const mediaFolders = Array.from(new Set(mediaAssets.map((a) => a.folder)));
-
-  function formatFileSize(bytes: number | null): string {
-    if (bytes === null) return '‚Äî';
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
-  // --- Tracking Links States (real, storage-backed short links) ---
-  const [trackDest, setTrackDest] = useState('https://freetownhaven.com/booking');
-  const [trackLabel, setTrackLabel] = useState('');
-  const [trackCampaignId, setTrackCampaignId] = useState('');
-  const [trackingLinks, setTrackingLinks] = useState<TrackingLink[]>([]);
-  const [trackingLinksLoading, setTrackingLinksLoading] = useState(false);
-  const [trackingLinkFeedback, setTrackingLinkFeedback] = useState('');
-  const [clickSeries, setClickSeries] = useState<ClickSeriesPoint[]>([]);
-  const [weekdayClicks, setWeekdayClicks] = useState<WeekdayClickPoint[]>([]);
-
-  useEffect(() => {
-    if (activeTab !== 'analytics' && activeTab !== 'tourism' && activeTab !== 'events' && activeTab !== 'overview') return;
-    if (activeTab === 'overview' && !isPlatformAdmin) return;
-    setTrackingLinksLoading(true);
-    Promise.all([fetchTrackingLinks(activeOrg.id), fetchClickSeries(activeOrg.id, 12), fetchClicksByWeekday(activeOrg.id)])
-      .then(([links, series, weekday]) => {
-        setTrackingLinks(links);
-        setClickSeries(series);
-        setWeekdayClicks(weekday);
-      })
-      .catch((err: any) => setTrackingLinkFeedback(`Error: ${err.message || 'Could not load tracking links.'}`))
-      .finally(() => setTrackingLinksLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  const handleGenerateLink = async () => {
-    if (!trackLabel.trim() || !trackDest.trim()) {
-      setTrackingLinkFeedback('Error: Give the link a label and a destination URL.');
-      setTimeout(() => setTrackingLinkFeedback(''), 4000);
-      return;
-    }
-    try {
-      const link = await createTrackingLink(activeOrg.id, trackLabel, trackDest, trackCampaignId || null);
-      setTrackingLinks([link, ...trackingLinks]);
-      setTrackLabel('');
-      setTrackCampaignId('');
-    } catch (err: any) {
-      setTrackingLinkFeedback(`Error: ${err.message || 'Could not create tracking link.'}`);
-      setTimeout(() => setTrackingLinkFeedback(''), 4000);
-    }
-  };
-
-  const handleDeleteTrackingLink = async (id: string) => {
-    const previous = trackingLinks;
-    setTrackingLinks(trackingLinks.filter((l) => l.id !== id));
-    try {
-      await deleteTrackingLink(id);
-    } catch (err: any) {
-      setTrackingLinks(previous);
-      setTrackingLinkFeedback(`Error: ${err.message || 'Could not delete link.'}`);
-      setTimeout(() => setTrackingLinkFeedback(''), 4000);
-    }
-  };
-
-  // Generic ‚Äî any workspace with a real destination URL can create a real
-  // tracking link through this (used by both the Analytics builder and the
-  // Tourism tab's per-destination "Generate Tracking Link" buttons).
-  const generateNamedTrackingLink = async (label: string, defaultUrl: string): Promise<TrackingLink | null> => {
-    const targetUrl = prompt(`Where should "${label}" send visitors? (e.g. a WhatsApp link or booking page)`, defaultUrl);
-    if (!targetUrl) return null;
-    return createTrackingLink(activeOrg.id, label, targetUrl);
-  };
-
-  // --- Lead Management States ---
-  const [leadSearch, setLeadSearch] = useState('');
-  const [leadStatusFilter, setLeadStatusFilter] = useState('All');
-
-  const updateLeadStatus = async (id: string, newStatus: 'New' | 'Contacted' | 'Qualified' | 'Proposal Sent' | 'Converted' | 'Lost') => {
-    const previous = leads;
-    setLeads(leads.map(l => l.id === id ? { ...l, status: newStatus } : l));
-    try {
-      await apiUpdateLeadStatus(id, newStatus);
-    } catch {
-      setLeads(previous);
-    }
-  };
-
-  const [addingLead, setAddingLead] = useState(false);
-  const [newLeadName, setNewLeadName] = useState('');
-  const [newLeadEmail, setNewLeadEmail] = useState('');
-  const [newLeadWhatsapp, setNewLeadWhatsapp] = useState('');
-  const [newLeadSource, setNewLeadSource] = useState('Manual Entry');
-  const [newLeadValue, setNewLeadValue] = useState('');
-  const [savingLead, setSavingLead] = useState(false);
-  const [leadFeedback, setLeadFeedback] = useState('');
-
-  const handleAddLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingLead(true);
-    try {
-      const lead = await createLead(activeOrg.id, {
-        name: newLeadName,
-        email: newLeadEmail,
-        whatsapp: newLeadWhatsapp,
-        source: newLeadSource || 'Manual Entry',
-        estimatedValue: Number(newLeadValue) || 0,
-      });
-      setLeads([lead, ...leads]);
-      setNewLeadName('');
-      setNewLeadEmail('');
-      setNewLeadWhatsapp('');
-      setNewLeadSource('Manual Entry');
-      setNewLeadValue('');
-      setAddingLead(false);
-      setLeadFeedback('Lead added.');
-    } catch (err: any) {
-      setLeadFeedback(`Error: ${err.message || 'Could not add lead.'}`);
-    } finally {
-      setSavingLead(false);
-      setTimeout(() => setLeadFeedback(''), 4000);
-    }
-  };
-
-  // --- AI Lead Follow-up States (suggest-only: drafts text, admin sends via a real wa.me/mailto link) ---
-  const [followupLeadId, setFollowupLeadId] = useState<string | null>(null);
-  const [followupChannel, setFollowupChannel] = useState<'whatsapp' | 'email'>('whatsapp');
-  const [followupText, setFollowupText] = useState('');
-  const [followupLoading, setFollowupLoading] = useState(false);
-  const [followupError, setFollowupError] = useState('');
-
-  const handleDraftFollowup = async (lead: Lead, channel: 'whatsapp' | 'email') => {
-    setFollowupLeadId(lead.id);
-    setFollowupChannel(channel);
-    setFollowupText('');
-    setFollowupError('');
-    setFollowupLoading(true);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const response = await fetch('/api/gemini/lead-followup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          leadName: lead.name,
-          leadSource: lead.source,
-          leadDistrict: lead.district,
-          estimatedValue: lead.estimatedValue,
-          channel,
-          toneOfVoice: brandKit.toneOfVoice,
-          brandName: brandKit.brandName,
-        }),
-      });
-      const data = await response.json();
-      if (data.error) {
-        setFollowupError(data.error.message || 'Could not draft a follow-up.');
-      } else {
-        setFollowupText(data.text || '');
-      }
-    } catch {
-      setFollowupError('Failed to communicate with the AI assistant.');
-    } finally {
-      setFollowupLoading(false);
-    }
-  };
-
-  // --- Directory Profile States ---
-  const [claimBusinessId, setClaimBusinessId] = useState('');
-  const [claimFile, setClaimFile] = useState<File | null>(null);
-  const [claimFeedback, setClaimFeedback] = useState('');
-  const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
-
-  const handleClaimListing = (id: string) => {
-    setClaimBusinessId(id);
-    setClaimFile(null);
-    setClaimFeedback('');
-  };
-
-  const submitClaim = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!claimFile) {
-      setClaimFeedback('Error: Attach a business license or tax certificate file.');
-      return;
-    }
-    setIsSubmittingClaim(true);
-    try {
-      // Real file, uploaded to the same storage-backed Media Library used
-      // elsewhere ‚Äî the "document name" text field this replaced never
-      // actually persisted or checked a file at all.
-      await uploadMediaAsset(activeOrg.id, claimFile, 'Verification Documents');
-      const updated = await claimDirectoryListing(claimBusinessId, activeOrg.id);
-      setDirectoryProfiles(directoryProfiles.map(p => p.id === updated.id ? updated : p));
-      setClaimFeedback('Verification document uploaded and listing verified.');
-    } catch (err: any) {
-      setClaimFeedback(`Error: ${err.message || 'Could not submit claim.'}`);
-    } finally {
-      setIsSubmittingClaim(false);
-      setTimeout(() => {
-        setClaimBusinessId('');
-        setClaimFeedback('');
-      }, 3000);
-    }
-  };
-
-  // --- Social Publishing Calendar (real month navigation, not a fixed Dec 2026 grid) ---
-  const [calendarMonth, setCalendarMonth] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-
-  function formatDateKey(d: Date): string {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }
-
-  function getCalendarCells(monthStart: Date): (Date | null)[] {
-    const year = monthStart.getFullYear();
-    const month = monthStart.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstWeekday = (firstDay.getDay() + 6) % 7; // Monday-first
-    const cells: (Date | null)[] = Array(firstWeekday).fill(null);
-    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
-    return cells;
-  }
-
-  // --- Manual Export Packages ---
-  const [selectedExportPost, setSelectedExportPost] = useState<ContentItem | null>(null);
-  const [exportAssets, setExportAssets] = useState<MediaAsset[]>([]);
-  const [exportSelectedAssetIds, setExportSelectedAssetIds] = useState<Set<string>>(new Set());
-  const [isGeneratingExport, setIsGeneratingExport] = useState(false);
-  const [exportFeedback, setExportFeedback] = useState('');
-
-  useEffect(() => {
-    if (!selectedExportPost) return;
-    setExportSelectedAssetIds(new Set());
-    fetchMediaAssets(activeOrg.id)
-      .then(setExportAssets)
-      .catch(() => setExportAssets([]));
-  }, [selectedExportPost, activeOrg.id]);
-
-  const toggleExportAsset = (id: string) => {
-    setExportSelectedAssetIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  // Builds a real .zip (caption.txt + any selected media asset files, fetched
-  // via signed URL) and triggers an actual browser download ‚Äî replacing the
-  // old alert() that only claimed a package was compiled.
-  const handleDownloadCompiledAssets = async () => {
-    if (!selectedExportPost) return;
-    setIsGeneratingExport(true);
-    setExportFeedback('');
-    try {
-      const zip = new JSZip();
-      const captionText = [
-        `Platform: ${selectedExportPost.platform}`,
-        `Recommended timing: 18:00 GMT (Peak Leonean Engagement)`,
-        '',
-        selectedExportPost.headline,
-        '',
-        selectedExportPost.bodyText,
-        '',
-        selectedExportPost.hashtags.join(' '),
-      ].join('\n');
-      zip.file('caption.txt', captionText);
-
-      const selectedAssets = exportAssets.filter((a) => exportSelectedAssetIds.has(a.id));
-      for (const asset of selectedAssets) {
-        const url = await getMediaAssetUrl(asset);
-        const response = await fetch(url);
-        const blob = await response.blob();
-        zip.file(asset.fileName, blob);
-      }
-
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-      const downloadUrl = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `${selectedExportPost.title.replace(/[^a-zA-Z0-9._-]/g, '_')}-export.zip`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(downloadUrl);
-    } catch (err: any) {
-      setExportFeedback(`Error: ${err.message || 'Could not generate export package.'}`);
-    } finally {
-      setIsGeneratingExport(false);
-    }
-  };
-
-  // --- Billing & Subscriptions ---
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [mySubscriptions, setMySubscriptions] = useState<OrgSubscription[]>([]);
-  const [billingLoading, setBillingLoading] = useState(false);
-  const [billingFeedback, setBillingFeedback] = useState('');
-  const [selectedPlanId, setSelectedPlanId] = useState('');
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
-  const [paymentRef, setPaymentRef] = useState('');
-  const [requestingPlan, setRequestingPlan] = useState(false);
-
-  useEffect(() => {
-    if (activeTab !== 'billing') return;
-    setBillingLoading(true);
-    Promise.all([fetchPlans(), fetchMySubscriptions(activeOrg.id)])
-      .then(([p, subs]) => {
-        setPlans(p);
-        setMySubscriptions(subs);
-      })
-      .catch((err: any) => setBillingFeedback(`Error: ${err.message || 'Could not load billing info.'}`))
-      .finally(() => setBillingLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  const activeSubscription = mySubscriptions.find((s) => s.status === 'active');
-  const pendingSubscription = mySubscriptions.find((s) => s.status === 'pending');
-
-  const handleRequestPlan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPlanId) return;
-    setRequestingPlan(true);
-    try {
-      await requestSubscription(activeOrg.id, selectedPlanId, billingCycle, paymentRef);
-      setMySubscriptions(await fetchMySubscriptions(activeOrg.id));
-      setPaymentRef('');
-      setBillingFeedback('Upgrade requested. Our finance team will confirm your payment and activate the plan.');
-    } catch (err: any) {
-      setBillingFeedback(`Error: ${err.message || 'Could not request plan.'}`);
-    } finally {
-      setRequestingPlan(false);
-      setTimeout(() => setBillingFeedback(''), 5000);
-    }
-  };
-
-  const handleSubmitPaymentRef = async () => {
-    if (!pendingSubscription) return;
-    const ref = prompt('Bank / mobile money transaction reference:');
-    if (!ref) return;
-    try {
-      await updateSubscriptionNotes(pendingSubscription.id, ref);
-      setMySubscriptions(await fetchMySubscriptions(activeOrg.id));
-      setBillingFeedback('Payment reference submitted for review.');
-    } catch (err: any) {
-      setBillingFeedback(`Error: ${err.message || 'Could not submit payment reference.'}`);
-    } finally {
-      setTimeout(() => setBillingFeedback(''), 4000);
-    }
-  };
-
-  // --- Team Members ---
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [teamLoading, setTeamLoading] = useState(false);
-  const [teamLimit, setTeamLimit] = useState<number | null>(null);
-  const [teamEmail, setTeamEmail] = useState('');
-  const [teamRole, setTeamRole] = useState<'admin' | 'member'>('member');
-  const [teamFeedback, setTeamFeedback] = useState('');
-  const [teamInviting, setTeamInviting] = useState(false);
-
-  useEffect(() => {
-    if (activeTab !== 'team') return;
-    setTeamLoading(true);
-    Promise.all([fetchTeamMembers(activeOrg.id), fetchTeamMemberLimit(activeOrg.id)])
-      .then(([members, limit]) => {
-        setTeamMembers(members);
-        setTeamLimit(limit);
-      })
-      .catch((err: any) => setTeamFeedback(`Error: ${err.message || 'Could not load team.'}`))
-      .finally(() => setTeamLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  const handleInviteTeam = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!teamEmail) return;
-    setTeamInviting(true);
-    try {
-      await inviteTeamMember(activeOrg.id, teamEmail, teamRole);
-      const [members, limit] = await Promise.all([fetchTeamMembers(activeOrg.id), fetchTeamMemberLimit(activeOrg.id)]);
-      setTeamMembers(members);
-      setTeamLimit(limit);
-      setTeamEmail('');
-      setTeamFeedback('Team member added.');
-    } catch (err: any) {
-      setTeamFeedback(`Error: ${err.message || 'Could not invite team member.'}`);
-    } finally {
-      setTeamInviting(false);
-      setTimeout(() => setTeamFeedback(''), 5000);
-    }
-  };
-
-  const handleRemoveTeamMember = async (userId: string) => {
-    if (!confirm('Remove this team member?')) return;
-    const previous = teamMembers;
-    setTeamMembers(teamMembers.filter((m) => m.userId !== userId));
-    try {
-      await removeTeamMember(activeOrg.id, userId);
-    } catch (err: any) {
-      setTeamMembers(previous);
-      setTeamFeedback(`Error: ${err.message || 'Could not remove team member.'}`);
-    }
-  };
-
-  // --- Brand Kit Save State ---
-  const [brandKitSaving, setBrandKitSaving] = useState(false);
-  const [brandKitFeedback, setBrandKitFeedback] = useState('');
-
-  const handleSaveBrandKit = async () => {
-    setBrandKitSaving(true);
-    setBrandKitFeedback('');
-    try {
-      const saved = await saveBrandKit(activeOrg.id, brandKit);
-      setBrandKit(saved);
-      setBrandKitFeedback('Brand Kit configuration saved successfully!');
-    } catch (err: any) {
-      setBrandKitFeedback(`Error: ${err.message || 'Could not save brand kit.'}`);
-    } finally {
-      setBrandKitSaving(false);
-      setTimeout(() => setBrandKitFeedback(''), 4000);
-    }
-  };
-
-  // --- Admin Safety Board States ---
-  const [safetyLog, setSafetyLog] = useState<string[]>([]);
-  const [scannedFlagged, setScannedFlagged] = useState(false);
-
-  const runSafetyModeration = () => {
-    setSafetyLog(['Initializing content moderation scanners...', 'Auditing business directory listings for false claims...', 'Auditing active social-post templates against spam limits...', 'No hostile content detected. Local integrity verification passed.']);
-    setScannedFlagged(true);
-  };
-
-  // --- Tenders (Procurement) States ---
-  const [myOpportunities, setMyOpportunities] = useState<OpportunityListItem[]>([]);
-  const [tendersLoading, setTendersLoading] = useState(false);
-  const [tendersFeedback, setTendersFeedback] = useState('');
-  const [enablingBuyer, setEnablingBuyer] = useState(false);
-  const [tenderSectors, setTenderSectors] = useState<TaxonomyOption[]>([]);
-  const [tenderCountries, setTenderCountries] = useState<TaxonomyOption[]>([]);
-  const [tenderDistricts, setTenderDistricts] = useState<TaxonomyOption[]>([]);
-  const [tenderCurrencies, setTenderCurrencies] = useState<CurrencyOption[]>([]);
-  const [tenderTypes, setTenderTypes] = useState<TaxonomyOption[]>([]);
-  const [tenderTitle, setTenderTitle] = useState('');
-  const [tenderSummary, setTenderSummary] = useState('');
-  const [tenderDescription, setTenderDescription] = useState('');
-  const [tenderTypeId, setTenderTypeId] = useState('');
-  const [tenderSectorId, setTenderSectorId] = useState('');
-  const [tenderCountryId, setTenderCountryId] = useState('');
-  const [tenderDistrictId, setTenderDistrictId] = useState('');
-  const [tenderValue, setTenderValue] = useState('');
-  const [tenderCurrencyCode, setTenderCurrencyCode] = useState('');
-  const [tenderDeadline, setTenderDeadline] = useState('');
-  const [tenderContact, setTenderContact] = useState('');
-  const [tenderDocumentFiles, setTenderDocumentFiles] = useState<File[]>([]);
-  const [tenderDocumentIsPublic, setTenderDocumentIsPublic] = useState(true);
-  const [tenderDocumentError, setTenderDocumentError] = useState('');
-  const [tenderSubmitting, setTenderSubmitting] = useState(false);
-  const [suggestingSector, setSuggestingSector] = useState(false);
-  const [canPublishTenders, setCanPublishTenders] = useState(false);
-  const [canViewTenderDetails, setCanViewTenderDetails] = useState(false);
-  const [viewerSavedSearches, setViewerSavedSearches] = useState<SavedSearch[]>([]);
-
-  // --- Non-admin Overview States ---
-  const [overviewTier, setOverviewTier] = useState<'Free' | 'Viewer' | 'Publisher' | null>(null);
-  const [overviewPipelineCount, setOverviewPipelineCount] = useState(0);
-  const [overviewSavedSearchCount, setOverviewSavedSearchCount] = useState(0);
-  const [overviewSavedSearches, setOverviewSavedSearches] = useState<SavedSearch[]>([]);
-  const [overviewRecommended, setOverviewRecommended] = useState<OpportunityListItem[]>([]);
-
-  useEffect(() => {
-    if (activeTab !== 'overview' || isPlatformAdmin) return;
-    Promise.all([
-      hasFeature(activeOrg.id, 'tender_publishing'),
-      hasFeature(activeOrg.id, 'tender_alerts_and_details'),
-      fetchPipeline(activeOrg.id).catch(() => []),
-      fetchSavedSearches().catch(() => []),
-      fetchRecommendedOpportunities(activeOrg.id).catch(() => []),
-    ])
-      .then(([canPublish, canView, pipeline, savedSearches, recommended]) => {
-        setOverviewTier(canPublish ? 'Publisher' : canView ? 'Viewer' : 'Free');
-        setOverviewPipelineCount(pipeline.length);
-        setOverviewSavedSearchCount(savedSearches.length);
-        setOverviewSavedSearches(savedSearches.slice(0, 5));
-        setOverviewRecommended(recommended.slice(0, 4));
-      })
-      .catch(() => {});
-  }, [activeTab, activeOrg.id, isPlatformAdmin]);
-
-  const handleSuggestSector = async () => {
-    if (!tenderTitle.trim()) {
-      setTendersFeedback('Error: Enter a title first so AI has something to work with.');
-      setTimeout(() => setTendersFeedback(''), 4000);
-      return;
-    }
-    setSuggestingSector(true);
-    try {
-      const suggestedName = await aiSuggestSector(`${tenderTitle}. ${tenderSummary}`, tenderSectors.map((s) => s.name));
-      const match = tenderSectors.find((s) => s.name.toLowerCase() === suggestedName.trim().toLowerCase());
-      if (match) {
-        setTenderSectorId(match.id);
-        setTendersFeedback(`AI suggested: ${match.name}`);
-      } else {
-        setTendersFeedback('AI could not confidently match a sector ‚Äî please select one manually.');
-      }
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'AI suggestion failed.'}`);
-    } finally {
-      setSuggestingSector(false);
-      setTimeout(() => setTendersFeedback(''), 5000);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab !== 'tenders') return;
-    setTendersLoading(true);
-    Promise.all([
-      fetchMyOpportunities(activeOrg.id),
-      fetchSectors(),
-      fetchCountries(),
-      fetchCurrencies(),
-      fetchOpportunityTypes(),
-      hasFeature(activeOrg.id, 'tender_publishing'),
-      hasFeature(activeOrg.id, 'tender_alerts_and_details'),
-      fetchSavedSearches().catch(() => []),
-    ])
-      .then(([opps, sectors, countries, currencies, types, canPublish, canView, savedSearches]) => {
-        setMyOpportunities(opps);
-        setTenderSectors(sectors);
-        setTenderCountries(countries);
-        setTenderCurrencies(currencies);
-        setTenderTypes(types);
-        setCanPublishTenders(canPublish);
-        setCanViewTenderDetails(canView);
-        setViewerSavedSearches(savedSearches);
-        if (countries.length > 0) setTenderCountryId((prev) => prev || countries[0].id);
-      })
-      .catch((err: any) => setTendersFeedback(`Error: ${err.message || 'Could not load tenders.'}`))
-      .finally(() => setTendersLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  const handleDeleteViewerSavedSearch = async (id: string) => {
-    const previous = viewerSavedSearches;
-    setViewerSavedSearches(viewerSavedSearches.filter((s) => s.id !== id));
-    try {
-      await deleteSavedSearch(id);
-    } catch {
-      setViewerSavedSearches(previous);
-    }
-  };
-
-  useEffect(() => {
-    if (!tenderCountryId) return;
-    fetchDistricts(tenderCountryId)
-      .then((districts) => {
-        setTenderDistricts(districts);
-        setTenderDistrictId((prev) => (districts.some((d) => d.id === prev) ? prev : ''));
-      })
-      .catch(() => {});
-  }, [tenderCountryId]);
-
-  const handleEnableBuyerMode = async () => {
-    setEnablingBuyer(true);
-    try {
-      const activated = await enableBuyerMode(activeOrg.id);
-      if (activated) {
-        window.location.reload();
-      } else {
-        setTendersFeedback('Publishing tenders requires a Publisher subscription. Upgrade your plan from Billing Invoices to enable it.');
-        setEnablingBuyer(false);
-      }
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not enable buyer mode.'}`);
-      setEnablingBuyer(false);
-    }
-  };
-
-  const handleTenderDocumentSelect = (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return;
-    const incoming = Array.from(fileList);
-    const oversized = incoming.filter((f) => f.size > MAX_DOCUMENT_SIZE_BYTES);
-    const accepted = incoming.filter((f) => f.size <= MAX_DOCUMENT_SIZE_BYTES);
-    setTenderDocumentFiles((prev) => [...prev, ...accepted]);
-    setTenderDocumentError(
-      oversized.length > 0
-        ? `${oversized.map((f) => f.name).join(', ')} ${oversized.length === 1 ? 'exceeds' : 'exceed'} the 10MB limit and ${oversized.length === 1 ? "wasn't" : "weren't"} added.`
-        : ''
-    );
-  };
-
-  const handleRemoveTenderDocument = (index: number) => {
-    setTenderDocumentFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleCreateOpportunity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setTenderSubmitting(true);
-    try {
-      const created = await createOpportunity(activeOrg.id, activeOrg.name, {
-        title: tenderTitle,
-        summary: tenderSummary,
-        description: tenderDescription,
-        opportunityTypeId: tenderTypeId,
-        sectorId: tenderSectorId,
-        countryId: tenderCountryId,
-        districtId: tenderDistrictId,
-        estimatedValue: tenderValue ? Number(tenderValue) : undefined,
-        currencyCode: tenderCurrencyCode || undefined,
-        submissionDeadline: tenderDeadline,
-        contactDetails: tenderContact,
-      });
-      setMyOpportunities([created, ...myOpportunities]);
-
-      let uploadFailures = 0;
-      if (tenderDocumentFiles.length > 0) {
-        const uploaded: OpportunityDocument[] = [];
-        for (const file of tenderDocumentFiles) {
-          try {
-            uploaded.push(await uploadOpportunityDocument(activeOrg.id, created.id, file, tenderDocumentIsPublic));
-          } catch {
-            uploadFailures += 1;
-          }
-        }
-        if (uploaded.length > 0) {
-          setDocsByOpportunity((prev) => ({ ...prev, [created.id]: uploaded }));
-        }
-      }
-
-      setTenderTitle('');
-      setTenderSummary('');
-      setTenderDescription('');
-      setTenderValue('');
-      setTenderDeadline('');
-      setTenderContact('');
-      setTenderDocumentFiles([]);
-      setTenderDocumentError('');
-      setTendersFeedback(
-        uploadFailures > 0
-          ? `Tender submitted for admin review, but ${uploadFailures} document${uploadFailures === 1 ? '' : 's'} failed to upload ‚Äî attach ${uploadFailures === 1 ? 'it' : 'them'} again from the Documents panel below.`
-          : 'Tender submitted for admin review. It will go live once approved.'
-      );
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not submit tender.'}`);
-    } finally {
-      setTenderSubmitting(false);
-      setTimeout(() => setTendersFeedback(''), 5000);
-    }
-  };
-
-  const refreshMyOpportunities = async () => {
-    try {
-      setMyOpportunities(await fetchMyOpportunities(activeOrg.id));
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not refresh tenders.'}`);
-    }
-  };
-
-  // --- Tender Document States ---
-  const [expandedDocsId, setExpandedDocsId] = useState<string | null>(null);
-  const [docsByOpportunity, setDocsByOpportunity] = useState<Record<string, OpportunityDocument[]>>({});
-  const [docIsPublic, setDocIsPublic] = useState(true);
-  const [uploadingDocFor, setUploadingDocFor] = useState<string | null>(null);
-  const [expandedRespId, setExpandedRespId] = useState<string | null>(null);
-  const [responsesByOpp, setResponsesByOpp] = useState<Record<string, OpportunityResponse[]>>({});
-
-  const toggleResponsesPanel = async (opportunityId: string) => {
-    if (expandedRespId === opportunityId) { setExpandedRespId(null); return; }
-    setExpandedRespId(opportunityId);
-    if (!responsesByOpp[opportunityId]) {
-      try {
-        const res = await fetchOpportunityResponses(opportunityId);
-        setResponsesByOpp((prev) => ({ ...prev, [opportunityId]: res }));
-      } catch (err: any) {
-        setTendersFeedback(`Error: ${err.message || 'Could not load responses.'}`);
-      }
-    }
-  };
-
-  const toggleDocsPanel = async (opportunityId: string) => {
-    if (expandedDocsId === opportunityId) {
-      setExpandedDocsId(null);
-      return;
-    }
-    setExpandedDocsId(opportunityId);
-    if (!docsByOpportunity[opportunityId]) {
-      try {
-        const docs = await fetchOpportunityDocuments(opportunityId);
-        setDocsByOpportunity((prev) => ({ ...prev, [opportunityId]: docs }));
-      } catch (err: any) {
-        setTendersFeedback(`Error: ${err.message || 'Could not load documents.'}`);
-      }
-    }
-  };
-
-  const handleUploadDocument = async (opportunityId: string, file: File | undefined) => {
-    if (!file) return;
-    setUploadingDocFor(opportunityId);
-    try {
-      const doc = await uploadOpportunityDocument(activeOrg.id, opportunityId, file, docIsPublic);
-      setDocsByOpportunity((prev) => ({ ...prev, [opportunityId]: [...(prev[opportunityId] ?? []), doc] }));
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not upload document.'}`);
-    } finally {
-      setUploadingDocFor(null);
-      setTimeout(() => setTendersFeedback(''), 5000);
-    }
-  };
-
-  const handleDeleteDocument = async (opportunityId: string, doc: OpportunityDocument) => {
-    const previous = docsByOpportunity[opportunityId] ?? [];
-    setDocsByOpportunity((prev) => ({ ...prev, [opportunityId]: previous.filter((d) => d.id !== doc.id) }));
-    try {
-      await deleteOpportunityDocument(doc);
-    } catch (err: any) {
-      setDocsByOpportunity((prev) => ({ ...prev, [opportunityId]: previous }));
-      setTendersFeedback(`Error: ${err.message || 'Could not delete document.'}`);
-      setTimeout(() => setTendersFeedback(''), 5000);
-    }
-  };
-
-  const handleDownloadDocument = async (doc: OpportunityDocument) => {
-    try {
-      const url = await getOpportunityDocumentUrl(doc);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not open document.'}`);
-      setTimeout(() => setTendersFeedback(''), 5000);
-    }
-  };
-
-  const handleCloseOpportunity = async (id: string) => {
-    const previous = myOpportunities;
-    setMyOpportunities(myOpportunities.map((o) => (o.id === id ? { ...o, statusCode: 'closed', statusLabel: 'Closed' } : o)));
-    try {
-      await closeOpportunity(id);
-    } catch {
-      setMyOpportunities(previous);
-    }
-  };
-
-  const handleCancelOpportunity = async (id: string) => {
-    const reason = prompt('Reason for cancelling this tender:') || '';
-    try {
-      await cancelOpportunity(id, reason);
-      await refreshMyOpportunities();
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not cancel tender.'}`);
-    }
-  };
-
-  const handleResubmit = async (id: string) => {
-    try {
-      await resubmitForReview(id);
-      await refreshMyOpportunities();
-      setTendersFeedback('Resubmitted for admin review.');
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not resubmit tender.'}`);
-    } finally {
-      setTimeout(() => setTendersFeedback(''), 4000);
-    }
-  };
-
-  const handleExtendDeadline = async (id: string) => {
-    const newDeadline = prompt('New submission deadline (YYYY-MM-DD):');
-    if (!newDeadline) return;
-    try {
-      await extendDeadline(id, new Date(newDeadline).toISOString(), '');
-      await refreshMyOpportunities();
-      setTendersFeedback('Deadline extended.');
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not extend deadline.'}`);
-    } finally {
-      setTimeout(() => setTendersFeedback(''), 4000);
-    }
-  };
-
-  const handleRecordAward = async (id: string) => {
-    const winningSupplierName = prompt('Winning supplier / contractor name:');
-    if (!winningSupplierName) return;
-    const awardedValueStr = prompt('Awarded value (optional, numbers only):') || '';
-    try {
-      await recordAward(id, {
-        winningSupplierName,
-        awardedValue: awardedValueStr ? Number(awardedValueStr) : undefined,
-      });
-      await refreshMyOpportunities();
-      setTendersFeedback('Contract award published.');
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not record award.'}`);
-    } finally {
-      setTimeout(() => setTendersFeedback(''), 4000);
-    }
-  };
-
-  // --- Admin Tender Review States ---
-  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewFeedback, setReviewFeedback] = useState('');
-  const [duplicateWarnings, setDuplicateWarnings] = useState<Record<string, string[]>>({});
-
-  useEffect(() => {
-    if (activeTab !== 'admin-tender-review' || !isPlatformAdmin) return;
-    setReviewLoading(true);
-    fetchOpportunitiesForReview()
-      .then(async (items) => {
-        setReviewQueue(items);
-        const warnings: Record<string, string[]> = {};
-        for (const item of items) {
-          warnings[item.id] = await findSimilarTitledOpportunities(item.title, item.id);
-        }
-        setDuplicateWarnings(warnings);
-      })
-      .catch((err: any) => setReviewFeedback(`Error: ${err.message || 'Could not load review queue.'}`))
-      .finally(() => setReviewLoading(false));
-  }, [activeTab, isPlatformAdmin]);
-
-  const handleApprove = async (id: string) => {
-    const previous = reviewQueue;
-    setReviewQueue(reviewQueue.filter((o) => o.id !== id));
-    try {
-      await approveOpportunity(id);
-    } catch (err: any) {
-      setReviewQueue(previous);
-      setReviewFeedback(`Error: ${err.message || 'Could not approve tender.'}`);
-    }
-  };
-
-  const handleRequestCorrection = async (id: string) => {
-    const note = prompt('What needs to be corrected?');
-    if (!note) return;
-    const previous = reviewQueue;
-    setReviewQueue(reviewQueue.filter((o) => o.id !== id));
-    try {
-      await requestCorrection(id, note);
-    } catch (err: any) {
-      setReviewQueue(previous);
-      setReviewFeedback(`Error: ${err.message || 'Could not request correction.'}`);
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    const note = prompt('Reason for rejecting this tender:');
-    if (!note) return;
-    const previous = reviewQueue;
-    setReviewQueue(reviewQueue.filter((o) => o.id !== id));
-    try {
-      await rejectOpportunity(id, note);
-    } catch (err: any) {
-      setReviewQueue(previous);
-      setReviewFeedback(`Error: ${err.message || 'Could not reject tender.'}`);
-    }
-  };
-
-  // --- Supplier Profile States ---
-  const EMPTY_SUPPLIER: SupplierProfile = {
-    tradingName: '', registrationNumber: '', taxIdentificationNumber: '', description: '',
-    website: '', yearEstablished: null, employeeCount: '', geographicCoverage: '', certifications: '', majorClients: '',
-  };
-  const [supplierProfile, setSupplierProfile] = useState<SupplierProfile>(EMPTY_SUPPLIER);
-  const [supplierLoading, setSupplierLoading] = useState(false);
-  const [supplierSaving, setSupplierSaving] = useState(false);
-  const [supplierFeedback, setSupplierFeedback] = useState('');
-  const [enablingSupplier, setEnablingSupplier] = useState(false);
-  const [myVerifications, setMyVerifications] = useState<VerificationRequest[]>([]);
-
-  useEffect(() => {
-    if (activeTab !== 'supplier-profile' || !activeOrg.isSupplier) return;
-    setSupplierLoading(true);
-    Promise.all([fetchSupplierProfile(activeOrg.id), fetchMyVerificationRequests(activeOrg.id)])
-      .then(([profile, verifications]) => {
-        setSupplierProfile(profile);
-        setMyVerifications(verifications);
-      })
-      .catch((err: any) => setSupplierFeedback(`Error: ${err.message || 'Could not load supplier profile.'}`))
-      .finally(() => setSupplierLoading(false));
-  }, [activeTab, activeOrg.isSupplier, activeOrg.id]);
-
-  const handleEnableSupplierMode = async () => {
-    setEnablingSupplier(true);
-    try {
-      await enableSupplierMode(activeOrg.id);
-      window.location.reload();
-    } catch (err: any) {
-      setSupplierFeedback(`Error: ${err.message || 'Could not enable supplier mode.'}`);
-      setEnablingSupplier(false);
-    }
-  };
-
-  const handleSaveSupplierProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSupplierSaving(true);
-    try {
-      await saveSupplierProfile(activeOrg.id, supplierProfile);
-      setSupplierFeedback('Supplier profile saved.');
-    } catch (err: any) {
-      setSupplierFeedback(`Error: ${err.message || 'Could not save supplier profile.'}`);
-    } finally {
-      setSupplierSaving(false);
-      setTimeout(() => setSupplierFeedback(''), 4000);
-    }
-  };
-
-  const handleSubmitVerification = async () => {
-    const notes = prompt('Anything you want the reviewer to know? (optional)') || '';
-    try {
-      await submitVerificationRequest(activeOrg.id, 'supplier', notes);
-      setMyVerifications(await fetchMyVerificationRequests(activeOrg.id));
-      setSupplierFeedback('Verification request submitted.');
-    } catch (err: any) {
-      setSupplierFeedback(`Error: ${err.message || 'Could not submit verification request.'}`);
-    } finally {
-      setTimeout(() => setSupplierFeedback(''), 4000);
-    }
-  };
-
-  // --- Admin Verification Queue States ---
-  const [verificationQueue, setVerificationQueue] = useState<VerificationQueueItem[]>([]);
-  const [verificationQueueLoading, setVerificationQueueLoading] = useState(false);
-  const [verificationFeedback, setVerificationFeedback] = useState('');
-
-  useEffect(() => {
-    if (activeTab !== 'admin-verification' || !isPlatformAdmin) return;
-    setVerificationQueueLoading(true);
-    fetchVerificationQueue()
-      .then(setVerificationQueue)
-      .catch((err: any) => setVerificationFeedback(`Error: ${err.message || 'Could not load verification queue.'}`))
-      .finally(() => setVerificationQueueLoading(false));
-  }, [activeTab, isPlatformAdmin]);
-
-  const handleApproveVerification = async (item: VerificationQueueItem) => {
-    const previous = verificationQueue;
-    setVerificationQueue(verificationQueue.filter((v) => v.id !== item.id));
-    try {
-      await approveVerification(item.id, item.orgId, item.requestType as 'supplier' | 'buyer');
-    } catch (err: any) {
-      setVerificationQueue(previous);
-      setVerificationFeedback(`Error: ${err.message || 'Could not approve verification.'}`);
-    }
-  };
-
-  const handleRejectVerification = async (id: string) => {
-    const note = prompt('Reason for rejecting this verification request:');
-    if (!note) return;
-    const previous = verificationQueue;
-    setVerificationQueue(verificationQueue.filter((v) => v.id !== id));
-    try {
-      await rejectVerification(id, note);
-    } catch (err: any) {
-      setVerificationQueue(previous);
-      setVerificationFeedback(`Error: ${err.message || 'Could not reject verification.'}`);
-    }
-  };
-
-  const handleToggleFeatured = async (op: ReviewQueueItem | OpportunityListItem, featured: boolean) => {
-    try {
-      await setOpportunityFeatured(op.id, featured);
-      setReviewQueue(reviewQueue.map((o) => (o.id === op.id ? { ...o, isFeatured: featured } : o)));
-    } catch (err: any) {
-      setReviewFeedback(`Error: ${err.message || 'Could not update featured status.'}`);
-    }
-  };
-
-  // --- Admin Subscription Requests States ---
-  const [pendingSubscriptions, setPendingSubscriptions] = useState<PendingSubscription[]>([]);
-  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
-  const [subscriptionsFeedback, setSubscriptionsFeedback] = useState('');
-
-  useEffect(() => {
-    if (activeTab !== 'admin-subscriptions' || !isPlatformAdmin) return;
-    setSubscriptionsLoading(true);
-    fetchPendingSubscriptions()
-      .then(setPendingSubscriptions)
-      .catch((err: any) => setSubscriptionsFeedback(`Error: ${err.message || 'Could not load subscription requests.'}`))
-      .finally(() => setSubscriptionsLoading(false));
-  }, [activeTab, isPlatformAdmin]);
-
-  const handleActivateSubscription = async (sub: PendingSubscription) => {
-    const previous = pendingSubscriptions;
-    setPendingSubscriptions(pendingSubscriptions.filter((s) => s.id !== sub.id));
-    try {
-      await activateSubscription(sub.id, sub.billingCycle as 'monthly' | 'annual');
-    } catch (err: any) {
-      setPendingSubscriptions(previous);
-      setSubscriptionsFeedback(`Error: ${err.message || 'Could not activate subscription.'}`);
-    }
-  };
-
-  const handleDeclineSubscription = async (sub: PendingSubscription) => {
-    const note = prompt('Reason for declining this subscription request:') || '';
-    const previous = pendingSubscriptions;
-    setPendingSubscriptions(pendingSubscriptions.filter((s) => s.id !== sub.id));
-    try {
-      await cancelSubscriptionRequest(sub.id, note);
-    } catch (err: any) {
-      setPendingSubscriptions(previous);
-      setSubscriptionsFeedback(`Error: ${err.message || 'Could not decline subscription.'}`);
-    }
-  };
-
-  // --- Service Requests States (buyer/supplier + admin) ---
-  const [myServiceRequests, setMyServiceRequests] = useState<ServiceRequest[]>([]);
-  const [allServiceRequests, setAllServiceRequests] = useState<ServiceRequest[]>([]);
-  const [serviceRequestsLoading, setServiceRequestsLoading] = useState(false);
-  const [serviceRequestFeedback, setServiceRequestFeedback] = useState('');
-  const [srServiceType, setSrServiceType] = useState<ServiceType>('bid_readiness_review');
-  const [srDescription, setSrDescription] = useState('');
-  const [srSubmitting, setSrSubmitting] = useState(false);
-  const [expandedRequestId, setExpandedRequestId] = useState('');
-  const [requestActivities, setRequestActivities] = useState<ServiceRequestActivity[]>([]);
-
-  useEffect(() => {
-    if (activeTab !== 'services') return;
-    setServiceRequestsLoading(true);
-    fetchMyServiceRequests(activeOrg.id)
-      .then(setMyServiceRequests)
-      .catch((err: any) => setServiceRequestFeedback(`Error: ${err.message || 'Could not load service requests.'}`))
-      .finally(() => setServiceRequestsLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  useEffect(() => {
-    if (activeTab !== 'admin-services' || !isPlatformAdmin) return;
-    setServiceRequestsLoading(true);
-    fetchAllServiceRequests()
-      .then(setAllServiceRequests)
-      .catch((err: any) => setServiceRequestFeedback(`Error: ${err.message || 'Could not load service requests.'}`))
-      .finally(() => setServiceRequestsLoading(false));
-  }, [activeTab, isPlatformAdmin]);
-
-  const handleCreateServiceRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSrSubmitting(true);
-    try {
-      await createServiceRequest(activeOrg.id, srServiceType, srDescription);
-      setMyServiceRequests(await fetchMyServiceRequests(activeOrg.id));
-      setSrDescription('');
-      setServiceRequestFeedback('Request submitted. Our team will follow up shortly.');
-    } catch (err: any) {
-      setServiceRequestFeedback(`Error: ${err.message || 'Could not submit request.'}`);
-    } finally {
-      setSrSubmitting(false);
-      setTimeout(() => setServiceRequestFeedback(''), 5000);
-    }
-  };
-
-  const toggleExpandRequest = async (id: string) => {
-    if (expandedRequestId === id) {
-      setExpandedRequestId('');
-      return;
-    }
-    setExpandedRequestId(id);
-    try {
-      setRequestActivities(await fetchServiceRequestActivities(id));
-    } catch {
-      setRequestActivities([]);
-    }
-  };
-
-  const handleAddAdminNote = async (id: string, internal: boolean) => {
-    const note = prompt(internal ? 'Internal note (admin only):' : 'Message to the customer:');
-    if (!note) return;
-    try {
-      await addServiceRequestNote(id, note, internal);
-      setRequestActivities(await fetchServiceRequestActivities(id));
-    } catch (err: any) {
-      setServiceRequestFeedback(`Error: ${err.message || 'Could not add note.'}`);
-    }
-  };
-
-  const handleQuoteRequest = async (id: string) => {
-    const amountStr = prompt('Quote amount:');
-    if (!amountStr) return;
-    try {
-      await quoteServiceRequest(id, Number(amountStr), 'SLE');
-      setAllServiceRequests(await fetchAllServiceRequests());
-    } catch (err: any) {
-      setServiceRequestFeedback(`Error: ${err.message || 'Could not save quote.'}`);
-    }
-  };
-
-  const handleUpdateRequestStatus = async (id: string, status: string) => {
-    try {
-      await updateServiceRequestStatus(id, status);
-      setAllServiceRequests(await fetchAllServiceRequests());
-    } catch (err: any) {
-      setServiceRequestFeedback(`Error: ${err.message || 'Could not update status.'}`);
-    }
-  };
-
-  // --- Advertiser subscriber: "My Adverts" + admin fulfillment queue ---
-  const [canAdvertise, setCanAdvertise] = useState(false);
-  const [myAdvertisements, setMyAdvertisements] = useState<AdvertisementRequest[]>([]);
-  const [allAdvertisements, setAllAdvertisements] = useState<AdvertisementRequest[]>([]);
-  const [advertisementsLoading, setAdvertisementsLoading] = useState(false);
-  const [advertisementFeedback, setAdvertisementFeedback] = useState('');
-  const [adCategory, setAdCategory] = useState<AdvertisementCategory>('business');
-  const [adSubject, setAdSubject] = useState('');
-  const [adDescription, setAdDescription] = useState('');
-  const [adMediaUrl, setAdMediaUrl] = useState('');
-  const [adUploading, setAdUploading] = useState(false);
-
-  const handleUploadRequestPhoto = async (file: File | undefined) => {
-    if (!file) return;
-    setAdUploading(true);
-    try {
-      setAdMediaUrl(await uploadAdvertImage(file, 'photo'));
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'Upload failed.'}`);
-    } finally {
-      setAdUploading(false);
-    }
-  };
-  const [adSubmitting, setAdSubmitting] = useState(false);
-
-  // Admin: published adverts shown on the public site (Manohub is the source
-  // of truth; the social post links back).
-  const [publishedAdverts, setPublishedAdverts] = useState<Advert[]>([]);
-  const [advAnalytics, setAdvAnalytics] = useState<AdvertAnalyticsSummary | null>(null);
-  const [adCampaigns, setAdCampaigns] = useState<AdCampaign[]>([]);
-  const [campaignReach, setCampaignReach] = useState<Record<string, CampaignReach>>({});
-  const [campForm, setCampForm] = useState({ name: '', businessName: '', startDate: '', endDate: '', reachGoal: '' });
-  const [campSaving, setCampSaving] = useState(false);
-  const [advCampaignId, setAdvCampaignId] = useState<string>(''); // publish-form assignment
-  const [advEditingId, setAdvEditingId] = useState<string | null>(null); // editing an existing advert
-  const [advRequestId, setAdvRequestId] = useState<string | null>(null); // publishing from a request
-  const [advOrgId, setAdvOrgId] = useState<string | null>(null);
-
-  // Load a subscriber advert request into the publisher form for review + publish.
-  const loadRequestIntoPublisher = (req: AdvertisementRequest) => {
-    setAdvEditingId(null);
-    setAdvRequestId(req.id);
-    setAdvOrgId(req.orgId);
-    setAdvForm({
-      title: req.subject, category: req.category, businessName: req.orgName || '',
-      summary: req.description.length > 140 ? `${req.description.slice(0, 137)}‚Ä¶` : req.description,
-      content: req.description, mediaUrl: req.mediaUrl || '', socialPlatform: 'Facebook',
-      socialUrl: '', creativeUrl: '', accentColor: '#5d4ee0', logoUrl: '',
-    });
-    setAdvCampaignId('');
-    setAdvertisementFeedback('Loaded into the publisher below ‚Äî review and Publish.');
-    document.getElementById('advert-publisher')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  // Load a published advert into the form to edit it.
-  const loadAdvertForEdit = (adv: Advert) => {
-    setAdvRequestId(null);
-    setAdvOrgId(null);
-    setAdvEditingId(adv.id);
-    setAdvForm({
-      title: adv.title, category: adv.category, businessName: adv.businessName,
-      summary: adv.summary || '', content: adv.content, mediaUrl: adv.mediaUrl || '',
-      socialPlatform: adv.socialPlatform || 'Facebook', socialUrl: adv.socialUrl || '',
-      creativeUrl: adv.creativeUrl || '', accentColor: adv.accentColor || '#5d4ee0', logoUrl: adv.logoUrl || '',
-    });
-    setAdvFormat(adv.format);
-    setAdvTheme(adv.theme);
-    setAdvWithPhoto(adv.withPhoto);
-    setAdvCampaignId(adv.campaignId || '');
-    setAdvertisementFeedback('Editing this advert ‚Äî make changes and Save.');
-    document.getElementById('advert-publisher')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const cancelAdvertEdit = () => {
-    setAdvEditingId(null);
-    setAdvRequestId(null);
-    setAdvOrgId(null);
-    setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '', accentColor: '#5d4ee0', logoUrl: '' });
-    setAdvCampaignId('');
-    setAdvertisementFeedback('');
-  };
-
-  const reloadAdCampaigns = async () => {
-    try {
-      const [cs, reach] = await Promise.all([fetchAllAdCampaigns(), fetchCampaignReach().catch(() => ({}))]);
-      setAdCampaigns(cs);
-      setCampaignReach(reach);
-    } catch { /* non-fatal */ }
-  };
-
-  const handleCreateAdCampaign = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!campForm.name.trim()) { setAdvertisementFeedback('Error: campaign name is required.'); return; }
-    setCampSaving(true);
-    try {
-      await createAdCampaign({
-        name: campForm.name,
-        businessName: campForm.businessName || undefined,
-        startDate: campForm.startDate || null,
-        endDate: campForm.endDate || null,
-        reachGoal: campForm.reachGoal ? Number(campForm.reachGoal) : null,
-        orgId: activeOrg?.id ?? null,
-      });
-      setCampForm({ name: '', businessName: '', startDate: '', endDate: '', reachGoal: '' });
-      await reloadAdCampaigns();
-      setAdvertisementFeedback('Campaign created.');
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'Could not create campaign.'}`);
-    } finally {
-      setCampSaving(false);
-    }
-  };
-
-  const handleToggleAdCampaign = async (c: AdCampaign) => {
-    try {
-      await setCampaignStatus(c.id, c.status === 'active' ? 'paused' : 'active');
-      await Promise.all([reloadAdCampaigns(), fetchAllAdverts().then(setPublishedAdverts).catch(() => {})]);
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'Could not update campaign.'}`);
-    }
-  };
-
-  const handleDeleteAdCampaign = async (id: string) => {
-    try {
-      await deleteAdCampaign(id);
-      await reloadAdCampaigns();
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'Could not delete campaign.'}`);
-    }
-  };
-  const [advForm, setAdvForm] = useState({
-    title: '', category: 'business', businessName: '', summary: '', content: '',
-    mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '',
-    accentColor: '#5d4ee0', logoUrl: '',
-  });
-  const [advSaving, setAdvSaving] = useState(false);
-  const [advFormat, setAdvFormat] = useState<AdvertFormat>('square');
-  const [advTheme, setAdvTheme] = useState<AdvertTheme>('dark');
-  const [advWithPhoto, setAdvWithPhoto] = useState(true);
-  const [advUploading, setAdvUploading] = useState<'photo' | 'logo' | null>(null);
-
-  // Upload an advert photo/logo file and set its public URL on the form.
-  const handleUploadAdvertImage = async (file: File | undefined, kind: 'photo' | 'logo') => {
-    if (!file) return;
-    setAdvUploading(kind);
-    try {
-      const url = await uploadAdvertImage(file, kind);
-      setAdvForm((f) => ({ ...f, [kind === 'photo' ? 'mediaUrl' : 'logoUrl']: url }));
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'Upload failed.'}`);
-    } finally {
-      setAdvUploading(null);
-    }
-  };
-
-  // "Download the kit": render every format off-screen, capture each to PNG and
-  // zip them so an advertiser gets all channel sizes in one download.
-  const KIT_FORMATS: AdvertFormat[] = ['square', 'story', 'landscape', 'banner', 'editorial'];
-  const kitRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [kitExporting, setKitExporting] = useState(false);
-  const [sharePackId, setSharePackId] = useState<string | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
-  const handleCopyCaption = async (key: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1600);
-    } catch {
-      setAdvertisementFeedback('Error: could not copy to clipboard.');
-    }
-  };
-
-  useEffect(() => {
-    if (!kitExporting) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        try { await (document as any).fonts?.ready; } catch { /* ignore */ }
-        await new Promise((r) => setTimeout(r, 500));
-        const zip = new JSZip();
-        const slug = (advForm.title || 'advert').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'advert';
-        for (const f of KIT_FORMATS) {
-          const node = kitRefs.current[f];
-          if (!node) continue;
-          const dataUrl = await exportCreativePng(node);
-          zip.file(`manohub-${slug}-${f}.png`, dataUrl.split(',')[1], { base64: true });
-        }
-        const blob = await zip.generateAsync({ type: 'blob' });
-        if (cancelled) return;
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `manohub-${slug}-kit.zip`;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      } catch (err: any) {
-        setAdvertisementFeedback(`Error: ${err?.message || 'Kit export failed.'}`);
-      } finally {
-        if (!cancelled) setKitExporting(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [kitExporting]);
-  const [savingCreative, setSavingCreative] = useState(false);
-  const [polishingCopy, setPolishingCopy] = useState(false);
-
-  // AI polish: tighten the admin's advert subject/body into headline + body.
-  const handlePolishAdvertCopy = async () => {
-    if (!advForm.title.trim()) {
-      setAdvertisementFeedback('Error: enter a subject/title first so AI has something to polish.');
-      return;
-    }
-    setPolishingCopy(true);
-    try {
-      const { headline, body } = await aiPolishAdvertCopy({
-        businessName: advForm.businessName, category: advForm.category,
-        subject: advForm.title, description: advForm.summary || advForm.content,
-      });
-      setAdvForm((f) => ({ ...f, title: headline, summary: body }));
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'AI polish failed.'}`);
-    } finally {
-      setPolishingCopy(false);
-    }
-  };
-  const creativeRef = useRef<HTMLDivElement>(null);
-  const ogRef = useRef<HTMLDivElement>(null);
-
-  // Export a rendered creative node to a PNG data URL (2x).
-  const exportCreativePng = (node: HTMLElement | null) =>
-    node ? toPng(node, { pixelRatio: 2, cacheBust: true }) : Promise.reject(new Error('nothing to export'));
-
-  // Download the auto-generated creative as a PNG for social / print use.
-  const handleDownloadCreative = async () => {
-    try {
-      const dataUrl = await exportCreativePng(creativeRef.current);
-      const name = (advForm.title || 'advert').toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'advert';
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `${name}-${advFormat}.png`;
-      a.click();
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: could not export the creative (${err?.message || 'unknown'}).`);
-    }
-  };
-
-  // Save the exported creative to storage and attach it to this advert (for
-  // social hand-off). The public URL is stored on the advert as creative_url.
-  const handleSaveCreativeForSocial = async () => {
-    setSavingCreative(true);
-    try {
-      const dataUrl = await exportCreativePng(creativeRef.current);
-      const url = await uploadAdvertCreative(dataUrl);
-      setAdvForm((f) => ({ ...f, creativeUrl: url }));
-      setAdvertisementFeedback('Creative saved ‚Äî it will attach to the advert when you publish.');
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: could not save the creative (${err?.message || 'unknown'}).`);
-    } finally {
-      setSavingCreative(false);
-    }
-  };
-
-  // Subscriber-side preview of their own advert as they fill the request form.
-  const subCreativeRef = useRef<HTMLDivElement>(null);
-  const [polishingSub, setPolishingSub] = useState(false);
-  const handlePolishSubCopy = async () => {
-    if (!adSubject.trim()) {
-      setAdvertisementFeedback('Error: enter a subject first so AI has something to polish.');
-      return;
-    }
-    setPolishingSub(true);
-    try {
-      const { headline, body } = await aiPolishAdvertCopy({ businessName: activeOrg.name, category: adCategory, subject: adSubject, description: adDescription });
-      setAdSubject(headline);
-      setAdDescription(body);
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'AI polish failed.'}`);
-    } finally {
-      setPolishingSub(false);
-    }
-  };
-  const handleDownloadSubCreative = async () => {
-    try {
-      const dataUrl = await exportCreativePng(subCreativeRef.current);
-      const name = (adSubject || 'advert').toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'advert';
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `${name}-${advFormat}.png`;
-      a.click();
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: could not export the creative (${err?.message || 'unknown'}).`);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab !== 'advertising' || isPlatformAdmin) return;
-    setAdvertisementsLoading(true);
-    Promise.all([hasFeature(activeOrg.id, 'business_advertising'), fetchMyAdvertisements(activeOrg.id)])
-      .then(([entitled, ads]) => {
-        setCanAdvertise(entitled);
-        setMyAdvertisements(ads);
-      })
-      .catch((err: any) => setAdvertisementFeedback(`Error: ${err.message || 'Could not load your adverts.'}`))
-      .finally(() => setAdvertisementsLoading(false));
-  }, [activeTab, activeOrg.id, isPlatformAdmin]);
-
-  useEffect(() => {
-    if (activeTab !== 'admin-advertising' || !isPlatformAdmin) return;
-    setAdvertisementsLoading(true);
-    Promise.all([
-      fetchAllAdvertisementRequests(),
-      fetchAllAdverts().catch(() => []),
-      fetchAdvertAnalyticsSummary().catch(() => null),
-      fetchAllAdCampaigns().catch(() => []),
-      fetchCampaignReach().catch(() => ({})),
-    ])
-      .then(([reqs, adverts, analytics, camps, reach]) => {
-        setAllAdvertisements(reqs);
-        setPublishedAdverts(adverts);
-        setAdvAnalytics(analytics);
-        setAdCampaigns(camps);
-        setCampaignReach(reach);
-      })
-      .catch((err: any) => setAdvertisementFeedback(`Error: ${err.message || 'Could not load advertising requests.'}`))
-      .finally(() => setAdvertisementsLoading(false));
-  }, [activeTab, isPlatformAdmin]);
-
-  const handlePublishAdvert = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!advForm.title.trim() || !advForm.businessName.trim()) {
-      setAdvertisementFeedback('Error: Advert title and business name are required.');
-      return;
-    }
-    setAdvSaving(true);
-    const selectedCampaign = advCampaignId ? adCampaigns.find((c) => c.id === advCampaignId) : undefined;
-    try {
-      // Guarantee an og:image for social unfurling: if no creative was saved,
-      // capture the current preview and upload it before publishing.
-      let creativeUrl = advForm.creativeUrl || null;
-      if (!creativeUrl && creativeRef.current) {
-        try {
-          const dataUrl = await exportCreativePng(creativeRef.current);
-          creativeUrl = await uploadAdvertCreative(dataUrl);
-        } catch { /* non-fatal: publish without a saved creative */ }
-      }
-      // Always capture a social-optimal 1200√ó628 landscape card for the feed
-      // unfurl (og:image), independent of the advert's own format.
-      let ogImageUrl: string | null = null;
-      if (ogRef.current) {
-        try {
-          const dataUrl = await exportCreativePng(ogRef.current);
-          ogImageUrl = await uploadAdvertCreative(dataUrl);
-        } catch { /* non-fatal: fall back to creative/media for og:image */ }
-      }
-      const startsAt = selectedCampaign?.startDate ? new Date(selectedCampaign.startDate).toISOString() : null;
-      const endsAt = selectedCampaign?.endDate ? new Date(`${selectedCampaign.endDate}T23:59:59`).toISOString() : null;
-      const fields = {
-        title: advForm.title,
-        category: advForm.category,
-        businessName: advForm.businessName,
-        summary: advForm.summary || null,
-        content: advForm.content,
-        mediaUrl: advForm.mediaUrl || null,
-        socialPlatform: advForm.socialPlatform || null,
-        socialUrl: advForm.socialUrl || null,
-        creativeUrl,
-        ogImageUrl: ogImageUrl || creativeUrl,
-        accentColor: advForm.accentColor || null,
-        logoUrl: advForm.logoUrl || null,
-        theme: advTheme,
-        format: advFormat,
-        withPhoto: advWithPhoto,
-        campaignId: advCampaignId || null,
-        startsAt,
-        endsAt,
-      };
-      if (advEditingId) {
-        const updated = await updateAdvert(advEditingId, fields);
-        setPublishedAdverts(publishedAdverts.map((a) => (a.id === updated.id ? updated : a)));
-        setAdvertisementFeedback('Advert updated.');
-      } else {
-        const created = await createAdvert({ ...fields, status: 'live', requestId: advRequestId, orgId: advOrgId });
-        setPublishedAdverts([created, ...publishedAdverts]);
-        // Mark the originating request live so the subscriber sees progress.
-        if (advRequestId) {
-          try {
-            await updateAdvertisementReport(advRequestId, { status: 'live' });
-            setAllAdvertisements((prev) => prev.map((r) => (r.id === advRequestId ? { ...r, status: 'live' } : r)));
-          } catch { /* non-fatal */ }
-        }
-        setAdvertisementFeedback('Advert published to the site.');
-      }
-      if (advCampaignId) void reloadAdCampaigns();
-      void fetchAdvertAnalyticsSummary().then(setAdvAnalytics).catch(() => {});
-      setAdvForm({ title: '', category: 'business', businessName: '', summary: '', content: '', mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '', accentColor: '#5d4ee0', logoUrl: '' });
-      setAdvCampaignId('');
-      setAdvEditingId(null);
-      setAdvRequestId(null);
-      setAdvOrgId(null);
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err.message || 'Could not publish advert.'}`);
-    } finally {
-      setAdvSaving(false);
-    }
-  };
-
-  const handleToggleAdvertStatus = async (adv: Advert) => {
-    const next = adv.status === 'live' ? 'archived' : 'live';
-    try {
-      const updated = await updateAdvert(adv.id, { status: next });
-      setPublishedAdverts(publishedAdverts.map((a) => (a.id === adv.id ? updated : a)));
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err.message || 'Could not update advert.'}`);
-    }
-  };
-
-  const handleDeleteAdvert = async (id: string) => {
-    const prev = publishedAdverts;
-    setPublishedAdverts(publishedAdverts.filter((a) => a.id !== id));
-    try {
-      await deleteAdvert(id);
-    } catch {
-      setPublishedAdverts(prev);
-    }
-  };
-
-  const handleSubmitAdvertisement = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAdSubmitting(true);
-    try {
-      const created = await submitAdvertisementRequest(activeOrg.id, { category: adCategory, subject: adSubject, description: adDescription, mediaUrl: adMediaUrl || null });
-      setMyAdvertisements([created, ...myAdvertisements]);
-      setAdSubject('');
-      setAdDescription('');
-      setAdMediaUrl('');
-      setAdvertisementFeedback('Request submitted. Our team will design and run your advert.');
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err.message || 'Could not submit request.'}`);
-    } finally {
-      setAdSubmitting(false);
-      setTimeout(() => setAdvertisementFeedback(''), 5000);
-    }
-  };
-
-  const handleUpdateAdvertisement = async (id: string, updates: Parameters<typeof updateAdvertisementReport>[1]) => {
-    try {
-      await updateAdvertisementReport(id, updates);
-      setAllAdvertisements(await fetchAllAdvertisementRequests());
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err.message || 'Could not update advert.'}`);
-    }
-  };
-
-  // --- Supplier Pipeline States ---
-  const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
-  const [pipelineLoading, setPipelineLoading] = useState(false);
-  const [pipelineFeedback, setPipelineFeedback] = useState('');
-  const [recommended, setRecommended] = useState<OpportunityListItem[]>([]);
-  const [canExport, setCanExport] = useState(false);
-
-  const PIPELINE_STAGES: PipelineStage[] = ['saved', 'reviewing', 'interested', 'go', 'no_go', 'preparing', 'submitted', 'won', 'lost', 'withdrawn', 'archived'];
-
-  useEffect(() => {
-    if (activeTab !== 'pipeline') return;
-    setPipelineLoading(true);
-    Promise.all([fetchPipeline(activeOrg.id), fetchRecommendedOpportunities(activeOrg.id), hasFeature(activeOrg.id, 'data_export')])
-      .then(([p, rec, exportAllowed]) => {
-        setPipeline(p);
-        setRecommended(rec);
-        setCanExport(exportAllowed);
-      })
-      .catch((err: any) => setPipelineFeedback(`Error: ${err.message || 'Could not load pipeline.'}`))
-      .finally(() => setPipelineLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  const handleAddToPipeline = async (opportunityId: string) => {
-    try {
-      await addToPipeline(activeOrg.id, opportunityId);
-      setPipeline(await fetchPipeline(activeOrg.id));
-    } catch (err: any) {
-      setPipelineFeedback(`Error: ${err.message || 'Could not add to pipeline.'}`);
-    }
-  };
-
-  const handleStageChange = async (record: PipelineRecord, stage: PipelineStage) => {
-    const previous = pipeline;
-    setPipeline(pipeline.map((p) => (p.id === record.id ? { ...p, stage } : p)));
-    try {
-      await updatePipelineRecord(record.id, { stage });
-    } catch (err: any) {
-      setPipeline(previous);
-      setPipelineFeedback(`Error: ${err.message || 'Could not update stage.'}`);
-    }
-  };
-
-  const handleUpdateBidValue = async (record: PipelineRecord) => {
-    const value = prompt('Estimated bid value (Le):', record.bidValue?.toString() || '');
-    if (value === null) return;
-    try {
-      await updatePipelineRecord(record.id, { bidValue: value ? Number(value) : null });
-      setPipeline(await fetchPipeline(activeOrg.id));
-    } catch (err: any) {
-      setPipelineFeedback(`Error: ${err.message || 'Could not update bid value.'}`);
-    }
-  };
-
-  const handleRemoveFromPipeline = async (id: string) => {
-    if (!confirm('Remove this tender from your pipeline?')) return;
-    const previous = pipeline;
-    setPipeline(pipeline.filter((p) => p.id !== id));
-    try {
-      await removeFromPipeline(id);
-    } catch {
-      setPipeline(previous);
-    }
-  };
-
-  const handleExportPipelineCsv = () => {
-    const header = 'Title,Stage,Bid Value,Probability,Deadline\n';
-    const rows = pipeline.map((p) =>
-      [p.opportunityTitle, p.stage, p.bidValue ?? '', p.probability ?? '', p.submissionDeadline].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')
-    );
-    const blob = new Blob([header + rows.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'pipeline-export.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // --- Supplier Sector Tags (for recommendations) ---
-  const [supplierSectorIds, setSupplierSectorIdsState] = useState<string[]>([]);
-  const [allSectors, setAllSectors] = useState<TaxonomyOption[]>([]);
-
-  useEffect(() => {
-    if (activeTab !== 'supplier-profile' || !activeOrg.isSupplier) return;
-    Promise.all([fetchSupplierSectorIds(activeOrg.id), fetchSectors()])
-      .then(([ids, sectors]) => {
-        setSupplierSectorIdsState(ids);
-        setAllSectors(sectors);
-      })
-      .catch(() => {});
-  }, [activeTab, activeOrg.isSupplier, activeOrg.id]);
-
-  const toggleSupplierSector = async (sectorId: string) => {
-    const next = supplierSectorIds.includes(sectorId) ? supplierSectorIds.filter((id) => id !== sectorId) : [...supplierSectorIds, sectorId];
-    setSupplierSectorIdsState(next);
-    try {
-      await setSupplierSectorIds(activeOrg.id, next);
-    } catch (err: any) {
-      setSupplierFeedback(`Error: ${err.message || 'Could not update sectors.'}`);
-    }
-  };
-
-  // --- Admin Analytics States ---
-  const [analytics, setAnalytics] = useState<AdminAnalyticsSummary | null>(null);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
-  const [analyticsFeedback, setAnalyticsFeedback] = useState('');
-
-  useEffect(() => {
-    if (activeTab !== 'admin-analytics' || !isPlatformAdmin) return;
-    setAnalyticsLoading(true);
-    fetchAdminAnalytics()
-      .then(setAnalytics)
-      .catch((err: any) => setAnalyticsFeedback(`Error: ${err.message || 'Could not load analytics.'}`))
-      .finally(() => setAnalyticsLoading(false));
-  }, [activeTab, isPlatformAdmin]);
-
-  // --- WORKSPACE RENDERING ---
-
-  // 1. OVERVIEW WORKSPACE
-  if (activeTab === 'overview' && !isPlatformAdmin) {
-    const statCards = [
-      { icon: Sparkles, label: 'Recommended matches', value: overviewRecommended.length },
-      { icon: Bookmark, label: 'Saved searches', value: overviewSavedSearchCount },
-      { icon: Bell, label: 'Alerts active', value: overviewSavedSearchCount },
-      { icon: BarChart2, label: 'Tenders in pipeline', value: overviewPipelineCount },
-    ];
-    return (
-      <div className="space-y-8 text-left">
-        {/* Welcome header with quick actions */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-emerald-50/50 border border-emerald-100/50 p-6 rounded-2xl">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 bg-[#0F172A] text-white flex items-center justify-center font-display font-black text-lg shrink-0">
-              {activeOrg.name.slice(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <h2 className="font-display font-bold text-xl text-emerald-950">Welcome back!</h2>
-              <p className="text-sm text-slate-500 mt-0.5">
-                {activeOrg.name}
-                {overviewTier && <> ¬∑ <span className="font-semibold text-emerald-700">{overviewTier} plan</span></>}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link to="/tenders" target="_blank" className="flex items-center gap-2 bg-white border border-[#0F172A] text-[#0F172A] font-mono text-xs font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-[#0F172A] hover:text-white transition-colors">
-              <Search className="h-3.5 w-3.5" /> Find tenders
-            </Link>
-            <Link to="/tenders" target="_blank" className="flex items-center gap-2 bg-emerald-600 text-white font-mono text-xs font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-emerald-700 transition-colors">
-              <Plus className="h-3.5 w-3.5" /> New saved search
-            </Link>
-          </div>
-        </div>
-
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {statCards.map((card) => {
-            const Icon = card.icon;
-            return (
-              <div key={card.label} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-                <div className="h-9 w-9 border border-[#0F172A] bg-emerald-50 flex items-center justify-center mb-3">
-                  <Icon className="h-4 w-4 text-emerald-700" />
-                </div>
-                <span className="font-display font-extrabold text-2xl text-slate-900 block">{card.value}</span>
-                <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest block mt-1">{card.label}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6 items-start">
-          {/* Recommended for you */}
-          <div className="lg:col-span-2 bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-slate-800 text-lg flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-emerald-600" /> Recommended for you
-              </h3>
-              <Link to="/tenders" target="_blank" className="text-xs font-mono font-bold uppercase tracking-widest text-emerald-600 hover:underline flex items-center gap-1">
-                View all <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-            {overviewRecommended.length === 0 ? (
-              <p className="text-sm text-slate-500 py-6 text-center">
-                No matches yet ‚Äî set your sectors in your supplier profile and save a search to start getting recommendations.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {overviewRecommended.map((op) => (
-                  <Link
-                    key={op.id}
-                    to={`/tenders/${op.slug}`}
-                    target="_blank"
-                    className="flex items-center gap-3 border border-slate-100 hover:border-[#0F172A] p-3 transition-colors group"
-                  >
-                    <span className="w-10 h-10 border border-[#0F172A] bg-emerald-50 flex items-center justify-center shrink-0">
-                      <FileSearch className="h-4 w-4 text-emerald-700" />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm text-slate-900 group-hover:text-emerald-700 transition-colors truncate">{op.title}</h4>
-                      <p className="text-xs text-slate-500 truncate">{[op.buyerName, op.sector].filter(Boolean).join(' ¬∑ ')}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-500 shrink-0">
-                      <Clock className="h-3.5 w-3.5" /> {new Date(op.submissionDeadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Saved searches */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-slate-800 text-lg flex items-center gap-2">
-                <Bookmark className="h-4 w-4 text-emerald-600" /> Saved searches
-              </h3>
-              <span className="font-mono text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5">{overviewSavedSearchCount}</span>
-            </div>
-            {overviewSavedSearches.length === 0 ? (
-              <p className="text-sm text-slate-500 py-4">
-                No saved searches yet. Browse tenders and save a search to get alerts for matching opportunities.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {overviewSavedSearches.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2 border border-slate-100 p-3">
-                    <Bell className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                    <span className="flex-1 text-sm font-medium text-slate-700 truncate">{s.name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {overviewTier === 'Publisher' && (
-              <button onClick={() => setActiveTab('tenders')} className="w-full mt-4 text-left bg-slate-50 hover:bg-slate-100 border border-slate-100 p-3 transition-colors cursor-pointer flex items-center gap-2">
-                <Award className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span className="text-sm font-semibold text-slate-800">{myOpportunities.length} tenders published</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {overviewTier === 'Free' && (
-          <div className="bg-[#0F172A] text-white p-6 text-center space-y-3 rounded-2xl">
-            <h3 className="font-display font-bold text-sm uppercase !text-white">Subscribe for full tender access</h3>
-            <p className="text-sm text-slate-300 max-w-md mx-auto">
-              Viewer plans unlock full tender details and alerts. Publisher plans add the ability to post your own
-              tenders.
-            </p>
-            <Link to="/#pricing" target="_blank" className="inline-block bg-emerald-500 hover:bg-emerald-400 text-[#0F172A] font-semibold px-6 py-2.5 text-sm rounded-xl">
-              View subscription plans
-            </Link>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 1b. OVERVIEW WORKSPACE (platform admins ‚Äî ad-platform stats)
-  if (activeTab === 'overview') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="flex justify-between items-center bg-emerald-50/50 border border-emerald-100/50 p-6 rounded-2xl">
-          <div>
-            <h2 className="font-display font-bold text-xl text-emerald-950">Welcome back, Padi!</h2>
-            <p className="text-sm text-slate-500 mt-0.5">Here is the current reach activity for {activeOrg.name} in {activeOrg.district}.</p>
-          </div>
-          <div className="text-right">
-            <span className="text-xs text-slate-400 font-mono block">FREETOWN TIME</span>
-            <span className="font-mono text-sm font-bold text-slate-700">
-              {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Freetown' })} GMT
-            </span>
-          </div>
-        </div>
-
-        {/* Dashboard Cards ‚Äî real counts, not mock figures */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <span className="text-slate-400 font-semibold text-xs block">ACTIVE CAMPAIGNS</span>
-            <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{campaigns.filter((c) => c.status === 'Active').length}</span>
-          </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <span className="text-slate-400 font-semibold text-xs block">TRACKING LINK CLICKS</span>
-            <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{trackingLinks.reduce((sum, l) => sum + l.clickCount, 0)}</span>
-          </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <span className="text-slate-400 font-semibold text-xs block">ACTIVE LEADS</span>
-            <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{leads.length}</span>
-            <span className="text-xs text-blue-600 font-bold mt-1 block">Lightweight CRM loaded</span>
-          </div>
-          <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-            <span className="text-slate-400 font-semibold text-xs block">CONTENT PUBLISHED</span>
-            <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">{contentItems.filter((c) => c.status === 'Published').length}</span>
-          </div>
-        </div>
-
-        {/* Real click chart ‚Äî from tracking_link_clicks */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Daily Tracking Link Clicks (Last 12 Days)</h3>
-          {clickSeries.length === 0 ? (
-            <p className="text-xs text-slate-400">No tracking link clicks yet ‚Äî create a link in the Analytics tab to start seeing activity here.</p>
-          ) : (
-            <div className="flex items-end gap-3 h-48 pt-6">
-              {clickSeries.map((point) => (
-                <div key={point.date} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                  <div className="w-full bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-colors" style={{ height: `${(point.count / Math.max(1, ...clickSeries.map((p) => p.count))) * 100}%` }} />
-                  <span className="text-[10px] text-slate-400 font-mono">{point.date.slice(5)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Onboarding Checklist */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Onboarding Growth Checklist</h3>
-          <div className="space-y-3">
-            <div className="flex items-start gap-3 p-3 bg-emerald-50/20 border border-emerald-100/30 rounded-xl">
-              <Check className="text-emerald-600 h-5 w-5 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-slate-800 text-sm block">Complete profile onboarding</span>
-                <span className="text-xs text-slate-500">Provided organizational goals, budget limits, and Freetown operating suburbs.</span>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-              <Check className="text-emerald-600 h-5 w-5 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-slate-800 text-sm block">Configure your primary Brand Kit</span>
-                <span className="text-xs text-slate-500">Established fonts, mission slogans, and color palettes.</span>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl">
-              <Plus className="text-slate-400 h-5 w-5 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-slate-800 text-sm block">Launch your first Campaign Plan</span>
-                <span className="text-xs text-slate-500">Use our template-driven campaign wizard to set budgets and locations.</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // TENDERS WORKSPACE (Procurement)
-  if (activeTab === 'tenders') {
-    if (isPlatformAdmin) {
-      return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
-          Publishing and managing tenders is subscriber tooling for Tender Publishers, not platform admins.
-          Use Tender Review under Platform Admin to approve, correct, or reject subscriber-submitted tenders.
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-              <FileSearch className="h-5 w-5 text-emerald-600" /> Procurement Tenders
-            </h3>
-            <Link to="/tenders" target="_blank" className="text-xs font-mono text-emerald-600 hover:underline flex items-center gap-1">
-              View public listings <ExternalLink className="h-3 w-3" />
-            </Link>
-          </div>
-          <p className="text-xs text-slate-500">
-            {activeOrg.isBuyer || canPublishTenders
-              ? `Publish tender notices for ${activeOrg.name} and manage your published opportunities.`
-              : canViewTenderDetails
-              ? 'View full tender details and manage the alerts you receive for matching opportunities.'
-              : 'Subscribe to view full tender details and get alerts ‚Äî or upgrade to Publisher to post your own.'}
-          </p>
-        </div>
-
-        {tendersFeedback && (
-          <div className={`text-sm p-4 rounded-xl font-semibold ${tendersFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-            {tendersFeedback}
-          </div>
-        )}
-
-        {!activeOrg.isBuyer && canPublishTenders ? (
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center space-y-4">
-            <p className="text-sm text-slate-600">
-              Your plan includes tender publishing. Enable Buyer Mode for {activeOrg.name} to post procurement
-              notices that are publicly searchable at /tenders.
-            </p>
-            <button
-              onClick={handleEnableBuyerMode}
-              disabled={enablingBuyer}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50"
-            >
-              {enablingBuyer ? 'Enabling‚Ä¶' : 'Enable Buyer Mode'}
-            </button>
-          </div>
-        ) : !activeOrg.isBuyer && canViewTenderDetails ? (
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-display font-bold text-slate-900 text-sm">Your Saved Searches & Alerts</h4>
-              <Link to="/tenders" target="_blank" className="text-xs font-semibold text-emerald-600 hover:underline flex items-center gap-1">
-                Browse tenders <ExternalLink className="h-3 w-3" />
-              </Link>
-            </div>
-            {viewerSavedSearches.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                No saved searches yet. Browse public tenders and use "Save this search &amp; get alerts" to start
-                receiving notifications for matching opportunities.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {viewerSavedSearches.map((s) => (
-                  <span key={s.id} className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 text-xs px-3 py-1.5 rounded-lg">
-                    {s.name}
-                    <button onClick={() => handleDeleteViewerSavedSearch(s.id)} className="text-slate-400 hover:text-red-600 cursor-pointer">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <p className="text-xs text-slate-400 border-t border-slate-100 pt-3">
-              Want to publish your own tenders? Upgrade to a Publisher plan from Billing Invoices.
-            </p>
-          </div>
-        ) : !activeOrg.isBuyer ? (
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center space-y-4">
-            <p className="text-sm text-slate-600">
-              Subscribe to a Viewer or Publisher plan to see full tender details and receive alerts for matching
-              opportunities ‚Äî or Publisher to publish your own tenders.
-            </p>
-            <Link to="/#pricing" target="_blank" className="inline-block bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all">
-              View subscription plans
-            </Link>
-          </div>
-        ) : (
-          <>
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-xs overflow-hidden">
-              <div className="bg-[#0F172A] px-6 py-5 flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                  <FileSearch className="h-4.5 w-4.5 text-emerald-400" />
-                </div>
-                <div>
-                  <h4 className="font-display font-bold !text-white text-sm">Publish New Tender</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    The fields below capture the key facts for search and alerts. Attach the official notice
-                    (bidding document, lots, bid security schedule, eligibility requirements, etc.) so bidders
-                    get the full detail your form fields can't hold.
-                  </p>
-                </div>
-              </div>
-              <form onSubmit={handleCreateOpportunity} className="p-6 space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Tender Title</label>
-                  <input
-                    type="text" required
-                    placeholder="e.g. Rehabilitation of Bo-Kenema Feeder Road"
-                    value={tenderTitle}
-                    onChange={(e) => setTenderTitle(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Summary</label>
-                  <textarea
-                    required rows={2}
-                    placeholder="One or two sentence summary shown in search results"
-                    value={tenderSummary}
-                    onChange={(e) => setTenderSummary(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Full Description</label>
-                  <textarea
-                    rows={4}
-                    placeholder="Scope of work, deliverables, and background"
-                    value={tenderDescription}
-                    onChange={(e) => setTenderDescription(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Notice Type</label>
-                    <select
-                      value={tenderTypeId}
-                      onChange={(e) => setTenderTypeId(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      <option value="">Select type</option>
-                      {tenderTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold text-slate-500 uppercase">Sector</label>
-                      <button type="button" onClick={handleSuggestSector} disabled={suggestingSector} className="text-[10px] text-emerald-600 hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-50">
-                        <Sparkle className="h-3 w-3" /> {suggestingSector ? 'Thinking‚Ä¶' : 'Suggest with AI'}
-                      </button>
-                    </div>
-                    <select
-                      value={tenderSectorId}
-                      onChange={(e) => setTenderSectorId(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      <option value="">Select sector</option>
-                      {tenderSectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Country</label>
-                    <select
-                      value={tenderCountryId}
-                      onChange={(e) => setTenderCountryId(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      {tenderCountries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">District</label>
-                    <select
-                      value={tenderDistrictId}
-                      onChange={(e) => setTenderDistrictId(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      <option value="">Select district</option>
-                      {tenderDistricts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Estimated Value</label>
-                    <input
-                      type="number" min="0" step="any"
-                      placeholder="Optional"
-                      value={tenderValue}
-                      onChange={(e) => setTenderValue(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Currency</label>
-                    <select
-                      value={tenderCurrencyCode}
-                      onChange={(e) => setTenderCurrencyCode(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      <option value="">Select currency</option>
-                      {tenderCurrencies.map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Submission Deadline</label>
-                    <input
-                      type="datetime-local" required
-                      value={tenderDeadline}
-                      onChange={(e) => setTenderDeadline(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Contact Details</label>
-                    <input
-                      type="text"
-                      placeholder="email, phone, or WhatsApp"
-                      value={tenderContact}
-                      onChange={(e) => setTenderContact(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Tender Documents</label>
-                  <label
-                    htmlFor="tender-document-input"
-                    className="mt-1.5 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl px-6 py-8 text-center cursor-pointer transition-colors hover:border-emerald-400 hover:bg-emerald-50/40"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-                      <FileUp className="h-4.5 w-4.5 text-emerald-600" />
-                    </div>
-                    <p className="text-sm font-semibold text-slate-700">
-                      Drop the official bidding document here, or click to browse
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      PDF or Word, up to 10MB each ‚Äî bid data sheets, lot schedules, forms, and addenda all welcome
-                    </p>
-                    <input
-                      id="tender-document-input"
-                      type="file"
-                      multiple
-                      accept=".pdf,.doc,.docx,.xls,.xlsx"
-                      className="hidden"
-                      onChange={(e) => {
-                        handleTenderDocumentSelect(e.target.files);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-
-                  {tenderDocumentError && (
-                    <p className="mt-2 text-[11px] text-red-600 font-medium">{tenderDocumentError}</p>
-                  )}
-
-                  {tenderDocumentFiles.length > 0 && (
-                    <ul className="mt-3 space-y-1.5">
-                      {tenderDocumentFiles.map((file, idx) => (
-                        <li key={`${file.name}-${idx}`} className="flex items-center justify-between gap-2 text-xs bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                          <span className="flex items-center gap-2 min-w-0 text-slate-700">
-                            <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                            <span className="truncate font-medium">{file.name}</span>
-                            <span className="text-slate-400 shrink-0">{formatFileSize(file.size)}</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTenderDocument(idx)}
-                            className="text-slate-400 hover:text-red-600 cursor-pointer shrink-0"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  <label className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer w-fit">
-                    <input type="checkbox" checked={tenderDocumentIsPublic} onChange={(e) => setTenderDocumentIsPublic(e.target.checked)} />
-                    Public (visible to anyone viewing this tender, not just subscribers)
-                  </label>
-                </div>
-
-                <button
-                  type="submit" disabled={tenderSubmitting}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 shadow-sm shadow-emerald-600/20"
-                >
-                  {tenderSubmitting ? 'Publishing‚Ä¶' : 'Publish Tender'}
-                </button>
-              </form>
-            </div>
-
-            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-              <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Tenders</h4>
-              {tendersLoading ? (
-                <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-              ) : myOpportunities.length === 0 ? (
-                <p className="text-xs text-slate-400">No tenders submitted yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {myOpportunities.map((op) => {
-                    const canManage = ['published', 'amended', 'deadline_extended'].includes(op.statusCode);
-                    return (
-                      <div key={op.id} className="border border-slate-100 rounded-xl p-4">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <Link to={`/tenders/${op.slug}`} target="_blank" className="font-semibold text-slate-800 text-sm hover:underline">{op.title}</Link>
-                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">Deadline: {new Date(op.submissionDeadline).toLocaleDateString('en-GB')}</p>
-                          </div>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${
-                            op.statusCode === 'awaiting_review' ? 'bg-blue-100 text-blue-800' :
-                            op.statusCode === 'needs_correction' || op.statusCode === 'rejected' ? 'bg-red-100 text-red-800' :
-                            op.statusCode === 'awarded' ? 'bg-purple-100 text-purple-800' :
-                            op.statusCode === 'cancelled' || op.statusCode === 'closed' ? 'bg-slate-200 text-slate-600' :
-                            'bg-emerald-100 text-emerald-800'
-                          }`}>{op.statusLabel}</span>
-                        </div>
-
-                        {op.reviewNote && (op.statusCode === 'needs_correction' || op.statusCode === 'rejected') && (
-                          <p className="text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg p-2 mt-2">
-                            Admin feedback: {op.reviewNote}
-                          </p>
-                        )}
-
-                        <div className="flex flex-wrap items-center gap-4 mt-3">
-                          {op.statusCode === 'needs_correction' && (
-                            <button onClick={() => handleResubmit(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Resubmit for Review</button>
-                          )}
-                          {canManage && (
-                            <>
-                              <button onClick={() => handleExtendDeadline(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Extend Deadline</button>
-                              <button onClick={() => handleRecordAward(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Record Award</button>
-                              <button onClick={() => handleCloseOpportunity(op.id)} className="text-xs text-slate-500 hover:underline cursor-pointer">Close</button>
-                              <button onClick={() => handleCancelOpportunity(op.id)} className="text-xs text-red-600 hover:underline cursor-pointer">Cancel</button>
-                            </>
-                          )}
-                          {op.statusCode === 'closed' && (
-                            <button onClick={() => handleRecordAward(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Record Award</button>
-                          )}
-                          <button onClick={() => toggleDocsPanel(op.id)} className="text-xs text-slate-500 hover:underline cursor-pointer flex items-center gap-1">
-                            <FileText className="h-3 w-3" /> Documents ({docsByOpportunity[op.id]?.length ?? '‚Ä¶'})
-                          </button>
-                          <button onClick={() => toggleResponsesPanel(op.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer flex items-center gap-1">
-                            <Bell className="h-3 w-3" /> Responses ({responsesByOpp[op.id]?.length ?? '‚Ä¶'})
-                          </button>
-                        </div>
-
-                        {expandedRespId === op.id && (
-                          <div className="mt-3 border-t border-slate-100 pt-3">
-                            {(responsesByOpp[op.id] ?? []).length === 0 ? (
-                              <p className="text-xs text-slate-400">No supplier responses yet.</p>
-                            ) : (
-                              <div className="space-y-2">
-                                {(responsesByOpp[op.id] ?? []).map((r) => (
-                                  <div key={r.id} className="flex items-start justify-between gap-3 text-xs bg-slate-50 rounded-lg px-3 py-2">
-                                    <div className="min-w-0">
-                                      <span className="font-semibold text-slate-800">{r.orgName || 'A supplier'}</span>
-                                      {r.note && <p className="text-slate-500 mt-0.5 italic truncate">‚Äú{r.note}‚Äù</p>}
-                                    </div>
-                                    <span className={`shrink-0 font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${r.kind === 'intent_to_bid' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-600 bg-white border-slate-200'}`}>
-                                      {r.kind === 'intent_to_bid' ? 'Intent to bid' : 'Interested'}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {expandedDocsId === op.id && (
-                          <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
-                            {(docsByOpportunity[op.id] ?? []).map((doc) => (
-                              <div key={doc.id} className="flex items-center justify-between gap-2 text-xs bg-slate-50 rounded-lg px-3 py-2">
-                                <button onClick={() => handleDownloadDocument(doc)} className="flex items-center gap-2 text-slate-700 hover:underline cursor-pointer truncate">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                                  <span className="truncate">{doc.fileName}</span>
-                                  {!doc.isPublic && <span className="text-[9px] uppercase text-amber-600 font-bold shrink-0">Private</span>}
-                                </button>
-                                <button onClick={() => handleDeleteDocument(op.id, doc)} className="text-slate-400 hover:text-red-600 cursor-pointer shrink-0">
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                            <div className="flex items-center gap-3 pt-1">
-                              <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer">
-                                <input type="checkbox" checked={docIsPublic} onChange={(e) => setDocIsPublic(e.target.checked)} />
-                                Public (visible to anyone viewing this tender)
-                              </label>
-                            </div>
-                            <label className="flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:underline cursor-pointer w-fit">
-                              <Upload className="h-3.5 w-3.5" />
-                              {uploadingDocFor === op.id ? 'Uploading‚Ä¶' : 'Upload Document'}
-                              <input
-                                type="file"
-                                className="hidden"
-                                disabled={uploadingDocFor === op.id}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  handleUploadDocument(op.id, file);
-                                  e.target.value = '';
-                                }}
-                              />
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // ADMIN TENDER REVIEW WORKSPACE (platform admins only)
-  if (activeTab === 'admin-tender-review') {
-    if (!isPlatformAdmin) {
-      return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
-          You do not have platform admin access.
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-emerald-600" /> Tender Review Queue
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Approve, request corrections, or reject tenders submitted by buyers before they go public.</p>
-        </div>
-
-        {reviewFeedback && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{reviewFeedback}</div>
-        )}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {reviewLoading ? (
-            <p className="text-xs text-slate-400">Loading review queue‚Ä¶</p>
-          ) : reviewQueue.length === 0 ? (
-            <p className="text-xs text-slate-400">No tenders awaiting review. Nice and clear.</p>
-          ) : (
-            <div className="space-y-4">
-              {reviewQueue.map((op) => (
-                <div key={op.id} className="border border-slate-100 rounded-xl p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h4 className="font-semibold text-slate-800 text-sm">{op.title}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{op.buyerName} ¬∑ Submitted {new Date(op.createdAt).toLocaleDateString('en-GB')}</p>
-                    </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${op.statusCode === 'needs_correction' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                      {op.statusLabel}
-                    </span>
-                  </div>
-
-                  {duplicateWarnings[op.id]?.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-800 flex items-start gap-2">
-                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                      <span>Possibly similar to: {duplicateWarnings[op.id].join('; ')}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <button onClick={() => handleApprove(op.id)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1">
-                      <Check className="h-3.5 w-3.5" /> Approve
-                    </button>
-                    <button
-                      onClick={async () => { await handleToggleFeatured(op, true); await handleApprove(op.id); }}
-                      className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer"
-                    >
-                      Approve & Feature
-                    </button>
-                    <button onClick={() => handleRequestCorrection(op.id)} className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer">Request Correction</button>
-                    <button onClick={() => handleReject(op.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
-                    <Link to={`/tenders/${op.slug}`} target="_blank" className="text-xs text-slate-400 hover:underline ml-auto">Preview</Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // SUPPLIER PROFILE WORKSPACE
-  if (activeTab === 'supplier-profile') {
-    if (isPlatformAdmin) {
-      return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
-          Supplier profiles are subscriber tooling for Tender Publishers/Viewers, not platform admins.
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Award className="h-5 w-5 text-emerald-600" /> Supplier Profile
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Build a verifiable supplier profile so buyers can discover and invite {activeOrg.name} to bid.</p>
-        </div>
-
-        {supplierFeedback && (
-          <div className={`text-sm p-4 rounded-xl font-semibold ${supplierFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-            {supplierFeedback}
-          </div>
-        )}
-
-        {!activeOrg.isSupplier ? (
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center space-y-4">
-            <p className="text-sm text-slate-600">Enable Supplier Mode to create a profile and apply for verification.</p>
-            <button
-              onClick={handleEnableSupplierMode}
-              disabled={enablingSupplier}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50"
-            >
-              {enablingSupplier ? 'Enabling‚Ä¶' : 'Enable Supplier Mode'}
-            </button>
-          </div>
-        ) : supplierLoading ? (
-          <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-        ) : (
-          <>
-            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="font-display font-bold text-slate-900 text-sm">Verification Status</h4>
-                {activeOrg.supplierVerifiedUntil && new Date(activeOrg.supplierVerifiedUntil) > new Date() ? (
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-emerald-100 text-emerald-800">
-                    Verified until {new Date(activeOrg.supplierVerifiedUntil).toLocaleDateString('en-GB')}
-                  </span>
-                ) : (
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-slate-100 text-slate-600">Not Verified</span>
-                )}
-              </div>
-              <button onClick={handleSubmitVerification} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">
-                Apply for Supplier Verification
-              </button>
-              {myVerifications.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  {myVerifications.map((v) => (
-                    <div key={v.id} className="border border-slate-100 rounded-lg p-3 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-700">{v.requestType} verification</span>
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{v.status.replace('_', ' ')}</span>
-                      </div>
-                      {v.reviewerNote && <p className="text-red-600 mt-1">{v.reviewerNote}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-              <h4 className="font-display font-bold text-slate-900 text-sm mb-1">Sectors You Serve</h4>
-              <p className="text-xs text-slate-500 mb-3">Drives your "Recommended For You" tender matches in the Pipeline tab.</p>
-              <div className="flex flex-wrap gap-2">
-                {allSectors.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => toggleSupplierSector(s.id)}
-                    className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer ${
-                      supplierSectorIds.includes(s.id) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'
-                    }`}
-                  >
-                    {s.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveSupplierProfile} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-              <h4 className="font-display font-bold text-slate-900 text-sm">Company Details</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Trading Name</label>
-                  <input type="text" value={supplierProfile.tradingName} onChange={(e) => setSupplierProfile({ ...supplierProfile, tradingName: e.target.value })}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Registration Number</label>
-                  <input type="text" value={supplierProfile.registrationNumber} onChange={(e) => setSupplierProfile({ ...supplierProfile, registrationNumber: e.target.value })}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Tax ID</label>
-                  <input type="text" value={supplierProfile.taxIdentificationNumber} onChange={(e) => setSupplierProfile({ ...supplierProfile, taxIdentificationNumber: e.target.value })}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Website</label>
-                  <input type="text" value={supplierProfile.website} onChange={(e) => setSupplierProfile({ ...supplierProfile, website: e.target.value })}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Year Established</label>
-                  <input type="number" value={supplierProfile.yearEstablished ?? ''} onChange={(e) => setSupplierProfile({ ...supplierProfile, yearEstablished: e.target.value ? Number(e.target.value) : null })}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Employees</label>
-                  <input type="text" placeholder="e.g. 11-50" value={supplierProfile.employeeCount} onChange={(e) => setSupplierProfile({ ...supplierProfile, employeeCount: e.target.value })}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Company Description</label>
-                <textarea rows={3} value={supplierProfile.description} onChange={(e) => setSupplierProfile({ ...supplierProfile, description: e.target.value })}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Geographic Coverage</label>
-                <input type="text" placeholder="e.g. Western Area, Bo, Kenema" value={supplierProfile.geographicCoverage} onChange={(e) => setSupplierProfile({ ...supplierProfile, geographicCoverage: e.target.value })}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Certifications & Licences</label>
-                <input type="text" value={supplierProfile.certifications} onChange={(e) => setSupplierProfile({ ...supplierProfile, certifications: e.target.value })}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Major Clients / Past Projects</label>
-                <input type="text" value={supplierProfile.majorClients} onChange={(e) => setSupplierProfile({ ...supplierProfile, majorClients: e.target.value })}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-              </div>
-              <button type="submit" disabled={supplierSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50">
-                {supplierSaving ? 'Saving‚Ä¶' : 'Save Supplier Profile'}
-              </button>
-            </form>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // ADMIN VERIFICATION REVIEW WORKSPACE (platform admins only)
-  if (activeTab === 'admin-verification') {
-    if (!isPlatformAdmin) {
-      return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
-          You do not have platform admin access.
-        </div>
-      );
-    }
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-emerald-600" /> Verification Requests
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Review supplier and buyer verification applications.</p>
-        </div>
-
-        {verificationFeedback && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{verificationFeedback}</div>
-        )}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {verificationQueueLoading ? (
-            <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-          ) : verificationQueue.length === 0 ? (
-            <p className="text-xs text-slate-400">No pending verification requests.</p>
-          ) : (
-            <div className="space-y-4">
-              {verificationQueue.map((v) => (
-                <div key={v.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold text-slate-800 text-sm">{v.orgName}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{v.requestType} verification ¬∑ Submitted {new Date(v.submittedAt).toLocaleDateString('en-GB')}</p>
-                    </div>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{v.status.replace('_', ' ')}</span>
-                  </div>
-                  {v.notes && <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 mt-2">{v.notes}</p>}
-                  <div className="flex items-center gap-4 mt-3">
-                    <button onClick={() => handleApproveVerification(v)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Approve</button>
-                    <button onClick={() => handleRejectVerification(v.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // BID SUPPORT SERVICES WORKSPACE (buyers & suppliers)
-  if (activeTab === 'services') {
-    if (isPlatformAdmin) {
-      return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
-          Requesting bid support is subscriber tooling for Tender Publishers/Viewers, not platform admins.
-          Use Service Requests under Platform Admin to fulfill subscriber requests.
-        </div>
-      );
-    }
-    const serviceTypeLabels: Record<ServiceType, string> = {
-      document_retrieval: 'Document Retrieval',
-      tender_clarification: 'Tender Clarification',
-      eligibility_assessment: 'Eligibility Assessment',
-      bid_readiness_review: 'Bid-Readiness Review',
-      proposal_review: 'Proposal Review',
-      company_profile_prep: 'Company Profile Preparation',
-      supplier_registration_assistance: 'Supplier Registration Assistance',
-      featured_placement: 'Featured Placement Request',
-      other: 'Other',
-    };
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Support Services</h3>
-          <p className="text-xs text-slate-500 mt-1">Request paid, human-assisted help ‚Äî separate from our AI Content Studio, these are performed by our team.</p>
-        </div>
-
-        {serviceRequestFeedback && (
-          <div className={`text-sm p-4 rounded-xl font-semibold ${serviceRequestFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-            {serviceRequestFeedback}
-          </div>
-        )}
-
-        <form onSubmit={handleCreateServiceRequest} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase">Service Needed</label>
-            <select value={srServiceType} onChange={(e) => setSrServiceType(e.target.value as ServiceType)}
-              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
-              {Object.entries(serviceTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase">Describe What You Need</label>
-            <textarea required rows={3} value={srDescription} onChange={(e) => setSrDescription(e.target.value)}
-              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-          </div>
-          <button type="submit" disabled={srSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
-            {srSubmitting ? 'Submitting‚Ä¶' : 'Submit Request'}
-          </button>
-        </form>
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Requests</h4>
-          {serviceRequestsLoading ? (
-            <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-          ) : myServiceRequests.length === 0 ? (
-            <p className="text-xs text-slate-400">No requests yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {myServiceRequests.map((r) => (
-                <div key={r.id} className="border border-slate-100 rounded-xl p-4">
-                  <button onClick={() => toggleExpandRequest(r.id)} className="w-full flex items-center justify-between gap-4 cursor-pointer text-left">
-                    <div>
-                      <span className="font-semibold text-slate-800 text-sm block">{serviceTypeLabels[r.serviceType]}</span>
-                      <span className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleDateString('en-GB')}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {r.quoteAmount !== null && <span className="text-xs font-mono text-slate-600">{r.quoteCurrency} {r.quoteAmount.toLocaleString()}</span>}
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{r.status}</span>
-                    </div>
-                  </button>
-                  {expandedRequestId === r.id && (
-                    <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
-                      {requestActivities.length === 0 ? (
-                        <p className="text-xs text-slate-400">No updates yet.</p>
-                      ) : (
-                        requestActivities.map((a) => (
-                          <p key={a.id} className="text-xs text-slate-600"><span className="font-mono text-slate-400">{new Date(a.createdAt).toLocaleDateString('en-GB')}:</span> {a.note}</p>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ADVERTISER SUBSCRIBER WORKSPACE ("My Adverts")
-  // Deliberately narrow: no directory/event-promotion browsing UI here at
-  // all. This subscriber submits what they want advertised and later sees
-  // a read-only report of what happened -- platform, run count, reach.
-  // The actual design/production work stays admin-only ad-platform tooling.
-  if (activeTab === 'advertising') {
-    const categoryLabels: Record<AdvertisementCategory, string> = {
-      business: 'Business', event: 'Event', goods: 'Goods', service: 'Service',
-    };
-    const statusColor: Record<string, string> = {
-      submitted: 'bg-blue-100 text-blue-800',
-      in_production: 'bg-amber-100 text-amber-800',
-      live: 'bg-emerald-100 text-emerald-800',
-      completed: 'bg-slate-200 text-slate-600',
-      cancelled: 'bg-red-100 text-red-700',
-    };
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg">My Adverts</h3>
-          <p className="text-xs text-slate-500 mt-1">Submit what you'd like advertised ‚Äî our team designs, builds and runs it on social media. Below is a read-only report of what's happened with each request.</p>
-        </div>
-
-        {advertisementFeedback && (
-          <div className={`text-sm p-4 rounded-xl font-semibold ${advertisementFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-            {advertisementFeedback}
-          </div>
-        )}
-
-        {advertisementsLoading ? (
-          <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-        ) : !canAdvertise ? (
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center">
-            <p className="text-sm text-slate-600">Advertising is available on the Business plan and above.</p>
-            <button onClick={() => setActiveTab('billing')} className="btn-geometric mt-4 cursor-pointer">View Plans</button>
-          </div>
-        ) : (
-          <>
-            <form onSubmit={handleSubmitAdvertisement} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">What are you advertising?</label>
-                <select value={adCategory} onChange={(e) => setAdCategory(e.target.value as AdvertisementCategory)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
-                  {Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Subject</label>
-                <input required value={adSubject} onChange={(e) => setAdSubject(e.target.value)} placeholder="e.g. Grand opening of our Freetown showroom"
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Describe what you need advertised</label>
-                <textarea required rows={3} value={adDescription} onChange={(e) => setAdDescription(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-                <button type="button" onClick={handlePolishSubCopy} disabled={polishingSub} className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer disabled:opacity-50">
-                  <Sparkles className="h-3.5 w-3.5" /> {polishingSub ? 'Polishing‚Ä¶' : 'Polish my wording with AI'}
-                </button>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Photo (optional)</label>
-                <div className="mt-1 flex items-center gap-2">
-                  <label className="shrink-0 cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 hover:bg-slate-50">
-                    {adUploading ? 'Uploading‚Ä¶' : adMediaUrl ? 'Change photo' : 'Upload photo'}
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadRequestPhoto(e.target.files?.[0])} />
-                  </label>
-                  {adMediaUrl && (
-                    <>
-                      <img src={adMediaUrl} alt="" className="h-9 w-9 object-cover rounded-lg border border-slate-200" />
-                      <button type="button" onClick={() => setAdMediaUrl('')} className="text-xs text-slate-400 hover:text-red-500 cursor-pointer">Remove</button>
-                    </>
-                  )}
-                </div>
-              </div>
-              <button type="submit" disabled={adSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
-                {adSubmitting ? 'Submitting‚Ä¶' : 'Submit Request'}
-              </button>
-            </form>
-
-            {/* Live creative preview ‚Äî your advert, designed automatically */}
-            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-display font-bold text-slate-900 text-sm">Your advert, designed automatically</h4>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1">
-                    {(['square', 'story', 'landscape', 'banner', 'editorial'] as AdvertFormat[]).map((f) => (
-                      <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {(['dark', 'light'] as AdvertTheme[]).map((t) => (
-                      <button key={t} type="button" onClick={() => setAdvTheme(t)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advTheme === t ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{t}</button>
-                    ))}
-                  </div>
-                  <button type="button" onClick={() => setAdvWithPhoto((v) => !v)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advWithPhoto ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{advWithPhoto ? 'Photo' : 'Text'}</button>
-                </div>
-              </div>
-              <p className="text-xs text-slate-500 mb-3">This is generated from your details as you type. Our team refines and runs it ‚Äî you can download it too.</p>
-              <div className="bg-slate-50 border border-slate-200 p-3 max-w-md">
-                <CreativeScaler format={advFormat}>
-                  <AdvertCreative
-                    ref={subCreativeRef}
-                    format={advFormat}
-                    theme={advTheme}
-                    withPhoto={advWithPhoto}
-                    businessName={activeOrg.name}
-                    headline={adSubject || 'Your headline goes here'}
-                    body={adDescription}
-                    category={categoryLabels[adCategory]}
-                    mediaUrl={adMediaUrl || null}
-                  />
-                </CreativeScaler>
-              </div>
-              <button type="button" onClick={handleDownloadSubCreative} className="mt-3 border border-emerald-600 text-emerald-700 font-mono text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-emerald-600 hover:text-white transition-colors cursor-pointer">
-                Download my advert (PNG)
-              </button>
-            </div>
-
-            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-              <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Requests</h4>
-              {myAdvertisements.length === 0 ? (
-                <p className="text-xs text-slate-400">No requests yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {myAdvertisements.map((ad) => (
-                    <div key={ad.id} className="border border-slate-100 rounded-xl p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <span className="font-semibold text-slate-800 text-sm block">{ad.subject}</span>
-                          <span className="text-xs text-slate-500">{categoryLabels[ad.category]} ¬∑ {new Date(ad.createdAt).toLocaleDateString('en-GB')}</span>
-                        </div>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${statusColor[ad.status] ?? 'bg-slate-100 text-slate-600'}`}>{ad.status.replace('_', ' ')}</span>
-                      </div>
-                      {(ad.platform || ad.reachCount !== null || ad.runCount !== null) && (
-                        <div className="mt-3 pt-3 border-t border-slate-50 grid grid-cols-3 gap-3 text-center">
-                          <div>
-                            <span className="text-[9px] text-slate-400 uppercase font-bold block">Platform</span>
-                            <span className="text-xs font-semibold text-slate-700">{ad.platform || '‚Äî'}</span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] text-slate-400 uppercase font-bold block">Reach</span>
-                            <span className="text-xs font-semibold text-slate-700">{ad.reachCount !== null ? ad.reachCount.toLocaleString() : '‚Äî'}</span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] text-slate-400 uppercase font-bold block">Times Run</span>
-                            <span className="text-xs font-semibold text-slate-700">{ad.runCount !== null ? ad.runCount.toLocaleString() : '‚Äî'}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // ADMIN ADVERTISING FULFILLMENT QUEUE
-  if (activeTab === 'admin-advertising') {
-    if (!isPlatformAdmin) {
-      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
-    }
-    const categoryLabels: Record<string, string> = { business: 'Business', event: 'Event', goods: 'Goods', service: 'Service' };
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-emerald-600" /> Advertising Requests
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Fulfillment queue for subscriber advert requests ‚Äî update status and report reach/run data once the advert is live.</p>
-        </div>
-
-        {advertisementFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{advertisementFeedback}</div>}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {advertisementsLoading ? (
-            <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-          ) : allAdvertisements.length === 0 ? (
-            <p className="text-xs text-slate-400">No advertising requests yet.</p>
-          ) : (
-            <div className="space-y-4">
-              {allAdvertisements.map((ad) => (
-                <div key={ad.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-start gap-3 min-w-0">
-                      {ad.mediaUrl && (
-                        <a href={ad.mediaUrl} target="_blank" rel="noopener noreferrer" className="shrink-0" title="Attached photo ‚Äî open full size">
-                          <img src={ad.mediaUrl} alt="" className="h-12 w-12 object-cover rounded-lg border border-slate-200" />
-                        </a>
-                      )}
-                      <div className="min-w-0">
-                        <h4 className="font-semibold text-slate-800 text-sm">{ad.subject} ‚Äî {ad.orgName}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">{categoryLabels[ad.category]}: {ad.description}</p>
-                      </div>
-                    </div>
-                    <select value={ad.status} onChange={(e) => handleUpdateAdvertisement(ad.id, { status: e.target.value as AdvertisementRequest['status'] })}
-                      className="text-xs border border-slate-200 rounded-lg p-1 bg-white shrink-0">
-                      <option value="submitted">Submitted</option>
-                      <option value="in_production">In Production</option>
-                      <option value="live">Live</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4 mt-3">
-                    <button
-                      onClick={() => loadRequestIntoPublisher(ad)}
-                      className="text-xs font-bold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 hover:bg-emerald-100 cursor-pointer"
-                    >
-                      Load into publisher ‚Üí
-                    </button>
-                    <button
-                      onClick={() => {
-                        const platform = prompt('Platform(s) the advert ran on:', ad.platform ?? '');
-                        if (platform === null) return;
-                        handleUpdateAdvertisement(ad.id, { platform });
-                      }}
-                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
-                    >
-                      Platform: {ad.platform || 'Set'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        const reachStr = prompt('Reach (number of people reached):', ad.reachCount?.toString() ?? '');
-                        if (reachStr === null) return;
-                        handleUpdateAdvertisement(ad.id, { reachCount: Number(reachStr) || 0 });
-                      }}
-                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
-                    >
-                      Reach: {ad.reachCount !== null ? ad.reachCount.toLocaleString() : 'Set'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        const runStr = prompt('Number of times the advert was run:', ad.runCount?.toString() ?? '');
-                        if (runStr === null) return;
-                        handleUpdateAdvertisement(ad.id, { runCount: Number(runStr) || 0 });
-                      }}
-                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
-                    >
-                      Times Run: {ad.runCount !== null ? ad.runCount.toLocaleString() : 'Set'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Campaigns: run windows, rotating creatives, reach goals */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-emerald-600" /> Campaigns
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Group a business's creatives into a campaign with a run window and a reach goal. Adverts assigned to a
-            campaign only show on the site during its dates, and rotate through the marquee and feed. Pause to pull the
-            whole campaign off the site instantly.
-          </p>
-
-          <form onSubmit={handleCreateAdCampaign} className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-2 items-end">
-            <div className="lg:col-span-2">
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Campaign name</label>
-              <input value={campForm.name} onChange={(e) => setCampForm({ ...campForm, name: e.target.value })} placeholder="e.g. Rokel Q3 push" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Business</label>
-              <input value={campForm.businessName} onChange={(e) => setCampForm({ ...campForm, businessName: e.target.value })} placeholder="Business" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Start</label>
-              <input type="date" value={campForm.startDate} onChange={(e) => setCampForm({ ...campForm, startDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">End</label>
-              <input type="date" value={campForm.endDate} onChange={(e) => setCampForm({ ...campForm, endDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Reach goal</label>
-              <input type="number" min={0} value={campForm.reachGoal} onChange={(e) => setCampForm({ ...campForm, reachGoal: e.target.value })} placeholder="e.g. 5000" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <button type="submit" disabled={campSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer disabled:opacity-50 lg:col-span-1">
-              {campSaving ? 'Creating‚Ä¶' : 'Add campaign'}
-            </button>
-          </form>
-
-          {adCampaigns.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {adCampaigns.map((c) => {
-                const reach = campaignReach[c.id] || { adverts: 0, views: 0, clicks: 0 };
-                const now = Date.now();
-                const started = !c.startDate || new Date(c.startDate).getTime() <= now;
-                const ended = c.endDate && new Date(`${c.endDate}T23:59:59`).getTime() < now;
-                const phase = c.status === 'paused' ? 'Paused' : ended ? 'Ended' : !started ? 'Scheduled' : 'Active';
-                const phaseColor = phase === 'Active' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : phase === 'Paused' ? 'text-amber-700 bg-amber-50 border-amber-200' : phase === 'Scheduled' ? 'text-sky-700 bg-sky-50 border-sky-200' : 'text-slate-500 bg-slate-50 border-slate-200';
-                const pct = c.reachGoal ? Math.min(100, Math.round((reach.views / c.reachGoal) * 100)) : null;
-                return (
-                  <div key={c.id} className="border border-slate-100 rounded-xl p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-slate-800 text-sm truncate">{c.name}</h4>
-                          <span className={`font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${phaseColor}`}>{phase}</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {c.businessName || '‚Äî'} ¬∑ {c.startDate || 'no start'} ‚Üí {c.endDate || 'no end'} ¬∑ {reach.adverts} creative{reach.adverts === 1 ? '' : 's'} ¬∑ üëÅ {reach.views.toLocaleString()} ¬∑ ‚Üó {reach.clicks.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => handleToggleAdCampaign(c)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
-                          {c.status === 'active' ? 'Pause' : 'Resume'}
-                        </button>
-                        <button onClick={() => handleDeleteAdCampaign(c.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
-                      </div>
-                    </div>
-                    {pct !== null && (
-                      <div className="mt-2.5">
-                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
-                          <span>Reach goal</span><span>{reach.views.toLocaleString()} / {c.reachGoal!.toLocaleString()} views ({pct}%)</span>
-                        </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Publish adverts to the public site */}
-        <div id="advert-publisher" className={`bg-white border rounded-2xl p-6 shadow-xs ${advEditingId ? 'border-emerald-300 ring-1 ring-emerald-200' : advRequestId ? 'border-sky-300 ring-1 ring-sky-200' : 'border-slate-100'}`}>
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-emerald-600" /> {advEditingId ? 'Editing advert' : advRequestId ? 'Publishing a request' : 'Adverts on the site'}
-            {(advEditingId || advRequestId) && (
-              <button type="button" onClick={cancelAdvertEdit} className="ml-auto text-xs font-semibold text-slate-500 hover:underline cursor-pointer">Cancel</button>
-            )}
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Publish an advert so it shows on the public homepage and gets its own detail page. Manohub is the
-            source of truth ‚Äî paste the social post link so visitors can jump to the campaign; the social post
-            should reference this advert's page back on Manohub.
-          </p>
-
-          {advAnalytics && (
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { label: 'Total views', value: advAnalytics.viewsTotal, sub: `${advAnalytics.views7d} in 7d ¬∑ ${advAnalytics.views30d} in 30d` },
-                { label: 'Total clicks', value: advAnalytics.clicksTotal, sub: `${advAnalytics.clicks7d} in 7d ¬∑ ${advAnalytics.clicks30d} in 30d` },
-                { label: 'Live adverts', value: advAnalytics.liveCount, sub: 'showing on the site' },
-                { label: 'Click-through', value: `${advAnalytics.viewsTotal > 0 ? Math.round((advAnalytics.clicksTotal / advAnalytics.viewsTotal) * 100) : 0}%`, sub: 'clicks √∑ views' },
-              ].map((s) => (
-                <div key={s.label} className="border border-slate-100 rounded-xl p-3 bg-slate-50/60">
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{s.label}</p>
-                  <p className="text-xl font-display font-bold text-slate-900 mt-0.5">{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{s.sub}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-4 grid lg:grid-cols-2 gap-6 items-start">
-          <form onSubmit={handlePublishAdvert} className="grid grid-cols-1 gap-3">
-            <input value={advForm.title} onChange={(e) => setAdvForm({ ...advForm, title: e.target.value })} placeholder="Advert title" className="border border-slate-200 rounded-lg p-2 text-sm" />
-            <input value={advForm.businessName} onChange={(e) => setAdvForm({ ...advForm, businessName: e.target.value })} placeholder="Business name" className="border border-slate-200 rounded-lg p-2 text-sm" />
-            <select value={advForm.category} onChange={(e) => setAdvForm({ ...advForm, category: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
-              {['business', 'goods', 'service', 'healthcare', 'transportation', 'event', 'hospitality', 'finance', 'education', 'agriculture'].map((c) => (
-                <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-              ))}
-            </select>
-            <select value={advCampaignId} onChange={(e) => setAdvCampaignId(e.target.value)} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
-              <option value="">No campaign ‚Äî runs immediately, no end date</option>
-              {adCampaigns.filter((c) => c.status === 'active').map((c) => (
-                <option key={c.id} value={c.id}>Campaign: {c.name}{c.startDate || c.endDate ? ` (${c.startDate || '‚Ä¶'} ‚Üí ${c.endDate || '‚Ä¶'})` : ''}</option>
-              ))}
-            </select>
-            <div className="flex items-center gap-2">
-              <label className="shrink-0 cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">
-                {advUploading === 'photo' ? 'Uploading‚Ä¶' : advForm.mediaUrl ? 'Change photo' : 'Upload photo'}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadAdvertImage(e.target.files?.[0], 'photo')} />
-              </label>
-              <input value={advForm.mediaUrl} onChange={(e) => setAdvForm({ ...advForm, mediaUrl: e.target.value })} placeholder="‚Ä¶or paste image URL" className="flex-1 min-w-0 border border-slate-200 rounded-lg p-2 text-sm" />
-              {advForm.mediaUrl && <button type="button" onClick={() => setAdvForm({ ...advForm, mediaUrl: '' })} className="shrink-0 text-xs text-slate-400 hover:text-red-500 cursor-pointer">Clear</button>}
-            </div>
-            <input value={advForm.summary} onChange={(e) => setAdvForm({ ...advForm, summary: e.target.value })} placeholder="Short summary (one line)" className="border border-slate-200 rounded-lg p-2 text-sm sm:col-span-2" />
-            <textarea value={advForm.content} onChange={(e) => setAdvForm({ ...advForm, content: e.target.value })} placeholder="Full advert content" rows={3} className="border border-slate-200 rounded-lg p-2 text-sm" />
-            <button type="button" onClick={handlePolishAdvertCopy} disabled={polishingCopy} className="justify-self-start inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer disabled:opacity-50">
-              <Sparkles className="h-3.5 w-3.5" /> {polishingCopy ? 'Polishing‚Ä¶' : 'Polish copy with AI'}
-            </button>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="flex items-center gap-2 text-xs text-slate-600 border border-slate-200 rounded-lg p-2">
-                Brand colour
-                <input type="color" value={advForm.accentColor} onChange={(e) => setAdvForm({ ...advForm, accentColor: e.target.value })} className="h-6 w-8 cursor-pointer border-0 bg-transparent p-0" />
-              </label>
-              <label className="cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">
-                {advUploading === 'logo' ? 'Uploading‚Ä¶' : advForm.logoUrl ? 'Change logo' : 'Upload logo'}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadAdvertImage(e.target.files?.[0], 'logo')} />
-              </label>
-            </div>
-            <select value={advForm.socialPlatform} onChange={(e) => setAdvForm({ ...advForm, socialPlatform: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
-              {['Facebook', 'Instagram', 'WhatsApp', 'TikTok', 'X', 'YouTube', 'LinkedIn'].map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-            <input value={advForm.socialUrl} onChange={(e) => setAdvForm({ ...advForm, socialUrl: e.target.value })} placeholder="Social post URL (https://‚Ä¶)" className="border border-slate-200 rounded-lg p-2 text-sm" />
-            <button type="submit" disabled={advSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm cursor-pointer disabled:opacity-50 justify-self-start">
-              {advSaving ? (advEditingId ? 'Saving‚Ä¶' : 'Publishing‚Ä¶') : advEditingId ? 'Save changes' : 'Publish advert'}
-            </button>
-          </form>
-
-          {/* Auto-generated creative ‚Äî updates live as the form is filled */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Auto-generated creative</span>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  {(['square', 'story', 'landscape', 'banner', 'editorial'] as AdvertFormat[]).map((f) => (
-                    <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1">
-                  {(['dark', 'light'] as AdvertTheme[]).map((t) => (
-                    <button key={t} type="button" onClick={() => setAdvTheme(t)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advTheme === t ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{t}</button>
-                  ))}
-                </div>
-                <button type="button" onClick={() => setAdvWithPhoto((v) => !v)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advWithPhoto ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{advWithPhoto ? 'Photo' : 'Text'}</button>
-              </div>
-            </div>
-            <div className="border border-slate-200 bg-slate-50 p-3">
-              <CreativeScaler format={advFormat}>
-                <AdvertCreative
-                  ref={creativeRef}
-                  format={advFormat}
-                  theme={advTheme}
-                  withPhoto={advWithPhoto}
-                  businessName={advForm.businessName || 'Your Business'}
-                  headline={advForm.title || 'Your headline goes here'}
-                  body={advForm.summary || advForm.content}
-                  category={advForm.category}
-                  mediaUrl={advForm.mediaUrl || null}
-                  platform={advForm.socialPlatform}
-                  accentColor={advForm.accentColor}
-                  logoUrl={advForm.logoUrl || null}
-                />
-              </CreativeScaler>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button type="button" onClick={handleDownloadCreative} className="border border-[#0F172A] text-[#0F172A] font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-[#0F172A] hover:text-white transition-colors cursor-pointer">
-                Download PNG
-              </button>
-              <button type="button" onClick={handleSaveCreativeForSocial} disabled={savingCreative} className="border border-emerald-600 text-emerald-700 font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-emerald-600 hover:text-white transition-colors cursor-pointer disabled:opacity-50">
-                {savingCreative ? 'Saving‚Ä¶' : 'Save for social'}
-              </button>
-            </div>
-            <button type="button" onClick={() => setKitExporting(true)} disabled={kitExporting} className="mt-2 w-full border border-slate-300 text-slate-700 font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50">
-              {kitExporting ? 'Building kit‚Ä¶' : 'Download the kit (all 5 sizes ¬∑ ZIP)'}
-            </button>
-            {/* Persistent off-screen 1200√ó628 landscape render ‚Üí the social feed
-                card (og:image), captured on publish regardless of chosen format. */}
-            <div style={{ position: 'fixed', left: -99999, top: 0, opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
-              <AdvertCreative
-                ref={ogRef}
-                format="landscape"
-                theme={advTheme}
-                withPhoto={advWithPhoto}
-                businessName={advForm.businessName || 'Your Business'}
-                headline={advForm.title || 'Your headline goes here'}
-                body={advForm.summary || advForm.content}
-                category={advForm.category}
-                mediaUrl={advForm.mediaUrl || null}
-                platform={advForm.socialPlatform}
-                accentColor={advForm.accentColor}
-                logoUrl={advForm.logoUrl || null}
-              />
-            </div>
-            {/* Off-screen full-res render of every format for the kit ZIP */}
-            {kitExporting && (
-              <div style={{ position: 'fixed', left: -99999, top: 0, opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
-                {KIT_FORMATS.map((f) => (
-                  <div key={f} ref={(el) => { kitRefs.current[f] = el; }}>
-                    <AdvertCreative
-                      format={f}
-                      theme={advTheme}
-                      withPhoto={advWithPhoto}
-                      businessName={advForm.businessName || 'Your Business'}
-                      headline={advForm.title || 'Your headline goes here'}
-                      body={advForm.summary || advForm.content}
-                      category={advForm.category}
-                      mediaUrl={advForm.mediaUrl || null}
-                      platform={advForm.socialPlatform}
-                      accentColor={advForm.accentColor}
-                      logoUrl={advForm.logoUrl || null}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-            {advForm.creativeUrl && (
-              <p className="mt-2 text-[11px] text-emerald-700">
-                Creative saved ¬∑ <a href={advForm.creativeUrl} target="_blank" rel="noopener noreferrer" className="underline">open PNG</a> ‚Äî attaches on publish.
-              </p>
-            )}
-          </div>
-          </div>
-
-          <div className="mt-6 space-y-3">
-            {publishedAdverts.length === 0 ? (
-              <p className="text-xs text-slate-400">No adverts published yet.</p>
-            ) : (
-              publishedAdverts.map((adv) => (
-                <div key={adv.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <h4 className="font-semibold text-slate-800 text-sm truncate">{adv.title} ‚Äî {adv.businessName}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {adv.category} ¬∑ {adv.status}
-                        {' ¬∑ '}<span title="Detail-page views">üëÅ {adv.viewCount.toLocaleString()}</span>
-                        {' ¬∑ '}<span title="'View on social' clicks">‚Üó {adv.clickCount.toLocaleString()}</span>
-                        {adv.socialUrl && <> ¬∑ <a href={adv.socialUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">social post</a></>}
-                        {adv.creativeUrl && <> ¬∑ <a href={adv.creativeUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">creative PNG</a></>}
-                        {' ¬∑ '}<Link to={`/adverts/${adv.slug}`} target="_blank" className="text-emerald-600 hover:underline">/adverts/{adv.slug}</Link>
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <button onClick={() => loadAdvertForEdit(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">Edit</button>
-                      <button onClick={() => setSharePackId((id) => (id === adv.id ? null : adv.id))} className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer">
-                        {sharePackId === adv.id ? 'Hide share pack' : 'Share pack'}
-                      </button>
-                      <button onClick={() => handleToggleAdvertStatus(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
-                        {adv.status === 'live' ? 'Archive' : 'Set live'}
-                      </button>
-                      <button onClick={() => handleDeleteAdvert(adv.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
-                    </div>
-                  </div>
-                  {sharePackId === adv.id && (
-                    <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        {buildAdvertShareIntents(adv).map((it) => (
-                          <a key={it.key} href={it.href} target="_blank" rel="noopener noreferrer" className="border border-slate-200 text-slate-700 font-mono text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:border-[#0F172A] hover:text-[#0F172A] transition-colors cursor-pointer">
-                            Post to {it.label}
-                          </a>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-slate-500">One-click posts open each app pre-filled. Or copy a caption below ‚Äî each links back to this advert on Manohub. Attach the creative PNG or a kit image as the post picture.</p>
-                      {buildAdvertSharePack(adv).map((cap) => (
-                        <div key={cap.key} className="border border-slate-200 rounded-lg p-2.5">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{cap.label}</span>
-                            <button onClick={() => handleCopyCaption(`${adv.id}-${cap.key}`, cap.text)} className="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer">
-                              {copiedKey === `${adv.id}-${cap.key}` ? 'Copied ‚úì' : 'Copy'}
-                            </button>
-                          </div>
-                          <pre className="text-xs text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{cap.text}</pre>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ADMIN SUBSCRIPTION REQUESTS WORKSPACE
-  if (activeTab === 'admin-subscriptions') {
-    if (!isPlatformAdmin) {
-      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
-    }
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-emerald-600" /> Subscription Requests
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Confirm bank transfer payment before activating a plan.</p>
-        </div>
-
-        {subscriptionsFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{subscriptionsFeedback}</div>}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {subscriptionsLoading ? (
-            <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-          ) : pendingSubscriptions.length === 0 ? (
-            <p className="text-xs text-slate-400">No pending subscription requests.</p>
-          ) : (
-            <div className="space-y-4">
-              {pendingSubscriptions.map((s) => (
-                <div key={s.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold text-slate-800 text-sm">{s.orgName}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{s.planName} ¬∑ {s.billingCycle} ¬∑ Requested {new Date(s.createdAt).toLocaleDateString('en-GB')}</p>
-                    </div>
-                  </div>
-                  {s.notes && <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 mt-2 font-mono">Payment ref: {s.notes}</p>}
-                  <div className="flex items-center gap-4 mt-3">
-                    <button onClick={() => handleActivateSubscription(s)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Activate</button>
-                    <button onClick={() => handleDeclineSubscription(s)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Decline</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ADMIN SERVICE REQUESTS WORKSPACE
-  if (activeTab === 'admin-services') {
-    if (!isPlatformAdmin) {
-      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
-    }
-    const serviceTypeLabels: Record<string, string> = {
-      document_retrieval: 'Document Retrieval', tender_clarification: 'Tender Clarification',
-      eligibility_assessment: 'Eligibility Assessment', bid_readiness_review: 'Bid-Readiness Review',
-      proposal_review: 'Proposal Review', company_profile_prep: 'Company Profile Preparation',
-      supplier_registration_assistance: 'Supplier Registration Assistance', featured_placement: 'Featured Placement Request', other: 'Other',
-    };
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <UserCheck className="h-5 w-5 text-emerald-600" /> Service Requests
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Quote, assign, and track bid-support requests. Internal notes are never visible to the requester.</p>
-        </div>
-
-        {serviceRequestFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{serviceRequestFeedback}</div>}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {serviceRequestsLoading ? (
-            <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-          ) : allServiceRequests.length === 0 ? (
-            <p className="text-xs text-slate-400">No open service requests.</p>
-          ) : (
-            <div className="space-y-4">
-              {allServiceRequests.map((r) => (
-                <div key={r.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h4 className="font-semibold text-slate-800 text-sm">{serviceTypeLabels[r.serviceType]} ‚Äî {r.orgName}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>
-                    </div>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800 shrink-0">{r.status}</span>
-                  </div>
-                  <button onClick={() => toggleExpandRequest(r.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer mt-2">
-                    {expandedRequestId === r.id ? 'Hide activity' : 'View activity & notes'}
-                  </button>
-                  {expandedRequestId === r.id && (
-                    <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
-                      {requestActivities.map((a) => (
-                        <p key={a.id} className={`text-xs ${a.isInternal ? 'text-amber-700 bg-amber-50 rounded p-1.5' : 'text-slate-600'}`}>
-                          {a.isInternal && <strong>[Internal] </strong>}{a.note}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-4 mt-3 flex-wrap">
-                    <button onClick={() => handleAddAdminNote(r.id, false)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Message Customer</button>
-                    <button onClick={() => handleAddAdminNote(r.id, true)} className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer">Internal Note</button>
-                    <button onClick={() => handleQuoteRequest(r.id)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">Add Quote</button>
-                    <select value={r.status} onChange={(e) => handleUpdateRequestStatus(r.id, e.target.value)} className="text-xs border border-slate-200 rounded-lg p-1 bg-white">
-                      <option value="submitted">Submitted</option>
-                      <option value="quoted">Quoted</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // SUPPLIER PIPELINE WORKSPACE
-  if (activeTab === 'pipeline') {
-    if (isPlatformAdmin) {
-      return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
-          Tracking bid pipelines is subscriber tooling for Tender Publishers/Viewers, not platform admins.
-        </div>
-      );
-    }
-    const stageColor = (stage: PipelineStage) =>
-      stage === 'won' ? 'bg-emerald-100 text-emerald-800' :
-      stage === 'lost' || stage === 'withdrawn' ? 'bg-slate-200 text-slate-600' :
-      stage === 'submitted' ? 'bg-blue-100 text-blue-800' :
-      'bg-amber-100 text-amber-800';
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs flex items-center justify-between">
-          <div>
-            <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-              <BarChart2 className="h-5 w-5 text-emerald-600" /> My Bid Pipeline
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">Private to {activeOrg.name} ‚Äî never visible to buyers or other suppliers.</p>
-          </div>
-          {canExport && pipeline.length > 0 && (
-            <button onClick={handleExportPipelineCsv} className="btn-geometric-secondary flex items-center gap-2 cursor-pointer text-xs">
-              <Download className="h-3.5 w-3.5" /> Export CSV
-            </button>
-          )}
-        </div>
-
-        {pipelineFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{pipelineFeedback}</div>}
-
-        {recommended.length > 0 && (
-          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6">
-            <h4 className="font-display font-bold text-emerald-900 text-sm mb-3 flex items-center gap-2"><Sparkle className="h-4 w-4" /> Recommended For You</h4>
-            <p className="text-xs text-emerald-700 mb-3">Matched to the sectors in your Supplier Profile.</p>
-            <div className="space-y-2">
-              {recommended.map((op) => (
-                <div key={op.id} className="bg-white border border-emerald-100 rounded-xl p-3 flex items-center justify-between gap-3">
-                  <Link to={`/tenders/${op.slug}`} target="_blank" className="text-sm font-semibold text-slate-800 hover:underline">{op.title}</Link>
-                  <button onClick={() => handleAddToPipeline(op.id)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer shrink-0">Add to Pipeline</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {pipelineLoading ? (
-            <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-          ) : pipeline.length === 0 ? (
-            <p className="text-xs text-slate-400">Nothing in your pipeline yet. Save a tender from the public search page or add a recommended one above.</p>
-          ) : (
-            <div className="space-y-3">
-              {pipeline.map((p) => (
-                <div key={p.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <Link to={`/tenders/${p.opportunitySlug}`} target="_blank" className="font-semibold text-slate-800 text-sm hover:underline">{p.opportunityTitle}</Link>
-                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">Deadline: {p.submissionDeadline ? new Date(p.submissionDeadline).toLocaleDateString('en-GB') : '‚Äî'}</p>
-                    </div>
-                    <button onClick={() => handleRemoveFromPipeline(p.id)} className="text-xs text-red-500 hover:underline cursor-pointer shrink-0">Remove</button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 mt-3">
-                    <select value={p.stage} onChange={(e) => handleStageChange(p, e.target.value as PipelineStage)}
-                      className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border-0 cursor-pointer ${stageColor(p.stage)}`}>
-                      {PIPELINE_STAGES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                    </select>
-                    <button onClick={() => handleUpdateBidValue(p)} className="text-xs text-slate-500 hover:underline cursor-pointer">
-                      {p.bidValue ? `Le ${p.bidValue.toLocaleString()}` : 'Set bid value'}
-                    </button>
-                  </div>
-                  {p.notes && <p className="text-xs text-slate-500 mt-2">{p.notes}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ADMIN ANALYTICS WORKSPACE
-  if (activeTab === 'admin-analytics') {
-    if (!isPlatformAdmin) {
-      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
-    }
-    const StatBlock = ({ title, stats }: { title: string; stats: { label: string; count: number }[] }) => (
-      <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-        <h4 className="font-display font-bold text-slate-900 text-sm mb-3">{title}</h4>
-        {stats.length === 0 ? <p className="text-xs text-slate-400">No data yet.</p> : (
-          <div className="space-y-1.5">
-            {stats.map((s, i) => (
-              <div key={i} className="flex items-center justify-between text-xs">
-                <span className="text-slate-600">{s.label}</span>
-                <span className="font-mono font-bold text-slate-800">{s.count}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-emerald-600" /> Platform Analytics
-          </h3>
-        </div>
-
-        {analyticsFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{analyticsFeedback}</div>}
-
-        {analyticsLoading ? (
-          <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-        ) : analytics ? (
-          <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white border border-slate-100 rounded-2xl p-5">
-                <span className="text-slate-400 font-semibold text-xs block">Organizations</span>
-                <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{analytics.total_organizations}</span>
-              </div>
-              <div className="bg-white border border-slate-100 rounded-2xl p-5">
-                <span className="text-slate-400 font-semibold text-xs block">Buyers</span>
-                <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{analytics.total_buyers}</span>
-              </div>
-              <div className="bg-white border border-slate-100 rounded-2xl p-5">
-                <span className="text-slate-400 font-semibold text-xs block">Suppliers</span>
-                <span className="font-display font-extrabold text-2xl text-slate-900 block mt-2">{analytics.total_suppliers}</span>
-              </div>
-              <div className="bg-white border border-slate-100 rounded-2xl p-5">
-                <span className="text-slate-400 font-semibold text-xs block">Verified Suppliers</span>
-                <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">{analytics.total_verified_suppliers}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <StatBlock title="Opportunities by Status" stats={analytics.opportunities_by_status} />
-              <StatBlock title="Opportunities by Sector" stats={analytics.opportunities_by_sector} />
-              <StatBlock title="Opportunities by District" stats={analytics.opportunities_by_district} />
-              <StatBlock title="Most Followed Buyers" stats={analytics.most_followed_buyers} />
-              <StatBlock title="Active Subscriptions by Plan" stats={analytics.subscriptions_by_plan} />
-              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-                <h4 className="font-display font-bold text-slate-900 text-sm mb-3 flex items-center gap-2"><Trophy className="h-4 w-4 text-purple-600" /> Contract Awards by Sector</h4>
-                {analytics.awards_by_sector.length === 0 ? <p className="text-xs text-slate-400">No awards recorded yet.</p> : (
-                  <div className="space-y-1.5">
-                    {analytics.awards_by_sector.map((s, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs">
-                        <span className="text-slate-600">{s.label} ({s.count})</span>
-                        {s.total_value !== undefined && <span className="font-mono font-bold text-slate-800">Le {s.total_value.toLocaleString()}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-                <h4 className="font-display font-bold text-slate-900 text-sm mb-3 flex items-center gap-2"><Eye className="h-4 w-4" /> Most Viewed Tenders</h4>
-                <div className="space-y-1.5">
-                  {analytics.most_viewed.map((v, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs">
-                      <Link to={`/tenders/${v.slug}`} target="_blank" className="text-slate-600 hover:underline truncate">{v.title}</Link>
-                      <span className="font-mono font-bold text-slate-800 shrink-0 ml-2">{v.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-                <h4 className="font-display font-bold text-slate-900 text-sm mb-3 flex items-center gap-2"><Award className="h-4 w-4" /> Most Saved Tenders</h4>
-                <div className="space-y-1.5">
-                  {analytics.most_saved.map((v, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs">
-                      <Link to={`/tenders/${v.slug}`} target="_blank" className="text-slate-600 hover:underline truncate">{v.title}</Link>
-                      <span className="font-mono font-bold text-slate-800 shrink-0 ml-2">{v.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </>
-        ) : null}
-      </div>
-    );
-  }
-
-  // 2. CAMPAIGNS WORKSPACE
-  if (activeTab === 'campaigns') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display font-bold text-slate-900 text-lg">Establish Campaign Plan</h3>
-            {editingCampaignId && (
-              <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 shrink-0">
-                Editing
-              </span>
-            )}
-          </div>
-          {campFeedback && (
-            <div className={`text-sm p-4 rounded-xl mb-4 font-semibold ${campFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-              {campFeedback}
-            </div>
-          )}
-          <form onSubmit={handleCreateCampaign} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Campaign Slogan / Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Christmas Parboiled Rice Promo"
-                  value={newCampName}
-                  onChange={(e) => setNewCampName(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Primary Objective</label>
-                <select
-                  value={newCampObjective}
-                  onChange={(e) => setNewCampObjective(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>WhatsApp enquiries</option>
-                  <option>Product sales & bookings</option>
-                  <option>NGO public outreach</option>
-                  <option>Investor Enquiries</option>
-                  <option>Tourism & Bookings</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Operating District (Sierra Leone)</label>
-                <select
-                  value={newCampDistrict}
-                  onChange={(e) => setNewCampDistrict(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>Western Area Urban</option>
-                  <option>Bo</option>
-                  <option>Kenema</option>
-                  <option>Makeni</option>
-                  <option>Port Loko</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Diaspora Hub Focus</label>
-                <select
-                  value={newCampDiaspora}
-                  onChange={(e) => setNewCampDiaspora(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>United Kingdom</option>
-                  <option>United States</option>
-                  <option>Canada</option>
-                  <option>Germany</option>
-                  <option>Sweden</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Brief Description</label>
-              <textarea
-                required
-                rows={2}
-                placeholder="Targeting diaspora investors to support smallholder rice producers in Bo..."
-                value={newCampDesc}
-                onChange={(e) => setNewCampDesc(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Allocated Budget (Leones)</label>
-              <input
-                type="number"
-                required
-                placeholder="15000000"
-                value={newCampBudget}
-                onChange={(e) => setNewCampBudget(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              />
-            </div>
-            {editingCampaignId && (
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Status</label>
-                <select
-                  value={newCampStatus}
-                  onChange={(e: any) => setNewCampStatus(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>Draft</option>
-                  <option>Planning</option>
-                  <option>Approved</option>
-                  <option>Scheduled</option>
-                  <option>Active</option>
-                  <option>Completed</option>
-                  <option>Failed</option>
-                </select>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <button type="submit" disabled={campSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                {campSubmitting ? 'Saving‚Ä¶' : editingCampaignId ? 'Save Changes' : 'Launch Campaign Plan'}
-              </button>
-              {editingCampaignId && (
-                <button type="button" onClick={resetCampaignForm} className="text-xs font-semibold text-slate-500 hover:underline cursor-pointer">
-                  Cancel edit
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-
-        {/* Existing Campaigns */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <h3 className="font-display font-bold text-slate-900 text-lg">Active Campaign Scopes</h3>
-            <div className="flex items-center gap-3">
-              {healthCheckFeedback && (
-                <span className="text-xs font-medium text-slate-500">{healthCheckFeedback}</span>
-              )}
-              <button
-                type="button"
-                onClick={handleRunHealthCheck}
-                disabled={runningHealthCheck}
-                className="flex items-center gap-1.5 bg-white border border-slate-200 hover:border-emerald-300 text-slate-700 font-semibold px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer disabled:opacity-50"
-              >
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                {runningHealthCheck ? 'Checking‚Ä¶' : 'Run Health Check Now'}
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {campaigns.map((camp) => {
-              const statusColor: Record<Campaign['status'], string> = {
-                Draft: 'bg-slate-200 text-slate-600',
-                Planning: 'bg-slate-100 text-slate-600',
-                Approved: 'bg-amber-100 text-amber-800',
-                Scheduled: 'bg-blue-100 text-blue-800',
-                Active: 'bg-emerald-100 text-emerald-800',
-                Completed: 'bg-indigo-100 text-indigo-800',
-                Failed: 'bg-red-100 text-red-700',
-              };
-              return (
-                <div key={camp.id} className={`bg-white border rounded-2xl p-5 shadow-xs flex flex-col justify-between ${editingCampaignId === camp.id ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-100'}`}>
-                  <div>
-                    <div className="flex justify-between items-start gap-2 mb-3">
-                      <h4 className="font-display font-bold text-slate-900 leading-tight">{camp.name}</h4>
-                      <select
-                        value={camp.status}
-                        disabled={campStatusUpdatingId === camp.id}
-                        onChange={(e: any) => handleChangeCampaignStatus(camp, e.target.value)}
-                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border-0 cursor-pointer shrink-0 disabled:opacity-50 ${statusColor[camp.status]}`}
-                      >
-                        <option>Draft</option>
-                        <option>Planning</option>
-                        <option>Approved</option>
-                        <option>Scheduled</option>
-                        <option>Active</option>
-                        <option>Completed</option>
-                        <option>Failed</option>
-                      </select>
-                    </div>
-                    <p className="text-slate-500 text-xs leading-relaxed mb-4">{camp.description}</p>
-                  </div>
-                  <div className="border-t border-slate-50 pt-4 space-y-2 text-xs">
-                    <div className="flex justify-between text-slate-600">
-                      <span className="font-medium">District:</span>
-                      <span className="font-mono text-slate-500">{camp.district || 'All Sierra Leone'}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span className="font-medium">Diaspora:</span>
-                      <span className="font-mono text-slate-500">{camp.diasporaMarket || 'All Diaspora'}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span className="font-medium">Budget:</span>
-                      <span className="font-mono font-bold text-slate-800">Le {camp.totalBudget.toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-mono pt-2">
-                    {campaignActivity[camp.id]?.contentCount ?? 0} content ¬∑ {campaignActivity[camp.id]?.trackingLinkCount ?? 0} tracking links ¬∑ {campaignActivity[camp.id]?.totalClicks ?? 0} clicks
-                  </div>
-                  <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-50">
-                    <button type="button" onClick={() => handleEditCampaign(camp)} className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer">
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSuggestContentPlan(camp)}
-                      className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      <Sparkles className="h-3 w-3" /> Suggest Content Plan
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteCampaign(camp)}
-                      disabled={deletingCampaignId === camp.id}
-                      className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50 ml-auto"
-                    >
-                      {deletingCampaignId === camp.id ? 'Deleting‚Ä¶' : 'Delete'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {contentPlanCampaignId && (() => {
-          const camp = campaigns.find((c) => c.id === contentPlanCampaignId);
-          if (!camp) return null;
-          return (
-            <div className="bg-emerald-950 text-white rounded-2xl p-6 shadow-md space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="inline-flex items-center gap-2 bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs px-3 py-1 rounded-full font-mono uppercase tracking-widest">
-                    <Sparkles className="h-3.5 w-3.5" /> AI Content Plan ‚Äî {camp.name}
-                  </span>
-                  <p className="text-emerald-300 text-[11px] mt-2">Nothing is saved yet ‚Äî pick which drafts to actually create below.</p>
-                </div>
-                <button type="button" onClick={() => setContentPlanCampaignId(null)} className="text-emerald-400 hover:text-white cursor-pointer">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {contentPlanLoading && (
-                <p className="text-xs text-emerald-300 italic">Drafting a content plan‚Ä¶</p>
-              )}
-              {contentPlanError && (
-                <p className="text-xs text-red-300">{contentPlanError}</p>
-              )}
-              {!contentPlanLoading && contentPlanItems.length > 0 && (
-                <div className="space-y-3">
-                  {contentPlanItems.map((item, idx) => (
-                    <label key={idx} className="flex items-start gap-3 bg-emerald-900/40 border border-emerald-800 p-3.5 rounded-xl cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={contentPlanSelected.has(idx)}
-                        onChange={() => toggleContentPlanItem(idx)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">{item.title}</span>
-                          <span className="text-[9px] font-mono text-emerald-400 shrink-0 ml-2">{item.contentType} ¬∑ {item.platform} ¬∑ {item.scheduledDate}</span>
-                        </div>
-                        <p className="text-[11px] text-emerald-100 leading-relaxed">{item.headline}</p>
-                        <p className="text-[10px] text-emerald-300 leading-relaxed line-clamp-2">{item.body}</p>
-                        {item.hashtags?.length > 0 && (
-                          <p className="text-[10px] text-emerald-400 font-mono">{item.hashtags.join(' ')}</p>
-                        )}
-                      </div>
-                    </label>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={handleCreateSelectedDrafts}
-                    disabled={creatingContentPlanDrafts || contentPlanSelected.size === 0}
-                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {creatingContentPlanDrafts ? 'Creating‚Ä¶' : `Create ${contentPlanSelected.size} Selected Draft${contentPlanSelected.size === 1 ? '' : 's'}`}
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-      </div>
-    );
-  }
-
-  // 3. CONTENT STUDIO WORKSPACE
-  if (activeTab === 'content') {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
-        {/* Left Side: Template Editor */}
-        <div className="lg:col-span-7 bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-display font-bold text-slate-900 text-lg">Central Content Composer</h3>
-              <p className="text-xs text-slate-500">Draft templates manually or trigger our server-side AI assistant on the right panel.</p>
-            </div>
-            {editingContentId && (
-              <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 shrink-0">
-                Editing
-              </span>
-            )}
-          </div>
-          {contentFeedback && (
-            <div className={`text-sm p-3.5 rounded-xl font-semibold ${contentFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-              {contentFeedback}
-            </div>
-          )}
-          <form onSubmit={handleSaveContent} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Item Title</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Organic native rice showcase"
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Content Type</label>
-                <select
-                  value={editType}
-                  onChange={(e: any) => setEditType(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>Social Post</option>
-                  <option>WhatsApp Promo</option>
-                  <option>Video Script</option>
-                  <option>Radio Brief</option>
-                  <option>Email News</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Target Platform</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Facebook & WhatsApp"
-                  value={editPlatform}
-                  onChange={(e) => setEditPlatform(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Headline / Main Hook</label>
-              <input
-                type="text"
-                required
-                placeholder="Bring Sierra Leone flavar back to your dinner table!"
-                value={editHeadline}
-                onChange={(e) => setEditHeadline(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Body Caption / Script Narrative</label>
-              <textarea
-                required
-                rows={4}
-                placeholder="Describe product advantages, delivery networks, and support options..."
-                value={editBody}
-                onChange={(e) => setEditBody(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500 font-sans"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Hashtags</label>
-                <input
-                  type="text"
-                  placeholder="#Manohub, #EatSalone"
-                  value={editHashtagsInput}
-                  onChange={(e) => setEditHashtagsInput(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Comma-separated</p>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Scheduled Date</label>
-                <input
-                  type="date"
-                  value={editScheduledDate}
-                  onChange={(e) => setEditScheduledDate(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                />
-              </div>
-            </div>
-            {editingContentId && (
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Status</label>
-                <select
-                  value={editStatus}
-                  onChange={(e: any) => setEditStatus(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>Draft</option>
-                  <option>Awaiting Review</option>
-                  <option>Approved</option>
-                  <option>Scheduled</option>
-                  <option>Published</option>
-                  <option>Failed</option>
-                </select>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <button type="submit" disabled={contentSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                {contentSubmitting ? 'Saving‚Ä¶' : editingContentId ? 'Save Changes' : 'Save Draft Template'}
-              </button>
-              {editingContentId && (
-                <button type="button" onClick={resetContentComposer} className="text-xs font-semibold text-slate-500 hover:underline cursor-pointer">
-                  Cancel edit
-                </button>
-              )}
-            </div>
-          </form>
-
-          {/* List of drafts */}
-          <div className="border-t border-slate-100 pt-6 space-y-4">
-            <h4 className="font-display font-bold text-slate-800 text-sm">Stored Content Catalog ({contentItems.length})</h4>
-            <div className="space-y-3">
-              {contentItems.length === 0 && (
-                <p className="text-xs text-slate-400">No content items yet ‚Äî save a draft above or generate one with AI.</p>
-              )}
-              {contentItems.map((item) => {
-                const statusColor: Record<ContentItem['status'], string> = {
-                  Draft: 'bg-slate-200 text-slate-600',
-                  'Awaiting Review': 'bg-blue-100 text-blue-800',
-                  Approved: 'bg-amber-100 text-amber-800',
-                  Scheduled: 'bg-indigo-100 text-indigo-800',
-                  Published: 'bg-emerald-100 text-emerald-800',
-                  Failed: 'bg-red-100 text-red-700',
-                };
-                return (
-                  <div key={item.id} className={`bg-slate-50 border rounded-xl p-4 ${editingContentId === item.id ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-100'}`}>
-                    <div className="flex justify-between items-start gap-3 mb-2">
-                      <span className="font-bold text-slate-800 text-sm">{item.title}</span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="bg-slate-200 text-slate-700 font-mono text-[10px] px-2 py-0.5 rounded-full">{item.contentType}</span>
-                        <select
-                          value={item.status}
-                          disabled={contentStatusUpdatingId === item.id}
-                          onChange={(e: any) => handleChangeContentStatus(item, e.target.value)}
-                          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border-0 cursor-pointer disabled:opacity-50 ${statusColor[item.status]}`}
-                        >
-                          <option>Draft</option>
-                          <option>Awaiting Review</option>
-                          <option>Approved</option>
-                          <option>Scheduled</option>
-                          <option>Published</option>
-                          <option>Failed</option>
-                        </select>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-600 font-medium italic">"{item.headline}"</p>
-                    <p className="text-[11px] text-slate-500 mt-2 leading-relaxed line-clamp-2">{item.bodyText}</p>
-                    {item.hashtags.length > 0 && (
-                      <p className="text-[10px] text-emerald-600 font-mono mt-2">{item.hashtags.join(' ')}</p>
-                    )}
-                    <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-100">
-                      <span className="text-[10px] text-slate-400 font-mono">{item.platform} ¬∑ {item.scheduledDate || 'unscheduled'}</span>
-                      <button type="button" onClick={() => handleEditContentItem(item)} className="ml-auto text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer">
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteContentItem(item)}
-                        disabled={deletingContentId === item.id}
-                        className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50"
-                      >
-                        {deletingContentId === item.id ? 'Deleting‚Ä¶' : 'Delete'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Gemini AI Assistant */}
-        <div className="lg:col-span-5 bg-emerald-950 text-white rounded-2xl p-6 shadow-md space-y-6 flex flex-col justify-between">
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs px-3 py-1 rounded-full font-mono uppercase tracking-widest">
-              <Sparkles className="h-3.5 w-3.5 animate-pulse" /> AI Campaign Assistant
-            </div>
-            <h3 className="font-display font-bold text-xl uppercase tracking-wider !text-white">Localized Coprocessor</h3>
-            <p className="text-emerald-200 text-xs leading-relaxed">
-              Connect to our secure server-side Gemini 3.5 API. Generate high-conversion social captions, content marketing ideas, briefs, or audio/video scripts tailored for Sierra Leonean audiences.
-            </p>
-
-            <div className="space-y-3 pt-2">
-              <div>
-                <label className="block text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Completions Mode</label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => setAiOption('captions')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      aiOption === 'captions' || aiOption === 'copy' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-emerald-900/40 border-emerald-800/50 text-emerald-300'
-                    }`}
-                  >
-                    Social Captions
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAiOption('ideas')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      aiOption === 'ideas' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-emerald-900/40 border-emerald-800/50 text-emerald-300'
-                    }`}
-                  >
-                    Content Ideas
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAiOption('script')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      aiOption === 'script' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-emerald-900/40 border-emerald-800/50 text-emerald-300'
-                    }`}
-                  >
-                    Radio/TV Script
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAiOption('brief')}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      aiOption === 'brief' ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-emerald-900/40 border-emerald-800/50 text-emerald-300'
-                    }`}
-                  >
-                    Campaign Brief
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center">
-                  <label className="block text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Brand Tone of Voice</label>
-                  <span className="text-[9px] text-emerald-400 font-mono italic">Synced to Brand Kit</span>
-                </div>
-                <input
-                  type="text"
-                  value={brandKit.toneOfVoice}
-                  onChange={(e) => setBrandKit({ ...brandKit, toneOfVoice: e.target.value })}
-                  placeholder="e.g. Warm, Honest, Proudly Leonean"
-                  className="mt-1 w-full bg-emerald-900/40 border border-emerald-800/60 rounded-xl p-2 px-3 text-xs text-white focus:outline-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-emerald-300 uppercase tracking-wider">Describe your local product / goal</label>
-                <textarea
-                  rows={3}
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  className="mt-1 w-full bg-emerald-900/40 border border-emerald-800/60 rounded-xl p-2.5 text-xs focus:outline-emerald-500 text-white placeholder-emerald-400"
-                />
-              </div>
-
-              <button
-                onClick={handleCallAI}
-                disabled={aiLoading}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800/50 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {aiLoading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" /> Cooking Salone Content...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" /> Trigger Gemini Complete
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="border-t border-emerald-900/80 pt-4 mt-6">
-            <span className="text-[10px] font-bold text-emerald-300 uppercase block mb-2 tracking-wider">Completions Response</span>
-            {aiLoading && (
-              <div className="bg-emerald-900/30 border border-emerald-800 p-4 rounded-xl text-xs text-emerald-200 italic animate-pulse">
-                "Padi, de AI de cook de content. Preparing your custom brand voice layout..."
-              </div>
-            )}
-            {aiError && (
-              <div className="bg-red-950 border border-red-900/80 p-3 rounded-xl text-xs text-red-200 flex gap-2">
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
-                <span>{aiError}</span>
-              </div>
-            )}
-            {!aiLoading && aiFormat === 'captions' && aiCaptionItems.length > 0 && (
-              <div className="space-y-3">
-                {aiCaptionItems.map((item, idx) => (
-                  <div key={idx} className="bg-emerald-900/40 border border-emerald-800 p-3.5 rounded-xl text-left space-y-1.5">
-                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Variant {idx + 1}</span>
-                    <p className="text-xs font-bold text-white">{item.headline}</p>
-                    <p className="text-[11px] text-emerald-100 leading-relaxed whitespace-pre-wrap">{item.body}</p>
-                    {item.hashtags?.length > 0 && (
-                      <p className="text-[10px] text-emerald-400 font-mono">{item.hashtags.join(' ')}</p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleUseCaptionInComposer(item)}
-                      className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer"
-                    >
-                      Use in Composer
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleSaveAllAiItems}
-                  disabled={savingAllAiItems}
-                  className="w-full py-2 bg-emerald-800 border border-emerald-700 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {savingAllAiItems ? 'Saving‚Ä¶' : `Save All ${aiCaptionItems.length} as Drafts`}
-                </button>
-              </div>
-            )}
-            {!aiLoading && aiFormat === 'ideas' && aiIdeaItems.length > 0 && (
-              <div className="space-y-3">
-                {aiIdeaItems.map((idea, idx) => (
-                  <div key={idx} className="bg-emerald-900/40 border border-emerald-800 p-3.5 rounded-xl text-left space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-white">{idea.title}</p>
-                      <span className="text-[9px] font-mono text-emerald-400 shrink-0 ml-2">{idea.platform}</span>
-                    </div>
-                    <p className="text-[11px] text-emerald-100 leading-relaxed">{idea.concept}</p>
-                    <p className="text-[10px] text-emerald-300 italic">‚Üí {idea.executionStep}</p>
-                    <button
-                      type="button"
-                      onClick={() => handleUseIdeaInComposer(idea)}
-                      className="w-full mt-1.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer"
-                    >
-                      Use in Composer
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleSaveAllAiItems}
-                  disabled={savingAllAiItems}
-                  className="w-full py-2 bg-emerald-800 border border-emerald-700 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {savingAllAiItems ? 'Saving‚Ä¶' : `Save All ${aiIdeaItems.length} as Drafts`}
-                </button>
-              </div>
-            )}
-            {!aiLoading && aiFormat === 'text' && aiOutput && (
-              <div className="space-y-3">
-                <div className="bg-emerald-900/40 border border-emerald-800 p-4 rounded-xl text-xs text-emerald-100 font-mono overflow-y-auto max-h-56 text-left whitespace-pre-wrap">
-                  {aiOutput}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(aiOutput);
-                      setContentFeedback('Copied to clipboard.');
-                      setTimeout(() => setContentFeedback(''), 3000);
-                    }}
-                    className="py-2 bg-emerald-800 border border-emerald-700 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer"
-                  >
-                    Copy to Clip
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      resetContentComposer();
-                      setEditBody(aiOutput);
-                      setEditTitle(`AI ${aiOption === 'script' ? 'Script' : 'Brief'} - ${aiPrompt.slice(0, 20)}...`);
-                      setEditType(aiOption === 'script' ? 'Radio Brief' : 'Social Post');
-                      setEditHeadline(aiOption === 'script' ? 'Generated Radio/TV Script' : 'Generated Campaign Brief');
-                      setContentFeedback('Loaded into the Composer ‚Äî review and save.');
-                      setTimeout(() => setContentFeedback(''), 4000);
-                    }}
-                    className="py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider rounded-lg transition-all cursor-pointer"
-                  >
-                    Use in Composer
-                  </button>
-                </div>
-              </div>
-            )}
-            {!aiLoading && !aiError && aiFormat === 'text' && !aiOutput && (
-              <div className="text-xs text-emerald-400 italic">
-                No completions loaded. Enter prompts above to trigger instant completions.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 4. CALENDAR WORKSPACE
-  if (activeTab === 'calendar') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-display font-bold text-slate-900 text-lg">Social Publishing Calendar</h3>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="p-1 hover:bg-slate-100 rounded-lg cursor-pointer">
-                <ChevronLeft className="h-4 w-4 text-slate-500" />
-              </button>
-              <span className="text-xs text-slate-500 font-medium w-32 text-center">
-                {calendarMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
-              </span>
-              <button onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="p-1 hover:bg-slate-100 rounded-lg cursor-pointer">
-                <ChevronRight className="h-4 w-4 text-slate-500" />
-              </button>
-            </div>
-          </div>
-
-          {/* Grid View ‚Äî real month, real days-in-month, real scheduled_date matches */}
-          <div className="grid grid-cols-7 gap-2 border border-slate-100 rounded-xl overflow-hidden p-2 bg-slate-50">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-              <div key={day} className="text-center font-bold text-xs text-slate-400 py-2">{day}</div>
-            ))}
-            {getCalendarCells(calendarMonth).map((day, idx) => {
-              if (!day) return <div key={idx} />;
-              const scheduledPost = contentItems.find(item => item.scheduledDate === formatDateKey(day));
-              return (
-                <div key={idx} className="bg-white border border-slate-100 rounded-lg p-2 min-h-24 flex flex-col justify-between relative group hover:shadow-xs transition-shadow">
-                  <span className="font-mono text-xs font-bold text-slate-400">{day.getDate()}</span>
-                  {scheduledPost && (
-                    <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-1.5 rounded text-[10px] font-semibold leading-tight line-clamp-2">
-                      {scheduledPost.title}
-                    </div>
-                  )}
-                  {scheduledPost && (
-                    <button
-                      onClick={() => setSelectedExportPost(scheduledPost)}
-                      className="absolute inset-0 bg-slate-900/10 backdrop-blur-xs opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-lg transition-opacity cursor-pointer"
-                    >
-                      <Eye className="text-slate-800 bg-white rounded-full p-1 h-6 w-6 shadow-sm" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* High Fidelity Export Package Modal/Panel */}
-        {selectedExportPost && (
-          <div className="bg-white border-2 border-emerald-500 rounded-2xl p-6 shadow-md space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <span className="font-display font-bold text-slate-800">Export High-Fidelity Manual Package</span>
-              <button onClick={() => setSelectedExportPost(null)} className="text-slate-400 hover:text-slate-600 text-xs font-semibold cursor-pointer">Close</button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3 text-sm">
-                <div>
-                  <span className="text-xs text-slate-400 uppercase font-bold block">PLATFORM TARGET</span>
-                  <span className="font-semibold text-slate-700">{selectedExportPost.platform}</span>
-                </div>
-                <div>
-                  <span className="text-xs text-slate-400 uppercase font-bold block">RECOMMENDED TIMING</span>
-                  <span className="font-semibold text-slate-700">18:00 GMT (Peak Leonean Engagement)</span>
-                </div>
-                <div>
-                  <span className="text-xs text-slate-400 uppercase font-bold block">COPY CAPTION</span>
-                  <div className="bg-slate-50 border border-slate-100 p-3 rounded-lg text-xs text-slate-700 font-mono mt-1 relative">
-                    <p className="font-bold">{selectedExportPost.headline}</p>
-                    <p className="mt-2">{selectedExportPost.bodyText}</p>
-                    <p className="text-blue-600 mt-2">{selectedExportPost.hashtags.join(' ')}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex flex-col justify-between text-xs space-y-3">
-                <span className="font-bold text-slate-700 block uppercase">Attach Media Assets</span>
-                {exportAssets.length === 0 ? (
-                  <p className="text-slate-400">No media assets uploaded yet ‚Äî the export will still include caption.txt.</p>
-                ) : (
-                  <div className="max-h-32 overflow-y-auto space-y-1.5">
-                    {exportAssets.map((asset) => (
-                      <label key={asset.id} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={exportSelectedAssetIds.has(asset.id)}
-                          onChange={() => toggleExportAsset(asset.id)}
-                          className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span className="truncate text-slate-700">{asset.fileName}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                <ul className="space-y-2">
-                  <li className="flex items-center gap-2"><Check className="text-emerald-600 h-4 w-4 shrink-0" /> Copy generated caption safely</li>
-                  <li className="flex items-center gap-2"><Check className="text-emerald-600 h-4 w-4 shrink-0" /> Attach media assets from the Library above</li>
-                  <li className="flex items-center gap-2"><Check className="text-emerald-600 h-4 w-4 shrink-0" /> Embed UTM tracking link</li>
-                  <li className="flex items-center gap-2"><Check className="text-emerald-600 h-4 w-4 shrink-0" /> Upload to target social platform manually</li>
-                </ul>
-                {exportFeedback && <p className="text-red-600 font-semibold">{exportFeedback}</p>}
-                <button
-                  onClick={handleDownloadCompiledAssets}
-                  disabled={isGeneratingExport}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-semibold py-2 rounded-xl flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Download className="h-4 w-4" /> {isGeneratingExport ? 'Compiling‚Ä¶' : 'Download Compiled Assets'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 5. MEDIA LIBRARY WORKSPACE
-  if (activeTab === 'media') {
-    return (
-      <div className="space-y-8 text-left">
-        {/* Controls */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-100 p-6 rounded-2xl">
-          <div>
-            <h3 className="font-display font-bold text-slate-900 text-lg">Centralized Media Library</h3>
-            <p className="text-xs text-slate-500">Real, storage-backed assets ‚Äî upload logos, photography, and campaign files.</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={lowBandwidthMode}
-                onChange={(e) => setLowBandwidthMode(e.target.checked)}
-                className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500"
-              />
-              Low-Bandwidth Mode
-            </label>
-            <input
-              type="text"
-              value={uploadFolder}
-              onChange={(e) => setUploadFolder(e.target.value)}
-              placeholder="Folder"
-              className="w-28 border border-slate-200 rounded-xl p-2 text-xs bg-slate-50 focus:bg-white focus:outline-emerald-500"
-            />
-            <input ref={mediaFileInputRef} type="file" onChange={handleMediaFileChange} className="hidden" />
-            <button
-              onClick={() => mediaFileInputRef.current?.click()}
-              disabled={isUploadingMedia}
-              className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-2 cursor-pointer"
-            >
-              <Upload className="h-4 w-4" /> {isUploadingMedia ? 'Uploading‚Ä¶' : 'Upload Asset'}
-            </button>
-          </div>
-        </div>
-
-        {mediaFeedback && (
-          <div className={`text-sm p-4 rounded-xl font-semibold ${mediaFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-            {mediaFeedback}
-          </div>
-        )}
-
-        {mediaLoading ? (
-          <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-        ) : mediaAssets.length === 0 ? (
-          <div className="bg-white border border-slate-100 rounded-2xl p-10 text-center text-slate-400 text-sm">
-            No media assets uploaded yet. Use "Upload Asset" above to add your first file.
-          </div>
-        ) : (
-          <>
-            {/* Folders Grid ‚Äî real counts derived from uploaded assets */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {mediaFolders.map((folder) => (
-                <div key={folder} className="bg-white border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow text-left">
-                  <FolderOpen className="text-emerald-600 h-10 w-10 mb-4" />
-                  <h4 className="font-display font-bold text-slate-800 text-sm leading-tight">{folder}</h4>
-                  <span className="text-[10px] text-slate-400 font-mono mt-1 block uppercase">
-                    {mediaAssets.filter((a) => a.folder === folder).length} Files
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Asset List ‚Äî real files, real sizes, real delete/view */}
-            <div className="space-y-4">
-              <h4 className="font-display font-bold text-slate-900 text-sm">All Uploads</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
-                {mediaAssets.map((asset) => {
-                  const isImage = asset.mimeType?.startsWith('image/');
-                  return (
-                    <div key={asset.id} className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs relative group">
-                      <button
-                        onClick={() => handleViewMediaAsset(asset)}
-                        className="w-full bg-slate-100 h-32 flex items-center justify-center text-slate-400 cursor-pointer"
-                      >
-                        {lowBandwidthMode ? (
-                          <span className="text-[10px] font-mono text-slate-400">Low-Res Placeholder</span>
-                        ) : isImage ? (
-                          <ImageIcon className="h-8 w-8 text-slate-300" />
-                        ) : (
-                          <FileText className="h-8 w-8 text-slate-300" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteMediaAsset(asset)}
-                        className="absolute top-2 right-2 bg-white/90 border border-slate-200 rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                      </button>
-                      <div className="p-3 text-left">
-                        <span className="font-semibold text-slate-700 text-xs block truncate">{asset.fileName}</span>
-                        <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">{formatFileSize(asset.fileSize)} ¬∑ {asset.folder}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // 6. AUDIENCES WORKSPACE
-  if (activeTab === 'audiences') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
-          <div>
-            <h3 className="font-display font-bold text-slate-900 text-lg">Local & Diaspora Audience Planner</h3>
-            <p className="text-xs text-slate-500">Build and save reusable targeting profiles from real districts and diaspora markets, for reference when planning campaigns.</p>
-          </div>
-
-          {audienceFeedback && (
-            <div className={`text-sm p-3.5 rounded-xl font-semibold ${audienceFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-              {audienceFeedback}
-            </div>
-          )}
-
-          <form onSubmit={handleSaveSegment} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Segment Name</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Bo/Kenema rice buyers + UK diaspora"
-                value={segmentName}
-                onChange={(e) => setSegmentName(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Districts (Sierra Leone)</span>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm max-h-48 overflow-y-auto">
-                  {audienceLoading ? (
-                    <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-                  ) : (
-                    audienceDistricts.map((d) => (
-                      <label key={d.id} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={segmentDistricts.includes(d.name)}
-                          onChange={() => toggleSegmentDistrict(d.name)}
-                          className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        {d.name}
-                      </label>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Diaspora Markets</span>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2 text-sm">
-                  {DIASPORA_MARKET_OPTIONS.map((market) => (
-                    <label key={market} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={segmentDiasporaMarkets.includes(market)}
-                        onChange={() => toggleSegmentDiasporaMarket(market)}
-                        className="rounded border-slate-200 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      {market}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Interest Tags</span>
-                <textarea
-                  rows={5}
-                  placeholder="Homecoming Festivals, Agrotech, Music Sponsorships"
-                  value={segmentInterestsInput}
-                  onChange={(e) => setSegmentInterestsInput(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                />
-                <p className="text-[10px] text-slate-400">Comma-separated</p>
-              </div>
-            </div>
-
-            <button type="submit" disabled={savingSegment} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-              {savingSegment ? 'Saving‚Ä¶' : 'Save Segment'}
-            </button>
-          </form>
-
-          <div className="bg-slate-50 border border-slate-100 p-5 rounded-2xl">
-            <span className="text-xs text-slate-600 font-bold uppercase tracking-wider block">Live Reach Estimates</span>
-            <p className="text-xs text-slate-500 mt-1">
-              Real audience-size numbers require a connected Meta or WhatsApp Business ad account ‚Äî see Social Accounts.
-              Not available yet, so no reach figure is shown here rather than an invented one.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Saved Segments ({audienceSegments.length})</h3>
-          {audienceSegments.length === 0 ? (
-            <p className="text-xs text-slate-400">No segments saved yet.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {audienceSegments.map((seg) => (
-                <div key={seg.id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs space-y-3">
-                  <div className="flex justify-between items-start gap-2">
-                    <h4 className="font-display font-bold text-slate-900 leading-tight text-sm">{seg.name}</h4>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSegment(seg)}
-                      disabled={deletingSegmentId === seg.id}
-                      className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50 shrink-0"
-                    >
-                      {deletingSegmentId === seg.id ? 'Deleting‚Ä¶' : 'Delete'}
-                    </button>
-                  </div>
-                  <div className="space-y-1.5 text-xs">
-                    <p className="text-slate-600"><span className="font-medium">Districts:</span> <span className="text-slate-500">{seg.districts.length > 0 ? seg.districts.join(', ') : '‚Äî'}</span></p>
-                    <p className="text-slate-600"><span className="font-medium">Diaspora:</span> <span className="text-slate-500">{seg.diasporaMarkets.length > 0 ? seg.diasporaMarkets.join(', ') : '‚Äî'}</span></p>
-                    <p className="text-slate-600"><span className="font-medium">Interests:</span> <span className="text-slate-500">{seg.interests.length > 0 ? seg.interests.join(', ') : '‚Äî'}</span></p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // 7. SOCIAL ACCOUNTS WORKSPACE
-  if (activeTab === 'social') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <div>
-              <h3 className="font-display font-bold text-slate-900 text-lg">Connected Channels</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                No official Meta/WhatsApp Business API integration exists yet (that needs a developer app and
-                credentials we don't have) ‚Äî this is real, manually-tracked channel status instead of a fake
-                OAuth handshake.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAddingChannel((v) => !v)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer shrink-0"
-            >
-              {addingChannel ? 'Cancel' : '+ Add Channel'}
-            </button>
-          </div>
-
-          {socialFeedback && (
-            <div className={`text-sm p-3.5 rounded-xl font-semibold mb-4 ${socialFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-              {socialFeedback}
-            </div>
-          )}
-
-          {addingChannel && (
-            <form onSubmit={handleAddChannel} className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-6 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Platform</label>
-                  <input
-                    type="text" required
-                    placeholder="e.g. Instagram"
-                    value={newChannelPlatform}
-                    onChange={(e) => setNewChannelPlatform(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Account / Handle</label>
-                  <input
-                    type="text" required
-                    placeholder="@manohub"
-                    value={newChannelAccountName}
-                    onChange={(e) => setNewChannelAccountName(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Status</label>
-                  <select
-                    value={newChannelStatus}
-                    onChange={(e: any) => setNewChannelStatus(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
-                  >
-                    <option>Sandbox</option>
-                    <option>Connected</option>
-                    <option>Expired</option>
-                    <option>Not Configured</option>
-                  </select>
-                </div>
-              </div>
-              <button type="submit" disabled={savingChannel} className="bg-[#0F172A] text-white font-semibold px-4 py-2 rounded-lg text-xs cursor-pointer disabled:opacity-50">
-                {savingChannel ? 'Saving‚Ä¶' : 'Save Channel'}
-              </button>
-            </form>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {socialConnections.length === 0 && (
-              <p className="text-xs text-slate-400">No channels tracked yet ‚Äî add one above.</p>
-            )}
-            {socialConnections.map((conn) => (
-              <div key={conn.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex flex-col justify-between">
-                {editingConnectionId === conn.id ? (
-                  <div className="space-y-3">
-                    <span className="font-display font-bold text-slate-800 text-sm block">{conn.platform}</span>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Account / Handle</label>
-                      <input
-                        type="text"
-                        value={editConnAccountName}
-                        onChange={(e) => setEditConnAccountName(e.target.value)}
-                        className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-slate-50 text-sm focus:outline-emerald-500"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Status</label>
-                        <select
-                          value={editConnStatus}
-                          onChange={(e: any) => setEditConnStatus(e.target.value)}
-                          className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-slate-50 text-sm focus:outline-emerald-500"
-                        >
-                          <option>Sandbox</option>
-                          <option>Connected</option>
-                          <option>Expired</option>
-                          <option>Not Configured</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Health</label>
-                        <select
-                          value={editConnHealth}
-                          onChange={(e: any) => setEditConnHealth(e.target.value)}
-                          className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-slate-50 text-sm focus:outline-emerald-500"
-                        >
-                          <option>Healthy</option>
-                          <option>Warning</option>
-                          <option>Disconnected</option>
-                          <option>None</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleSaveConnectionEdit(conn.id)}
-                        disabled={savingConnEdit}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1.5 rounded-lg text-xs cursor-pointer disabled:opacity-50"
-                      >
-                        {savingConnEdit ? 'Saving‚Ä¶' : 'Save'}
-                      </button>
-                      <button type="button" onClick={() => setEditingConnectionId(null)} className="text-xs font-semibold text-slate-500 hover:underline cursor-pointer">
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="font-display font-bold text-slate-800 text-sm">{conn.platform}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          conn.status === 'Connected' ? 'bg-emerald-100 text-emerald-800' :
-                          conn.status === 'Sandbox' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {conn.status}
-                        </span>
-                      </div>
-                      <span className="text-xs text-slate-500 font-mono block">ACCOUNT: {conn.accountName}</span>
-                    </div>
-
-                    <div className="border-t border-slate-50 pt-4 mt-6 flex justify-between items-center">
-                      <span className="text-xs text-slate-400">Health: <strong className="text-slate-600">{conn.connectionHealth}</strong></span>
-                      <div className="flex items-center gap-4">
-                        <button type="button" onClick={() => handleStartEditConnection(conn)} className="text-emerald-600 hover:text-emerald-700 text-xs font-semibold cursor-pointer">
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteConnection(conn)}
-                          disabled={deletingConnectionId === conn.id}
-                          className="text-red-600 hover:text-red-700 text-xs font-semibold cursor-pointer disabled:opacity-50"
-                        >
-                          {deletingConnectionId === conn.id ? 'Removing‚Ä¶' : 'Remove'}
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 8. ANALYTICS WORKSPACE
-  if (activeTab === 'analytics') {
-    const totalClicks = trackingLinks.reduce((sum, l) => sum + l.clickCount, 0);
-    const clicksLast7Days = clickSeries.slice(-7).reduce((sum, p) => sum + p.count, 0);
-    const maxClickCount = Math.max(1, ...clickSeries.map((p) => p.count));
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-6">Real Tracking Link Performance</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-center">
-              <span className="text-xs text-slate-400 font-bold uppercase block">Active Tracking Links</span>
-              <span className="font-display font-extrabold text-2xl text-slate-800 block mt-2">{trackingLinks.length}</span>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-center">
-              <span className="text-xs text-slate-400 font-bold uppercase block">Total Clicks (All Time)</span>
-              <span className="font-display font-extrabold text-2xl text-slate-800 block mt-2">{totalClicks}</span>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-center">
-              <span className="text-xs text-slate-400 font-bold uppercase block">Clicks (Last 7 Days)</span>
-              <span className="font-display font-extrabold text-2xl text-emerald-600 block mt-2">{clicksLast7Days}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Real click chart ‚Äî from tracking_link_clicks, not a fixed mock array */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Daily Clicks (Last 12 Days)</h3>
-          <div className="flex items-end gap-3 h-48 pt-6">
-            {clickSeries.map((point) => (
-              <div key={point.date} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                <div className="w-full bg-emerald-500 rounded-t-md hover:bg-emerald-600 transition-colors" style={{ height: `${(point.count / maxClickCount) * 100}%` }} />
-                <span className="text-[10px] text-slate-400 font-mono">{point.date.slice(5)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Clicks by day of week ‚Äî real, from raw click timestamps over the last 90 days */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Clicks by Day of Week (Last 90 Days)</h3>
-          {weekdayClicks.every((w) => w.count === 0) ? (
-            <p className="text-xs text-slate-400">No click activity yet ‚Äî this will fill in once your tracking links get real traffic.</p>
-          ) : (
-            <div className="flex items-end gap-3 h-40 pt-6">
-              {weekdayClicks.map((point) => {
-                const maxWeekday = Math.max(1, ...weekdayClicks.map((w) => w.count));
-                return (
-                  <div key={point.weekday} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                    <span className="text-[10px] text-slate-500 font-mono">{point.count}</span>
-                    <div className="w-full bg-indigo-400 rounded-t-md hover:bg-indigo-500 transition-colors" style={{ height: `${(point.count / maxWeekday) * 100}%` }} />
-                    <span className="text-[10px] text-slate-400 font-mono">{point.weekday}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Per-campaign click rollup ‚Äî real, joins tracking_links.campaign_id to campaigns */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-800 text-lg mb-4">Clicks by Campaign</h3>
-          {(() => {
-            const rollup = new Map<string, { name: string; clicks: number; links: number }>();
-            for (const link of trackingLinks) {
-              if (!link.campaignId) continue;
-              const camp = campaigns.find((c) => c.id === link.campaignId);
-              const key = link.campaignId;
-              const entry = rollup.get(key) ?? { name: camp?.name || 'Unknown campaign', clicks: 0, links: 0 };
-              entry.clicks += link.clickCount;
-              entry.links += 1;
-              rollup.set(key, entry);
-            }
-            const rows = Array.from(rollup.values()).sort((a, b) => b.clicks - a.clicks);
-            if (rows.length === 0) {
-              return <p className="text-xs text-slate-400">No tracking links are attached to a campaign yet ‚Äî pick a campaign when creating a link below.</p>;
-            }
-            return (
-              <div className="space-y-2">
-                {rows.map((row) => (
-                  <div key={row.name} className="flex items-center justify-between text-sm border-b border-slate-50 pb-2">
-                    <span className="text-slate-700 font-medium">{row.name}</span>
-                    <span className="font-mono text-slate-500">{row.links} link{row.links === 1 ? '' : 's'} ¬∑ <strong className="text-emerald-600">{row.clicks} clicks</strong></span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
-
-        {/* Tracking Link Builder */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Create a Tracking Link</h3>
-          {trackingLinkFeedback && (
-            <div className={`text-sm p-3 rounded-xl font-semibold ${trackingLinkFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-              {trackingLinkFeedback}
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Label</label>
-              <input
-                type="text"
-                placeholder="e.g. Facebook Video Ad"
-                value={trackLabel}
-                onChange={(e) => setTrackLabel(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Destination URL</label>
-              <input
-                type="text"
-                value={trackDest}
-                onChange={(e) => setTrackDest(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-slate-500 uppercase">Attribute to Campaign (optional)</label>
-              <select
-                value={trackCampaignId}
-                onChange={(e) => setTrackCampaignId(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              >
-                <option value="">No campaign</option>
-                {campaigns.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <button onClick={handleGenerateLink} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer">
-            Generate Tracking Link
-          </button>
-        </div>
-
-        {/* List of real links */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Tracking Links</h4>
-          {trackingLinksLoading ? (
-            <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-          ) : trackingLinks.length === 0 ? (
-            <p className="text-xs text-slate-400">No tracking links yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {trackingLinks.map((link) => {
-                const shortUrl = `${window.location.origin}/r/${link.shortCode}`;
-                return (
-                  <div key={link.id} className="border border-slate-100 rounded-xl p-4 flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <span className="font-semibold text-slate-800 text-sm block truncate">{link.label}</span>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(shortUrl)}
-                        className="text-xs text-emerald-600 hover:underline cursor-pointer font-mono truncate block"
-                        title="Copy link"
-                      >
-                        {shortUrl}
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-4 shrink-0">
-                      <span className="text-xs font-mono text-slate-500">{link.clickCount} clicks</span>
-                      <button onClick={() => handleDeleteTrackingLink(link.id)} className="text-xs text-red-500 hover:underline cursor-pointer">Delete</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // 9. LEADS WORKSPACE (CRM)
-  if (activeTab === 'leads') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div>
-              <h3 className="font-display font-bold text-slate-900 text-lg">Lightweight CRM Pipeline</h3>
-              <p className="text-xs text-slate-500">Track clicks, inquiries, and converted sponsorships securely.</p>
-            </div>
-            <div className="flex gap-3">
-              <input
-                type="text"
-                placeholder="Search lead name..."
-                value={leadSearch}
-                onChange={(e) => setLeadSearch(e.target.value)}
-                className="border border-slate-200 rounded-xl p-2 text-xs bg-slate-50 text-slate-700"
-              />
-              <select
-                value={leadStatusFilter}
-                onChange={(e) => setLeadStatusFilter(e.target.value)}
-                className="border border-slate-200 rounded-xl p-2 text-xs bg-slate-50 text-slate-700"
-              >
-                <option>All</option>
-                <option>New</option>
-                <option>Contacted</option>
-                <option>Qualified</option>
-                <option>Proposal Sent</option>
-                <option>Converted</option>
-              </select>
-              <button
-                type="button"
-                onClick={() => setAddingLead((v) => !v)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer shrink-0"
-              >
-                {addingLead ? 'Cancel' : '+ Add Lead'}
-              </button>
-            </div>
-          </div>
-
-          {leadFeedback && (
-            <div className={`text-sm p-3.5 rounded-xl font-semibold mb-4 ${leadFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-              {leadFeedback}
-            </div>
-          )}
-
-          {addingLead && (
-            <form onSubmit={handleAddLead} className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-6 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Name</label>
-                  <input
-                    type="text" required
-                    value={newLeadName}
-                    onChange={(e) => setNewLeadName(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Email</label>
-                  <input
-                    type="email"
-                    value={newLeadEmail}
-                    onChange={(e) => setNewLeadEmail(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp / Tel</label>
-                  <input
-                    type="text"
-                    value={newLeadWhatsapp}
-                    onChange={(e) => setNewLeadWhatsapp(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Source</label>
-                  <input
-                    type="text"
-                    value={newLeadSource}
-                    onChange={(e) => setNewLeadSource(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Est. Value (Le)</label>
-                  <input
-                    type="number" min="0"
-                    value={newLeadValue}
-                    onChange={(e) => setNewLeadValue(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
-                  />
-                </div>
-              </div>
-              <button type="submit" disabled={savingLead} className="bg-[#0F172A] text-white font-semibold px-4 py-2 rounded-lg text-xs cursor-pointer disabled:opacity-50">
-                {savingLead ? 'Saving‚Ä¶' : 'Save Lead'}
-              </button>
-            </form>
-          )}
-
-          <div className="overflow-x-auto border border-slate-100 rounded-xl">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-400 font-mono uppercase border-b border-slate-100">
-                  <th className="p-4 font-bold">Priority</th>
-                  <th className="p-4 font-bold">Name</th>
-                  <th className="p-4 font-bold">Email</th>
-                  <th className="p-4 font-bold">WhatsApp / Tel</th>
-                  <th className="p-4 font-bold">Source Campaign</th>
-                  <th className="p-4 font-bold">Est. Value</th>
-                  <th className="p-4 font-bold">Status Pipeline</th>
-                  <th className="p-4 font-bold">AI Follow-up</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
-                {leads
-                  .filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()))
-                  .filter(l => leadStatusFilter === 'All' || l.status === leadStatusFilter)
-                  .sort((a, b) => computeLeadScore(b) - computeLeadScore(a))
-                  .map((lead) => {
-                    const priority = leadPriorityLabel(computeLeadScore(lead));
-                    const priorityColor =
-                      priority === 'Hot' ? 'bg-red-100 text-red-700' :
-                      priority === 'Warm' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500';
-                    return (
-                      <tr key={lead.id} className="hover:bg-slate-50/40">
-                        <td className="p-4">
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${priorityColor}`}>{priority}</span>
-                        </td>
-                        <td className="p-4 font-bold text-slate-900">{lead.name}</td>
-                        <td className="p-4 font-mono text-slate-500">{lead.email}</td>
-                        <td className="p-4 font-mono text-slate-500">{lead.whatsapp || lead.telephone}</td>
-                        <td className="p-4 text-slate-600">{lead.source}</td>
-                        <td className="p-4 font-mono font-bold text-emerald-600">Le {lead.estimatedValue.toLocaleString()}</td>
-                        <td className="p-4">
-                          <select
-                            value={lead.status}
-                            onChange={(e: any) => updateLeadStatus(lead.id, e.target.value)}
-                            className="border border-slate-200 rounded-lg p-1 bg-white focus:outline-emerald-500"
-                          >
-                            <option>New</option>
-                            <option>Contacted</option>
-                            <option>Qualified</option>
-                            <option>Proposal Sent</option>
-                            <option>Converted</option>
-                            <option>Lost</option>
-                          </select>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              disabled={!lead.whatsapp}
-                              onClick={() => handleDraftFollowup(lead, 'whatsapp')}
-                              title={lead.whatsapp ? 'Draft a WhatsApp follow-up' : 'No WhatsApp number on file'}
-                              className="text-emerald-600 hover:text-emerald-700 disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer"
-                            >
-                              <MessageCircle className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!lead.email}
-                              onClick={() => handleDraftFollowup(lead, 'email')}
-                              title={lead.email ? 'Draft an email follow-up' : 'No email on file'}
-                              className="text-emerald-600 hover:text-emerald-700 disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer"
-                            >
-                              <Mail className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-
-          {followupLeadId && (() => {
-            const lead = leads.find((l) => l.id === followupLeadId);
-            if (!lead) return null;
-            const waDigits = (lead.whatsapp || '').replace(/[^0-9]/g, '');
-            const waLink = waDigits ? `https://wa.me/${waDigits}?text=${encodeURIComponent(followupText)}` : null;
-            const mailLink = lead.email
-              ? `mailto:${lead.email}?subject=${encodeURIComponent(`Following up ‚Äî ${brandKit.brandName || 'us'}`)}&body=${encodeURIComponent(followupText)}`
-              : null;
-            return (
-              <div className="mt-4 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-900">
-                    AI-drafted {followupChannel === 'whatsapp' ? 'WhatsApp' : 'email'} follow-up for {lead.name}
-                  </span>
-                  <button type="button" onClick={() => setFollowupLeadId(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                {followupLoading ? (
-                  <p className="text-xs text-slate-500 italic">Drafting‚Ä¶</p>
-                ) : followupError ? (
-                  <p className="text-xs text-red-600">{followupError}</p>
-                ) : (
-                  <>
-                    <textarea
-                      rows={4}
-                      value={followupText}
-                      onChange={(e) => setFollowupText(e.target.value)}
-                      className="w-full border border-emerald-200 rounded-xl p-3 bg-white text-sm focus:outline-emerald-500"
-                    />
-                    <div className="flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => handleDraftFollowup(lead, followupChannel)}
-                        className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
-                      >
-                        Regenerate
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigator.clipboard.writeText(followupText)}
-                        className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
-                      >
-                        Copy
-                      </button>
-                      {followupChannel === 'whatsapp' && waLink && (
-                        <a href={waLink} target="_blank" rel="noopener noreferrer" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all">
-                          Open in WhatsApp
-                        </a>
-                      )}
-                      {followupChannel === 'email' && mailLink && (
-                        <a href={mailLink} className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all">
-                          Open in Email
-                        </a>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-400">
-                      Nothing is sent automatically ‚Äî this opens your own WhatsApp/email client with the message pre-filled for you to review and send.
-                    </p>
-                  </>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      </div>
-    );
-  }
-
-  // 10. INFLUENCERS WORKSPACE
-  if (activeTab === 'influencers') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-2">Verified Creator Marketplace</h3>
-          <p className="text-xs text-slate-500 mb-6">Partner with trusted local or diaspora creators displaying certified engagement parameters.</p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {influencerProfiles.map((inf) => (
-              <div key={inf.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex justify-between items-start">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-display font-bold text-slate-800">{inf.displayName}</h4>
-                    {inf.isVerified && <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Verified</span>}
-                  </div>
-                  <span className="text-xs text-slate-500 block">Location: {inf.location}</span>
-                  <div className="flex gap-2 pt-1">
-                    {inf.categories.map((cat, i) => (
-                      <span key={i} className="bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">{cat}</span>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 pt-3 text-xs border-t border-slate-50 mt-4">
-                    <div>
-                      <span className="text-slate-400 block font-mono">AUDIENCE</span>
-                      <strong className="text-slate-700">{inf.audienceSize}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-mono">ENGAGE</span>
-                      <strong className="text-emerald-600">{inf.engagementRate}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-mono">RATE RANGE</span>
-                      <strong className="text-slate-700 block truncate">{inf.rateRange}</strong>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={async () => {
-                    const budgetStr = prompt(`Proposed budget for ${inf.displayName} (Leones):`, '0');
-                    if (budgetStr === null) return;
-                    try {
-                      const lead = await createLead(activeOrg.id, {
-                        name: inf.displayName,
-                        source: 'Influencer Marketplace',
-                        district: inf.district,
-                        estimatedValue: Number(budgetStr) || 0,
-                      });
-                      setLeads([lead, ...leads]);
-                      alert(`Real CRM lead created for ${inf.displayName} ‚Äî see the CRM Leads tab.`);
-                    } catch (err: any) {
-                      alert(err.message || 'Could not create lead.');
-                    }
-                  }}
-                  className="bg-emerald-50 text-emerald-800 text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-colors cursor-pointer shrink-0"
-                >
-                  Invite Partner
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 11. DIRECTORY WORKSPACE
-  if (activeTab === 'directory') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h3 className="font-display font-bold text-slate-900 text-lg">Public Business Discovery Registry</h3>
-              <p className="text-xs text-slate-500">Fostering corporate visibility and local-to-diaspora transactional trust.</p>
-            </div>
-            <button
-              onClick={async () => {
-                const name = prompt('Enter your Business Name:');
-                if (name) {
-                  try {
-                    const newB = await createDirectoryListing(activeOrg.id, name);
-                    setDirectoryProfiles([newB, ...directoryProfiles]);
-                  } catch (err: any) {
-                    alert(err.message || 'Could not add listing.');
-                  }
-                }
-              }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-2 cursor-pointer"
-            >
-              <Plus className="h-4 w-4" /> Add Listing
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {directoryProfiles.map((p) => (
-              <div key={p.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-display font-bold text-slate-800">{p.businessName}</h4>
-                      {p.isVerified ? (
-                        <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Verified</span>
-                      ) : (
-                        <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Claimable</span>
-                      )}
-                    </div>
-                    <span className="bg-slate-100 text-slate-600 font-mono text-[10px] px-2 py-0.5 rounded-md">{p.category}</span>
-                  </div>
-                  <p className="text-slate-500 text-xs leading-relaxed mb-4">{p.description}</p>
-                </div>
-
-                <div className="border-t border-slate-50 pt-4 flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-mono">{p.city}, {p.district}</span>
-                  {!p.isVerified && (
-                    <button
-                      onClick={() => handleClaimListing(p.id)}
-                      className="text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer"
-                    >
-                      Claim & Verify Listing
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Claim listing panel */}
-        {claimBusinessId && (
-          <div className="bg-slate-50 border-2 border-emerald-500 rounded-2xl p-6 shadow-md text-left space-y-4">
-            <h4 className="font-display font-bold text-slate-900 text-sm">Upload Corporate Registration / Business Claim Form</h4>
-            {claimFeedback ? (
-              <p className="text-emerald-800 text-xs font-semibold bg-emerald-50 p-3 rounded-lg border border-emerald-100">{claimFeedback}</p>
-            ) : (
-              <form onSubmit={submitClaim} className="space-y-4 text-xs">
-                <p className="text-slate-500">Provide an official copy of your SL business license or tax certificate to earn your verification mark.</p>
-                <div>
-                  <label className="block text-slate-400 font-mono uppercase mb-1">Corporate document</label>
-                  <input
-                    type="file"
-                    required
-                    onChange={(e) => setClaimFile(e.target.files?.[0] ?? null)}
-                    className="w-full border border-slate-200 rounded-lg p-2 bg-white text-slate-700"
-                  />
-                </div>
-                <button type="submit" disabled={isSubmittingClaim} className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-semibold py-2 px-4 rounded-xl cursor-pointer">
-                  {isSubmittingClaim ? 'Uploading‚Ä¶' : 'Submit Verification Documents'}
-                </button>
-              </form>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 12. EVENTS WORKSPACE
-  if (activeTab === 'events') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-4">Homecoming & Festival Promoters</h3>
-          <p className="text-xs text-slate-500 mb-6">Connect ticket sales with direct tracking campaigns to trace ticket buyers directly in the UK/US diaspora communities.</p>
-
-          <div className="space-y-4">
-            {[
-              { title: 'Freetown December Music Fest 2026', date: 'Dec 24, 2026', location: 'National Stadium Complex', scheduledDate: '2026-12-24', buttonLabel: 'Promote Concert' },
-              { title: 'Sierra Leone Diaspora Investment Summit', date: 'Nov 12, 2026', location: 'Radisson Blu, Freetown', scheduledDate: '2026-11-12', buttonLabel: 'Promote Summit' },
-            ].map((ev) => (
-              <div key={ev.title} className="bg-slate-50 p-4 border border-slate-100 rounded-xl flex justify-between items-center text-sm">
-                <div>
-                  <span className="font-bold text-slate-800 block">{ev.title}</span>
-                  <span className="text-xs text-slate-500">Date: {ev.date} ¬∑ Location: {ev.location}</span>
-                </div>
-                <button
-                  onClick={async () => {
-                    try {
-                      const newItem = await createContentItem(activeOrg.id, {
-                        title: `Promote: ${ev.title}`,
-                        contentType: 'Social Post',
-                        platform: 'Facebook & WhatsApp',
-                        headline: ev.title,
-                        bodyText: `Join us for ${ev.title} ‚Äî ${ev.date} at ${ev.location}. Don't miss it!`,
-                        hashtags: ['#Manohub', '#EatSalone'],
-                        scheduledDate: ev.scheduledDate,
-                      });
-                      setContentItems([newItem, ...contentItems]);
-                      alert(`Real draft created in Content Studio for "${ev.title}".`);
-                    } catch (err: any) {
-                      alert(err.message || 'Could not create draft.');
-                    }
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer"
-                >
-                  {ev.buttonLabel}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 13. TOURISM WORKSPACE
-  if (activeTab === 'tourism') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-2">Heritage & Homecoming Tour Excursions</h3>
-          <p className="text-xs text-slate-500 mb-6">Showcase eco-tourism hotspots and ancestral landmarks (e.g., Tiwai Island, Banana Islands) with simple, tracking-redirect call-to-actions.</p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            {[
-              { label: 'Bunce Island Historical Exploration', body: 'Ancestral roots tours mapping Sierra Leonean heritage directly for African-American and Caribbean diaspora visitors.', defaultUrl: 'https://wa.me/23276000000?text=Bunce%20Island%20tour' },
-              { label: 'Banana Island Snorkeling Retreat', body: 'Eco-friendly water sports, local dining, and beach camping escapes tailored for festive groups.', defaultUrl: 'https://wa.me/23276000000?text=Banana%20Island%20retreat' },
-            ].map((dest) => {
-              const existing = trackingLinks.find((l) => l.label === dest.label);
-              return (
-                <div key={dest.label} className="bg-slate-50 border border-slate-100 p-5 rounded-xl space-y-2">
-                  <span className="font-bold text-slate-800 block">{dest.label}</span>
-                  <p className="text-xs text-slate-500 leading-relaxed">{dest.body}</p>
-                  {existing ? (
-                    <div className="pt-2">
-                      <button
-                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/r/${existing.shortCode}`)}
-                        className="text-emerald-600 font-mono text-xs hover:underline cursor-pointer block truncate"
-                        title="Copy link"
-                      >
-                        {`${window.location.origin}/r/${existing.shortCode}`}
-                      </button>
-                      <span className="text-[10px] text-slate-400 font-mono">{existing.clickCount} clicks</span>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={async () => {
-                        const link = await generateNamedTrackingLink(dest.label, dest.defaultUrl);
-                        if (link) setTrackingLinks((prev) => [link, ...prev]);
-                      }}
-                      className="text-emerald-600 font-semibold hover:underline text-xs block cursor-pointer pt-2"
-                    >
-                      Generate Tracking Link
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 14. BRAND KIT WORKSPACE
-  if (activeTab === 'brandkit') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Central Brand Kit</h3>
-          <p className="text-xs text-slate-500">Slogan values and logo palettes feed directly into our AI generation workflows for perfect stylistic brand compliance.</p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Primary Slogan / Tagline</label>
-              <input
-                type="text"
-                value={brandKit.tagline}
-                onChange={(e) => setBrandKit({ ...brandKit, tagline: e.target.value })}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white text-sm focus:outline-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Core Slogan / Slogan Goal</label>
-              <input
-                type="text"
-                value={brandKit.mission}
-                onChange={(e) => setBrandKit({ ...brandKit, mission: e.target.value })}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white text-sm focus:outline-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Primary Tone of Voice</label>
-              <input
-                type="text"
-                value={brandKit.toneOfVoice}
-                onChange={(e) => setBrandKit({ ...brandKit, toneOfVoice: e.target.value })}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white text-sm focus:outline-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Primary Colors Palette</label>
-              <div className="flex gap-4 mt-2">
-                <input
-                  type="color"
-                  value={brandKit.primaryColor}
-                  onChange={(e) => setBrandKit({ ...brandKit, primaryColor: e.target.value })}
-                  className="rounded h-10 w-16 border border-slate-200 cursor-pointer"
-                />
-                <input
-                  type="color"
-                  value={brandKit.secondaryColor}
-                  onChange={(e) => setBrandKit({ ...brandKit, secondaryColor: e.target.value })}
-                  className="rounded h-10 w-16 border border-slate-200 cursor-pointer"
-                />
-                <div className="flex flex-col justify-center">
-                  <span className="text-[10px] text-slate-400 font-mono font-bold block">EMERALD: {brandKit.primaryColor}</span>
-                  <span className="text-[10px] text-slate-400 font-mono font-bold block">AMBER: {brandKit.secondaryColor}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          {brandKitFeedback && (
-            <p className={`text-sm font-semibold ${brandKitFeedback.startsWith('Error') ? 'text-red-600' : 'text-emerald-700'}`}>{brandKitFeedback}</p>
-          )}
-          <button
-            onClick={handleSaveBrandKit}
-            disabled={brandKitSaving}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {brandKitSaving ? 'Saving‚Ä¶' : 'Save Brand Kit'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // 15. TEAM WORKSPACE
-  if (activeTab === 'team') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Team Roles & Secure Invites</h3>
-          <p className="text-xs text-slate-500">
-            Add existing Manohub users to {activeOrg.name}.
-            {teamLimit !== null && ` Your plan allows up to ${teamLimit} team member${teamLimit === 1 ? '' : 's'}.`}
-          </p>
-
-          {teamFeedback && (
-            <div className={`text-sm p-3.5 rounded-xl font-semibold ${teamFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-              {teamFeedback}
-            </div>
-          )}
-
-          <form onSubmit={handleInviteTeam} className="flex flex-col sm:flex-row gap-4">
-            <input
-              type="email"
-              required
-              placeholder="colleague@example.com (must already have a Manohub account)"
-              value={teamEmail}
-              onChange={(e) => setTeamEmail(e.target.value)}
-              className="flex-1 border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-            />
-            <select
-              value={teamRole}
-              onChange={(e) => setTeamRole(e.target.value as 'admin' | 'member')}
-              className="border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-            >
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-            <button type="submit" disabled={teamInviting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer shrink-0 disabled:opacity-50">
-              {teamInviting ? 'Adding‚Ä¶' : 'Add Member'}
-            </button>
-          </form>
-
-          <div className="border-t border-slate-50 pt-6 space-y-4">
-            <h4 className="font-display font-bold text-slate-800 text-sm">Active Workspace Membership</h4>
-            {teamLoading ? (
-              <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-            ) : (
-              <div className="space-y-3 text-xs">
-                {teamMembers.map((m) => (
-                  <div key={m.userId} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-                    <div>
-                      <span className="font-bold text-slate-800">{m.fullName || m.email}</span>
-                      <span className="text-[10px] text-slate-400 font-mono block">{m.email}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`font-bold px-2.5 py-0.5 rounded-full uppercase text-[10px] ${m.role === 'owner' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>{m.role}</span>
-                      {m.role !== 'owner' && (
-                        <button onClick={() => handleRemoveTeamMember(m.userId)} className="text-red-500 hover:underline cursor-pointer">Remove</button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 16. BILLING WORKSPACE
-  if (activeTab === 'billing') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Current Plan</h3>
-          {billingLoading ? (
-            <p className="text-xs text-slate-400">Loading‚Ä¶</p>
-          ) : activeSubscription ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-display font-bold text-emerald-700 text-lg">{activeSubscription.planName}</span>
-                {activeSubscription.currentPeriodEnd && (
-                  <p className="text-xs text-slate-500 mt-1">Renews / expires {new Date(activeSubscription.currentPeriodEnd).toLocaleDateString('en-GB')}</p>
-                )}
-              </div>
-              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Active</span>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">You're on the Free plan.</p>
-          )}
-        </div>
-
-        {billingFeedback && (
-          <div className={`text-sm p-3.5 rounded-xl font-semibold ${billingFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-            {billingFeedback}
-          </div>
-        )}
-
-        {pendingSubscription && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-3">
-            <p className="text-sm text-amber-900">
-              <strong>{pendingSubscription.planName}</strong> upgrade requested ‚Äî awaiting payment confirmation and admin approval.
-            </p>
-            {pendingSubscription.notes ? (
-              <p className="text-xs text-amber-700 font-mono">Reference on file: {pendingSubscription.notes}</p>
-            ) : (
-              <button onClick={handleSubmitPaymentRef} className="text-xs font-semibold text-amber-700 hover:underline cursor-pointer">
-                Submit bank transfer reference
-              </button>
-            )}
-          </div>
-        )}
-
-        {!pendingSubscription && (
-          <form onSubmit={handleRequestPlan} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-            <h4 className="font-display font-bold text-slate-900 text-sm">Request a Plan Change</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Plan</label>
-                <select value={selectedPlanId} onChange={(e) => setSelectedPlanId(e.target.value)} required
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
-                  <option value="">Select a plan</option>
-                  {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Billing Cycle</label>
-                <select value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as 'monthly' | 'annual')}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
-                  <option value="monthly">Monthly</option>
-                  <option value="annual">Annual</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Payment Reference (optional, bank transfer)</label>
-              <input type="text" placeholder="e.g. SLCB-9812401" value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-            </div>
-            <button type="submit" disabled={requestingPlan} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-6 rounded-xl text-sm cursor-pointer disabled:opacity-50">
-              {requestingPlan ? 'Requesting‚Ä¶' : 'Request Plan Change'}
-            </button>
-            <p className="text-[10px] text-slate-400">Payment is confirmed manually by our finance team ‚Äî your plan activates once approved, never automatically on submission.</p>
-          </form>
-        )}
-
-        {mySubscriptions.length > 0 && (
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-            <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Subscription History</h4>
-            <div className="space-y-2 text-xs">
-              {mySubscriptions.map((s) => (
-                <div key={s.id} className="flex items-center justify-between border-b border-slate-50 pb-2">
-                  <span className="text-slate-700">{s.planName} ¬∑ {new Date(s.createdAt).toLocaleDateString('en-GB')}</span>
-                  <span className={`font-bold px-2 py-0.5 rounded-full uppercase text-[9px] ${
-                    s.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
-                    s.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
-                  }`}>{s.status}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 17. ADMIN BOARD (SUPER ADMIN MODERATION)
-  if (activeTab === 'admin') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Platform Moderation Safety Desk</h3>
-          <p className="text-xs text-slate-500">Platform administrator desk enforcing safe corporate listings and monitoring false directory claims.</p>
-
-          <div className="flex gap-4">
-            <button
-              onClick={runSafetyModeration}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer"
-            >
-              Run Directory Safety Scans
-            </button>
-          </div>
-
-          {scannedFlagged && (
-            <div className="bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-xs space-y-2 max-h-56 overflow-y-auto">
-              {safetyLog.map((log: string, i: number) => (
-                <div key={i} className="flex gap-2">
-                  <span className="text-emerald-600">‚úì</span>
-                  <span>{log}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Fallback / Placeholder for tabs that didn't specify customized views
-  return (
-    <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center text-slate-400">
-      <AlertCircle className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-      <h3 className="font-display font-bold text-slate-600">Workspace Pending Initialization</h3>
-      <p className="text-xs mt-2 max-w-sm mx-auto text-slate-500 leading-relaxed">
-        This workspace ({activeTab}) is cataloged under upcoming milestone schedules.
-      </p>
-    </div>
-  );
-}
+Y™Áäx-ÆÈ‹j◊ù¢Îi∫⁄+äßj[hëÈ‹¢ÈÌ◊^wÔÑËµ©h∫⁄n∂XßzÕZ[\‹ùôXX›»\ŸT›]K\ŸQYôôX›\ŸTôYàHúõ€H	‹ôXX›	Œ¬ö[\‹ùî÷ö\úõ€H	⁄úﬁö\	Œ¬ö[\‹ù»‘ô»Húõ€H	⁄[]ÀZ[XYŸIŒ¬ö[\‹ù»[ö»Húõ€H	‹ôXX›\õ›]\ãY€IŒ¬ö[\‹ù»Yô\ù‹ôX]]ôK‹ôX]]ôTÿÿ[\ãYô\ùõ‹õX]Yô\ù[YHHúõ€H	Àã–Yô\ù‹ôX]]ôIŒ¬ö[\‹ù»ÿ[\ZY€î\ôõ‹õX[òŸTYŸHHúõ€H	Àã–ÿ[\ZY€î\ôõ‹õX[òŸTYŸIŒ¬ö[\‹ù¬àò\ê⁄\ùãÿ[[ô\ãö[U^õ€\ì‹[ã\Ÿ\úÀ[öÃãàY\‹ÿYŸT‹]X\ôK\Ÿ\ê⁄X⁄Àõ€⁄”‹[ã]ÿ\ô€€\\‹À‹\ö€\ÀàŸ][ô‹À⁄Y[[\ù‹ôY]ÿ\ô\Ÿ\î\À\ÿYò\⁄ãà⁄X⁄À^K\ÀŸX\ò⁄ö[\ã›€õÿY[\ù⁄\ò€K^YKôYúô\⁄›Ààö[TŸX\ò⁄^\õò[[öÀ‹\ö€Kõ‹K[ôX\öÀYYÿ\€ôK[XYŸH\»[XYŸRX€€ãà⁄]úõ€ìYù⁄]úõ€îöY⁄ö[U\\\ò€\XZ[Y\‹ÿYŸP⁄\ò€K⁄Y[⁄X⁄Àà\úõ›‘öY⁄€ÿ⁄Àõ€⁄€X\öÀô[X\[ÇüHúõ€H	€X⁄YK\ôXX›	Œ¬ö[\‹ù»ÿ[\ZY€ã€€ù[ù][KXY\ôX›‹ûTõŸö[K[ôõY[òŸ\îõŸö[K€ÿ⁄X[€€õôX›[€ãúò[ô⁄]‹ôÿ[ö^ò][€ãYYXP\‹Ÿ]òX⁄⁄[ô”[öÀ]YY[òŸTŸY€Y[ùHúõ€H	Àãã›\\…Œ¬ö[\‹ù¬à‹ôX]Pÿ[\ZY€ãà\]Pÿ[\ZY€ãà[]Pÿ[\ZY€ãà‹ôX]P€€ù[ù][Kà\]P€€ù[ù][Kà[]P€€ù[ù][Kà\]SXY›]\»\»\U\]SXY›]\Àà‹ôX]Q\ôX›‹ûS\›[ôÀà€Z[Q\ôX›‹ûS\›[ôÀàÿ]ôPúò[ô⁄]à‹ôX]T€ÿ⁄X[€€õôX›[€ãà\]T€ÿ⁄X[€€õôX›[€ãà[]T€ÿ⁄X[€€õôX›[€ãà‹ôX]SXYàô]⁄YYXP\‹Ÿ]Àà\ÿYYYXP\‹Ÿ]à[]SYYXP\‹Ÿ]àŸ]YYXP\‹Ÿ]\õàô]⁄òX⁄⁄[ô”[ö‹Àà‹ôX]UòX⁄⁄[ô”[öÀà[]UòX⁄⁄[ô”[öÀàô]⁄€X⁄‘Ÿ\öY\Àà€X⁄‘Ÿ\öY\‘⁄[ùàô]⁄€X⁄‹–ûUŸYZŸ^KàŸYZŸ^P€X⁄‘⁄[ùàô]⁄]YY[òŸTŸY€Y[ùÀà‹ôX]P]YY[òŸTŸY€Y[ùà[]P]YY[òŸTŸY€Y[ùàù[êÿ[\ZY€íX[⁄X⁄Ààô]⁄ÿ[\ZY€êX›]ö]Kàÿ[\ZY€êX›]ö]KüHúõ€H	Àãã€Xãÿ\IŒ¬ö[\‹ù»€€\]SXYÿ€‹ôKXYö[‹ö]SXô[Húõ€H	Àãã€Xã€XYÿ€‹ö[ô…Œ¬ö[\‹ù¬àô]⁄^S‹‹ù[ö]Y\Ààô]⁄‹‹ù[ö]Tô\‹€úŸ\Àà‹‹ù[ö]Tô\‹€úŸKà[òXõPù^Y\ì[ŸKà‹ôX]S‹‹ù[ö]Kà€‹ŸS‹‹ù[ö]Kàÿ[òŸ[‹‹ù[ö]Kàô\›XõZ]õ‹îô]öY]Àà^[ôXY[ôKàôX€‹ô]ÿ\ôàô]⁄ŸX›‹úÀàô]⁄\›öX›Ààô]⁄€›[ùöY\Ààô]⁄›\úô[ò⁄Y\Àà›\úô[òﬁS‹[€ãàô]⁄‹‹ù[ö]U\\Ààô]⁄‹‹ù[ö]Qÿ›[Y[ùÀà\ÿY‹‹ù[ö]Qÿ›[Y[ùà[]S‹‹ù[ö]Qÿ›[Y[ùàŸ]‹‹ù[ö]Qÿ›[Y[ù\õà‹‹ù[ö]Qÿ›[Y[ùàPV—–’SQSï‘“VëW–ñUTÀàô]⁄‹‹ù[ö]Y\—õ‹îô]öY]Ààö[ô⁄[Z[\ï]Y‹‹ù[ö]Y\Àà\õ›ôS‹‹ù[ö]Kàô\]Y\›€‹úôX›[€ãàôZôX›‹‹ù[ö]Kà[òXõT›\Y\ì[ŸKàô]⁄›\Y\îõŸö[Kàÿ]ôT›\Y\îõŸö[Kà›XõZ]ô\öYöXÿ][€îô\]Y\›àô]⁄^Uô\öYöXÿ][€îô\]Y\›Ààô]⁄ô\öYöXÿ][€î]Y]YKà\õ›ôUô\öYöXÿ][€ãàôZôX›ô\öYöXÿ][€ãà‹‹ù[ö]S\›][Kàô]öY]‘]Y]YR][Kà^€õ€^S‹[€ãà›\Y\îõŸö[Kàô\öYöXÿ][€îô\]Y\›àô\öYöXÿ][€î]Y]YR][Kàô]⁄X[SY[Xô\úÀàô]⁄X[SY[Xô\ì[Z]à[ùö]UX[SY[Xô\ãàô[[›ôUX[SY[Xô\ãàô]⁄[úÀàô]⁄^T›Xúÿ‹ö\[€úÀàô\]Y\››Xúÿ‹ö\[€ãà\]T›Xúÿ‹ö\[€ìõ›\Ààô]⁄[ô[ô‘›Xúÿ‹ö\[€úÀàX›]ò]T›Xúÿ‹ö\[€ãàÿ[òŸ[›Xúÿ‹ö\[€îô\]Y\›àŸ]‹‹ù[ö]QôX]\ôYà‹ôX]TŸ\ùöXŸTô\]Y\›àô]⁄^TŸ\ùöXŸTô\]Y\›Ààô]⁄[Ÿ\ùöXŸTô\]Y\›Ààô]⁄Ÿ\ùöXŸTô\]Y\›X›]ö]Y\ÀàYŸ\ùöXŸTô\]Y\›õ›Kà\]TŸ\ùöXŸTô\]Y\››]\Àà][›TŸ\ùöXŸTô\]Y\›àX[SY[Xô\ãà[ãà‹ô‘›Xúÿ‹ö\[€ãà[ô[ô‘›Xúÿ‹ö\[€ãàŸ\ùöXŸTô\]Y\›àŸ\ùöXŸTô\]Y\›X›]ö]KàŸ\ùöXŸU\Kàô]⁄\[[ôKàY‘\[[ôKà\]T\[[ôTôX€‹ôàô[[›ôQúõ€T\[[ôKàô]⁄›\Y\îŸX›‹íYÀàŸ]›\Y\îŸX›‹íYÀàô]⁄ôX€€[Y[ôY‹‹ù[ö]Y\Ààô]⁄YZ[ê[ò[]X‹Àà\—ôX]\ôKàô]⁄ÿ]ôYŸX\ò⁄\Àà[]Tÿ]ôYŸX\ò⁄àÿ]ôYŸX\ò⁄àZT›YŸŸ\›ŸX›‹ãà\[[ôTôX€‹ôà\[[ôT›YŸKàYZ[ê[ò[]X‹‘›[[X\ûKà›XõZ]Yô\ù\Ÿ[Y[ùô\]Y\›àô]⁄^PYô\ù\Ÿ[Y[ùÀàô]⁄[Yô\ù\Ÿ[Y[ùô\]Y\›Àà\]PYô\ù\Ÿ[Y[ùô\‹ùàYô\ù\Ÿ[Y[ùô\]Y\›àYô\ù\Ÿ[Y[ùÿ]Y€‹ûKàô]⁄[Yô\ùÀà‹ôX]PYô\ùà\]PYô\ùà[]PYô\ùà\ÿYYô\ù‹ôX]]ôKà\ÿYYô\ù[XYŸKàùZ[Yô\ù⁄\ôTX⁄ÀàùZ[Yô\ù⁄\ôR[ù[ùÀàô]⁄Yô\ù[ò[]X‹‘›[[X\ûKàYô\ù[ò[]X‹‘›[[X\ûKàô]⁄[ÿ[\ZY€ú»\»ô]⁄[Yÿ[\ZY€úÀà‹ôX]Pÿ[\ZY€à\»‹ôX]PYÿ[\ZY€ãàŸ]ÿ[\ZY€î›]\Àà[]Pÿ[\ZY€à\»[]PYÿ[\ZY€ãàô]⁄ÿ[\ZY€îôXX⁄àYÿ[\ZY€ãàÿ[\ZY€îôXX⁄àZT€\⁄Yô\ù€‹KàYô\ùüHúõ€H	Àãã€Xã‹õÿ›\ô[Y[ù\IŒ¬ö[\‹ù»›\Xò\ŸHHúõ€H	Àãã€Xã‹›\Xò\ŸP€Y[ù	Œ¬Çö[ù\ôòXŸH€‹ö‹‹XŸ\‘õ‹»¬àX›]ôUXéà›ö[ôŒ¬àŸ]X›]ôUXéà
+Xéà›ö[ô HOàõ⁄Y¬àX›]ôS‹ôŒà‹ôÿ[ö^ò][€é¬à\‘]õ‹õPYZ[éàõ€€X[é¬àÿ[\ZY€úŒàÿ[\ZY€ñ◊N¬àŸ]ÿ[\ZY€úŒàôXX›ë\‹]⁄ôXX›îŸ]›]PX›[€èÿ[\ZY€ñ◊Oèé¬à€€ù[ù][\Œà€€ù[ù][V◊N¬àŸ]€€ù[ù][\ŒàôXX›ë\‹]⁄ôXX›îŸ]›]PX›[€è€€ù[ù][V◊Oèé¬àXYŒàXY◊N¬àŸ]XYŒàôXX›ë\‹]⁄ôXX›îŸ]›]PX›[€èXY◊Oèé¬à\ôX›‹ûTõŸö[\Œà\ôX›‹ûTõŸö[V◊N¬àŸ]\ôX›‹ûTõŸö[\ŒàôXX›ë\‹]⁄ôXX›îŸ]›]PX›[€è\ôX›‹ûTõŸö[V◊Oèé¬à[ôõY[òŸ\îõŸö[\Œà[ôõY[òŸ\îõŸö[V◊N¬à€ÿ⁄X[€€õôX›[€úŒà€ÿ⁄X[€€õôX›[€ñ◊N¬àŸ]€ÿ⁄X[€€õôX›[€úŒàôXX›ë\‹]⁄ôXX›îŸ]›]PX›[€è€ÿ⁄X[€€õôX›[€ñ◊Oèé¬àúò[ô⁄]àúò[ô⁄]¬àŸ]úò[ô⁄]àôXX›ë\‹]⁄ôXX›îŸ]›]PX›[€èúò[ô⁄]èé¬üBÇô^‹ùù[ò›[€à€‹ö‹‹XŸ\ ¬àX›]ôUXãàŸ]X›]ôUXãàX›]ôS‹ôÀà\‘]õ‹õPYZ[ãàÿ[\ZY€úÀàŸ]ÿ[\ZY€úÀà€€ù[ù][\ÀàŸ]€€ù[ù][\ÀàXYÀàŸ]XYÀà\ôX›‹ûTõŸö[\ÀàŸ]\ôX›‹ûTõŸö[\Àà[ôõY[òŸ\îõŸö[\Àà€ÿ⁄X[€€õôX›[€úÀàŸ]€ÿ⁄X[€€õôX›[€úÀàúò[ô⁄]àŸ]úò[ô⁄]üNà€‹ö‹‹XŸ\‘õ‹ H¬ÇàÀ»KKHÿ[\ZY€à⁄^ò\ô›]\»KKBà€€ú›ŸY][ô–ÿ[\ZY€íYŸ]Y][ô–ÿ[\ZY€íYHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›€ô]–ÿ[\ò[YKŸ]ô]–ÿ[\ò[YWHH\ŸT›]J	… N¬à€€ú›€ô]–ÿ[\\ÿÀŸ]ô]–ÿ[\\ÿ◊HH\ŸT›]J	… N¬à€€ú›€ô]–ÿ[\ÿöôX›]ôKŸ]ô]–ÿ[\ÿöôX›]ôWHH\ŸT›]J	’⁄]–\[ú]Z\öY\… N¬à€€ú›€ô]–ÿ[\ùYŸ]Ÿ]ô]–ÿ[\ùYŸ]HH\ŸT›]J	ÕL	 N¬à€€ú›€ô]–ÿ[\\›öX›Ÿ]ô]–ÿ[\\›öX›HH\ŸT›]J	’Ÿ\›\õà\ôXH\òò[â N¬à€€ú›€ô]–ÿ[\X\‹‹òKŸ]ô]–ÿ[\X\‹‹òWHH\ŸT›]J	’[ö]Y⁄[ôŸ€I N¬à€€ú›€ô]–ÿ[\›]\ÀŸ]ô]–ÿ[\›]\◊HH\ŸT›]Oÿ[\ZY€ñ…‹›]\…◊Oä	‘[õö[ô… N¬à€€ú›ÿÿ[\ôYYòX⁄ÀŸ]ÿ[\ôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›Ÿ[][ô–ÿ[\ZY€íYŸ][][ô–ÿ[\ZY€íYHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›ÿÿ[\›]\’\][ô“YŸ]ÿ[\›]\’\][ô“YHH\ŸT›]O›ö[ô»ù[äù[
+N¬Çà€€ú›ÿÿ[\›XõZ][ôÀŸ]ÿ[\›XõZ][ô◊HH\ŸT›]Jò[ŸJN¬Çà€€ú›ô\Ÿ]ÿ[\ZY€ëõ‹õHH
+
+HOà¬àŸ]Y][ô–ÿ[\ZY€íY
+ù[
+N¬àŸ]ô]–ÿ[\ò[YJ	… N¬àŸ]ô]–ÿ[\\ÿ 	… N¬àŸ]ô]–ÿ[\ÿöôX›]ôJ	’⁄]–\[ú]Z\öY\… N¬àŸ]ô]–ÿ[\ùYŸ]
+	ÕL	 N¬àŸ]ô]–ÿ[\\›öX›
+	’Ÿ\›\õà\ôXH\òò[â N¬àŸ]ô]–ÿ[\X\‹‹òJ	’[ö]Y⁄[ôŸ€I N¬àŸ]ô]–ÿ[\›]\ 	‘[õö[ô… N¬àN¬Çà€€ú›[ôQY]ÿ[\ZY€àH
+ÿ[\àÿ[\ZY€äHOà¬àŸ]Y][ô–ÿ[\ZY€íY
+ÿ[\öY
+N¬àŸ]ô]–ÿ[\ò[YJÿ[\õò[YJN¬àŸ]ô]–ÿ[\\ÿ ÿ[\ô\ÿ‹ö\[€äN¬àŸ]ô]–ÿ[\ÿöôX›]ôJÿ[\õÿöôX›]ôJN¬àŸ]ô]–ÿ[\ùYŸ]
+›ö[ô ÿ[\ù›[ùYŸ]
+JN¬àŸ]ô]–ÿ[\\›öX›
+ÿ[\ô\›öX›	’Ÿ\›\õà\ôXH\òò[â N¬àŸ]ô]–ÿ[\X\‹‹òJÿ[\ôX\‹‹òSX\öŸ]	’[ö]Y⁄[ôŸ€I N¬àŸ]ô]–ÿ[\›]\ ÿ[\ú›]\ N¬à⁄[ô›Àúÿ‹õ€ »‹àôZ]ö[‹éà	‹€[€›	»JN¬àN¬Çà€€ú›[ôQ[]Pÿ[\ZY€àH\ﬁ[ò»
+ÿ[\àÿ[\ZY€äHOà¬àYà
+X€€ôö\õJ[]Hâÿÿ[\õò[Y_Hè»\»ÿ[õõ›ôH[ô€ôKò
+JHô]\õé¬àŸ][][ô–ÿ[\ZY€íY
+ÿ[\öY
+N¬à€€ú›ô]ö[›\»Hÿ[\ZY€úŒ¬àŸ]ÿ[\ZY€ú ÿ[\ZY€úÀôö[\ä
+ HOàÀöYOOHÿ[\öY
+JN¬àûH¬à]ÿZ][]Pÿ[\ZY€äÿ[\öY
+N¬àYà
+Y][ô–ÿ[\ZY€íYOOHÿ[\öY
+Hô\Ÿ]ÿ[\ZY€ëõ‹õJ
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ÿ[\ZY€ú ô]ö[›\ N¬àŸ]ÿ[\ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›[]Hÿ[\ZY€ãâﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]ÿ[\ôYYòX⁄ 	… K
+N¬àHö[ò[H¬àŸ][][ô–ÿ[\ZY€íY
+ù[
+N¬àBàN¬Çà€€ú›[ôP⁄[ôŸPÿ[\ZY€î›]\»H\ﬁ[ò»
+ÿ[\àÿ[\ZY€ã›]\Œàÿ[\ZY€ñ…‹›]\…◊JHOà¬àYà
+›]\»OOHÿ[\ú›]\ Hô]\õé¬àŸ]ÿ[\›]\’\][ô“Y
+ÿ[\öY
+N¬à€€ú›ô]ö[›\»Hÿ[\ZY€úŒ¬àŸ]ÿ[\ZY€ú ÿ[\ZY€úÀõX\
+
+ HOà
+ÀöYOOHÿ[\öY»»ããòÀ›]\»Hà JJN¬àûH¬à€€ú›\]YH]ÿZ]\]Pÿ[\ZY€äÿ[\öY»›]\»JN¬àŸ]ÿ[\ZY€ú 
+ô]äHOàô]ãõX\
+
+ HOà
+ÀöYOOH\]YöY»\]Yà JJN¬àYà
+Y][ô–ÿ[\ZY€íYOOHÿ[\öY
+HŸ]ô]–ÿ[\›]\ ›]\ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ÿ[\ZY€ú ô]ö[›\ N¬àŸ]ÿ[\ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›\]H›]\ÀâﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]ÿ[\ôYYòX⁄ 	… K
+N¬àHö[ò[H¬àŸ]ÿ[\›]\’\][ô“Y
+ù[
+N¬àBàN¬Çà€€ú›[ôP‹ôX]Pÿ[\ZY€àH\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àŸ]ÿ[\›XõZ][ô ùYJN¬àûH¬àYà
+Y][ô–ÿ[\ZY€íY
+H¬à€€ú›\]YH]ÿZ]\]Pÿ[\ZY€äY][ô–ÿ[\ZY€íY¬àò[YNàô]–ÿ[\ò[YH	‘‹€ú€‹ú⁄\ò]]ôHöXŸIÀà\ÿ‹ö\[€éàô]–ÿ[\\ÿ»	—\ôX›[]ô\ûHõ€[›[€à\ôŸ]Yõ‹àX\‹‹òKâÀàÿöôX›]ôNàô]–ÿ[\ÿöôX›]ôKà›[ùYŸ]àù[Xô\äô]–ÿ[\ùYŸ]
+HLà\›öX›àô]–ÿ[\\›öX›àX\‹‹òSX\öŸ]àô]–ÿ[\X\‹‹òKà›]\Œàô]–ÿ[\›]\ÀàJN¬àŸ]ÿ[\ZY€ú ÿ[\ZY€úÀõX\
+
+ HOà
+ÀöYOOH\]YöY»\]Yà JJN¬àŸ]ÿ[\ôYYòX⁄ 	–ÿ[\ZY€à[à\]Yâ N¬àH[ŸH¬à€€ú›ô]–ÿ[\H]ÿZ]‹ôX]Pÿ[\ZY€äX›]ôS‹ôÀöY¬àò[YNàô]–ÿ[\ò[YH	‘‹€ú€‹ú⁄\ò]]ôHöXŸIÀà\ÿ‹ö\[€éàô]–ÿ[\\ÿ»	—\ôX›[]ô\ûHõ€[›[€à\ôŸ]Yõ‹àX\‹‹òKâÀàÿöôX›]ôNàô]–ÿ[\ÿöôX›]ôKà›[ùYŸ]àù[Xô\äô]–ÿ[\ùYŸ]
+HLà›\ù]Nàô]»]J
+Kù“T”‘›ö[ô 
+Kú‹]
+	’	 VÃKà[ô]Nàô]»]J]Kõõ› 
+H
+»Ã
+àç
+àå
+àå
+àL
+Kù“T”‘›ö[ô 
+Kú‹]
+	’	 VÃKà⁄[õô[Œà…’⁄]–\úõÿYÿ\›\âÀ	—òXŸXõ€⁄»‹ôÿ[öX…◊Kà\›öX›àô]–ÿ[\\›öX›àX\‹‹òSX\öŸ]àô]–ÿ[\X\‹‹òBàJN¬àŸ]ÿ[\ZY€ú €ô]–ÿ[\ããòÿ[\ZY€ú◊JN¬àŸ]ÿ[\ôYYòX⁄ 	–ÿ[\ZY€à[à›XÿŸ\‹Ÿù[H\›Xõ\⁄Y[ôÿ]ôYI N¬àBàô\Ÿ]ÿ[\ZY€ëõ‹õJ
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ÿ[\ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿ]ôHÿ[\ZY€ãâﬂX
+N¬àHö[ò[H¬àŸ]ÿ[\›XõZ][ô ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]ÿ[\ôYYòX⁄ 	… K
+N¬àBàN¬ÇàÀ»KKHÿ[\ZY€àX[–X›]ö]H›]\»KKBà€€ú›ÿÿ[\ZY€êX›]ö]KŸ]ÿ[\ZY€êX›]ö]WHH\ŸT›]OôX€‹ô›ö[ôÀÿ[\ZY€êX›]ö]OèäﬂJN¬à€€ú›‹ù[õö[ô“X[⁄X⁄ÀŸ]ù[õö[ô“X[⁄X⁄◊HH\ŸT›]Jò[ŸJN¬à€€ú›⁄X[⁄X⁄—ôYYòX⁄ÀŸ]X[⁄X⁄—ôYYòX⁄◊HH\ŸT›]J	… N¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	ÿÿ[\ZY€ú… Hô]\õé¬àô]⁄ÿ[\ZY€êX›]ö]JX›]ôS‹ôÀöY
+Bàù[äŸ]ÿ[\ZY€êX›]ö]JBàòÿ]⁄
+
+
+HOàﬂJN¬àKÿX›]ôUXãX›]ôS‹ôÀöYJN¬Çà€€ú›[ôTù[íX[⁄X⁄»H\ﬁ[ò»
+
+HOà¬àŸ]ù[õö[ô“X[⁄X⁄ ùYJN¬àŸ]X[⁄X⁄—ôYYòX⁄ 	… N¬àûH¬à€€ú›õYŸŸYH]ÿZ]ù[êÿ[\ZY€íX[⁄X⁄ 
+N¬àŸ]X[⁄X⁄—ôYYòX⁄ àõYŸŸYàà»õ›[ô	ŸõYŸŸYHô]»\‹›YIŸõYŸŸYOOHH»	…»à	‹…ﬂH8†%⁄X⁄»Hõ›YöXÿ][€àô[õ‹à]Z[Àòàà	”õ»ô]»\‹›Y\»õ›[ôà[ÿ[\ZY€ú»€⁄»X[Kâ¬à
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]X[⁄X⁄—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ù[àHX[⁄X⁄ÀâﬂX
+N¬àHö[ò[H¬àŸ]ù[õö[ô“X[⁄X⁄ ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]X[⁄X⁄—ôYYòX⁄ 	… Kå
+N¬àBàN¬ÇàÀ»KKH€€ù[ù[õö[ô»\‹⁄\›[ù›]\»
+›YŸŸ\›[€õNàô]öY]ÀYZ[àX⁄‹»⁄X⁄»‹ôX]JHKKBà[ù\ôòXŸH€€ù[ù[î›YŸŸ\›[€à¬à]Nà›ö[ôŒ¬à€€ù[ù\Nà›ö[ôŒ¬à]õ‹õNà›ö[ôŒ¬àXY[ôNà›ö[ôŒ¬àõŸNà›ö[ôŒ¬à\⁄Y‹Œà›ö[ô÷◊N¬àÿ⁄Y[Y]Nà›ö[ôŒ¬àBà€€ú›êSQ–””ïSï’TT»H…‘€ÿ⁄X[‹›	À	’⁄]–\õ€[…À	’öY[»ÿ‹ö\	À	‘òY[»úöYYâÀ	—[XZ[ô]‹…◊N¬à€€ú›ÿ€€ù[ù[êÿ[\ZY€íYŸ]€€ù[ù[êÿ[\ZY€íYHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›ÿ€€ù[ù[í][\ÀŸ]€€ù[ù[í][\◊HH\ŸT›]O€€ù[ù[î›YŸŸ\›[€ñ◊Oä◊JN¬à€€ú›ÿ€€ù[ù[îŸ[X›YŸ]€€ù[ù[îŸ[X›YHH\ŸT›]OŸ]ù[Xô\èèäô]»Ÿ]
+
+JN¬à€€ú›ÿ€€ù[ù[ìÿY[ôÀŸ]€€ù[ù[ìÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›ÿ€€ù[ù[ë\úõ‹ãŸ]€€ù[ù[ë\úõ‹óHH\ŸT›]J	… N¬à€€ú›ÿ‹ôX][ô–€€ù[ù[ëòYùÀŸ]‹ôX][ô–€€ù[ù[ëòYù◊HH\ŸT›]Jò[ŸJN¬Çà€€ú›[ôT›YŸŸ\›€€ù[ù[àH\ﬁ[ò»
+ÿ[\àÿ[\ZY€äHOà¬àŸ]€€ù[ù[êÿ[\ZY€íY
+ÿ[\öY
+N¬àŸ]€€ù[ù[í][\ ◊JN¬àŸ]€€ù[ù[îŸ[X›Y
+ô]»Ÿ]
+
+JN¬àŸ]€€ù[ù[ë\úõ‹ä	… N¬àŸ]€€ù[ù[ìÿY[ô ùYJN¬àûH¬à€€ú›¬à]Nà»Ÿ\‹⁄[€àKàHH]ÿZ]›\Xò\ŸKò]]ôŸ]Ÿ\‹⁄[€ä
+N¬à€€ú›ô\‹€úŸHH]ÿZ]ô]⁄
+	Àÿ\KŸŸ[Z[öKÿ€€ù[ù\[âÀ¬àY]Ÿà	‘‘’	ÀàXY\úŒà¬à	–€€ù[ùU\IŒà	ÿ\Xÿ][€ã⁄ú€€âÀàããäŸ\‹⁄[€à»»]]‹ö^ò][€éàôX\ô\à	‹Ÿ\‹⁄[€ãòXÿŸ\‹◊›⁄Ÿ[üXHàﬂJKàKàõŸNàî””ãú›ö[ô⁄YûJ¬àÿ[\ZY€ìò[YNàÿ[\õò[YKàÿ[\ZY€ìÿöôX›]ôNàÿ[\õÿöôX›]ôKàÿ[\ZY€ë\ÿ‹ö\[€éàÿ[\ô\ÿ‹ö\[€ãà›\ù]Nàÿ[\ú›\ù]Hô]»]J
+Kù“T”‘›ö[ô 
+Kú‹]
+	’	 VÃKà[ô]Nàÿ[\ô[ô]Hô]»]J]Kõõ› 
+H
+»M
+àç
+àå
+àå
+àL
+Kù“T”‘›ö[ô 
+Kú‹]
+	’	 VÃKà€ôSŸïõ⁄XŸNàúò[ô⁄]ù€ôSŸïõ⁄XŸKàúò[ôò[YNàúò[ô⁄]òúò[ôò[YKàY€[ôNàúò[ô⁄]ùY€[ôKàZ\‹⁄[€éàúò[ô⁄]õZ\‹⁄[€ãàJKàJN¬à€€ú›]HH]ÿZ]ô\‹€úŸKöú€€ä
+N¬àYà
+]Kô\úõ‹äH¬àŸ]€€ù[ù[ë\úõ‹ä]Kô\úõ‹ãõY\‹ÿYŸH	–€›[õ›Ÿ[ô\ò]HH€€ù[ù[ãâ N¬àH[ŸH¬à€€ú›][\Œà€€ù[ù[î›YŸŸ\›[€ñ◊HH\úò^Kö\–\úò^J]Kö][\ H»]Kö][\»à◊N¬àŸ]€€ù[ù[í][\ ][\ N¬àŸ]€€ù[ù[îŸ[X›Y
+ô]»Ÿ]
+][\ÀõX\
+
+ÀJHOàJJJN¬àBàHÿ]⁄¬àŸ]€€ù[ù[ë\úõ‹ä	—òZ[Y»€€[][öXÿ]H⁄]HRH\‹⁄\›[ùâ N¬àHö[ò[H¬àŸ]€€ù[ù[ìÿY[ô ò[ŸJN¬àBàN¬Çà€€ú›ŸŸ€P€€ù[ù[í][HH
+Yàù[Xô\äHOà¬àŸ]€€ù[ù[îŸ[X›Y
+
+ô]äHOà¬à€€ú›ô^Hô]»Ÿ]
+ô]äN¬àYà
+ô^ö\ Y
+JHô^ô[]JY
+N¬à[ŸHô^òY
+Y
+N¬àô]\õàô^¬àJN¬àN¬Çà€€ú›[ôP‹ôX]TŸ[X›YòYù»H\ﬁ[ò»
+
+HOà¬àYà
+X€€ù[ù[êÿ[\ZY€íY
+Hô]\õé¬àŸ]‹ôX][ô–€€ù[ù[ëòYù ùYJN¬à]òZ[\ô\»H¬àûH¬à€€ú›‹ôX]Yà€€ù[ù][V◊HH◊N¬àõ‹à
+€€ú›YŸà€€ù[ù[îŸ[X›Y
+H¬à€€ú›][HH€€ù[ù[í][\÷⁄YN¬àYà
+Z][JH€€ù[ùYN¬àûH¬à‹ôX]Yú\⁄
+à]ÿZ]‹ôX]P€€ù[ù][JX›]ôS‹ôÀöY¬à]Nà›ö[ô ][Kù]H	–RH€€ù[ù[àòYù	 Kú€XŸJå
+Kà€€ù[ù\Nà
+êSQ–””ïSï’TTÀö[ò€Y\ ][Kò€€ù[ù\JH»][Kò€€ù[ù\Hà	‘€ÿ⁄X[‹›	 H\»€€ù[ù][V…ÿ€€ù[ù\I◊Kà]õ‹õNà][Kú]õ‹õH	—òXŸXõ€⁄…ÀàXY[ôNà][KöXY[ôH	…ÀàõŸU^à][KòõŸH	…Àà\⁄Y‹Œà\úò^Kö\–\úò^J][Kö\⁄Y‹ H»][Kö\⁄Y‹»à◊Kàÿ⁄Y[Y]Nà][Kúÿ⁄Y[Y]Hô]»]J
+Kù“T”‘›ö[ô 
+Kú‹]
+	’	 VÃKàÿ[\ZY€íYà€€ù[ù[êÿ[\ZY€íYàJBà
+N¬àHÿ]⁄¬àòZ[\ô\»
+œHN¬àBàBàŸ]€€ù[ù][\ Àããò‹ôX]Yããò€€ù[ù][\◊JN¬àŸ]ÿ[\ZY€êX›]ö]J
+ô]äHOà
+¬àããúô]ãàÿ€€ù[ù[êÿ[\ZY€íYNà¬àÿ[\ZY€íYà€€ù[ù[êÿ[\ZY€íYà€€ù[ù€›[ùà
+ô]ñÿ€€ù[ù[êÿ[\ZY€íYOÀò€€ù[ù€›[ùœ»
+H
+»‹ôX]Yõ[ô›àòX⁄⁄[ô”[ö–€›[ùàô]ñÿ€€ù[ù[êÿ[\ZY€íYOÀùòX⁄⁄[ô”[ö–€›[ùœ»à›[€X⁄‹Œàô]ñÿ€€ù[ù[êÿ[\ZY€íYOÀù›[€X⁄‹»œ»àKàJJN¬àŸ]X[⁄X⁄—ôYYòX⁄ àòZ[\ô\»àà»‹ôX]Y	ÿ‹ôX]Yõ[ô›HòYù	ÿ‹ôX]Yõ[ô›OOHH»	…»à	‹…ﬂK	ŸòZ[\ô\ﬂHòZ[Y8†%ô]öY]»[à€€ù[ù›Y[Àòàà‹ôX]Y	ÿ‹ôX]Yõ[ô›HòYù	ÿ‹ôX]Yõ[ô›OOHH»	…»à	‹…ﬂH8†%ô]öY]»[H[à€€ù[ù›Y[Àòà
+N¬àŸ]€€ù[ù[êÿ[\ZY€íY
+ù[
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]€€ù[ù[ë\úõ‹ä\úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›‹ôX]HòYùÀâﬂX
+N¬àHö[ò[H¬àŸ]‹ôX][ô–€€ù[ù[ëòYù ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]X[⁄X⁄—ôYYòX⁄ 	… Kå
+N¬àBàN¬ÇàÀ»KKHRH\‹⁄\›[ù›]\»KKBà€€ú›ÿZTõ€\Ÿ]ZTõ€\HH\ŸT›]J	—‹õ›»⁄Y\úòH[€ôHò]]ôHôYöXŸH[[€ô»X\‹‹òHò[Z[Y\»[àX\û[[ôT–Kâ N¬à€€ú›ÿZS‹[€ãŸ]ZS‹[€óHH\ŸT›]O	ÿúöYYâ»	ÿ€‹I»	‹ÿ‹ö\	»	⁄YX\…»	ÿÿ\[€ú…œä	ÿÿ\[€ú… N¬à€€ú›ÿZS›]]Ÿ]ZS›]]HH\ŸT›]J	… N¬à€€ú›ÿZQõ‹õX]Ÿ]ZQõ‹õX]HH\ŸT›]O	›^	»	ÿÿ\[€ú…»	⁄YX\…œä	›^	 N¬à€€ú›ÿZPÿ\[€í][\ÀŸ]ZPÿ\[€í][\◊HH\ŸT›]O»XY[ôNà›ö[ôŒ»õŸNà›ö[ôŒ»\⁄Y‹Œà›ö[ô÷◊HV◊Oä◊JN¬à€€ú›ÿZRYXR][\ÀŸ]ZRYXR][\◊HH\ŸT›]O»]Nà›ö[ôŒ»€€òŸ\à›ö[ôŒ»]õ‹õNà›ö[ôŒ»^X›][€î›\à›ö[ô»V◊Oä◊JN¬à€€ú›ÿZSÿY[ôÀŸ]ZSÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›ÿZQ\úõ‹ãŸ]ZQ\úõ‹óHH\ŸT›]J	… N¬à€€ú›‹ÿ]ö[ô–[ZR][\ÀŸ]ÿ]ö[ô–[ZR][\◊HH\ŸT›]Jò[ŸJN¬Çà€€ú›[ôPÿ[RHH\ﬁ[ò»
+
+HOà¬àŸ]ZSÿY[ô ùYJN¬àŸ]ZQ\úõ‹ä	… N¬àŸ]ZS›]]
+	… N¬àŸ]ZQõ‹õX]
+	›^	 N¬àŸ]ZPÿ\[€í][\ ◊JN¬àŸ]ZRYXR][\ ◊JN¬àûH¬à€€ú›¬à]Nà»Ÿ\‹⁄[€àKàHH]ÿZ]›\Xò\ŸKò]]ôŸ]Ÿ\‹⁄[€ä
+N¬à€€ú›ô\‹€úŸHH]ÿZ]ô]⁄
+	Àÿ\KŸŸ[Z[öKŸŸ[ô\ò]IÀ¬àY]Ÿà	‘‘’	ÀàXY\úŒà¬à	–€€ù[ùU\IŒà	ÿ\Xÿ][€ã⁄ú€€âÀàããäŸ\‹⁄[€à»»]]‹ö^ò][€éàôX\ô\à	‹Ÿ\‹⁄[€ãòXÿŸ\‹◊›⁄Ÿ[üXHàﬂJKàKàõŸNàî””ãú›ö[ô⁄YûJ¬àõ€\àZTõ€\à‹[€éàZS‹[€ãà€ôSŸïõ⁄XŸNàúò[ô⁄]ù€ôSŸïõ⁄XŸKàúò[ôò[YNàúò[ô⁄]òúò[ôò[YKàY€[ôNàúò[ô⁄]ùY€[ôKàZ\‹⁄[€éàúò[ô⁄]õZ\‹⁄[€ÇàJBàJN¬à€€ú›]HH]ÿZ]ô\‹€úŸKöú€€ä
+N¬àYà
+]Kô\úõ‹äH¬àŸ]ZQ\úõ‹ä]Kô\úõ‹ãõY\‹ÿYŸH	–RH€€\][€ú»òZ[Yâ N¬àH[ŸHYà
+]Kôõ‹õX]OOH	ÿÿ\[€ú…»	âà\úò^Kö\–\úò^J]Kö][\ JH¬àŸ]ZQõ‹õX]
+	ÿÿ\[€ú… N¬àŸ]ZPÿ\[€í][\ ]Kö][\ N¬àŸ]ZS›]]
+]Kù^	… N¬àH[ŸHYà
+]Kôõ‹õX]OOH	⁄YX\…»	âà\úò^Kö\–\úò^J]Kö][\ JH¬àŸ]ZQõ‹õX]
+	⁄YX\… N¬àŸ]ZRYXR][\ ]Kö][\ N¬àŸ]ZS›]]
+]Kù^	… N¬àH[ŸH¬àŸ]ZQõ‹õX]
+	›^	 N¬àŸ]ZS›]]
+]Kù^	”õ»€€ù[ùô]\õôYâ N¬àBàHÿ]⁄
+\úéà[ûJH¬àŸ]ZQ\úõ‹ä	—òZ[Y»€€[][öXÿ]H⁄]ù[\›X⁄»õﬁKà⁄X⁄»]àŸ\ùô\àŸ‹Àâ N¬àHö[ò[H¬àŸ]ZSÿY[ô ò[ŸJN¬àBàN¬ÇàÀ»KKH]YY[òŸHŸY€Y[ù›]\»KKBà€€ú›PT‘‘êW”PTí—U”‘S”î»H…’[ö]Y⁄[ôŸ€IÀ	’[ö]Y›]\…À	–ÿ[òYIÀ	—Ÿ\õX[ûIÀ	‘›ŸY[â◊N¬à€€ú›ÿ]YY[òŸQ\›öX›ÀŸ]]YY[òŸQ\›öX›◊HH\ŸT›]O^€õ€^S‹[€ñ◊Oä◊JN¬à€€ú›ÿ]YY[òŸTŸY€Y[ùÀŸ]]YY[òŸTŸY€Y[ù◊HH\ŸT›]O]YY[òŸTŸY€Y[ù◊Oä◊JN¬à€€ú›ÿ]YY[òŸSÿY[ôÀŸ]]YY[òŸSÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›ÿ]YY[òŸQôYYòX⁄ÀŸ]]YY[òŸQôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›‹ŸY€Y[ùò[YKŸ]ŸY€Y[ùò[YWHH\ŸT›]J	… N¬à€€ú›‹ŸY€Y[ù\›öX›ÀŸ]ŸY€Y[ù\›öX›◊HH\ŸT›]O›ö[ô÷◊Oä◊JN¬à€€ú›‹ŸY€Y[ùX\‹‹òSX\öŸ]ÀŸ]ŸY€Y[ùX\‹‹òSX\öŸ]◊HH\ŸT›]O›ö[ô÷◊Oä◊JN¬à€€ú›‹ŸY€Y[ù[ù\ô\›“[ú]Ÿ]ŸY€Y[ù[ù\ô\›“[ú]HH\ŸT›]J	… N¬à€€ú›‹ÿ]ö[ô‘ŸY€Y[ùŸ]ÿ]ö[ô‘ŸY€Y[ùHH\ŸT›]Jò[ŸJN¬à€€ú›Ÿ[][ô‘ŸY€Y[ùYŸ][][ô‘ŸY€Y[ùYHH\ŸT›]O›ö[ô»ù[äù[
+N¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	ÿ]YY[òŸ\… Hô]\õé¬àŸ]]YY[òŸSÿY[ô ùYJN¬àô]⁄€›[ùöY\ 
+Bàù[ä\ﬁ[ò»
+€›[ùöY\ HOà¬à€€ú›⁄Y\úòS[€ôHH€›[ùöY\Àôö[ô
+
+ HOàÀõò[YHOOH	‘⁄Y\úòH[€ôI Hœ»€›[ùöY\÷ÃN¬à€€ú›Ÿ\›öX›ÀŸY€Y[ù◊HH]ÿZ]õ€Z\ŸKò[
+¬à⁄Y\úòS[€ôH»ô]⁄\›öX› ⁄Y\úòS[€ôKöY
+Hàõ€Z\ŸKúô\€€ôJ◊JKàô]⁄]YY[òŸTŸY€Y[ù X›]ôS‹ôÀöY
+KàJN¬àŸ]]YY[òŸQ\›öX› \›öX› N¬àŸ]]YY[òŸTŸY€Y[ù ŸY€Y[ù N¬àJBàòÿ]⁄
+
+\úéà[ûJHOàŸ]]YY[òŸQôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿY]YY[òŸH]KâﬂX
+JBàôö[ò[J
+
+HOàŸ]]YY[òŸSÿY[ô ò[ŸJJN¬àKÿX›]ôUXãX›]ôS‹ôÀöYJN¬Çà€€ú›ŸŸ€TŸY€Y[ù\›öX›H
+ò[YNà›ö[ô HOà¬àŸ]ŸY€Y[ù\›öX› 
+ô]äHOà
+ô]ãö[ò€Y\ ò[YJH»ô]ãôö[\ä
+
+HOàOOHò[YJHàÀããúô]ãò[YWJJN¬àN¬Çà€€ú›ŸŸ€TŸY€Y[ùX\‹‹òSX\öŸ]H
+ò[YNà›ö[ô HOà¬àŸ]ŸY€Y[ùX\‹‹òSX\öŸ] 
+ô]äHOà
+ô]ãö[ò€Y\ ò[YJH»ô]ãôö[\ä
+JHOàHOOHò[YJHàÀããúô]ãò[YWJJN¬àN¬Çà€€ú›ô\Ÿ]ŸY€Y[ùõ‹õHH
+
+HOà¬àŸ]ŸY€Y[ùò[YJ	… N¬àŸ]ŸY€Y[ù\›öX› ◊JN¬àŸ]ŸY€Y[ùX\‹‹òSX\öŸ] ◊JN¬àŸ]ŸY€Y[ù[ù\ô\›“[ú]
+	… N¬àN¬Çà€€ú›[ôTÿ]ôTŸY€Y[ùH\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àŸ]ÿ]ö[ô‘ŸY€Y[ù
+ùYJN¬àûH¬à€€ú›ŸY€Y[ùH]ÿZ]‹ôX]P]YY[òŸTŸY€Y[ù
+X›]ôS‹ôÀöY¬àò[YNàŸY€Y[ùò[YKà\›öX›ŒàŸY€Y[ù\›öX›ÀàX\‹‹òSX\öŸ]ŒàŸY€Y[ùX\‹‹òSX\öŸ]Àà[ù\ô\›ŒàŸY€Y[ù[ù\ô\›“[ú]ú‹]
+	À	 KõX\
+
+
+HOàùö[J
+JKôö[\äõ€€X[äKàJN¬àŸ]]YY[òŸTŸY€Y[ù ‹ŸY€Y[ùããò]YY[òŸTŸY€Y[ù◊JN¬àô\Ÿ]ŸY€Y[ùõ‹õJ
+N¬àŸ]]YY[òŸQôYYòX⁄ 	–]YY[òŸHŸY€Y[ùÿ]ôYâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]]YY[òŸQôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿ]ôHŸY€Y[ùâﬂX
+N¬àHö[ò[H¬àŸ]ÿ]ö[ô‘ŸY€Y[ù
+ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]]YY[òŸQôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›[ôQ[]TŸY€Y[ùH\ﬁ[ò»
+ŸY€Y[ùà]YY[òŸTŸY€Y[ù
+HOà¬àYà
+X€€ôö\õJ[]Hâ‹ŸY€Y[ùõò[Y_Hèÿ
+JHô]\õé¬àŸ][][ô‘ŸY€Y[ùY
+ŸY€Y[ùöY
+N¬à€€ú›ô]ö[›\»H]YY[òŸTŸY€Y[ùŒ¬àŸ]]YY[òŸTŸY€Y[ù ]YY[òŸTŸY€Y[ùÀôö[\ä
+ HOàÀöYOOHŸY€Y[ùöY
+JN¬àûH¬à]ÿZ][]P]YY[òŸTŸY€Y[ù
+ŸY€Y[ùöY
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]]YY[òŸTŸY€Y[ù ô]ö[›\ N¬àŸ]]YY[òŸQôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›[]HŸY€Y[ùâﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]]YY[òŸQôYYòX⁄ 	… K
+N¬àHö[ò[H¬àŸ][][ô‘ŸY€Y[ùY
+ù[
+N¬àBàN¬ÇàÀ»KKH€ÿ⁄X[Xÿ€›[ù»›]\»
+ôX[X[ùX[⁄[õô[òX⁄⁄[ôÀõ»–]]
+HKKBà€€ú›‹€ÿ⁄X[ôYYòX⁄ÀŸ]€ÿ⁄X[ôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›ÿY[ô–⁄[õô[Ÿ]Y[ô–⁄[õô[HH\ŸT›]Jò[ŸJN¬à€€ú›€ô]–⁄[õô[]õ‹õKŸ]ô]–⁄[õô[]õ‹õWHH\ŸT›]J	… N¬à€€ú›€ô]–⁄[õô[Xÿ€›[ùò[YKŸ]ô]–⁄[õô[Xÿ€›[ùò[YWHH\ŸT›]J	… N¬à€€ú›€ô]–⁄[õô[›]\ÀŸ]ô]–⁄[õô[›]\◊HH\ŸT›]O€ÿ⁄X[€€õôX›[€ñ…‹›]\…◊Oä	‘ÿ[ôõﬁ	 N¬à€€ú›‹ÿ]ö[ô–⁄[õô[Ÿ]ÿ]ö[ô–⁄[õô[HH\ŸT›]Jò[ŸJN¬à€€ú›ŸY][ô–€€õôX›[€íYŸ]Y][ô–€€õôX›[€íYHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›ŸY]€€õêXÿ€›[ùò[YKŸ]Y]€€õêXÿ€›[ùò[YWHH\ŸT›]J	… N¬à€€ú›ŸY]€€õî›]\ÀŸ]Y]€€õî›]\◊HH\ŸT›]O€ÿ⁄X[€€õôX›[€ñ…‹›]\…◊Oä	‘ÿ[ôõﬁ	 N¬à€€ú›ŸY]€€õíX[Ÿ]Y]€€õíX[HH\ŸT›]O€ÿ⁄X[€€õôX›[€ñ…ÿ€€õôX›[€íX[	◊Oä	“X[I N¬à€€ú›‹ÿ]ö[ô–€€õëY]Ÿ]ÿ]ö[ô–€€õëY]HH\ŸT›]Jò[ŸJN¬à€€ú›Ÿ[][ô–€€õôX›[€íYŸ][][ô–€€õôX›[€íYHH\ŸT›]O›ö[ô»ù[äù[
+N¬Çà€€ú›[ôPY⁄[õô[H\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àŸ]ÿ]ö[ô–⁄[õô[
+ùYJN¬àûH¬à€€ú›€€õàH]ÿZ]‹ôX]T€ÿ⁄X[€€õôX›[€äX›]ôS‹ôÀöY¬à]õ‹õNàô]–⁄[õô[]õ‹õKàXÿ€›[ùò[YNàô]–⁄[õô[Xÿ€›[ùò[YKà›]\Œàô]–⁄[õô[›]\Àà€€õôX›[€íX[à	”õ€ôIÀàJN¬àŸ]€ÿ⁄X[€€õôX›[€ú ÿ€€õãããú€ÿ⁄X[€€õôX›[€ú◊JN¬àŸ]ô]–⁄[õô[]õ‹õJ	… N¬àŸ]ô]–⁄[õô[Xÿ€›[ùò[YJ	… N¬àŸ]ô]–⁄[õô[›]\ 	‘ÿ[ôõﬁ	 N¬àŸ]Y[ô–⁄[õô[
+ò[ŸJN¬àŸ]€ÿ⁄X[ôYYòX⁄ 	–⁄[õô[YYâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]€ÿ⁄X[ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›Y⁄[õô[âﬂX
+N¬àHö[ò[H¬àŸ]ÿ]ö[ô–⁄[õô[
+ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]€ÿ⁄X[ôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›[ôT›\ùY]€€õôX›[€àH
+€€õéà€ÿ⁄X[€€õôX›[€äHOà¬àŸ]Y][ô–€€õôX›[€íY
+€€õãöY
+N¬àŸ]Y]€€õêXÿ€›[ùò[YJ€€õãòXÿ€›[ùò[YJN¬àŸ]Y]€€õî›]\ €€õãú›]\ N¬àŸ]Y]€€õíX[
+€€õãò€€õôX›[€íX[
+N¬àN¬Çà€€ú›[ôTÿ]ôP€€õôX›[€ëY]H\ﬁ[ò»
+Yà›ö[ô HOà¬àŸ]ÿ]ö[ô–€€õëY]
+ùYJN¬àûH¬à€€ú›\]YH]ÿZ]\]T€ÿ⁄X[€€õôX›[€äY¬àXÿ€›[ùò[YNàY]€€õêXÿ€›[ùò[YKà›]\ŒàY]€€õî›]\Àà€€õôX›[€íX[àY]€€õíX[àJN¬àŸ]€ÿ⁄X[€€õôX›[€ú €ÿ⁄X[€€õôX›[€úÀõX\
+
+ HOà
+ÀöYOOH\]YöY»\]Yà JJN¬àŸ]Y][ô–€€õôX›[€íY
+ù[
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]€ÿ⁄X[ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿ]ôH⁄[õô[âﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]€ÿ⁄X[ôYYòX⁄ 	… K
+N¬àHö[ò[H¬àŸ]ÿ]ö[ô–€€õëY]
+ò[ŸJN¬àBàN¬Çà€€ú›[ôQ[]P€€õôX›[€àH\ﬁ[ò»
+€€õéà€ÿ⁄X[€€õôX›[€äHOà¬àYà
+X€€ôö\õJô[[›ôHâÿ€€õãú]õ‹õ_Hèÿ
+JHô]\õé¬àŸ][][ô–€€õôX›[€íY
+€€õãöY
+N¬à€€ú›ô]ö[›\»H€ÿ⁄X[€€õôX›[€úŒ¬àŸ]€ÿ⁄X[€€õôX›[€ú €ÿ⁄X[€€õôX›[€úÀôö[\ä
+ HOàÀöYOOH€€õãöY
+JN¬àûH¬à]ÿZ][]T€ÿ⁄X[€€õôX›[€ä€€õãöY
+N¬àYà
+Y][ô–€€õôX›[€íYOOH€€õãöY
+HŸ]Y][ô–€€õôX›[€íY
+ù[
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]€ÿ⁄X[€€õôX›[€ú ô]ö[›\ N¬àŸ]€ÿ⁄X[ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ô[[›ôH⁄[õô[âﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]€ÿ⁄X[ôYYòX⁄ 	… K
+N¬àHö[ò[H¬àŸ][][ô–€€õôX›[€íY
+ù[
+N¬àBàN¬ÇàÀ»KKH€€ù[ùY]‹à›]\»KKBà€€ú›Yò][ÿ⁄Y[Y]HH
+
+HOàô]»]J]Kõõ› 
+H
+»H
+àç
+àå
+àå
+àL
+Kù“T”‘›ö[ô 
+Kú‹]
+	’	 VÃN¬à€€ú›ŸY][ô–€€ù[ùYŸ]Y][ô–€€ù[ùYHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›ŸY]]KŸ]Y]]WHH\ŸT›]J	… N¬à€€ú›ŸY]\KŸ]Y]\WHH\ŸT›]O	‘€ÿ⁄X[‹›	»	’⁄]–\õ€[…»	’öY[»ÿ‹ö\	»	‘òY[»úöYYâ»	—[XZ[ô]‹…œä	‘€ÿ⁄X[‹›	 N¬à€€ú›ŸY]]õ‹õKŸ]Y]]õ‹õWHH\ŸT›]J	—òXŸXõ€⁄… N¬à€€ú›ŸY]XY[ôKŸ]Y]XY[ôWHH\ŸT›]J	… N¬à€€ú›ŸY]õŸKŸ]Y]õŸWHH\ŸT›]J	… N¬à€€ú›ŸY]\⁄Y‹“[ú]Ÿ]Y]\⁄Y‹“[ú]HH\ŸT›]J	»”X[õ⁄Xã—X]ÿ[€ôI N¬à€€ú›ŸY]ÿ⁄Y[Y]KŸ]Y]ÿ⁄Y[Y]WHH\ŸT›]JYò][ÿ⁄Y[Y]J
+JN¬à€€ú›ŸY]›]\ÀŸ]Y]›]\◊HH\ŸT›]O€€ù[ù][V…‹›]\…◊Oä	—òYù	 N¬à€€ú›ÿ€€ù[ùôYYòX⁄ÀŸ]€€ù[ùôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›Ÿ[][ô–€€ù[ùYŸ][][ô–€€ù[ùYHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›ÿ€€ù[ù›]\’\][ô“YŸ]€€ù[ù›]\’\][ô“YHH\ŸT›]O›ö[ô»ù[äù[
+N¬Çà€€ú›ÿ€€ù[ù›XõZ][ôÀŸ]€€ù[ù›XõZ][ô◊HH\ŸT›]Jò[ŸJN¬Çà€€ú›ô\Ÿ]€€ù[ù€€\‹Ÿ\àH
+
+HOà¬àŸ]Y][ô–€€ù[ùY
+ù[
+N¬àŸ]Y]]J	… N¬àŸ]Y]\J	‘€ÿ⁄X[‹›	 N¬àŸ]Y]]õ‹õJ	—òXŸXõ€⁄… N¬àŸ]Y]XY[ôJ	… N¬àŸ]Y]õŸJ	… N¬àŸ]Y]\⁄Y‹“[ú]
+	»”X[õ⁄Xã—X]ÿ[€ôI N¬àŸ]Y]ÿ⁄Y[Y]JYò][ÿ⁄Y[Y]J
+JN¬àŸ]Y]›]\ 	—òYù	 N¬àN¬Çà€€ú›[ôQY]€€ù[ù][HH
+][Nà€€ù[ù][JHOà¬àŸ]Y][ô–€€ù[ùY
+][KöY
+N¬àŸ]Y]]J][Kù]JN¬àŸ]Y]\J][Kò€€ù[ù\JN¬àŸ]Y]]õ‹õJ][Kú]õ‹õJN¬àŸ]Y]XY[ôJ][KöXY[ôJN¬àŸ]Y]õŸJ][KòõŸU^
+N¬àŸ]Y]\⁄Y‹“[ú]
+][Kö\⁄Y‹Àöõ⁄[ä	À	 JN¬àŸ]Y]ÿ⁄Y[Y]J][Kúÿ⁄Y[Y]HYò][ÿ⁄Y[Y]J
+JN¬àŸ]Y]›]\ ][Kú›]\ N¬à⁄[ô›Àúÿ‹õ€ »‹àôZ]ö[‹éà	‹€[€›	»JN¬àN¬Çà€€ú›\úŸR\⁄Y‹“[ú]H
+[ú]à›ö[ô Nà›ö[ô÷◊HOÇà[ú]àú‹]
+	À	 BàõX\
+
+Y HOàYÀùö[J
+JBàôö[\äõ€€X[äBàõX\
+
+Y HOà
+YÀú›\ù’⁄]
+	»… H»Y»à…›YﬂX
+JN¬Çà€€ú›[ôTÿ]ôP€€ù[ùH\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àŸ]€€ù[ù›XõZ][ô ùYJN¬àûH¬àYà
+Y][ô–€€ù[ùY
+H¬à€€ú››\úô[ùH€€ù[ù][\Àôö[ô
+
+ HOàÀöYOOHY][ô–€€ù[ùY
+N¬à€€ú›\]YH]ÿZ]\]P€€ù[ù][JY][ô–€€ù[ùY¬à]NàY]]H	–›\›€H€€ù[ù][IÀà€€ù[ù\NàY]\Kà]õ‹õNàY]]õ‹õKàXY[ôNàY]XY[ôH	“\ùô\›Y⁄]ÿÿ[öYIÀàõŸU^àY]õŸH	‘ô[Z][H›\H\ôX›H€›\òŸYúõ€Hõ»€€‹\ò]]ôKâÀà\⁄Y‹Œà\úŸR\⁄Y‹“[ú]
+Y]\⁄Y‹“[ú]
+Kàÿ⁄Y[Y]NàY]ÿ⁄Y[Y]Kà›]\ŒàY]›]\Ààô\ú⁄[€éà
+›\úô[ùÀùô\ú⁄[€àœ»JH
+»KàJN¬àŸ]€€ù[ù][\ €€ù[ù][\ÀõX\
+
+ HOà
+ÀöYOOH\]YöY»\]Yà JJN¬àŸ]€€ù[ùôYYòX⁄ 	–€€ù[ù][H\]Yâ N¬àH[ŸH¬à€€ú›ô]“][HH]ÿZ]‹ôX]P€€ù[ù][JX›]ôS‹ôÀöY¬à]NàY]]H	–›\›€H€€ù[ù][IÀà€€ù[ù\NàY]\Kà]õ‹õNàY]]õ‹õKàXY[ôNàY]XY[ôH	“\ùô\›Y⁄]ÿÿ[öYIÀàõŸU^àY]õŸH	‘ô[Z][H›\H\ôX›H€›\òŸYúõ€Hõ»€€‹\ò]]ôKâÀà\⁄Y‹Œà\úŸR\⁄Y‹“[ú]
+Y]\⁄Y‹“[ú]
+Kàÿ⁄Y[Y]NàY]ÿ⁄Y[Y]KàJN¬àŸ]€€ù[ù][\ €ô]“][Kããò€€ù[ù][\◊JN¬àŸ]€€ù[ùôYYòX⁄ 	—òYù[\]Hÿ]ôY[ôYY»H€€ù[ù[ô^I N¬àBàô\Ÿ]€€ù[ù€€\‹Ÿ\ä
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]€€ù[ùôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿ]ôH€€ù[ù][KâﬂX
+N¬àHö[ò[H¬àŸ]€€ù[ù›XõZ][ô ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]€€ù[ùôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›[ôQ[]P€€ù[ù][HH\ﬁ[ò»
+][Nà€€ù[ù][JHOà¬àYà
+X€€ôö\õJ[]Hâ⁄][Kù]_Hè»\»ÿ[õõ›ôH[ô€ôKò
+JHô]\õé¬àŸ][][ô–€€ù[ùY
+][KöY
+N¬à€€ú›ô]ö[›\»H€€ù[ù][\Œ¬àŸ]€€ù[ù][\ €€ù[ù][\Àôö[\ä
+ HOàÀöYOOH][KöY
+JN¬àûH¬à]ÿZ][]P€€ù[ù][J][KöY
+N¬àYà
+Y][ô–€€ù[ùYOOH][KöY
+Hô\Ÿ]€€ù[ù€€\‹Ÿ\ä
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]€€ù[ù][\ ô]ö[›\ N¬àŸ]€€ù[ùôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›[]H€€ù[ù][KâﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]€€ù[ùôYYòX⁄ 	… K
+N¬àHö[ò[H¬àŸ][][ô–€€ù[ùY
+ù[
+N¬àBàN¬Çà€€ú›[ôP⁄[ôŸP€€ù[ù›]\»H\ﬁ[ò»
+][Nà€€ù[ù][K›]\Œà€€ù[ù][V…‹›]\…◊JHOà¬àYà
+›]\»OOH][Kú›]\ Hô]\õé¬àŸ]€€ù[ù›]\’\][ô“Y
+][KöY
+N¬à€€ú›ô]ö[›\»H€€ù[ù][\Œ¬àŸ]€€ù[ù][\ €€ù[ù][\ÀõX\
+
+ HOà
+ÀöYOOH][KöY»»ããòÀ›]\»Hà JJN¬àûH¬à€€ú›\]YH]ÿZ]\]P€€ù[ù][J][KöY»›]\Àô\ú⁄[€éà][Kùô\ú⁄[€à
+»HJN¬àŸ]€€ù[ù][\ 
+ô]äHOàô]ãõX\
+
+ HOà
+ÀöYOOH\]YöY»\]Yà JJN¬àYà
+Y][ô–€€ù[ùYOOH][KöY
+HŸ]Y]›]\ ›]\ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]€€ù[ù][\ ô]ö[›\ N¬àŸ]€€ù[ùôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›\]H›]\ÀâﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]€€ù[ùôYYòX⁄ 	… K
+N¬àHö[ò[H¬àŸ]€€ù[ù›]\’\][ô“Y
+ù[
+N¬àBàN¬Çà€€ú›[ôU\ŸPÿ\[€í[ê€€\‹Ÿ\àH
+][Nà»XY[ôNà›ö[ôŒ»õŸNà›ö[ôŒ»\⁄Y‹Œà›ö[ô÷◊HJHOà¬àô\Ÿ]€€ù[ù€€\‹Ÿ\ä
+N¬àŸ]Y]]J][KöXY[ôKú€XŸJå
+JN¬àŸ]Y]XY[ôJ][KöXY[ôJN¬àŸ]Y]õŸJ][KòõŸJN¬àŸ]Y]\⁄Y‹“[ú]
+
+][Kö\⁄Y‹»◊JKöõ⁄[ä	À	 JN¬àŸ]€€ù[ùôYYòX⁄ 	”ÿYY[ù»H€€\‹Ÿ\à8†%ô]öY]»[ôÿ]ôKâ N¬àŸ][Y[›]
+
+
+HOàŸ]€€ù[ùôYYòX⁄ 	… K
+N¬àN¬Çà€€ú›[ôU\ŸRYXR[ê€€\‹Ÿ\àH
+YXNà»]Nà›ö[ôŒ»€€òŸ\à›ö[ôŒ»]õ‹õNà›ö[ôŒ»^X›][€î›\à›ö[ô»JHOà¬àô\Ÿ]€€ù[ù€€\‹Ÿ\ä
+N¬àŸ]Y]]JYXKù]Kú€XŸJå
+JN¬àŸ]Y]]õ‹õJYXKú]õ‹õH	—òXŸXõ€⁄… N¬àŸ]Y]XY[ôJYXKù]JN¬àŸ]Y]õŸJ	⁄YXKò€€òŸ\Wóí›»»^X›]Nà	⁄YXKô^X›][€î›\X
+N¬àŸ]€€ù[ùôYYòX⁄ 	”ÿYY[ù»H€€\‹Ÿ\à8†%ô]öY]»[ôÿ]ôKâ N¬àŸ][Y[›]
+
+
+HOàŸ]€€ù[ùôYYòX⁄ 	… K
+N¬àN¬Çà€€ú›[ôTÿ]ôP[ZR][\»H\ﬁ[ò»
+
+HOà¬àŸ]ÿ]ö[ô–[ZR][\ ùYJN¬àûH¬à€€ú›‹ôX]Yà€€ù[ù][V◊HH◊N¬àYà
+ZQõ‹õX]OOH	ÿÿ\[€ú… H¬àõ‹à
+€€ú›][HŸàZPÿ\[€í][\ H¬à‹ôX]Yú\⁄
+à]ÿZ]‹ôX]P€€ù[ù][JX›]ôS‹ôÀöY¬à]Nà][KöXY[ôOÀú€XŸJå
+H	–RHÿ\[€âÀà€€ù[ù\Nà	‘€ÿ⁄X[‹›	Àà]õ‹õNàY]]õ‹õH	—òXŸXõ€⁄…ÀàXY[ôNà][KöXY[ôH	…ÀàõŸU^à][KòõŸH	…Àà\⁄Y‹Œà][Kö\⁄Y‹»◊Kàÿ⁄Y[Y]NàYò][ÿ⁄Y[Y]J
+KàJBà
+N¬àBàH[ŸHYà
+ZQõ‹õX]OOH	⁄YX\… H¬àõ‹à
+€€ú›YXHŸàZRYXR][\ H¬à‹ôX]Yú\⁄
+à]ÿZ]‹ôX]P€€ù[ù][JX›]ôS‹ôÀöY¬à]NàYXKù]OÀú€XŸJå
+H	–RHYXIÀà€€ù[ù\Nà	‘€ÿ⁄X[‹›	Àà]õ‹õNàYXKú]õ‹õHY]]õ‹õH	—òXŸXõ€⁄…ÀàXY[ôNàYXKù]H	…ÀàõŸU^à	⁄YXKò€€òŸ\	…ﬂWóí›»»^X›]Nà	⁄YXKô^X›][€î›\	…ﬂXà\⁄Y‹Œà…»”X[õ⁄XâÀ	»—X]ÿ[€ôI◊Kàÿ⁄Y[Y]NàYò][ÿ⁄Y[Y]J
+KàJBà
+N¬àBàBàŸ]€€ù[ù][\ Àããò‹ôX]Yããò€€ù[ù][\◊JN¬àŸ]€€ù[ùôYYòX⁄ ÿ]ôY	ÿ‹ôX]Yõ[ô›H][Iÿ‹ôX]Yõ[ô›OOHH»	…»à	‹…ﬂH\»òYùÀò
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]€€ù[ùôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿ]ôHRH][\ÀâﬂX
+N¬àHö[ò[H¬àŸ]ÿ]ö[ô–[ZR][\ ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]€€ù[ùôYYòX⁄ 	… KL
+N¬àBàN¬ÇàÀ»KKHYYXHXúò\ûH›]\»KKBà€€ú›€›–ò[ô⁄Y[ŸKŸ]›–ò[ô⁄Y[ŸWHH\ŸT›]Jò[ŸJN¬à€€ú›€YYXP\‹Ÿ]ÀŸ]YYXP\‹Ÿ]◊HH\ŸT›]OYYXP\‹Ÿ]◊Oä◊JN¬à€€ú›€YYXSÿY[ôÀŸ]YYXSÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›€YYXQôYYòX⁄ÀŸ]YYXQôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›⁄\’\ÿY[ô”YYXKŸ]\’\ÿY[ô”YYXWHH\ŸT›]Jò[ŸJN¬à€€ú››\ÿYõ€\ãŸ]\ÿYõ€\óHH\ŸT›]J	—Ÿ[ô\ò[	 N¬à€€ú›YYXQö[R[ú]ôYàHôXX›ù\ŸTôYèS[ú][[Y[ùäù[
+N¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	€YYXI Hô]\õé¬àŸ]YYXSÿY[ô ùYJN¬àô]⁄YYXP\‹Ÿ] X›]ôS‹ôÀöY
+Bàù[äŸ]YYXP\‹Ÿ] Bàòÿ]⁄
+
+\úéà[ûJHOàŸ]YYXQôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿYYYXH\‹Ÿ]ÀâﬂX
+JBàôö[ò[J
+
+HOàŸ]YYXSÿY[ô ò[ŸJJN¬àKÿX›]ôUXãX›]ôS‹ôÀöYJN¬Çà€€ú›[ôSYYXQö[P⁄[ôŸHH\ﬁ[ò»
+NàôXX›ê⁄[ôŸQ]ô[ùS[ú][[Y[ùäHOà¬à€€ú›ö[HHKù\ôŸ]ôö[\œÀñÃN¬àKù\ôŸ]ùò[YHH	…Œ¬àYà
+Yö[JHô]\õé¬àŸ]\’\ÿY[ô”YYXJùYJN¬àûH¬à€€ú›\‹Ÿ]H]ÿZ]\ÿYYYXP\‹Ÿ]
+X›]ôS‹ôÀöYö[K\ÿYõ€\äN¬àŸ]YYXP\‹Ÿ] ÿ\‹Ÿ]ããõYYXP\‹Ÿ]◊JN¬àŸ]YYXQôYYòX⁄ 	–\‹Ÿ]\ÿYYâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]YYXQôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›\ÿY\‹Ÿ]âﬂX
+N¬àHö[ò[H¬àŸ]\’\ÿY[ô”YYXJò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]YYXQôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›[ôQ[]SYYXP\‹Ÿ]H\ﬁ[ò»
+\‹Ÿ]àYYXP\‹Ÿ]
+HOà¬à€€ú›ô]ö[›\»HYYXP\‹Ÿ]Œ¬àŸ]YYXP\‹Ÿ] YYXP\‹Ÿ]Àôö[\ä
+JHOàKöYOOH\‹Ÿ]öY
+JN¬àûH¬à]ÿZ][]SYYXP\‹Ÿ]
+\‹Ÿ]
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]YYXP\‹Ÿ] ô]ö[›\ N¬àŸ]YYXQôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›[]H\‹Ÿ]âﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]YYXQôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›[ôUöY]”YYXP\‹Ÿ]H\ﬁ[ò»
+\‹Ÿ]àYYXP\‹Ÿ]
+HOà¬àûH¬à€€ú›\õH]ÿZ]Ÿ]YYXP\‹Ÿ]\õ
+\‹Ÿ]
+N¬à⁄[ô›Àõ‹[ä\õ	◊ÿõ[ö… N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]YYXQôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›‹[à\‹Ÿ]âﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]YYXQôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›YYXQõ€\ú»H\úò^Kôúõ€Jô]»Ÿ]
+YYXP\‹Ÿ]ÀõX\
+
+JHOàKôõ€\äJJN¬Çàù[ò›[€àõ‹õX]ö[T⁄^ôJû]\Œàù[Xô\àù[
+Nà›ö[ô»¬àYà
+û]\»OOHù[
+Hô]\õà	¯†%	Œ¬àYà
+û]\»Lç
+àLç
+Hô]\õà	 û]\»»Lç
+Kù—ö^Y
+
+_H–ò¬àô]\õà	 û]\»»
+Lç
+àLç
+JKù—ö^Y
+J_HPò¬àBÇàÀ»KKHòX⁄⁄[ô»[ö‹»›]\»
+ôX[›‹òYŸKXòX⁄ŸY⁄‹ù[ö‹ HKKBà€€ú››òX⁄—\›Ÿ]òX⁄—\›HH\ŸT›]J	⁄ŒãÀŸúôY]›€ö]ô[ãò€€Kÿõ€⁄⁄[ô… N¬à€€ú››òX⁄”Xô[Ÿ]òX⁄”Xô[HH\ŸT›]J	… N¬à€€ú››òX⁄–ÿ[\ZY€íYŸ]òX⁄–ÿ[\ZY€íYHH\ŸT›]J	… N¬à€€ú››òX⁄⁄[ô”[ö‹ÀŸ]òX⁄⁄[ô”[ö‹◊HH\ŸT›]OòX⁄⁄[ô”[ö÷◊Oä◊JN¬à€€ú››òX⁄⁄[ô”[ö‹”ÿY[ôÀŸ]òX⁄⁄[ô”[ö‹”ÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú››òX⁄⁄[ô”[ö—ôYYòX⁄ÀŸ]òX⁄⁄[ô”[ö—ôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›ÿ€X⁄‘Ÿ\öY\ÀŸ]€X⁄‘Ÿ\öY\◊HH\ŸT›]O€X⁄‘Ÿ\öY\‘⁄[ù◊Oä◊JN¬à€€ú››ŸYZŸ^P€X⁄‹ÀŸ]ŸYZŸ^P€X⁄‹◊HH\ŸT›]OŸYZŸ^P€X⁄‘⁄[ù◊Oä◊JN¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	ÿ[ò[]X‹…»	âàX›]ôUXàOOH	››\ö\€I»	âàX›]ôUXàOOH	Ÿ]ô[ù…»	âàX›]ôUXàOOH	€›ô\ùöY]… Hô]\õé¬àYà
+X›]ôUXàOOH	€›ô\ùöY]…»	âàZ\‘]õ‹õPYZ[äHô]\õé¬àŸ]òX⁄⁄[ô”[ö‹”ÿY[ô ùYJN¬àõ€Z\ŸKò[
+Ÿô]⁄òX⁄⁄[ô”[ö‹ X›]ôS‹ôÀöY
+Kô]⁄€X⁄‘Ÿ\öY\ X›]ôS‹ôÀöYLäKô]⁄€X⁄‹–ûUŸYZŸ^JX›]ôS‹ôÀöY
+WJBàù[ä
+€[ö‹ÀŸ\öY\ÀŸYZŸ^WJHOà¬àŸ]òX⁄⁄[ô”[ö‹ [ö‹ N¬àŸ]€X⁄‘Ÿ\öY\ Ÿ\öY\ N¬àŸ]ŸYZŸ^P€X⁄‹ ŸYZŸ^JN¬àJBàòÿ]⁄
+
+\úéà[ûJHOàŸ]òX⁄⁄[ô”[ö—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿYòX⁄⁄[ô»[ö‹ÀâﬂX
+JBàôö[ò[J
+
+HOàŸ]òX⁄⁄[ô”[ö‹”ÿY[ô ò[ŸJJN¬àKÿX›]ôUXãX›]ôS‹ôÀöYJN¬Çà€€ú›[ôQŸ[ô\ò]S[ö»H\ﬁ[ò»
+
+HOà¬àYà
+]òX⁄”Xô[ùö[J
+H]òX⁄—\›ùö[J
+JH¬àŸ]òX⁄⁄[ô”[ö—ôYYòX⁄ 	—\úõ‹éà⁄]ôHH[ö»HXô[[ôH\›[ò][€àTìâ N¬àŸ][Y[›]
+
+
+HOàŸ]òX⁄⁄[ô”[ö—ôYYòX⁄ 	… K
+N¬àô]\õé¬àBàûH¬à€€ú›[ö»H]ÿZ]‹ôX]UòX⁄⁄[ô”[ö X›]ôS‹ôÀöYòX⁄”Xô[òX⁄—\›òX⁄–ÿ[\ZY€íYù[
+N¬àŸ]òX⁄⁄[ô”[ö‹ €[öÀããùòX⁄⁄[ô”[ö‹◊JN¬àŸ]òX⁄”Xô[
+	… N¬àŸ]òX⁄–ÿ[\ZY€íY
+	… N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]òX⁄⁄[ô”[ö—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›‹ôX]HòX⁄⁄[ô»[öÀâﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]òX⁄⁄[ô”[ö—ôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›[ôQ[]UòX⁄⁄[ô”[ö»H\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›ô]ö[›\»HòX⁄⁄[ô”[ö‹Œ¬àŸ]òX⁄⁄[ô”[ö‹ òX⁄⁄[ô”[ö‹Àôö[\ä
+
+HOàöYOOHY
+JN¬àûH¬à]ÿZ][]UòX⁄⁄[ô”[ö Y
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]òX⁄⁄[ô”[ö‹ ô]ö[›\ N¬àŸ]òX⁄⁄[ô”[ö—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›[]H[öÀâﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ]òX⁄⁄[ô”[ö—ôYYòX⁄ 	… K
+N¬àBàN¬ÇàÀ»Ÿ[ô\öX»8†%[ûH€‹ö‹‹XŸH⁄]HôX[\›[ò][€àTìÿ[à‹ôX]HHôX[àÀ»òX⁄⁄[ô»[ö»õ›Y⁄\»
+\ŸYûHõ›H[ò[]X‹»ùZ[\à[ôBàÀ»›\ö\€HXâ‹»\ãY\›[ò][€àëŸ[ô\ò]HòX⁄⁄[ô»[ö»àù]€ú KÇà€€ú›Ÿ[ô\ò]Sò[YYòX⁄⁄[ô”[ö»H\ﬁ[ò»
+Xô[à›ö[ôÀYò][\õà›ö[ô Nàõ€Z\ŸOòX⁄⁄[ô”[ö»ù[àOà¬à€€ú›\ôŸ]\õHõ€\
+⁄\ôH⁄›[â€Xô[HàŸ[ôö\⁄]‹úœ»
+KôÀàH⁄]–\[ö»‹àõ€⁄⁄[ô»YŸJXYò][\õ
+N¬àYà
+]\ôŸ]\õ
+Hô]\õàù[¬àô]\õà‹ôX]UòX⁄⁄[ô”[ö X›]ôS‹ôÀöYXô[\ôŸ]\õ
+N¬àN¬ÇàÀ»KKHXYX[òYŸ[Y[ù›]\»KKBà€€ú›€XYŸX\ò⁄Ÿ]XYŸX\ò⁄HH\ŸT›]J	… N¬à€€ú›€XY›]\—ö[\ãŸ]XY›]\—ö[\óHH\ŸT›]J	–[	 N¬Çà€€ú›\]SXY›]\»H\ﬁ[ò»
+Yà›ö[ôÀô]‘›]\Œà	”ô]…»	–€€ùX›Y	»	‘]X[YöYY	»	‘õ‹‹ÿ[Ÿ[ù	»	–€€ùô\ùY	»	”‹›	 HOà¬à€€ú›ô]ö[›\»HXYŒ¬àŸ]XY XYÀõX\
+OàöYOOHY»»ããõ›]\Œàô]‘›]\»Hà
+JN¬àûH¬à]ÿZ]\U\]SXY›]\ Yô]‘›]\ N¬àHÿ]⁄¬àŸ]XY ô]ö[›\ N¬àBàN¬Çà€€ú›ÿY[ô”XYŸ]Y[ô”XYHH\ŸT›]Jò[ŸJN¬à€€ú›€ô]”XYò[YKŸ]ô]”XYò[YWHH\ŸT›]J	… N¬à€€ú›€ô]”XY[XZ[Ÿ]ô]”XY[XZ[HH\ŸT›]J	… N¬à€€ú›€ô]”XY⁄]ÿ\Ÿ]ô]”XY⁄]ÿ\HH\ŸT›]J	… N¬à€€ú›€ô]”XY€›\òŸKŸ]ô]”XY€›\òŸWHH\ŸT›]J	”X[ùX[[ùûI N¬à€€ú›€ô]”XYò[YKŸ]ô]”XYò[YWHH\ŸT›]J	… N¬à€€ú›‹ÿ]ö[ô”XYŸ]ÿ]ö[ô”XYHH\ŸT›]Jò[ŸJN¬à€€ú›€XYôYYòX⁄ÀŸ]XYôYYòX⁄◊HH\ŸT›]J	… N¬Çà€€ú›[ôPYXYH\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àŸ]ÿ]ö[ô”XY
+ùYJN¬àûH¬à€€ú›XYH]ÿZ]‹ôX]SXY
+X›]ôS‹ôÀöY¬àò[YNàô]”XYò[YKà[XZ[àô]”XY[XZ[à⁄]ÿ\àô]”XY⁄]ÿ\à€›\òŸNàô]”XY€›\òŸH	”X[ùX[[ùûIÀà\›[X]Yò[YNàù[Xô\äô]”XYò[YJHàJN¬àŸ]XY €XYããõXY◊JN¬àŸ]ô]”XYò[YJ	… N¬àŸ]ô]”XY[XZ[
+	… N¬àŸ]ô]”XY⁄]ÿ\
+	… N¬àŸ]ô]”XY€›\òŸJ	”X[ùX[[ùûI N¬àŸ]ô]”XYò[YJ	… N¬àŸ]Y[ô”XY
+ò[ŸJN¬àŸ]XYôYYòX⁄ 	”XYYYâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]XYôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›YXYâﬂX
+N¬àHö[ò[H¬àŸ]ÿ]ö[ô”XY
+ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]XYôYYòX⁄ 	… K
+N¬àBàN¬ÇàÀ»KKHRHXYõ€›À]\›]\»
+›YŸŸ\›[€õNàòYù»^YZ[àŸ[ô»öXHHôX[ÿKõYK€XZ[»[ö HKKBà€€ú›Ÿõ€››\XYYŸ]õ€››\XYYHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›Ÿõ€››\⁄[õô[Ÿ]õ€››\⁄[õô[HH\ŸT›]O	›⁄]ÿ\	»	Ÿ[XZ[	œä	›⁄]ÿ\	 N¬à€€ú›Ÿõ€››\^Ÿ]õ€››\^HH\ŸT›]J	… N¬à€€ú›Ÿõ€››\ÿY[ôÀŸ]õ€››\ÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›Ÿõ€››\\úõ‹ãŸ]õ€››\\úõ‹óHH\ŸT›]J	… N¬Çà€€ú›[ôQòYùõ€››\H\ﬁ[ò»
+XYàXY⁄[õô[à	›⁄]ÿ\	»	Ÿ[XZ[	 HOà¬àŸ]õ€››\XYY
+XYöY
+N¬àŸ]õ€››\⁄[õô[
+⁄[õô[
+N¬àŸ]õ€››\^
+	… N¬àŸ]õ€››\\úõ‹ä	… N¬àŸ]õ€››\ÿY[ô ùYJN¬àûH¬à€€ú›¬à]Nà»Ÿ\‹⁄[€àKàHH]ÿZ]›\Xò\ŸKò]]ôŸ]Ÿ\‹⁄[€ä
+N¬à€€ú›ô\‹€úŸHH]ÿZ]ô]⁄
+	Àÿ\KŸŸ[Z[öK€XYYõ€››\	À¬àY]Ÿà	‘‘’	ÀàXY\úŒà¬à	–€€ù[ùU\IŒà	ÿ\Xÿ][€ã⁄ú€€âÀàããäŸ\‹⁄[€à»»]]‹ö^ò][€éàôX\ô\à	‹Ÿ\‹⁄[€ãòXÿŸ\‹◊›⁄Ÿ[üXHàﬂJKàKàõŸNàî””ãú›ö[ô⁄YûJ¬àXYò[YNàXYõò[YKàXY€›\òŸNàXYú€›\òŸKàXY\›öX›àXYô\›öX›à\›[X]Yò[YNàXYô\›[X]Yò[YKà⁄[õô[à€ôSŸïõ⁄XŸNàúò[ô⁄]ù€ôSŸïõ⁄XŸKàúò[ôò[YNàúò[ô⁄]òúò[ôò[YKàJKàJN¬à€€ú›]HH]ÿZ]ô\‹€úŸKöú€€ä
+N¬àYà
+]Kô\úõ‹äH¬àŸ]õ€››\\úõ‹ä]Kô\úõ‹ãõY\‹ÿYŸH	–€›[õ›òYùHõ€›À]\â N¬àH[ŸH¬àŸ]õ€››\^
+]Kù^	… N¬àBàHÿ]⁄¬àŸ]õ€››\\úõ‹ä	—òZ[Y»€€[][öXÿ]H⁄]HRH\‹⁄\›[ùâ N¬àHö[ò[H¬àŸ]õ€››\ÿY[ô ò[ŸJN¬àBàN¬ÇàÀ»KKH\ôX›‹ûHõŸö[H›]\»KKBà€€ú›ÿ€Z[Pù\⁄[ô\‹“YŸ]€Z[Pù\⁄[ô\‹“YHH\ŸT›]J	… N¬à€€ú›ÿ€Z[Qö[KŸ]€Z[Qö[WHH\ŸT›]Oö[Hù[äù[
+N¬à€€ú›ÿ€Z[QôYYòX⁄ÀŸ]€Z[QôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›⁄\‘›XõZ][ô–€Z[KŸ]\‘›XõZ][ô–€Z[WHH\ŸT›]Jò[ŸJN¬Çà€€ú›[ôP€Z[S\›[ô»H
+Yà›ö[ô HOà¬àŸ]€Z[Pù\⁄[ô\‹“Y
+Y
+N¬àŸ]€Z[Qö[Jù[
+N¬àŸ]€Z[QôYYòX⁄ 	… N¬àN¬Çà€€ú››XõZ]€Z[HH\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àYà
+X€Z[Qö[JH¬àŸ]€Z[QôYYòX⁄ 	—\úõ‹éà]X⁄Hù\⁄[ô\‹»XŸ[úŸH‹à^Ÿ\ùYöXÿ]Hö[Kâ N¬àô]\õé¬àBàŸ]\‘›XõZ][ô–€Z[JùYJN¬àûH¬àÀ»ôX[ö[K\ÿYY»Hÿ[YH›‹òYŸKXòX⁄ŸYYYXHXúò\ûH\ŸYàÀ»[Ÿ]⁄\ôH8†%Hôÿ›[Y[ùò[YHà^öY[\»ô\XŸYô]ô\ÇàÀ»X›X[H\ú⁄\›Y‹à⁄X⁄ŸYHö[H][Çà]ÿZ]\ÿYYYXP\‹Ÿ]
+X›]ôS‹ôÀöY€Z[Qö[K	’ô\öYöXÿ][€àÿ›[Y[ù… N¬à€€ú›\]YH]ÿZ]€Z[Q\ôX›‹ûS\›[ô €Z[Pù\⁄[ô\‹“YX›]ôS‹ôÀöY
+N¬àŸ]\ôX›‹ûTõŸö[\ \ôX›‹ûTõŸö[\ÀõX\
+OàöYOOH\]YöY»\]Yà
+JN¬àŸ]€Z[QôYYòX⁄ 	’ô\öYöXÿ][€àÿ›[Y[ù\ÿYY[ô\›[ô»ô\öYöYYâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]€Z[QôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ››XõZ]€Z[KâﬂX
+N¬àHö[ò[H¬àŸ]\‘›XõZ][ô–€Z[Jò[ŸJN¬àŸ][Y[›]
+
+
+HOà¬àŸ]€Z[Pù\⁄[ô\‹“Y
+	… N¬àŸ]€Z[QôYYòX⁄ 	… N¬àKÃ
+N¬àBàN¬ÇàÀ»KKH€ÿ⁄X[Xõ\⁄[ô»ÿ[[ô\à
+ôX[[€ùò]öYÿ][€ãõ›Hö^YX»åçà‹öY
+HKKBà€€ú›ÿÿ[[ô\ì[€ùŸ]ÿ[[ô\ì[€ùHH\ŸT›]J
+
+HOà¬à€€ú›õ›»Hô]»]J
+N¬àô]\õàô]»]Jõ›ÀôŸ]ù[YX\ä
+Kõ›ÀôŸ][€ù
+
+KJN¬àJN¬Çàù[ò›[€àõ‹õX]]RŸ^Jà]JNà›ö[ô»¬àô]\õà	ŸôŸ]ù[YX\ä
+_KI‘›ö[ô ôŸ][€ù
+
+H
+»JKúY›\ù
+ã	Ã	 _KI‘›ö[ô ôŸ]]J
+JKúY›\ù
+ã	Ã	 _X¬àBÇàù[ò›[€àŸ]ÿ[[ô\êŸ[ [€ù›\ùà]JNà
+]Hù[
+V◊H¬à€€ú›YX\àH[€ù›\ùôŸ]ù[YX\ä
+N¬à€€ú›[€ùH[€ù›\ùôŸ][€ù
+
+N¬à€€ú›ö\ú›^HHô]»]JYX\ã[€ùJN¬à€€ú›^\“[ì[€ùHô]»]JYX\ã[€ù
+»K
+KôŸ]]J
+N¬à€€ú›ö\ú›ŸYZŸ^HH
+ö\ú›^KôŸ]^J
+H
+»äH	HŒ»À»[€ô^KYö\ú›à€€ú›Ÿ[Œà
+]Hù[
+V◊HH\úò^Jö\ú›ŸYZŸ^JKôö[
+ù[
+N¬àõ‹à
+]HN»H^\“[ì[€ù»
+  HŸ[Àú\⁄
+ô]»]JYX\ã[€ù
+JN¬àô]\õàŸ[Œ¬àBÇàÀ»KKHX[ùX[^‹ùX⁄ÿYŸ\»KKBà€€ú›‹Ÿ[X›Y^‹ù‹›Ÿ]Ÿ[X›Y^‹ù‹›HH\ŸT›]O€€ù[ù][Hù[äù[
+N¬à€€ú›Ÿ^‹ù\‹Ÿ]ÀŸ]^‹ù\‹Ÿ]◊HH\ŸT›]OYYXP\‹Ÿ]◊Oä◊JN¬à€€ú›Ÿ^‹ùŸ[X›Y\‹Ÿ]YÀŸ]^‹ùŸ[X›Y\‹Ÿ]Y◊HH\ŸT›]OŸ]›ö[ôœèäô]»Ÿ]
+
+JN¬à€€ú›⁄\—Ÿ[ô\ò][ô—^‹ùŸ]\—Ÿ[ô\ò][ô—^‹ùHH\ŸT›]Jò[ŸJN¬à€€ú›Ÿ^‹ùôYYòX⁄ÀŸ]^‹ùôYYòX⁄◊HH\ŸT›]J	… N¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+\Ÿ[X›Y^‹ù‹›
+Hô]\õé¬àŸ]^‹ùŸ[X›Y\‹Ÿ]Y ô]»Ÿ]
+
+JN¬àô]⁄YYXP\‹Ÿ] X›]ôS‹ôÀöY
+Bàù[äŸ]^‹ù\‹Ÿ] Bàòÿ]⁄
+
+
+HOàŸ]^‹ù\‹Ÿ] ◊JJN¬àK‹Ÿ[X›Y^‹ù‹›X›]ôS‹ôÀöYJN¬Çà€€ú›ŸŸ€Q^‹ù\‹Ÿ]H
+Yà›ö[ô HOà¬àŸ]^‹ùŸ[X›Y\‹Ÿ]Y 
+ô]äHOà¬à€€ú›ô^Hô]»Ÿ]
+ô]äN¬àYà
+ô^ö\ Y
+JHô^ô[]JY
+N¬à[ŸHô^òY
+Y
+N¬àô]\õàô^¬àJN¬àN¬ÇàÀ»ùZ[»HôX[ûö\
+ÿ\[€ãù
+»[ûHŸ[X›YYYXH\‹Ÿ]ö[\Àô]⁄YàÀ»öXH⁄Y€ôYTì
+H[ôöYŸŸ\ú»[àX›X[úõ›‹Ÿ\à›€õÿY8†%ô\X⁄[ô»BàÀ»€[\ù
+
+H]€õH€Z[YYHX⁄ÿYŸHÿ\»€€\[YÇà€€ú›[ôQ›€õÿY€€\[Y\‹Ÿ]»H\ﬁ[ò»
+
+HOà¬àYà
+\Ÿ[X›Y^‹ù‹›
+Hô]\õé¬àŸ]\—Ÿ[ô\ò][ô—^‹ù
+ùYJN¬àŸ]^‹ùôYYòX⁄ 	… N¬àûH¬à€€ú›ö\Hô]»î÷ö\
+
+N¬à€€ú›ÿ\[€ï^H¬à]õ‹õNà	‹Ÿ[X›Y^‹ù‹›ú]õ‹õ_XàôX€€[Y[ôY[Z[ôŒàNå”U
+XZ»[€ôX[à[ôÿYŸ[Y[ù
+Xà	…ÀàŸ[X›Y^‹ù‹›öXY[ôKà	…ÀàŸ[X›Y^‹ù‹›òõŸU^à	…ÀàŸ[X›Y^‹ù‹›ö\⁄Y‹Àöõ⁄[ä	»	 KàKöõ⁄[ä	◊â N¬àö\ôö[J	ÿÿ\[€ãù	Àÿ\[€ï^
+N¬Çà€€ú›Ÿ[X›Y\‹Ÿ]»H^‹ù\‹Ÿ]Àôö[\ä
+JHOà^‹ùŸ[X›Y\‹Ÿ]YÀö\ KöY
+JN¬àõ‹à
+€€ú›\‹Ÿ]ŸàŸ[X›Y\‹Ÿ] H¬à€€ú›\õH]ÿZ]Ÿ]YYXP\‹Ÿ]\õ
+\‹Ÿ]
+N¬à€€ú›ô\‹€úŸHH]ÿZ]ô]⁄
+\õ
+N¬à€€ú›õÿàH]ÿZ]ô\‹€úŸKòõÿä
+N¬àö\ôö[J\‹Ÿ]ôö[Sò[YKõÿäN¬àBÇà€€ú›ö\õÿàH]ÿZ]ö\ôŸ[ô\ò]P\ﬁ[ò »\Nà	ÿõÿâ»JN¬à€€ú››€õÿY\õHTìò‹ôX]SÿöôX›Tì
+ö\õÿäN¬à€€ú›[ö»Hÿ›[Y[ùò‹ôX]Q[[Y[ù
+	ÿI N¬à[öÀöôYàH›€õÿY\õ¬à[öÀô›€õÿYH	‹Ÿ[X›Y^‹ù‹›ù]Kúô\XŸJ÷◊òK^êKVåNKóÀWKŸÀ	◊… _KY^‹ùûö\¬àÿ›[Y[ùòõŸKò\[ô⁄[
+[ö N¬à[öÀò€X⁄ 
+N¬à[öÀúô[[›ôJ
+N¬àTìúô]õ⁄ŸSÿöôX›Tì
+›€õÿY\õ
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]^‹ùôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›Ÿ[ô\ò]H^‹ùX⁄ÿYŸKâﬂX
+N¬àHö[ò[H¬àŸ]\—Ÿ[ô\ò][ô—^‹ù
+ò[ŸJN¬àBàN¬ÇàÀ»KKHö[[ô»	à›Xúÿ‹ö\[€ú»KKBà€€ú›‹[úÀŸ][ú◊HH\ŸT›]O[ñ◊Oä◊JN¬à€€ú›€^T›Xúÿ‹ö\[€úÀŸ]^T›Xúÿ‹ö\[€ú◊HH\ŸT›]O‹ô‘›Xúÿ‹ö\[€ñ◊Oä◊JN¬à€€ú›ÿö[[ô”ÿY[ôÀŸ]ö[[ô”ÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›ÿö[[ô—ôYYòX⁄ÀŸ]ö[[ô—ôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›‹Ÿ[X›Y[íYŸ]Ÿ[X›Y[íYHH\ŸT›]J	… N¬à€€ú›ÿö[[ô–ﬁX€KŸ]ö[[ô–ﬁX€WHH\ŸT›]O	€[€ùI»	ÿ[õùX[	œä	€[€ùI N¬à€€ú›‹^[Y[ùôYãŸ]^[Y[ùôYóHH\ŸT›]J	… N¬à€€ú›‹ô\]Y\›[ô‘[ãŸ]ô\]Y\›[ô‘[óHH\ŸT›]Jò[ŸJN¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	ÿö[[ô… Hô]\õé¬àŸ]ö[[ô”ÿY[ô ùYJN¬àõ€Z\ŸKò[
+Ÿô]⁄[ú 
+Kô]⁄^T›Xúÿ‹ö\[€ú X›]ôS‹ôÀöY
+WJBàù[ä
+‹›Xú◊JHOà¬àŸ][ú 
+N¬àŸ]^T›Xúÿ‹ö\[€ú ›Xú N¬àJBàòÿ]⁄
+
+\úéà[ûJHOàŸ]ö[[ô—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿYö[[ô»[ôõÀâﬂX
+JBàôö[ò[J
+
+HOàŸ]ö[[ô”ÿY[ô ò[ŸJJN¬àKÿX›]ôUXãX›]ôS‹ôÀöYJN¬Çà€€ú›X›]ôT›Xúÿ‹ö\[€àH^T›Xúÿ‹ö\[€úÀôö[ô
+
+ HOàÀú›]\»OOH	ÿX›]ôI N¬à€€ú›[ô[ô‘›Xúÿ‹ö\[€àH^T›Xúÿ‹ö\[€úÀôö[ô
+
+ HOàÀú›]\»OOH	‹[ô[ô… N¬Çà€€ú›[ôTô\]Y\›[àH\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àYà
+\Ÿ[X›Y[íY
+Hô]\õé¬àŸ]ô\]Y\›[ô‘[äùYJN¬àûH¬à]ÿZ]ô\]Y\››Xúÿ‹ö\[€äX›]ôS‹ôÀöYŸ[X›Y[íYö[[ô–ﬁX€K^[Y[ùôYäN¬àŸ]^T›Xúÿ‹ö\[€ú ]ÿZ]ô]⁄^T›Xúÿ‹ö\[€ú X›]ôS‹ôÀöY
+JN¬àŸ]^[Y[ùôYä	… N¬àŸ]ö[[ô—ôYYòX⁄ 	’\‹òYHô\]Y\›Yà›\àö[ò[òŸHX[H⁄[€€ôö\õH[›\à^[Y[ù[ôX›]ò]HH[ãâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ö[[ô—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ô\]Y\›[ãâﬂX
+N¬àHö[ò[H¬àŸ]ô\]Y\›[ô‘[äò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]ö[[ô—ôYYòX⁄ 	… KL
+N¬àBàN¬Çà€€ú›[ôT›XõZ]^[Y[ùôYàH\ﬁ[ò»
+
+HOà¬àYà
+\[ô[ô‘›Xúÿ‹ö\[€äHô]\õé¬à€€ú›ôYàHõ€\
+	–ò[ö»»[ÿö[H[€ô^Hò[úÿX›[€àôYô\ô[òŸNâ N¬àYà
+\ôYäHô]\õé¬àûH¬à]ÿZ]\]T›Xúÿ‹ö\[€ìõ›\ [ô[ô‘›Xúÿ‹ö\[€ãöYôYäN¬àŸ]^T›Xúÿ‹ö\[€ú ]ÿZ]ô]⁄^T›Xúÿ‹ö\[€ú X›]ôS‹ôÀöY
+JN¬àŸ]ö[[ô—ôYYòX⁄ 	‘^[Y[ùôYô\ô[òŸH›XõZ]Yõ‹àô]öY]Àâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ö[[ô—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ››XõZ]^[Y[ùôYô\ô[òŸKâﬂX
+N¬àHö[ò[H¬àŸ][Y[›]
+
+
+HOàŸ]ö[[ô—ôYYòX⁄ 	… K
+N¬àBàN¬ÇàÀ»KKHX[HY[Xô\ú»KKBà€€ú››X[SY[Xô\úÀŸ]X[SY[Xô\ú◊HH\ŸT›]OX[SY[Xô\ñ◊Oä◊JN¬à€€ú››X[SÿY[ôÀŸ]X[SÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú››X[S[Z]Ÿ]X[S[Z]HH\ŸT›]Où[Xô\àù[äù[
+N¬à€€ú››X[Q[XZ[Ÿ]X[Q[XZ[HH\ŸT›]J	… N¬à€€ú››X[Tõ€KŸ]X[Tõ€WHH\ŸT›]O	ÿYZ[â»	€Y[Xô\âœä	€Y[Xô\â N¬à€€ú››X[QôYYòX⁄ÀŸ]X[QôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú››X[R[ùö][ôÀŸ]X[R[ùö][ô◊HH\ŸT›]Jò[ŸJN¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	›X[I Hô]\õé¬àŸ]X[SÿY[ô ùYJN¬àõ€Z\ŸKò[
+Ÿô]⁄X[SY[Xô\ú X›]ôS‹ôÀöY
+Kô]⁄X[SY[Xô\ì[Z]
+X›]ôS‹ôÀöY
+WJBàù[ä
+€Y[Xô\úÀ[Z]JHOà¬àŸ]X[SY[Xô\ú Y[Xô\ú N¬àŸ]X[S[Z]
+[Z]
+N¬àJBàòÿ]⁄
+
+\úéà[ûJHOàŸ]X[QôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿYX[KâﬂX
+JBàôö[ò[J
+
+HOàŸ]X[SÿY[ô ò[ŸJJN¬àKÿX›]ôUXãX›]ôS‹ôÀöYJN¬Çà€€ú›[ôR[ùö]UX[HH\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àYà
+]X[Q[XZ[
+Hô]\õé¬àŸ]X[R[ùö][ô ùYJN¬àûH¬à]ÿZ][ùö]UX[SY[Xô\äX›]ôS‹ôÀöYX[Q[XZ[X[Tõ€JN¬à€€ú›€Y[Xô\úÀ[Z]HH]ÿZ]õ€Z\ŸKò[
+Ÿô]⁄X[SY[Xô\ú X›]ôS‹ôÀöY
+Kô]⁄X[SY[Xô\ì[Z]
+X›]ôS‹ôÀöY
+WJN¬àŸ]X[SY[Xô\ú Y[Xô\ú N¬àŸ]X[S[Z]
+[Z]
+N¬àŸ]X[Q[XZ[
+	… N¬àŸ]X[QôYYòX⁄ 	’X[HY[Xô\àYYâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]X[QôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›[ùö]HX[HY[Xô\ãâﬂX
+N¬àHö[ò[H¬àŸ]X[R[ùö][ô ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]X[QôYYòX⁄ 	… KL
+N¬àBàN¬Çà€€ú›[ôTô[[›ôUX[SY[Xô\àH\ﬁ[ò»
+\Ÿ\íYà›ö[ô HOà¬àYà
+X€€ôö\õJ	‘ô[[›ôH\»X[HY[Xô\è… JHô]\õé¬à€€ú›ô]ö[›\»HX[SY[Xô\úŒ¬àŸ]X[SY[Xô\ú X[SY[Xô\úÀôö[\ä
+JHOàKù\Ÿ\íYOOH\Ÿ\íY
+JN¬àûH¬à]ÿZ]ô[[›ôUX[SY[Xô\äX›]ôS‹ôÀöY\Ÿ\íY
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]X[SY[Xô\ú ô]ö[›\ N¬àŸ]X[QôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ô[[›ôHX[HY[Xô\ãâﬂX
+N¬àBàN¬ÇàÀ»KKHúò[ô⁄]ÿ]ôH›]HKKBà€€ú›ÿúò[ô⁄]ÿ]ö[ôÀŸ]úò[ô⁄]ÿ]ö[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›ÿúò[ô⁄]ôYYòX⁄ÀŸ]úò[ô⁄]ôYYòX⁄◊HH\ŸT›]J	… N¬Çà€€ú›[ôTÿ]ôPúò[ô⁄]H\ﬁ[ò»
+
+HOà¬àŸ]úò[ô⁄]ÿ]ö[ô ùYJN¬àŸ]úò[ô⁄]ôYYòX⁄ 	… N¬àûH¬à€€ú›ÿ]ôYH]ÿZ]ÿ]ôPúò[ô⁄]
+X›]ôS‹ôÀöYúò[ô⁄]
+N¬àŸ]úò[ô⁄]
+ÿ]ôY
+N¬àŸ]úò[ô⁄]ôYYòX⁄ 	–úò[ô⁄]€€ôöY›\ò][€àÿ]ôY›XÿŸ\‹Ÿù[HI N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]úò[ô⁄]ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿ]ôHúò[ô⁄]âﬂX
+N¬àHö[ò[H¬àŸ]úò[ô⁄]ÿ]ö[ô ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]úò[ô⁄]ôYYòX⁄ 	… K
+N¬àBàN¬ÇàÀ»KKHYZ[àÿYô]Hõÿ\ô›]\»KKBà€€ú›‹ÿYô]SŸÀŸ]ÿYô]SŸ◊HH\ŸT›]O›ö[ô÷◊Oä◊JN¬à€€ú›‹ÿÿ[õôYõYŸŸYŸ]ÿÿ[õôYõYŸŸYHH\ŸT›]Jò[ŸJN¬Çà€€ú›ù[îÿYô]S[Ÿ\ò][€àH
+
+HOà¬àŸ]ÿYô]SŸ …“[ö]X[^ö[ô»€€ù[ù[Ÿ\ò][€àÿÿ[õô\úÀããâÀ	–]Y][ô»ù\⁄[ô\‹»\ôX›‹ûH\›[ô‹»õ‹àò[ŸH€Z[\ÀããâÀ	–]Y][ô»X›]ôH€ÿ⁄X[\‹›[\]\»YÿZ[ú›‹[H[Z]ÀããâÀ	”õ»‹›[H€€ù[ù]X›Yàÿÿ[[ùY‹ö]Hô\öYöXÿ][€à\‹ŸYâ◊JN¬àŸ]ÿÿ[õôYõYŸŸY
+ùYJN¬àN¬ÇàÀ»KKH[ô\ú»
+õÿ›\ô[Y[ù
+H›]\»KKBà€€ú›€^S‹‹ù[ö]Y\ÀŸ]^S‹‹ù[ö]Y\◊HH\ŸT›]O‹‹ù[ö]S\›][V◊Oä◊JN¬à€€ú››[ô\ú”ÿY[ôÀŸ][ô\ú”ÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú››[ô\ú—ôYYòX⁄ÀŸ][ô\ú—ôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›Ÿ[òXõ[ô–ù^Y\ãŸ][òXõ[ô–ù^Y\óHH\ŸT›]Jò[ŸJN¬à€€ú››[ô\îŸX›‹úÀŸ][ô\îŸX›‹ú◊HH\ŸT›]O^€õ€^S‹[€ñ◊Oä◊JN¬à€€ú››[ô\ê€›[ùöY\ÀŸ][ô\ê€›[ùöY\◊HH\ŸT›]O^€õ€^S‹[€ñ◊Oä◊JN¬à€€ú››[ô\ë\›öX›ÀŸ][ô\ë\›öX›◊HH\ŸT›]O^€õ€^S‹[€ñ◊Oä◊JN¬à€€ú››[ô\ê›\úô[ò⁄Y\ÀŸ][ô\ê›\úô[ò⁄Y\◊HH\ŸT›]O›\úô[òﬁS‹[€ñ◊Oä◊JN¬à€€ú››[ô\ï\\ÀŸ][ô\ï\\◊HH\ŸT›]O^€õ€^S‹[€ñ◊Oä◊JN¬à€€ú››[ô\ï]KŸ][ô\ï]WHH\ŸT›]J	… N¬à€€ú››[ô\î›[[X\ûKŸ][ô\î›[[X\ûWHH\ŸT›]J	… N¬à€€ú››[ô\ë\ÿ‹ö\[€ãŸ][ô\ë\ÿ‹ö\[€óHH\ŸT›]J	… N¬à€€ú››[ô\ï\RYŸ][ô\ï\RYHH\ŸT›]J	… N¬à€€ú››[ô\îŸX›‹íYŸ][ô\îŸX›‹íYHH\ŸT›]J	… N¬à€€ú››[ô\ê€›[ùûRYŸ][ô\ê€›[ùûRYHH\ŸT›]J	… N¬à€€ú››[ô\ë\›öX›YŸ][ô\ë\›öX›YHH\ŸT›]J	… N¬à€€ú››[ô\ïò[YKŸ][ô\ïò[YWHH\ŸT›]J	… N¬à€€ú››[ô\ê›\úô[òﬁP€ŸKŸ][ô\ê›\úô[òﬁP€ŸWHH\ŸT›]J	… N¬à€€ú››[ô\ëXY[ôKŸ][ô\ëXY[ôWHH\ŸT›]J	… N¬à€€ú››[ô\ê€€ùX›Ÿ][ô\ê€€ùX›HH\ŸT›]J	… N¬à€€ú››[ô\ëÿ›[Y[ùö[\ÀŸ][ô\ëÿ›[Y[ùö[\◊HH\ŸT›]Oö[V◊Oä◊JN¬à€€ú››[ô\ëÿ›[Y[ù\‘XõXÀŸ][ô\ëÿ›[Y[ù\‘XõX◊HH\ŸT›]JùYJN¬à€€ú››[ô\ëÿ›[Y[ù\úõ‹ãŸ][ô\ëÿ›[Y[ù\úõ‹óHH\ŸT›]J	… N¬à€€ú››[ô\î›XõZ][ôÀŸ][ô\î›XõZ][ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›‹›YŸŸ\›[ô‘ŸX›‹ãŸ]›YŸŸ\›[ô‘ŸX›‹óHH\ŸT›]Jò[ŸJN¬à€€ú›ÿÿ[îXõ\⁄[ô\úÀŸ]ÿ[îXõ\⁄[ô\ú◊HH\ŸT›]Jò[ŸJN¬à€€ú›ÿÿ[ïöY]’[ô\ë]Z[ÀŸ]ÿ[ïöY]’[ô\ë]Z[◊HH\ŸT›]Jò[ŸJN¬à€€ú››öY]Ÿ\îÿ]ôYŸX\ò⁄\ÀŸ]öY]Ÿ\îÿ]ôYŸX\ò⁄\◊HH\ŸT›]Oÿ]ôYŸX\ò⁄◊Oä◊JN¬ÇàÀ»KKHõ€ãXYZ[à›ô\ùöY]»›]\»KKBà€€ú›€›ô\ùöY]’Y\ãŸ]›ô\ùöY]’Y\óHH\ŸT›]O	—úôYI»	’öY]Ÿ\â»	‘Xõ\⁄\â»ù[äù[
+N¬à€€ú›€›ô\ùöY]‘\[[ôP€›[ùŸ]›ô\ùöY]‘\[[ôP€›[ùHH\ŸT›]J
+N¬à€€ú›€›ô\ùöY]‘ÿ]ôYŸX\ò⁄€›[ùŸ]›ô\ùöY]‘ÿ]ôYŸX\ò⁄€›[ùHH\ŸT›]J
+N¬à€€ú›€›ô\ùöY]‘ÿ]ôYŸX\ò⁄\ÀŸ]›ô\ùöY]‘ÿ]ôYŸX\ò⁄\◊HH\ŸT›]Oÿ]ôYŸX\ò⁄◊Oä◊JN¬à€€ú›€›ô\ùöY]‘ôX€€[Y[ôYŸ]›ô\ùöY]‘ôX€€[Y[ôYHH\ŸT›]O‹‹ù[ö]S\›][V◊Oä◊JN¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	€›ô\ùöY]…»\‘]õ‹õPYZ[äHô]\õé¬àõ€Z\ŸKò[
+¬à\—ôX]\ôJX›]ôS‹ôÀöY	›[ô\ó‹Xõ\⁄[ô… Kà\—ôX]\ôJX›]ôS‹ôÀöY	›[ô\óÿ[\ù◊ÿ[ôŸ]Z[… Kàô]⁄\[[ôJX›]ôS‹ôÀöY
+Kòÿ]⁄
+
+
+HOà◊JKàô]⁄ÿ]ôYŸX\ò⁄\ 
+Kòÿ]⁄
+
+
+HOà◊JKàô]⁄ôX€€[Y[ôY‹‹ù[ö]Y\ X›]ôS‹ôÀöY
+Kòÿ]⁄
+
+
+HOà◊JKàJBàù[ä
+ÿÿ[îXõ\⁄ÿ[ïöY]À\[[ôKÿ]ôYŸX\ò⁄\ÀôX€€[Y[ôYJHOà¬àŸ]›ô\ùöY]’Y\äÿ[îXõ\⁄»	‘Xõ\⁄\â»àÿ[ïöY]»»	’öY]Ÿ\â»à	—úôYI N¬àŸ]›ô\ùöY]‘\[[ôP€›[ù
+\[[ôKõ[ô›
+N¬àŸ]›ô\ùöY]‘ÿ]ôYŸX\ò⁄€›[ù
+ÿ]ôYŸX\ò⁄\Àõ[ô›
+N¬àŸ]›ô\ùöY]‘ÿ]ôYŸX\ò⁄\ ÿ]ôYŸX\ò⁄\Àú€XŸJJJN¬àŸ]›ô\ùöY]‘ôX€€[Y[ôY
+ôX€€[Y[ôYú€XŸJ
+JN¬àJBàòÿ]⁄
+
+
+HOàﬂJN¬àKÿX›]ôUXãX›]ôS‹ôÀöY\‘]õ‹õPYZ[óJN¬Çà€€ú›[ôT›YŸŸ\›ŸX›‹àH\ﬁ[ò»
+
+HOà¬àYà
+][ô\ï]Kùö[J
+JH¬àŸ][ô\ú—ôYYòX⁄ 	—\úõ‹éà[ù\àH]Hö\ú›€»RH\»€€Y][ô»»€‹ö»⁄]â N¬àŸ][Y[›]
+
+
+HOàŸ][ô\ú—ôYYòX⁄ 	… K
+N¬àô]\õé¬àBàŸ]›YŸŸ\›[ô‘ŸX›‹äùYJN¬àûH¬à€€ú››YŸŸ\›Yò[YHH]ÿZ]ZT›YŸŸ\›ŸX›‹ä	›[ô\ï]_Kà	›[ô\î›[[X\û_X[ô\îŸX›‹úÀõX\
+
+ HOàÀõò[YJJN¬à€€ú›X]⁄H[ô\îŸX›‹úÀôö[ô
+
+ HOàÀõò[YKù”›Ÿ\êÿ\ŸJ
+HOOH›YŸŸ\›Yò[YKùö[J
+Kù”›Ÿ\êÿ\ŸJ
+JN¬àYà
+X]⁄
+H¬àŸ][ô\îŸX›‹íY
+X]⁄öY
+N¬àŸ][ô\ú—ôYYòX⁄ RH›YŸŸ\›Yà	€X]⁄õò[Y_X
+N¬àH[ŸH¬àŸ][ô\ú—ôYYòX⁄ 	–RH€›[õ›€€ôöY[ùHX]⁄HŸX›‹à8†%X\ŸHŸ[X›€ôHX[ùX[Kâ N¬àBàHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–RH›YŸŸ\›[€àòZ[YâﬂX
+N¬àHö[ò[H¬àŸ]›YŸŸ\›[ô‘ŸX›‹äò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ][ô\ú—ôYYòX⁄ 	… KL
+N¬àBàN¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	›[ô\ú… Hô]\õé¬àŸ][ô\ú”ÿY[ô ùYJN¬àõ€Z\ŸKò[
+¬àô]⁄^S‹‹ù[ö]Y\ X›]ôS‹ôÀöY
+Kàô]⁄ŸX›‹ú 
+Kàô]⁄€›[ùöY\ 
+Kàô]⁄›\úô[ò⁄Y\ 
+Kàô]⁄‹‹ù[ö]U\\ 
+Kà\—ôX]\ôJX›]ôS‹ôÀöY	›[ô\ó‹Xõ\⁄[ô… Kà\—ôX]\ôJX›]ôS‹ôÀöY	›[ô\óÿ[\ù◊ÿ[ôŸ]Z[… Kàô]⁄ÿ]ôYŸX\ò⁄\ 
+Kòÿ]⁄
+
+
+HOà◊JKàJBàù[ä
+€‹ÀŸX›‹úÀ€›[ùöY\À›\úô[ò⁄Y\À\\Àÿ[îXõ\⁄ÿ[ïöY]Àÿ]ôYŸX\ò⁄\◊JHOà¬àŸ]^S‹‹ù[ö]Y\ ‹ N¬àŸ][ô\îŸX›‹ú ŸX›‹ú N¬àŸ][ô\ê€›[ùöY\ €›[ùöY\ N¬àŸ][ô\ê›\úô[ò⁄Y\ ›\úô[ò⁄Y\ N¬àŸ][ô\ï\\ \\ N¬àŸ]ÿ[îXõ\⁄[ô\ú ÿ[îXõ\⁄
+N¬àŸ]ÿ[ïöY]’[ô\ë]Z[ ÿ[ïöY] N¬àŸ]öY]Ÿ\îÿ]ôYŸX\ò⁄\ ÿ]ôYŸX\ò⁄\ N¬àYà
+€›[ùöY\Àõ[ô›à
+HŸ][ô\ê€›[ùûRY
+
+ô]äHOàô]à€›[ùöY\÷ÃKöY
+N¬àJBàòÿ]⁄
+
+\úéà[ûJHOàŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿY[ô\úÀâﬂX
+JBàôö[ò[J
+
+HOàŸ][ô\ú”ÿY[ô ò[ŸJJN¬àKÿX›]ôUXãX›]ôS‹ôÀöYJN¬Çà€€ú›[ôQ[]UöY]Ÿ\îÿ]ôYŸX\ò⁄H\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›ô]ö[›\»HöY]Ÿ\îÿ]ôYŸX\ò⁄\Œ¬àŸ]öY]Ÿ\îÿ]ôYŸX\ò⁄\ öY]Ÿ\îÿ]ôYŸX\ò⁄\Àôö[\ä
+ HOàÀöYOOHY
+JN¬àûH¬à]ÿZ][]Tÿ]ôYŸX\ò⁄
+Y
+N¬àHÿ]⁄¬àŸ]öY]Ÿ\îÿ]ôYŸX\ò⁄\ ô]ö[›\ N¬àBàN¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+][ô\ê€›[ùûRY
+Hô]\õé¬àô]⁄\›öX› [ô\ê€›[ùûRY
+Bàù[ä
+\›öX› HOà¬àŸ][ô\ë\›öX› \›öX› N¬àŸ][ô\ë\›öX›Y
+
+ô]äHOà
+\›öX›Àú€€YJ
+
+HOàöYOOHô]äH»ô]àà	… JN¬àJBàòÿ]⁄
+
+
+HOàﬂJN¬àK›[ô\ê€›[ùûRYJN¬Çà€€ú›[ôQ[òXõPù^Y\ì[ŸHH\ﬁ[ò»
+
+HOà¬àŸ][òXõ[ô–ù^Y\äùYJN¬àûH¬à€€ú›X›]ò]YH]ÿZ][òXõPù^Y\ì[ŸJX›]ôS‹ôÀöY
+N¬àYà
+X›]ò]Y
+H¬à⁄[ô›Àõÿÿ][€ãúô[ÿY
+
+N¬àH[ŸH¬àŸ][ô\ú—ôYYòX⁄ 	‘Xõ\⁄[ô»[ô\ú»ô\]Z\ô\»HXõ\⁄\à›Xúÿ‹ö\[€ãà\‹òYH[›\à[àúõ€Hö[[ô»[ùõ⁄XŸ\»»[òXõH]â N¬àŸ][òXõ[ô–ù^Y\äò[ŸJN¬àBàHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›[òXõHù^Y\à[ŸKâﬂX
+N¬àŸ][òXõ[ô–ù^Y\äò[ŸJN¬àBàN¬Çà€€ú›[ôU[ô\ëÿ›[Y[ùŸ[X›H
+ö[S\›àö[S\›ù[
+HOà¬àYà
+Yö[S\›ö[S\›õ[ô›OOH
+Hô]\õé¬à€€ú›[ò€€Z[ô»H\úò^Kôúõ€Jö[S\›
+N¬à€€ú››ô\ú⁄^ôYH[ò€€Z[ôÀôö[\ä
+äHOàãú⁄^ôHàPV—–’SQSï‘“VëW–ñUT N¬à€€ú›XÿŸ\YH[ò€€Z[ôÀôö[\ä
+äHOàãú⁄^ôHHPV—–’SQSï‘“VëW–ñUT N¬àŸ][ô\ëÿ›[Y[ùö[\ 
+ô]äHOàÀããúô]ãããòXÿŸ\YJN¬àŸ][ô\ëÿ›[Y[ù\úõ‹äà›ô\ú⁄^ôYõ[ô›àà»	€›ô\ú⁄^ôYõX\
+
+äHOàãõò[YJKöõ⁄[ä	À	 _H	€›ô\ú⁄^ôYõ[ô›OOHH»	Ÿ^ŸYY…»à	Ÿ^ŸYY	ﬂHHLPà[Z][ô	€›ô\ú⁄^ôYõ[ô›OOHH»ùÿ\€â›ààùŸ\ô[â›üHYYòàà	…¬à
+N¬àN¬Çà€€ú›[ôTô[[›ôU[ô\ëÿ›[Y[ùH
+[ô^àù[Xô\äHOà¬àŸ][ô\ëÿ›[Y[ùö[\ 
+ô]äHOàô]ãôö[\ä
+ÀJHOàHOOH[ô^
+JN¬àN¬Çà€€ú›[ôP‹ôX]S‹‹ù[ö]HH\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àŸ][ô\î›XõZ][ô ùYJN¬àûH¬à€€ú›‹ôX]YH]ÿZ]‹ôX]S‹‹ù[ö]JX›]ôS‹ôÀöYX›]ôS‹ôÀõò[YK¬à]Nà[ô\ï]Kà›[[X\ûNà[ô\î›[[X\ûKà\ÿ‹ö\[€éà[ô\ë\ÿ‹ö\[€ãà‹‹ù[ö]U\RYà[ô\ï\RYàŸX›‹íYà[ô\îŸX›‹íYà€›[ùûRYà[ô\ê€›[ùûRYà\›öX›Yà[ô\ë\›öX›Yà\›[X]Yò[YNà[ô\ïò[YH»ù[Xô\ä[ô\ïò[YJHà[ôYö[ôYà›\úô[òﬁP€ŸNà[ô\ê›\úô[òﬁP€ŸH[ôYö[ôYà›XõZ\‹⁄[€ëXY[ôNà[ô\ëXY[ôKà€€ùX›]Z[Œà[ô\ê€€ùX›àJN¬àŸ]^S‹‹ù[ö]Y\ ÿ‹ôX]Yããõ^S‹‹ù[ö]Y\◊JN¬Çà]\ÿYòZ[\ô\»H¬àYà
+[ô\ëÿ›[Y[ùö[\Àõ[ô›à
+H¬à€€ú›\ÿYYà‹‹ù[ö]Qÿ›[Y[ù◊HH◊N¬àõ‹à
+€€ú›ö[HŸà[ô\ëÿ›[Y[ùö[\ H¬àûH¬à\ÿYYú\⁄
+]ÿZ]\ÿY‹‹ù[ö]Qÿ›[Y[ù
+X›]ôS‹ôÀöY‹ôX]YöYö[K[ô\ëÿ›[Y[ù\‘XõX JN¬àHÿ]⁄¬à\ÿYòZ[\ô\»
+œHN¬àBàBàYà
+\ÿYYõ[ô›à
+H¬àŸ]ÿ‹–ûS‹‹ù[ö]J
+ô]äHOà
+»ããúô]ãÿ‹ôX]YöYNà\ÿYYJJN¬àBàBÇàŸ][ô\ï]J	… N¬àŸ][ô\î›[[X\ûJ	… N¬àŸ][ô\ë\ÿ‹ö\[€ä	… N¬àŸ][ô\ïò[YJ	… N¬àŸ][ô\ëXY[ôJ	… N¬àŸ][ô\ê€€ùX›
+	… N¬àŸ][ô\ëÿ›[Y[ùö[\ ◊JN¬àŸ][ô\ëÿ›[Y[ù\úõ‹ä	… N¬àŸ][ô\ú—ôYYòX⁄ à\ÿYòZ[\ô\»àà»[ô\à›XõZ]Yõ‹àYZ[àô]öY]Àù]	›\ÿYòZ[\ô\ﬂHÿ›[Y[ù	›\ÿYòZ[\ô\»OOHH»	…»à	‹…ﬂHòZ[Y»\ÿY8†%]X⁄	›\ÿYòZ[\ô\»OOHH»	⁄]	»à	›[IﬂHYÿZ[àúõ€HHÿ›[Y[ù»[ô[ô[›Àòàà	’[ô\à›XõZ]Yõ‹àYZ[àô]öY]Àà]⁄[€»]ôH€òŸH\õ›ôYâ¬à
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ››XõZ][ô\ãâﬂX
+N¬àHö[ò[H¬àŸ][ô\î›XõZ][ô ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ][ô\ú—ôYYòX⁄ 	… KL
+N¬àBàN¬Çà€€ú›ôYúô\⁄^S‹‹ù[ö]Y\»H\ﬁ[ò»
+
+HOà¬àûH¬àŸ]^S‹‹ù[ö]Y\ ]ÿZ]ô]⁄^S‹‹ù[ö]Y\ X›]ôS‹ôÀöY
+JN¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ôYúô\⁄[ô\úÀâﬂX
+N¬àBàN¬ÇàÀ»KKH[ô\àÿ›[Y[ù›]\»KKBà€€ú›Ÿ^[ôYÿ‹“YŸ]^[ôYÿ‹“YHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›Ÿÿ‹–ûS‹‹ù[ö]KŸ]ÿ‹–ûS‹‹ù[ö]WHH\ŸT›]OôX€‹ô›ö[ôÀ‹‹ù[ö]Qÿ›[Y[ù◊OèäﬂJN¬à€€ú›Ÿÿ“\‘XõXÀŸ]ÿ“\‘XõX◊HH\ŸT›]JùYJN¬à€€ú››\ÿY[ô—ÿ—õ‹ãŸ]\ÿY[ô—ÿ—õ‹óHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›Ÿ^[ôYô\‹YŸ]^[ôYô\‹YHH\ŸT›]O›ö[ô»ù[äù[
+N¬à€€ú›‹ô\‹€úŸ\–ûS‹Ÿ]ô\‹€úŸ\–ûS‹HH\ŸT›]OôX€‹ô›ö[ôÀ‹‹ù[ö]Tô\‹€úŸV◊OèäﬂJN¬Çà€€ú›ŸŸ€Tô\‹€úŸ\‘[ô[H\ﬁ[ò»
+‹‹ù[ö]RYà›ö[ô HOà¬àYà
+^[ôYô\‹YOOH‹‹ù[ö]RY
+H»Ÿ]^[ôYô\‹Y
+ù[
+N»ô]\õé»BàŸ]^[ôYô\‹Y
+‹‹ù[ö]RY
+N¬àYà
+\ô\‹€úŸ\–ûS‹€‹‹ù[ö]RYJH¬àûH¬à€€ú›ô\»H]ÿZ]ô]⁄‹‹ù[ö]Tô\‹€úŸ\ ‹‹ù[ö]RY
+N¬àŸ]ô\‹€úŸ\–ûS‹
+
+ô]äHOà
+»ããúô]ã€‹‹ù[ö]RYNàô\»JJN¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿYô\‹€úŸ\ÀâﬂX
+N¬àBàBàN¬Çà€€ú›ŸŸ€Qÿ‹‘[ô[H\ﬁ[ò»
+‹‹ù[ö]RYà›ö[ô HOà¬àYà
+^[ôYÿ‹“YOOH‹‹ù[ö]RY
+H¬àŸ]^[ôYÿ‹“Y
+ù[
+N¬àô]\õé¬àBàŸ]^[ôYÿ‹“Y
+‹‹ù[ö]RY
+N¬àYà
+Yÿ‹–ûS‹‹ù[ö]V€‹‹ù[ö]RYJH¬àûH¬à€€ú›ÿ‹»H]ÿZ]ô]⁄‹‹ù[ö]Qÿ›[Y[ù ‹‹ù[ö]RY
+N¬àŸ]ÿ‹–ûS‹‹ù[ö]J
+ô]äHOà
+»ããúô]ã€‹‹ù[ö]RYNàÿ‹»JJN¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿYÿ›[Y[ùÀâﬂX
+N¬àBàBàN¬Çà€€ú›[ôU\ÿYÿ›[Y[ùH\ﬁ[ò»
+‹‹ù[ö]RYà›ö[ôÀö[Nàö[H[ôYö[ôY
+HOà¬àYà
+Yö[JHô]\õé¬àŸ]\ÿY[ô—ÿ—õ‹ä‹‹ù[ö]RY
+N¬àûH¬à€€ú›ÿ»H]ÿZ]\ÿY‹‹ù[ö]Qÿ›[Y[ù
+X›]ôS‹ôÀöY‹‹ù[ö]RYö[Kÿ“\‘XõX N¬àŸ]ÿ‹–ûS‹‹ù[ö]J
+ô]äHOà
+»ããúô]ã€‹‹ù[ö]RYNàÀããäô]ñ€‹‹ù[ö]RYHœ»◊JKÿ◊HJJN¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›\ÿYÿ›[Y[ùâﬂX
+N¬àHö[ò[H¬àŸ]\ÿY[ô—ÿ—õ‹äù[
+N¬àŸ][Y[›]
+
+
+HOàŸ][ô\ú—ôYYòX⁄ 	… KL
+N¬àBàN¬Çà€€ú›[ôQ[]Qÿ›[Y[ùH\ﬁ[ò»
+‹‹ù[ö]RYà›ö[ôÀÿŒà‹‹ù[ö]Qÿ›[Y[ù
+HOà¬à€€ú›ô]ö[›\»Hÿ‹–ûS‹‹ù[ö]V€‹‹ù[ö]RYHœ»◊N¬àŸ]ÿ‹–ûS‹‹ù[ö]J
+ô]äHOà
+»ããúô]ã€‹‹ù[ö]RYNàô]ö[›\Àôö[\ä
+
+HOàöYOOHÿÀöY
+HJJN¬àûH¬à]ÿZ][]S‹‹ù[ö]Qÿ›[Y[ù
+ÿ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ÿ‹–ûS‹‹ù[ö]J
+ô]äHOà
+»ããúô]ã€‹‹ù[ö]RYNàô]ö[›\»JJN¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›[]Hÿ›[Y[ùâﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ][ô\ú—ôYYòX⁄ 	… KL
+N¬àBàN¬Çà€€ú›[ôQ›€õÿYÿ›[Y[ùH\ﬁ[ò»
+ÿŒà‹‹ù[ö]Qÿ›[Y[ù
+HOà¬àûH¬à€€ú›\õH]ÿZ]Ÿ]‹‹ù[ö]Qÿ›[Y[ù\õ
+ÿ N¬à⁄[ô›Àõ‹[ä\õ	◊ÿõ[ö…À	€õ€‹[ô\ãõ‹ôYô\úô\â N¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›‹[àÿ›[Y[ùâﬂX
+N¬àŸ][Y[›]
+
+
+HOàŸ][ô\ú—ôYYòX⁄ 	… KL
+N¬àBàN¬Çà€€ú›[ôP€‹ŸS‹‹ù[ö]HH\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›ô]ö[›\»H^S‹‹ù[ö]Y\Œ¬àŸ]^S‹‹ù[ö]Y\ ^S‹‹ù[ö]Y\ÀõX\
+
+ HOà
+ÀöYOOHY»»ããõÀ›]\–€ŸNà	ÿ€‹ŸY	À›]\”Xô[à	–€‹ŸY	»Hà JJN¬àûH¬à]ÿZ]€‹ŸS‹‹ù[ö]JY
+N¬àHÿ]⁄¬àŸ]^S‹‹ù[ö]Y\ ô]ö[›\ N¬àBàN¬Çà€€ú›[ôPÿ[òŸ[‹‹ù[ö]HH\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›ôX\€€àHõ€\
+	‘ôX\€€àõ‹àÿ[òŸ[[ô»\»[ô\éâ H	…Œ¬àûH¬à]ÿZ]ÿ[òŸ[‹‹ù[ö]JYôX\€€äN¬à]ÿZ]ôYúô\⁄^S‹‹ù[ö]Y\ 
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿ[òŸ[[ô\ãâﬂX
+N¬àBàN¬Çà€€ú›[ôTô\›XõZ]H\ﬁ[ò»
+Yà›ö[ô HOà¬àûH¬à]ÿZ]ô\›XõZ]õ‹îô]öY] Y
+N¬à]ÿZ]ôYúô\⁄^S‹‹ù[ö]Y\ 
+N¬àŸ][ô\ú—ôYYòX⁄ 	‘ô\›XõZ]Yõ‹àYZ[àô]öY]Àâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ô\›XõZ][ô\ãâﬂX
+N¬àHö[ò[H¬àŸ][Y[›]
+
+
+HOàŸ][ô\ú—ôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›[ôQ^[ôXY[ôHH\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›ô]—XY[ôHHõ€\
+	”ô]»›XõZ\‹⁄[€àXY[ôH
+VVVKSSKQ
+Nâ N¬àYà
+[ô]—XY[ôJHô]\õé¬àûH¬à]ÿZ]^[ôXY[ôJYô]»]Jô]—XY[ôJKù“T”‘›ö[ô 
+K	… N¬à]ÿZ]ôYúô\⁄^S‹‹ù[ö]Y\ 
+N¬àŸ][ô\ú—ôYYòX⁄ 	—XY[ôH^[ôYâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›^[ôXY[ôKâﬂX
+N¬àHö[ò[H¬àŸ][Y[›]
+
+
+HOàŸ][ô\ú—ôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›[ôTôX€‹ô]ÿ\ôH\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›⁄[õö[ô‘›\Y\ìò[YHHõ€\
+	’⁄[õö[ô»›\Y\à»€€ùòX›‹àò[YNâ N¬àYà
+]⁄[õö[ô‘›\Y\ìò[YJHô]\õé¬à€€ú›]ÿ\ôYò[YT›àHõ€\
+	–]ÿ\ôYò[YH
+‹[€ò[ù[Xô\ú»€õJNâ H	…Œ¬àûH¬à]ÿZ]ôX€‹ô]ÿ\ô
+Y¬à⁄[õö[ô‘›\Y\ìò[YKà]ÿ\ôYò[YNà]ÿ\ôYò[YT›à»ù[Xô\ä]ÿ\ôYò[YT›äHà[ôYö[ôYàJN¬à]ÿZ]ôYúô\⁄^S‹‹ù[ö]Y\ 
+N¬àŸ][ô\ú—ôYYòX⁄ 	–€€ùòX›]ÿ\ôXõ\⁄Yâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ][ô\ú—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ôX€‹ô]ÿ\ôâﬂX
+N¬àHö[ò[H¬àŸ][Y[›]
+
+
+HOàŸ][ô\ú—ôYYòX⁄ 	… K
+N¬àBàN¬ÇàÀ»KKHYZ[à[ô\àô]öY]»›]\»KKBà€€ú›‹ô]öY]‘]Y]YKŸ]ô]öY]‘]Y]YWHH\ŸT›]Oô]öY]‘]Y]YR][V◊Oä◊JN¬à€€ú›‹ô]öY]”ÿY[ôÀŸ]ô]öY]”ÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›‹ô]öY]—ôYYòX⁄ÀŸ]ô]öY]—ôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›Ÿ\Xÿ]Uÿ\õö[ô‹ÀŸ]\Xÿ]Uÿ\õö[ô‹◊HH\ŸT›]OôX€‹ô›ö[ôÀ›ö[ô÷◊OèäﬂJN¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	ÿYZ[ã][ô\ã\ô]öY]…»Z\‘]õ‹õPYZ[äHô]\õé¬àŸ]ô]öY]”ÿY[ô ùYJN¬àô]⁄‹‹ù[ö]Y\—õ‹îô]öY] 
+Bàù[ä\ﬁ[ò»
+][\ HOà¬àŸ]ô]öY]‘]Y]YJ][\ N¬à€€ú›ÿ\õö[ô‹ŒàôX€‹ô›ö[ôÀ›ö[ô÷◊OàHﬂN¬àõ‹à
+€€ú›][HŸà][\ H¬àÿ\õö[ô‹÷⁄][KöYHH]ÿZ]ö[ô⁄[Z[\ï]Y‹‹ù[ö]Y\ ][Kù]K][KöY
+N¬àBàŸ]\Xÿ]Uÿ\õö[ô‹ ÿ\õö[ô‹ N¬àJBàòÿ]⁄
+
+\úéà[ûJHOàŸ]ô]öY]—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿYô]öY]»]Y]YKâﬂX
+JBàôö[ò[J
+
+HOàŸ]ô]öY]”ÿY[ô ò[ŸJJN¬àKÿX›]ôUXã\‘]õ‹õPYZ[óJN¬Çà€€ú›[ôP\õ›ôHH\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›ô]ö[›\»Hô]öY]‘]Y]YN¬àŸ]ô]öY]‘]Y]YJô]öY]‘]Y]YKôö[\ä
+ HOàÀöYOOHY
+JN¬àûH¬à]ÿZ]\õ›ôS‹‹ù[ö]JY
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ô]öY]‘]Y]YJô]ö[›\ N¬àŸ]ô]öY]—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›\õ›ôH[ô\ãâﬂX
+N¬àBàN¬Çà€€ú›[ôTô\]Y\›€‹úôX›[€àH\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›õ›HHõ€\
+	’⁄]ôYY»»ôH€‹úôX›Y… N¬àYà
+[õ›JHô]\õé¬à€€ú›ô]ö[›\»Hô]öY]‘]Y]YN¬àŸ]ô]öY]‘]Y]YJô]öY]‘]Y]YKôö[\ä
+ HOàÀöYOOHY
+JN¬àûH¬à]ÿZ]ô\]Y\›€‹úôX›[€äYõ›JN¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ô]öY]‘]Y]YJô]ö[›\ N¬àŸ]ô]öY]—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ô\]Y\›€‹úôX›[€ãâﬂX
+N¬àBàN¬Çà€€ú›[ôTôZôX›H\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›õ›HHõ€\
+	‘ôX\€€àõ‹àôZôX›[ô»\»[ô\éâ N¬àYà
+[õ›JHô]\õé¬à€€ú›ô]ö[›\»Hô]öY]‘]Y]YN¬àŸ]ô]öY]‘]Y]YJô]öY]‘]Y]YKôö[\ä
+ HOàÀöYOOHY
+JN¬àûH¬à]ÿZ]ôZôX›‹‹ù[ö]JYõ›JN¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ô]öY]‘]Y]YJô]ö[›\ N¬àŸ]ô]öY]—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ôZôX›[ô\ãâﬂX
+N¬àBàN¬ÇàÀ»KKH›\Y\àõŸö[H›]\»KKBà€€ú›STW‘’TQTéà›\Y\îõŸö[HH¬àòY[ô”ò[YNà	…ÀôY⁄\›ò][€ìù[Xô\éà	…À^Y[ùYöXÿ][€ìù[Xô\éà	…À\ÿ‹ö\[€éà	…ÀàŸXú⁄]Nà	…ÀYX\ë\›Xõ\⁄Yàù[[\ﬁYYP€›[ùà	…ÀŸ[Ÿ‹ò\X–€›ô\òYŸNà	…ÀŸ\ùYöXÿ][€úŒà	…ÀXZõ‹ê€Y[ùŒà	…ÀàN¬à€€ú›‹›\Y\îõŸö[KŸ]›\Y\îõŸö[WHH\ŸT›]O›\Y\îõŸö[OäSTW‘’TQTäN¬à€€ú›‹›\Y\ìÿY[ôÀŸ]›\Y\ìÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›‹›\Y\îÿ]ö[ôÀŸ]›\Y\îÿ]ö[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú›‹›\Y\ëôYYòX⁄ÀŸ]›\Y\ëôYYòX⁄◊HH\ŸT›]J	… N¬à€€ú›Ÿ[òXõ[ô‘›\Y\ãŸ][òXõ[ô‘›\Y\óHH\ŸT›]Jò[ŸJN¬à€€ú›€^Uô\öYöXÿ][€úÀŸ]^Uô\öYöXÿ][€ú◊HH\ŸT›]Oô\öYöXÿ][€îô\]Y\›◊Oä◊JN¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	‹›\Y\ã\õŸö[I»XX›]ôS‹ôÀö\‘›\Y\äHô]\õé¬àŸ]›\Y\ìÿY[ô ùYJN¬àõ€Z\ŸKò[
+Ÿô]⁄›\Y\îõŸö[JX›]ôS‹ôÀöY
+Kô]⁄^Uô\öYöXÿ][€îô\]Y\› X›]ôS‹ôÀöY
+WJBàù[ä
+‹õŸö[Kô\öYöXÿ][€ú◊JHOà¬àŸ]›\Y\îõŸö[JõŸö[JN¬àŸ]^Uô\öYöXÿ][€ú ô\öYöXÿ][€ú N¬àJBàòÿ]⁄
+
+\úéà[ûJHOàŸ]›\Y\ëôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿY›\Y\àõŸö[KâﬂX
+JBàôö[ò[J
+
+HOàŸ]›\Y\ìÿY[ô ò[ŸJJN¬àKÿX›]ôUXãX›]ôS‹ôÀö\‘›\Y\ãX›]ôS‹ôÀöYJN¬Çà€€ú›[ôQ[òXõT›\Y\ì[ŸHH\ﬁ[ò»
+
+HOà¬àŸ][òXõ[ô‘›\Y\äùYJN¬àûH¬à]ÿZ][òXõT›\Y\ì[ŸJX›]ôS‹ôÀöY
+N¬à⁄[ô›Àõÿÿ][€ãúô[ÿY
+
+N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]›\Y\ëôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›[òXõH›\Y\à[ŸKâﬂX
+N¬àŸ][òXõ[ô‘›\Y\äò[ŸJN¬àBàN¬Çà€€ú›[ôTÿ]ôT›\Y\îõŸö[HH\ﬁ[ò»
+NàôXX›ëõ‹õQ]ô[ù
+HOà¬àKúô]ô[ùYò][
+
+N¬àŸ]›\Y\îÿ]ö[ô ùYJN¬àûH¬à]ÿZ]ÿ]ôT›\Y\îõŸö[JX›]ôS‹ôÀöY›\Y\îõŸö[JN¬àŸ]›\Y\ëôYYòX⁄ 	‘›\Y\àõŸö[Hÿ]ôYâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]›\Y\ëôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿ]ôH›\Y\àõŸö[KâﬂX
+N¬àHö[ò[H¬àŸ]›\Y\îÿ]ö[ô ò[ŸJN¬àŸ][Y[›]
+
+
+HOàŸ]›\Y\ëôYYòX⁄ 	… K
+N¬àBàN¬Çà€€ú›[ôT›XõZ]ô\öYöXÿ][€àH\ﬁ[ò»
+
+HOà¬à€€ú›õ›\»Hõ€\
+	–[û][ô»[›Hÿ[ùHô]öY]Ÿ\à»€õ›œ»
+‹[€ò[
+I H	…Œ¬àûH¬à]ÿZ]›XõZ]ô\öYöXÿ][€îô\]Y\›
+X›]ôS‹ôÀöY	‹›\Y\âÀõ›\ N¬àŸ]^Uô\öYöXÿ][€ú ]ÿZ]ô]⁄^Uô\öYöXÿ][€îô\]Y\› X›]ôS‹ôÀöY
+JN¬àŸ]›\Y\ëôYYòX⁄ 	’ô\öYöXÿ][€àô\]Y\››XõZ]Yâ N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]›\Y\ëôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ››XõZ]ô\öYöXÿ][€àô\]Y\›âﬂX
+N¬àHö[ò[H¬àŸ][Y[›]
+
+
+HOàŸ]›\Y\ëôYYòX⁄ 	… K
+N¬àBàN¬ÇàÀ»KKHYZ[àô\öYöXÿ][€à]Y]YH›]\»KKBà€€ú››ô\öYöXÿ][€î]Y]YKŸ]ô\öYöXÿ][€î]Y]YWHH\ŸT›]Oô\öYöXÿ][€î]Y]YR][V◊Oä◊JN¬à€€ú››ô\öYöXÿ][€î]Y]YSÿY[ôÀŸ]ô\öYöXÿ][€î]Y]YSÿY[ô◊HH\ŸT›]Jò[ŸJN¬à€€ú››ô\öYöXÿ][€ëôYYòX⁄ÀŸ]ô\öYöXÿ][€ëôYYòX⁄◊HH\ŸT›]J	… N¬Çà\ŸQYôôX›
+
+
+HOà¬àYà
+X›]ôUXàOOH	ÿYZ[ã]ô\öYöXÿ][€â»Z\‘]õ‹õPYZ[äHô]\õé¬àŸ]ô\öYöXÿ][€î]Y]YSÿY[ô ùYJN¬àô]⁄ô\öYöXÿ][€î]Y]YJ
+Bàù[äŸ]ô\öYöXÿ][€î]Y]YJBàòÿ]⁄
+
+\úéà[ûJHOàŸ]ô\öYöXÿ][€ëôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ÿYô\öYöXÿ][€à]Y]YKâﬂX
+JBàôö[ò[J
+
+HOàŸ]ô\öYöXÿ][€î]Y]YSÿY[ô ò[ŸJJN¬àKÿX›]ôUXã\‘]õ‹õPYZ[óJN¬Çà€€ú›[ôP\õ›ôUô\öYöXÿ][€àH\ﬁ[ò»
+][Nàô\öYöXÿ][€î]Y]YR][JHOà¬à€€ú›ô]ö[›\»Hô\öYöXÿ][€î]Y]YN¬àŸ]ô\öYöXÿ][€î]Y]YJô\öYöXÿ][€î]Y]YKôö[\ä
+äHOàãöYOOH][KöY
+JN¬àûH¬à]ÿZ]\õ›ôUô\öYöXÿ][€ä][KöY][Kõ‹ô“Y][Kúô\]Y\›\H\»	‹›\Y\â»	ÿù^Y\â N¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ô\öYöXÿ][€î]Y]YJô]ö[›\ N¬àŸ]ô\öYöXÿ][€ëôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›\õ›ôHô\öYöXÿ][€ãâﬂX
+N¬àBàN¬Çà€€ú›[ôTôZôX›ô\öYöXÿ][€àH\ﬁ[ò»
+Yà›ö[ô HOà¬à€€ú›õ›HHõ€\
+	‘ôX\€€àõ‹àôZôX›[ô»\»ô\öYöXÿ][€àô\]Y\›â N¬àYà
+[õ›JHô]\õé¬à€€ú›ô]ö[›\»Hô\öYöXÿ][€î]Y]YN¬àŸ]ô\öYöXÿ][€î]Y]YJô\öYöXÿ][€î]Y]YKôö[\ä
+äHOàãöYOOHY
+JN¬àûH¬à]ÿZ]ôZôX›ô\öYöXÿ][€äYõ›JN¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ô\öYöXÿ][€î]Y]YJô]ö[›\ N¬àŸ]ô\öYöXÿ][€ëôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›ôZôX›ô\öYöXÿ][€ãâﬂX
+N¬àBàN¬Çà€€ú›[ôUŸŸ€QôX]\ôYH\ﬁ[ò»
+‹àô]öY]‘]Y]YR][H‹‹ù[ö]S\›][KôX]\ôYàõ€€X[äHOà¬àûH¬à]ÿZ]Ÿ]‹‹ù[ö]QôX]\ôY
+‹öYôX]\ôY
+N¬àŸ]ô]öY]‘]Y]YJô]öY]‘]Y]YKõX\
+
+ HOà
+ÀöYOOH‹öY»»ããõÀ\—ôX]\ôYàôX]\ôYHà JJN¬àHÿ]⁄
+\úéà[ûJH¬àŸ]ô]öY]—ôYYòX⁄ \úõ‹éà	Ÿ\úãõY\‹ÿYŸH	–€›[õ›\]HôX]\ôY›]\ÀâﬂX
+N¬àBàN¬ÇàÀ»KKHYZ[à›Xúÿ‹ö\[€àô\]Y\›»›]\»KKBà€€ú›‹[ô[ô‘›Xúÿ‹ö\[€úÀŸ][ô[ô‘›Xúÿ‹ö\[€ú◊HH\ŸT›]zÁ~¯∂âûÀk∫wµÁX⁄»€\‹”ò[YOHù^Y[Y\ò[MåMÀM⁄ö[öÀLàœà]X⁄YYXH\‹Ÿ]»úõ€HHXúò\ûHXõ›ôO€OÇàH€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\Làèè⁄X⁄»€\‹”ò[YOHù^Y[Y\ò[MåMÀM⁄ö[öÀLàœà[XôYUHòX⁄⁄[ô»[öœ€OÇàH€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\Làèè⁄X⁄»€\‹”ò[YOHù^Y[Y\ò[MåMÀM⁄ö[öÀLàœà\ÿY»\ôŸ]€ÿ⁄X[]õ‹õHX[ùX[O€OÇà›[ÇàŸ^‹ùôYYòX⁄»	âà€\‹”ò[YOHù^\ôYMåõ€ù\Ÿ[ZXõ€èûŸ^‹ùôYYòX⁄ﬂO‹üBàù]€Çà€ê€X⁄œ^⁄[ôQ›€õÿY€€\[Y\‹Ÿ]ﬂBà\ÿXõY^⁄\—Ÿ[ô\ò][ô—^‹ùBà€\‹”ò[YOHùÀYù[ôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ\ÿXõYòôÀY[Y\ò[N^]⁄]Hõ€ù\Ÿ[ZXõ€KLàõ›[ôY^õ^][\ÀXŸ[ù\àù\›YûKXŸ[ù\àÿ\Là›\ú€‹ã\⁄[ù\àÇàÇà›€õÿY€\‹”ò[YOHöMÀMàœà⁄\—Ÿ[ô\ò][ô—^‹ù»	–€€\[[ô¯†)â»à	—›€õÿY€€\[Y\‹Ÿ]…ﬂBàÿù]€èÇàŸ]èÇàŸ]èÇàŸ]èÇà
+_BàŸ]èÇà
+N¬àBÇàÀ»KàQQPHPîêTñH”‘í‘‘P—BàYà
+X›]ôUXàOOH	€YYXI H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇàÀ à€€ùõ€»
+ãﬂBà]à€\‹”ò[YOHôõ^õ^X€€€Nôõ^\õ›»ù\›YûKXô]ŸY[à][\À\›\ù€Nö][\ÀXŸ[ù\àÿ\MôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLMàõ›[ôYLûèÇà]èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èêŸ[ùò[^ôYYYXHXúò\ûO⁄œÇà€\‹”ò[YOHù^^»^\€]KMLèîôX[›‹òYŸKXòX⁄ŸY\‹Ÿ]»8†%\ÿYŸ€‹À›Ÿ‹ò\K[ôÿ[\ZY€àö[\Àè‹ÇàŸ]èÇà]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\MèÇàXô[€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\Là^^»õ€ù\Ÿ[ZXõ€^\€]KMå›\ú€‹ã\⁄[ù\àèÇà[ú]à\OHò⁄X⁄ÿõﬁÇà⁄X⁄ŸY^€›–ò[ô⁄Y[Ÿ_Bà€ê⁄[ôŸO^ JHOàŸ]›–ò[ô⁄Y[ŸJKù\ôŸ]ò⁄X⁄ŸY
+_Bà€\‹”ò[YOHúõ›[ôYõ‹ô\ã\€]KLå^Y[Y\ò[Måõÿ›\Œúö[ôÀY[Y\ò[MLÇàœÇà›ÀPò[ô⁄Y[ŸBà€Xô[Çà[ú]à\OHù^Çàò[YO^›\ÿYõ€\üBà€ê⁄[ôŸO^ JHOàŸ]\ÿYõ€\äKù\ôŸ]ùò[YJ_BàXŸZ€\èHëõ€\àÇà€\‹”ò[YOHùÀLéõ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^Là^^»ôÀ\€]KMLõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇà[ú]ôYè^€YYXQö[R[ú]ôYüH\OHôö[Hà€ê⁄[ôŸO^⁄[ôSYYXQö[P⁄[ôŸ_H€\‹”ò[YOHöY[ààœÇàù]€Çà€ê€X⁄œ^ 
+HOàYYXQö[R[ú]ôYãò›\úô[ùÀò€X⁄ 
+_Bà\ÿXõY^⁄\’\ÿY[ô”YYX_Bà€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ\ÿXõYòôÀY[Y\ò[N^]⁄]H^^»õ€ù\Ÿ[ZXõ€MKLàõ›[ôY^õ^][\ÀXŸ[ù\àÿ\Là›\ú€‹ã\⁄[ù\àÇàÇà\ÿY€\‹”ò[YOHöMÀMàœà⁄\’\ÿY[ô”YYXH»	’\ÿY[ô¯†)â»à	’\ÿY\‹Ÿ]	ﬂBàÿù]€èÇàŸ]èÇàŸ]èÇÇà€YYXQôYYòX⁄»	âà
+à]à€\‹”ò[YO^ÿ^\€HMõ›[ôY^õ€ù\Ÿ[ZXõ€	€YYXQôYYòX⁄Àú›\ù’⁄]
+	—\úõ‹â H»	ÿôÀ\ôYMLõ‹ô\àõ‹ô\ã\ôYLå^\ôYMÃ	»à	ÿôÀY[Y\ò[MLõ‹ô\àõ‹ô\ãY[Y\ò[Lå^Y[Y\ò[N	ﬂXOÇà€YYXQôYYòX⁄ﬂBàŸ]èÇà
+_BÇà€YYXSÿY[ô»»
+à€\‹”ò[YOHù^^»^\€]KMèìÿY[ô¯†)è‹Çà
+HàYYXP\‹Ÿ]Àõ[ô›OOH»
+à]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûLL^XŸ[ù\à^\€]KM^\€HèÇàõ»YYXH\‹Ÿ]»\ÿYYY]à\ŸHï\ÿY\‹Ÿ]àXõ›ôH»Y[›\àö\ú›ö[KÇàŸ]èÇà
+Hà
+àÇàÀ àõ€\ú»‹öY8†%ôX[€›[ù»\ö]ôYúõ€H\ÿYY\‹Ÿ]»
+ãﬂBà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLàYô‹öYX€€ÀMÿ\MàèÇà€YYXQõ€\úÀõX\
+
+õ€\äHOà
+à]àŸ^O^Ÿõ€\üH€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMH›ô\éú⁄Y›À^»ò[ú⁄][€ã\⁄Y›»^[YùèÇàõ€\ì‹[à€\‹”ò[YOHù^Y[Y\ò[MåLLÀLLXãMàœÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KN^\€HXY[ôÀ]Y⁄èûŸõ€\üO⁄Çà‹[à€\‹”ò[YOHù^VÃLH^\€]KMõ€ù[[€õ»]LHõÿ⁄»\\òÿ\ŸHèÇà€YYXP\‹Ÿ]Àôö[\ä
+JHOàKôõ€\àOOHõ€\äKõ[ô›Hö[\¬à‹‹[èÇàŸ]èÇà
+J_BàŸ]èÇÇàÀ à\‹Ÿ]\›8†%ôX[ö[\ÀôX[⁄^ô\ÀôX[[]K›öY]»
+ãﬂBà]à€\‹”ò[YOHú‹XŸK^KMèÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^\€Hèê[\ÿYœ⁄Çà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLà€Nô‹öYX€€ÀL»Œô‹öYX€€ÀMHÿ\MàèÇà€YYXP\‹Ÿ]ÀõX\
+
+\‹Ÿ]
+HOà¬à€€ú›\“[XYŸHH\‹Ÿ]õZ[YU\OÀú›\ù’⁄]
+	⁄[XYŸK… N¬àô]\õà
+à]àŸ^O^ÿ\‹Ÿ]öYH€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLû›ô\ôõ›ÀZY[à⁄Y›À^»ô[]]ôH‹õ›\èÇàù]€Çà€ê€X⁄œ^ 
+HOà[ôUöY]”YYXP\‹Ÿ]
+\‹Ÿ]
+_Bà€\‹”ò[YOHùÀYù[ôÀ\€]KLLLÃàõ^][\ÀXŸ[ù\àù\›YûKXŸ[ù\à^\€]KM›\ú€‹ã\⁄[ù\àÇàÇà€›–ò[ô⁄Y[ŸH»
+à‹[à€\‹”ò[YOHù^VÃLHõ€ù[[€õ»^\€]KMèì›ÀTô\»XŸZ€\è‹‹[èÇà
+Hà\“[XYŸH»
+à[XYŸRX€€à€\‹”ò[YOHöNÀN^\€]KLÃàœÇà
+Hà
+àö[U^€\‹”ò[YOHöNÀN^\€]KLÃàœÇà
+_Bàÿù]€èÇàù]€Çà€ê€X⁄œ^ 
+HOà[ôQ[]SYYXP\‹Ÿ]
+\‹Ÿ]
+_Bà€\‹”ò[YOHòXú€€]H‹LàöY⁄LàôÀ]⁄]KŒLõ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LH‹X⁄]KL‹õ›\Z›ô\éõ‹X⁄]KLLò[ú⁄][€ã[‹X⁄]H›\ú€‹ã\⁄[ù\àÇàÇàò\⁄à€\‹”ò[YOHöLÀçHÀLÀçH^\ôYMLàœÇàÿù]€èÇà]à€\‹”ò[YOHúL»^[YùèÇà‹[à€\‹”ò[YOHôõ€ù\Ÿ[ZXõ€^\€]KMÃ^^»õÿ⁄»ù[òÿ]Hèûÿ\‹Ÿ]ôö[Sò[Y_O‹‹[èÇà‹[à€\‹”ò[YOHù^VÃLH^\€]KMõ€ù[[€õ»]LçHõÿ⁄»èûŸõ‹õX]ö[T⁄^ôJ\‹Ÿ]ôö[T⁄^ôJ_H0≠»ÿ\‹Ÿ]ôõ€\üO‹‹[èÇàŸ]èÇàŸ]èÇà
+N¬àJ_BàŸ]èÇàŸ]èÇàœÇà
+_BàŸ]èÇà
+N¬àBÇàÀ»ãàUQQSê—T»”‘í‘‘P—BàYà
+X›]ôUXàOOH	ÿ]YY[òŸ\… H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»‹XŸK^KMàèÇà]èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èìÿÿ[	àX\‹‹òH]YY[òŸH[õô\è⁄œÇà€\‹”ò[YOHù^^»^\€]KMLèêùZ[[ôÿ]ôHô]\ÿXõH\ôŸ][ô»õŸö[\»úõ€HôX[\›öX›»[ôX\‹‹òHX\öŸ]Àõ‹àôYô\ô[òŸH⁄[à[õö[ô»ÿ[\ZY€úÀè‹ÇàŸ]èÇÇàÿ]YY[òŸQôYYòX⁄»	âà
+à]à€\‹”ò[YO^ÿ^\€HLÀçHõ›[ôY^õ€ù\Ÿ[ZXõ€	ÿ]YY[òŸQôYYòX⁄Àú›\ù’⁄]
+	—\úõ‹â H»	ÿôÀ\ôYMLõ‹ô\àõ‹ô\ã\ôYLå^\ôYMÃ	»à	ÿôÀY[Y\ò[MLõ‹ô\àõ‹ô\ãY[Y\ò[Lå^Y[Y\ò[N	ﬂXOÇàÿ]YY[òŸQôYYòX⁄ﬂBàŸ]èÇà
+_BÇàõ‹õH€î›XõZ]^⁄[ôTÿ]ôTŸY€Y[ùH€\‹”ò[YOHú‹XŸK^KMèÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèîŸY€Y[ùò[YO€Xô[Çà[ú]à\OHù^Çàô\]Z\ôYàXŸZ€\èHôKôÀàõÀ“Ÿ[ô[XHöXŸHù^Y\ú»
+»R»X\‹‹òHÇàò[YO^‹ŸY€Y[ùò[Y_Bà€ê⁄[ôŸO^ JHOàŸ]ŸY€Y[ùò[YJKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLHYô‹öYX€€ÀL»ÿ\MàèÇà]à€\‹”ò[YOHú‹XŸK^KLàèÇà‹[à€\‹”ò[YOHù^VÃLHõ€ùXõ€^\€]KM\\òÿ\ŸHèë\›öX›»
+⁄Y\úòH[€ôJO‹‹[èÇà]à€\‹”ò[YOHòôÀ\€]KMLMõ›[ôY^õ‹ô\àõ‹ô\ã\€]KLL‹XŸK^KLà^\€HX^ZM›ô\ôõ›À^KX]]»èÇàÿ]YY[òŸSÿY[ô»»
+à€\‹”ò[YOHù^^»^\€]KMèìÿY[ô¯†)è‹Çà
+Hà
+à]YY[òŸQ\›öX›ÀõX\
+
+
+HOà
+àXô[Ÿ^O^ŸöYH€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\Là›\ú€‹ã\⁄[ù\àèÇà[ú]à\OHò⁄X⁄ÿõﬁÇà⁄X⁄ŸY^‹ŸY€Y[ù\›öX›Àö[ò€Y\ õò[YJ_Bà€ê⁄[ôŸO^ 
+HOàŸŸ€TŸY€Y[ù\›öX›
+õò[YJ_Bà€\‹”ò[YOHúõ›[ôYõ‹ô\ã\€]KLå^Y[Y\ò[Måõÿ›\Œúö[ôÀY[Y\ò[MLÇàœÇàŸõò[Y_Bà€Xô[Çà
+JBà
+_BàŸ]èÇàŸ]èÇÇà]à€\‹”ò[YOHú‹XŸK^KLàèÇà‹[à€\‹”ò[YOHù^VÃLHõ€ùXõ€^\€]KM\\òÿ\ŸHèëX\‹‹òHX\öŸ]œ‹‹[èÇà]à€\‹”ò[YOHòôÀ\€]KMLMõ›[ôY^õ‹ô\àõ‹ô\ã\€]KLL‹XŸK^KLà^\€HèÇà—PT‘‘êW”PTí—U”‘S”îÀõX\
+
+X\öŸ]
+HOà
+àXô[Ÿ^O^€X\öŸ]H€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\Là›\ú€‹ã\⁄[ù\àèÇà[ú]à\OHò⁄X⁄ÿõﬁÇà⁄X⁄ŸY^‹ŸY€Y[ùX\‹‹òSX\öŸ]Àö[ò€Y\ X\öŸ]
+_Bà€ê⁄[ôŸO^ 
+HOàŸŸ€TŸY€Y[ùX\‹‹òSX\öŸ]
+X\öŸ]
+_Bà€\‹”ò[YOHúõ›[ôYõ‹ô\ã\€]KLå^Y[Y\ò[Måõÿ›\Œúö[ôÀY[Y\ò[MLÇàœÇà€X\öŸ]Bà€Xô[Çà
+J_BàŸ]èÇàŸ]èÇÇà]à€\‹”ò[YOHú‹XŸK^KLàèÇà‹[à€\‹”ò[YOHù^VÃLHõ€ùXõ€^\€]KM\\òÿ\ŸHèí[ù\ô\›Y‹œ‹‹[èÇà^\ôXBàõ›‹œ^Õ_BàXŸZ€\èHí€YX€€Z[ô»ô\›]ò[ÀY‹õ›X⁄]\⁄X»‹€ú€‹ú⁄\»Çàò[YO^‹ŸY€Y[ù[ù\ô\›“[ú]Bà€ê⁄[ôŸO^ JHOàŸ]ŸY€Y[ù[ù\ô\›“[ú]
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHùÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇà€\‹”ò[YOHù^VÃLH^\€]KMèê€€[XK\Ÿ\\ò]Y‹ÇàŸ]èÇàŸ]èÇÇàù]€à\OHú›XõZ]à\ÿXõY^‹ÿ]ö[ô‘ŸY€Y[ùH€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€MàKLãçHõ›[ôY^^\€Hò[ú⁄][€ãX[›\ú€‹ã\⁄[ù\à\ÿXõYõ‹X⁄]KML\ÿXõYò›\ú€‹ã[õ›X[›ŸYèÇà‹ÿ]ö[ô‘ŸY€Y[ù»	‘ÿ]ö[ô¯†)â»à	‘ÿ]ôHŸY€Y[ù	ﬂBàÿù]€èÇàŸõ‹õOÇÇà]à€\‹”ò[YOHòôÀ\€]KMLõ‹ô\àõ‹ô\ã\€]KLLMHõ›[ôYLûèÇà‹[à€\‹”ò[YOHù^^»^\€]KMåõ€ùXõ€\\òÿ\ŸHòX⁄⁄[ôÀ]⁄Y\àõÿ⁄»èì]ôHôXX⁄\›[X]\œ‹‹[èÇà€\‹”ò[YOHù^^»^\€]KML]LHèÇàôX[]YY[òŸK\⁄^ôHù[Xô\ú»ô\]Z\ôHH€€õôX›YY]H‹à⁄]–\ù\⁄[ô\‹»YXÿ€›[ù8†%ŸYH€ÿ⁄X[Xÿ€›[ùÀÇàõ›]òZ[XõHY]€»õ»ôXX⁄öY›\ôH\»⁄›€à\ôHò]\à[à[à[ùô[ùY€ôKÇà‹ÇàŸ]èÇàŸ]èÇÇà]à€\‹”ò[YOHú‹XŸK^KMèÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èîÿ]ôYŸY€Y[ù»
+ÿ]YY[òŸTŸY€Y[ùÀõ[ô›JO⁄œÇàÿ]YY[òŸTŸY€Y[ùÀõ[ô›OOH»
+à€\‹”ò[YOHù^^»^\€]KMèìõ»ŸY€Y[ù»ÿ]ôYY]è‹Çà
+Hà
+à]à€\‹”ò[YOHô‹öY‹öYX€€ÀLHYô‹öYX€€ÀLàŒô‹öYX€€ÀL»ÿ\MàèÇàÿ]YY[òŸTŸY€Y[ùÀõX\
+
+ŸY HOà
+à]àŸ^O^‹ŸYÀöYH€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMH⁄Y›À^»‹XŸK^KL»èÇà]à€\‹”ò[YOHôõ^ù\›YûKXô]ŸY[à][\À\›\ùÿ\LàèÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNLXY[ôÀ]Y⁄^\€Hèû‹ŸYÀõò[Y_O⁄Çàù]€Çà\OHòù]€àÇà€ê€X⁄œ^ 
+HOà[ôQ[]TŸY€Y[ù
+ŸY _Bà\ÿXõY^Ÿ[][ô‘ŸY€Y[ùYOOHŸYÀöYBà€\‹”ò[YOHù^VÃL\Hõ€ù\Ÿ[ZXõ€^\ôYMå›ô\éù[ô\õ[ôH›\ú€‹ã\⁄[ù\à\ÿXõYõ‹X⁄]KML⁄ö[öÀLÇàÇàŸ[][ô‘ŸY€Y[ùYOOHŸYÀöY»	—[][ô¯†)â»à	—[]IﬂBàÿù]€èÇàŸ]èÇà]à€\‹”ò[YOHú‹XŸK^KLKçH^^»èÇà€\‹”ò[YOHù^\€]KMåèè‹[à€\‹”ò[YOHôõ€ù[YY][Hèë\›öX›Œè‹‹[èà‹[à€\‹”ò[YOHù^\€]KMLèû‹ŸYÀô\›öX›Àõ[ô›à»ŸYÀô\›öX›Àöõ⁄[ä	À	 Hà	¯†%	ﬂO‹‹[èè‹Çà€\‹”ò[YOHù^\€]KMåèè‹[à€\‹”ò[YOHôõ€ù[YY][HèëX\‹‹òNè‹‹[èà‹[à€\‹”ò[YOHù^\€]KMLèû‹ŸYÀôX\‹‹òSX\öŸ]Àõ[ô›à»ŸYÀôX\‹‹òSX\öŸ]Àöõ⁄[ä	À	 Hà	¯†%	ﬂO‹‹[èè‹Çà€\‹”ò[YOHù^\€]KMåèè‹[à€\‹”ò[YOHôõ€ù[YY][Hèí[ù\ô\›Œè‹‹[èà‹[à€\‹”ò[YOHù^\€]KMLèû‹ŸYÀö[ù\ô\›Àõ[ô›à»ŸYÀö[ù\ô\›Àöõ⁄[ä	À	 Hà	¯†%	ﬂO‹‹[èè‹ÇàŸ]èÇàŸ]èÇà
+J_BàŸ]èÇà
+_BàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»Àà”–“PSP–”’Sï»”‘í‘‘P—BàYà
+X›]ôUXàOOH	‹€ÿ⁄X[	 H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà]à€\‹”ò[YOHôõ^][\À\›\ùù\›YûKXô]ŸY[àÿ\MXãLàèÇà]èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èê€€õôX›Y⁄[õô[œ⁄œÇà€\‹”ò[YOHù^^»^\€]KML]LHèÇàõ»ŸôöX⁄X[Y]K’⁄]–\ù\⁄[ô\‹»TH[ùY‹ò][€à^\›»Y]
+]ôYY»H]ô[‹\à\[ôà‹ôY[ùX[»ŸH€â›]ôJH8†%\»\»ôX[X[ùX[K]òX⁄ŸY⁄[õô[›]\»[ú›XYŸàHòZŸBà–]][ô⁄ZŸKÇà‹ÇàŸ]èÇàù]€Çà\OHòù]€àÇà€ê€X⁄œ^ 
+HOàŸ]Y[ô–⁄[õô[
+
+äHOà]ä_Bà€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€MKLàõ›[ôY^^^»ò[ú⁄][€ãX[›\ú€‹ã\⁄[ù\à⁄ö[öÀLÇàÇàÿY[ô–⁄[õô[»	–ÿ[òŸ[	»à	 »Y⁄[õô[	ﬂBàÿù]€èÇàŸ]èÇÇà‹€ÿ⁄X[ôYYòX⁄»	âà
+à]à€\‹”ò[YO^ÿ^\€HLÀçHõ›[ôY^õ€ù\Ÿ[ZXõ€XãM	‹€ÿ⁄X[ôYYòX⁄Àú›\ù’⁄]
+	—\úõ‹â H»	ÿôÀ\ôYMLõ‹ô\àõ‹ô\ã\ôYLå^\ôYMÃ	»à	ÿôÀY[Y\ò[MLõ‹ô\àõ‹ô\ãY[Y\ò[Lå^Y[Y\ò[N	ﬂXOÇà‹€ÿ⁄X[ôYYòX⁄ﬂBàŸ]èÇà
+_BÇàÿY[ô–⁄[õô[	âà
+àõ‹õH€î›XõZ]^⁄[ôPY⁄[õô[H€\‹”ò[YOHòôÀ\€]KMLõ‹ô\àõ‹ô\ã\€]KLLõ›[ôY^MXãMà‹XŸK^KL»èÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLH€Nô‹öYX€€ÀL»ÿ\L»èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèî]õ‹õO€Xô[Çà[ú]à\OHù^àô\]Z\ôYàXŸZ€\èHôKôÀà[ú›Y‹ò[HÇàò[YO^€ô]–⁄[õô[]õ‹õ_Bà€ê⁄[ôŸO^ JHOàŸ]ô]–⁄[õô[]õ‹õJKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèêXÿ€›[ù»[ôO€Xô[Çà[ú]à\OHù^àô\]Z\ôYàXŸZ€\èHêX[õ⁄XàÇàò[YO^€ô]–⁄[õô[Xÿ€›[ùò[Y_Bà€ê⁄[ôŸO^ JHOàŸ]ô]–⁄[õô[Xÿ€›[ùò[YJKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèî›]\œ€Xô[ÇàŸ[X›àò[YO^€ô]–⁄[õô[›]\ﬂBà€ê⁄[ôŸO^ Nà[ûJHOàŸ]ô]–⁄[õô[›]\ Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàÇà‹[€èîÿ[ôõﬁ€‹[€èÇà‹[€èê€€õôX›Y€‹[€èÇà‹[€èë^\ôY€‹[€èÇà‹[€èìõ›€€ôöY›\ôY€‹[€èÇà‹Ÿ[X›ÇàŸ]èÇàŸ]èÇàù]€à\OHú›XõZ]à\ÿXõY^‹ÿ]ö[ô–⁄[õô[H€\‹”ò[YOHòôÀV»ÃåMÃêWH^]⁄]Hõ€ù\Ÿ[ZXõ€MKLàõ›[ôY[»^^»›\ú€‹ã\⁄[ù\à\ÿXõYõ‹X⁄]KMLèÇà‹ÿ]ö[ô–⁄[õô[»	‘ÿ]ö[ô¯†)â»à	‘ÿ]ôH⁄[õô[	ﬂBàÿù]€èÇàŸõ‹õOÇà
+_BÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLHYô‹öYX€€ÀLàÿ\MàèÇà‹€ÿ⁄X[€€õôX›[€úÀõ[ô›OOH	âà
+à€\‹”ò[YOHù^^»^\€]KMèìõ»⁄[õô[»òX⁄ŸYY]8†%Y€ôHXõ›ôKè‹Çà
+_Bà‹€ÿ⁄X[€€õôX›[€úÀõX\
+
+€€õäHOà
+à]àŸ^O^ÿ€€õãöYH€\‹”ò[YOHòõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMH›ô\éú⁄Y›À^»ò[ú⁄][€ã\⁄Y›»õ^õ^X€€ù\›YûKXô]ŸY[àèÇàŸY][ô–€€õôX›[€íYOOH€€õãöY»
+à]à€\‹”ò[YOHú‹XŸK^KL»èÇà‹[à€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KN^\€Hõÿ⁄»èûÿ€€õãú]õ‹õ_O‹‹[èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèêXÿ€›[ù»[ôO€Xô[Çà[ú]à\OHù^Çàò[YO^ŸY]€€õêXÿ€›[ùò[Y_Bà€ê⁄[ôŸO^ JHOàŸ]Y]€€õêXÿ€›[ùò[YJKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ\€]KML^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLàÿ\L»èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèî›]\œ€Xô[ÇàŸ[X›àò[YO^ŸY]€€õî›]\ﬂBà€ê⁄[ôŸO^ Nà[ûJHOàŸ]Y]€€õî›]\ Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ\€]KML^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàÇà‹[€èîÿ[ôõﬁ€‹[€èÇà‹[€èê€€õôX›Y€‹[€èÇà‹[€èë^\ôY€‹[€èÇà‹[€èìõ›€€ôöY›\ôY€‹[€èÇà‹Ÿ[X›ÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèíX[€Xô[ÇàŸ[X›àò[YO^ŸY]€€õíX[Bà€ê⁄[ôŸO^ Nà[ûJHOàŸ]Y]€€õíX[
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ\€]KML^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàÇà‹[€èíX[O€‹[€èÇà‹[€èïÿ\õö[ôœ€‹[€èÇà‹[€èë\ÿ€€õôX›Y€‹[€èÇà‹[€èìõ€ôO€‹[€èÇà‹Ÿ[X›ÇàŸ]èÇàŸ]èÇà]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\L»LHèÇàù]€Çà\OHòù]€àÇà€ê€X⁄œ^ 
+HOà[ôTÿ]ôP€€õôX›[€ëY]
+€€õãöY
+_Bà\ÿXõY^‹ÿ]ö[ô–€€õëY]Bà€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€L»KLKçHõ›[ôY[»^^»›\ú€‹ã\⁄[ù\à\ÿXõYõ‹X⁄]KMLÇàÇà‹ÿ]ö[ô–€€õëY]»	‘ÿ]ö[ô¯†)â»à	‘ÿ]ôIﬂBàÿù]€èÇàù]€à\OHòù]€àà€ê€X⁄œ^ 
+HOàŸ]Y][ô–€€õôX›[€íY
+ù[
+_H€\‹”ò[YOHù^^»õ€ù\Ÿ[ZXõ€^\€]KML›ô\éù[ô\õ[ôH›\ú€‹ã\⁄[ù\àèÇàÿ[òŸ[àÿù]€èÇàŸ]èÇàŸ]èÇà
+Hà
+àÇà]èÇà]à€\‹”ò[YOHôõ^ù\›YûKXô]ŸY[à][\ÀXŸ[ù\àXãL»èÇà‹[à€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KN^\€Hèûÿ€€õãú]õ‹õ_O‹‹[èÇà‹[à€\‹”ò[YO^ÿ^VÃLHõ€ùXõ€LàKLçHõ›[ôYYù[\\òÿ\ŸHòX⁄⁄[ôÀ]⁄Y\à	¬à€€õãú›]\»OOH	–€€õôX›Y	»»	ÿôÀY[Y\ò[LL^Y[Y\ò[N	»Çà€€õãú›]\»OOH	‘ÿ[ôõﬁ	»»	ÿôÀXõYKLL^XõYKN	»à	ÿôÀX[Xô\ãLL^X[Xô\ãN	¬àXOÇàÿ€€õãú›]\ﬂBà‹‹[èÇàŸ]èÇà‹[à€\‹”ò[YOHù^^»^\€]KMLõ€ù[[€õ»õÿ⁄»èêP–”’Sïàÿ€€õãòXÿ€›[ùò[Y_O‹‹[èÇàŸ]èÇÇà]à€\‹”ò[YOHòõ‹ô\ã]õ‹ô\ã\€]KMLM]Màõ^ù\›YûKXô]ŸY[à][\ÀXŸ[ù\àèÇà‹[à€\‹”ò[YOHù^^»^\€]KMèíX[à›õ€ô»€\‹”ò[YOHù^\€]KMåèûÿ€€õãò€€õôX›[€íX[O‹›õ€ôœè‹‹[èÇà]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\MèÇàù]€à\OHòù]€àà€ê€X⁄œ^ 
+HOà[ôT›\ùY]€€õôX›[€ä€€õä_H€\‹”ò[YOHù^Y[Y\ò[Må›ô\éù^Y[Y\ò[MÃ^^»õ€ù\Ÿ[ZXõ€›\ú€‹ã\⁄[ù\àèÇàY]àÿù]€èÇàù]€Çà\OHòù]€àÇà€ê€X⁄œ^ 
+HOà[ôQ[]P€€õôX›[€ä€€õä_Bà\ÿXõY^Ÿ[][ô–€€õôX›[€íYOOH€€õãöYBà€\‹”ò[YOHù^\ôYMå›ô\éù^\ôYMÃ^^»õ€ù\Ÿ[ZXõ€›\ú€‹ã\⁄[ù\à\ÿXõYõ‹X⁄]KMLÇàÇàŸ[][ô–€€õôX›[€íYOOH€€õãöY»	‘ô[[›ö[ô¯†)â»à	‘ô[[›ôIﬂBàÿù]€èÇàŸ]èÇàŸ]èÇàœÇà
+_BàŸ]èÇà
+J_BàŸ]èÇàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»àSêSUP‘»”‘í‘‘P—BàYà
+X›]ôUXàOOH	ÿ[ò[]X‹… H¬à€€ú››[€X⁄‹»HòX⁄⁄[ô”[ö‹ÀúôYXŸJ
+›[K
+HOà›[H
+»ò€X⁄–€›[ù
+N¬à€€ú›€X⁄‹”\›—^\»H€X⁄‘Ÿ\öY\Àú€XŸJM KúôYXŸJ
+›[K
+HOà›[H
+»ò€›[ù
+N¬à€€ú›X^€X⁄–€›[ùHX]õX^
+Kããò€X⁄‘Ÿ\öY\ÀõX\
+
+
+HOàò€›[ù
+JN¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»XãMàèîôX[òX⁄⁄[ô»[ö»\ôõ‹õX[òŸO⁄œÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLHYô‹öYX€€ÀL»ÿ\MàèÇà]à€\‹”ò[YOHòôÀ\€]KMLõ‹ô\àõ‹ô\ã\€]KLLMHõ›[ôY^^XŸ[ù\àèÇà‹[à€\‹”ò[YOHù^^»^\€]KMõ€ùXõ€\\òÿ\ŸHõÿ⁄»èêX›]ôHòX⁄⁄[ô»[ö‹œ‹‹[èÇà‹[à€\‹”ò[YOHôõ€ùY\‹^Hõ€ùY^òXõ€^Lû^\€]KNõÿ⁄»]Làèû›òX⁄⁄[ô”[ö‹Àõ[ô›O‹‹[èÇàŸ]èÇà]à€\‹”ò[YOHòôÀ\€]KMLõ‹ô\àõ‹ô\ã\€]KLLMHõ›[ôY^^XŸ[ù\àèÇà‹[à€\‹”ò[YOHù^^»^\€]KMõ€ùXõ€\\òÿ\ŸHõÿ⁄»èï›[€X⁄‹»
+[[YJO‹‹[èÇà‹[à€\‹”ò[YOHôõ€ùY\‹^Hõ€ùY^òXõ€^Lû^\€]KNõÿ⁄»]Làèû››[€X⁄‹ﬂO‹‹[èÇàŸ]èÇà]à€\‹”ò[YOHòôÀ\€]KMLõ‹ô\àõ‹ô\ã\€]KLLMHõ›[ôY^^XŸ[ù\àèÇà‹[à€\‹”ò[YOHù^^»^\€]KMõ€ùXõ€\\òÿ\ŸHõÿ⁄»èê€X⁄‹»
+\›»^\ O‹‹[èÇà‹[à€\‹”ò[YOHôõ€ùY\‹^Hõ€ùY^òXõ€^Lû^Y[Y\ò[Måõÿ⁄»]Làèûÿ€X⁄‹”\›—^\ﬂO‹‹[èÇàŸ]èÇàŸ]èÇàŸ]èÇÇàÀ àôX[€X⁄»⁄\ù8†%úõ€HòX⁄⁄[ô◊€[ö◊ÿ€X⁄‹Àõ›Hö^Y[ÿ⁄»\úò^H
+ãﬂBà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KN^[»XãMèëZ[H€X⁄‹»
+\›Là^\ O⁄œÇà]à€\‹”ò[YOHôõ^][\ÀY[ôÿ\L»MMàèÇàÿ€X⁄‘Ÿ\öY\ÀõX\
+
+⁄[ù
+HOà
+à]àŸ^O^‹⁄[ùô]_H€\‹”ò[YOHôõ^LHõ^õ^X€€][\ÀXŸ[ù\àÿ\LàYù[ù\›YûKY[ôèÇà]à€\‹”ò[YOHùÀYù[ôÀY[Y\ò[MLõ›[ôY][Y›ô\éòôÀY[Y\ò[Måò[ú⁄][€ãX€€‹ú»à›[O^ﬁ»ZY⁄à	 ⁄[ùò€›[ù»X^€X⁄–€›[ù
+H
+àLIX_HœÇà‹[à€\‹”ò[YOHù^VÃLH^\€]KMõ€ù[[€õ»èû‹⁄[ùô]Kú€XŸJJ_O‹‹[èÇàŸ]èÇà
+J_BàŸ]èÇàŸ]èÇÇàÀ à€X⁄‹»ûH^HŸàŸYZ»8†%ôX[úõ€Hò]»€X⁄»[Y\›[\»›ô\àH\›L^\»
+ãﬂBà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KN^[»XãMèê€X⁄‹»ûH^HŸàŸYZ»
+\›L^\ O⁄œÇà›ŸYZŸ^P€X⁄‹Àô]ô\ûJ
+ HOàÀò€›[ùOOH
+H»
+à€\‹”ò[YOHù^^»^\€]KMèìõ»€X⁄»X›]ö]HY]8†%\»⁄[ö[[à€òŸH[›\àòX⁄⁄[ô»[ö‹»Ÿ]ôX[òYôöXÀè‹Çà
+Hà
+à]à€\‹”ò[YOHôõ^][\ÀY[ôÿ\L»MMàèÇà›ŸYZŸ^P€X⁄‹ÀõX\
+
+⁄[ù
+HOà¬à€€ú›X^ŸYZŸ^HHX]õX^
+KããùŸYZŸ^P€X⁄‹ÀõX\
+
+ HOàÀò€›[ù
+JN¬àô]\õà
+à]àŸ^O^‹⁄[ùùŸYZŸ^_H€\‹”ò[YOHôõ^LHõ^õ^X€€][\ÀXŸ[ù\àÿ\LàYù[ù\›YûKY[ôèÇà‹[à€\‹”ò[YOHù^VÃLH^\€]KMLõ€ù[[€õ»èû‹⁄[ùò€›[ùO‹‹[èÇà]à€\‹”ò[YOHùÀYù[ôÀZ[ôY€ÀMõ›[ôY][Y›ô\éòôÀZ[ôY€ÀMLò[ú⁄][€ãX€€‹ú»à›[O^ﬁ»ZY⁄à	 ⁄[ùò€›[ù»X^ŸYZŸ^JH
+àLIX_HœÇà‹[à€\‹”ò[YOHù^VÃLH^\€]KMõ€ù[[€õ»èû‹⁄[ùùŸYZŸ^_O‹‹[èÇàŸ]èÇà
+N¬àJ_BàŸ]èÇà
+_BàŸ]èÇÇàÀ à\ãXÿ[\ZY€à€X⁄»õ€\8†%ôX[õ⁄[ú»òX⁄⁄[ô◊€[ö‹Àòÿ[\ZY€ó⁄Y»ÿ[\ZY€ú»
+ãﬂBà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KN^[»XãMèê€X⁄‹»ûHÿ[\ZY€è⁄œÇà 
+
+HOà¬à€€ú›õ€\Hô]»X\›ö[ôÀ»ò[YNà›ö[ôŒ»€X⁄‹Œàù[Xô\é»[ö‹Œàù[Xô\àOä
+N¬àõ‹à
+€€ú›[ö»ŸàòX⁄⁄[ô”[ö‹ H¬àYà
+[[öÀòÿ[\ZY€íY
+H€€ù[ùYN¬à€€ú›ÿ[\Hÿ[\ZY€úÀôö[ô
+
+ HOàÀöYOOH[öÀòÿ[\ZY€íY
+N¬à€€ú›Ÿ^HH[öÀòÿ[\ZY€íY¬à€€ú›[ùûHHõ€\ôŸ]
+Ÿ^JHœ»»ò[YNàÿ[\Àõò[YH	’[ö€õ›€àÿ[\ZY€âÀ€X⁄‹Œà[ö‹ŒàN¬à[ùûKò€X⁄‹»
+œH[öÀò€X⁄–€›[ù¬à[ùûKõ[ö‹»
+œHN¬àõ€\úŸ]
+Ÿ^K[ùûJN¬àBà€€ú›õ›‹»H\úò^Kôúõ€Jõ€\ùò[Y\ 
+JKú€‹ù
+
+KäHOàãò€X⁄‹»HKò€X⁄‹ N¬àYà
+õ›‹Àõ[ô›OOH
+H¬àô]\õà€\‹”ò[YOHù^^»^\€]KMèìõ»òX⁄⁄[ô»[ö‹»\ôH]X⁄Y»Hÿ[\ZY€àY]8†%X⁄»Hÿ[\ZY€à⁄[à‹ôX][ô»H[ö»ô[›Àè‹é¬àBàô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KLàèÇà‹õ›‹ÀõX\
+
+õ› HOà
+à]àŸ^O^‹õ›Àõò[Y_H€\‹”ò[YOHôõ^][\ÀXŸ[ù\àù\›YûKXô]ŸY[à^\€Hõ‹ô\ãXàõ‹ô\ã\€]KMLãLàèÇà‹[à€\‹”ò[YOHù^\€]KMÃõ€ù[YY][Hèû‹õ›Àõò[Y_O‹‹[èÇà‹[à€\‹”ò[YOHôõ€ù[[€õ»^\€]KMLèû‹õ›Àõ[ö‹ﬂH[öﬁ‹õ›Àõ[ö‹»OOHH»	…»à	‹…ﬂH0≠»›õ€ô»€\‹”ò[YOHù^Y[Y\ò[Måèû‹õ›Àò€X⁄‹ﬂH€X⁄‹œ‹›õ€ôœè‹‹[èÇàŸ]èÇà
+J_BàŸ]èÇà
+N¬àJJ
+_BàŸ]èÇÇàÀ àòX⁄⁄[ô»[ö»ùZ[\à
+ãﬂBà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»‹XŸK^KMèÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èê‹ôX]HHòX⁄⁄[ô»[öœ⁄œÇà›òX⁄⁄[ô”[ö—ôYYòX⁄»	âà
+à]à€\‹”ò[YO^ÿ^\€HL»õ›[ôY^õ€ù\Ÿ[ZXõ€	›òX⁄⁄[ô”[ö—ôYYòX⁄Àú›\ù’⁄]
+	—\úõ‹â H»	ÿôÀ\ôYMLõ‹ô\àõ‹ô\ã\ôYLå^\ôYMÃ	»à	ÿôÀY[Y\ò[MLõ‹ô\àõ‹ô\ãY[Y\ò[Lå^Y[Y\ò[N	ﬂXOÇà›òX⁄⁄[ô”[ö—ôYYòX⁄ﬂBàŸ]èÇà
+_Bà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLHYô‹öYX€€ÀLàÿ\MèÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèìXô[€Xô[Çà[ú]à\OHù^ÇàXŸZ€\èHôKôÀàòXŸXõ€⁄»öY[»YÇàò[YO^›òX⁄”Xô[Bà€ê⁄[ôŸO^ JHOàŸ]òX⁄”Xô[
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèë\›[ò][€àTì€Xô[Çà[ú]à\OHù^Çàò[YO^›òX⁄—\›Bà€ê⁄[ôŸO^ JHOàŸ]òX⁄—\›
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]à€\‹”ò[YOHõYò€€\‹[ãLàèÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèê]öXù]H»ÿ[\ZY€à
+‹[€ò[
+O€Xô[ÇàŸ[X›àò[YO^›òX⁄–ÿ[\ZY€íYBà€ê⁄[ôŸO^ JHOàŸ]òX⁄–ÿ[\ZY€íY
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàÇà‹[€àò[YOHàèìõ»ÿ[\ZY€è€‹[€èÇàÿÿ[\ZY€úÀõX\
+
+ HOà
+à‹[€àŸ^O^ÿÀöYHò[YO^ÿÀöYOûÿÀõò[Y_O€‹[€èÇà
+J_Bà‹Ÿ[X›ÇàŸ]èÇàŸ]èÇàù]€à€ê€X⁄œ^⁄[ôQŸ[ô\ò]S[öﬂH€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€MàKLãçHõ›[ôY^^\€H›\ú€‹ã\⁄[ù\àèÇàŸ[ô\ò]HòX⁄⁄[ô»[ö¬àÿù]€èÇàŸ]èÇÇàÀ à\›ŸàôX[[ö‹»
+ãﬂBà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^\€HXãMèñ[›\àòX⁄⁄[ô»[ö‹œ⁄Çà›òX⁄⁄[ô”[ö‹”ÿY[ô»»
+à€\‹”ò[YOHù^^»^\€]KMèìÿY[ô¯†)è‹Çà
+HàòX⁄⁄[ô”[ö‹Àõ[ô›OOH»
+à€\‹”ò[YOHù^^»^\€]KMèìõ»òX⁄⁄[ô»[ö‹»Y]è‹Çà
+Hà
+à]à€\‹”ò[YOHú‹XŸK^KL»èÇà›òX⁄⁄[ô”[ö‹ÀõX\
+
+[ö HOà¬à€€ú›⁄‹ù\õH	›⁄[ô›Àõÿÿ][€ãõ‹öY⁄[üK‹ã…€[öÀú⁄‹ù€Ÿ_X¬àô]\õà
+à]àŸ^O^€[öÀöYH€\‹”ò[YOHòõ‹ô\àõ‹ô\ã\€]KLLõ›[ôY^Mõ^][\ÀXŸ[ù\àù\›YûKXô]ŸY[àÿ\MèÇà]à€\‹”ò[YOHõZ[ã]ÀLèÇà‹[à€\‹”ò[YOHôõ€ù\Ÿ[ZXõ€^\€]KN^\€Hõÿ⁄»ù[òÿ]Hèû€[öÀõXô[O‹‹[èÇàù]€Çà€ê€X⁄œ^ 
+HOàò]öYÿ]‹ãò€\õÿ\ôù‹ö]U^
+⁄‹ù\õ
+_Bà€\‹”ò[YOHù^^»^Y[Y\ò[Må›ô\éù[ô\õ[ôH›\ú€‹ã\⁄[ù\àõ€ù[[€õ»ù[òÿ]Hõÿ⁄»Çà]OHê€‹H[ö»ÇàÇà‹⁄‹ù\õBàÿù]€èÇàŸ]èÇà]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\M⁄ö[öÀLèÇà‹[à€\‹”ò[YOHù^^»õ€ù[[€õ»^\€]KMLèû€[öÀò€X⁄–€›[ùH€X⁄‹œ‹‹[èÇàù]€à€ê€X⁄œ^ 
+HOà[ôQ[]UòX⁄⁄[ô”[ö [öÀöY
+_H€\‹”ò[YOHù^^»^\ôYML›ô\éù[ô\õ[ôH›\ú€‹ã\⁄[ù\àèë[]Oÿù]€èÇàŸ]èÇàŸ]èÇà
+N¬àJ_BàŸ]èÇà
+_BàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»KàPQ»”‘í‘‘P—H
+‘ìJBàYà
+X›]ôUXàOOH	€XY… H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà]à€\‹”ò[YOHôõ^õ^X€€€Nôõ^\õ›»ù\›YûKXô]ŸY[à][\À\›\ù€Nö][\ÀXŸ[ù\àÿ\MXãMàèÇà]èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èìY⁄ŸZY⁄‘ìH\[[ôO⁄œÇà€\‹”ò[YOHù^^»^\€]KMLèïòX⁄»€X⁄‹À[ú]Z\öY\À[ô€€ùô\ùY‹€ú€‹ú⁄\»ŸX›\ô[Kè‹ÇàŸ]èÇà]à€\‹”ò[YOHôõ^ÿ\L»èÇà[ú]à\OHù^ÇàXŸZ€\èHîŸX\ò⁄XYò[YKããàÇàò[YO^€XYŸX\ò⁄Bà€ê⁄[ôŸO^ JHOàŸ]XYŸX\ò⁄
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHòõ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^Là^^»ôÀ\€]KML^\€]KMÃÇàœÇàŸ[X›àò[YO^€XY›]\—ö[\üBà€ê⁄[ôŸO^ JHOàŸ]XY›]\—ö[\äKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHòõ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^Là^^»ôÀ\€]KML^\€]KMÃÇàÇà‹[€èê[€‹[€èÇà‹[€èìô]œ€‹[€èÇà‹[€èê€€ùX›Y€‹[€èÇà‹[€èî]X[YöYY€‹[€èÇà‹[€èîõ‹‹ÿ[Ÿ[ù€‹[€èÇà‹[€èê€€ùô\ùY€‹[€èÇà‹Ÿ[X›Çàù]€Çà\OHòù]€àÇà€ê€X⁄œ^ 
+HOàŸ]Y[ô”XY
+
+äHOà]ä_Bà€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€MKLàõ›[ôY^^^»ò[ú⁄][€ãX[›\ú€‹ã\⁄[ù\à⁄ö[öÀLÇàÇàÿY[ô”XY»	–ÿ[òŸ[	»à	 »YXY	ﬂBàÿù]€èÇàŸ]èÇàŸ]èÇÇà€XYôYYòX⁄»	âà
+à]à€\‹”ò[YO^ÿ^\€HLÀçHõ›[ôY^õ€ù\Ÿ[ZXõ€XãM	€XYôYYòX⁄Àú›\ù’⁄]
+	—\úõ‹â H»	ÿôÀ\ôYMLõ‹ô\àõ‹ô\ã\ôYLå^\ôYMÃ	»à	ÿôÀY[Y\ò[MLõ‹ô\àõ‹ô\ãY[Y\ò[Lå^Y[Y\ò[N	ﬂXOÇà€XYôYYòX⁄ﬂBàŸ]èÇà
+_BÇàÿY[ô”XY	âà
+àõ‹õH€î›XõZ]^⁄[ôPYXYH€\‹”ò[YOHòôÀ\€]KMLõ‹ô\àõ‹ô\ã\€]KLLõ›[ôY^MXãMà‹XŸK^KL»èÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLH€Nô‹öYX€€ÀLàŒô‹öYX€€ÀMHÿ\L»èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèìò[YO€Xô[Çà[ú]à\OHù^àô\]Z\ôYàò[YO^€ô]”XYò[Y_Bà€ê⁄[ôŸO^ JHOàŸ]ô]”XYò[YJKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèë[XZ[€Xô[Çà[ú]à\OHô[XZ[Çàò[YO^€ô]”XY[XZ[Bà€ê⁄[ôŸO^ JHOàŸ]ô]”XY[XZ[
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèï⁄]–\»[€Xô[Çà[ú]à\OHù^Çàò[YO^€ô]”XY⁄]ÿ\Bà€ê⁄[ôŸO^ JHOàŸ]ô]”XY⁄]ÿ\
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèî€›\òŸO€Xô[Çà[ú]à\OHù^Çàò[YO^€ô]”XY€›\òŸ_Bà€ê⁄[ôŸO^ JHOàŸ]ô]”XY€›\òŸJKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^VÃLHõ€ùXõ€^\€]KML\\òÿ\ŸHèë\›àò[YH
+JO€Xô[Çà[ú]à\OHõù[Xô\ààZ[èHåÇàò[YO^€ô]”XYò[Y_Bà€ê⁄[ôŸO^ JHOàŸ]ô]”XYò[YJKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇàŸ]èÇàù]€à\OHú›XõZ]à\ÿXõY^‹ÿ]ö[ô”XYH€\‹”ò[YOHòôÀV»ÃåMÃêWH^]⁄]Hõ€ù\Ÿ[ZXõ€MKLàõ›[ôY[»^^»›\ú€‹ã\⁄[ù\à\ÿXõYõ‹X⁄]KMLèÇà‹ÿ]ö[ô”XY»	‘ÿ]ö[ô¯†)â»à	‘ÿ]ôHXY	ﬂBàÿù]€èÇàŸõ‹õOÇà
+_BÇà]à€\‹”ò[YOHõ›ô\ôõ›À^X]]»õ‹ô\àõ‹ô\ã\€]KLLõ›[ôY^èÇàXõH€\‹”ò[YOHùÀYù[^[Yù^^»õ‹ô\ãX€€\ŸHèÇàXYÇàà€\‹”ò[YOHòôÀ\€]KML^\€]KMõ€ù[[€õ»\\òÿ\ŸHõ‹ô\ãXàõ‹ô\ã\€]KLLèÇà€\‹”ò[YOHúMõ€ùXõ€èîö[‹ö]O›Çà€\‹”ò[YOHúMõ€ùXõ€èìò[YO›Çà€\‹”ò[YOHúMõ€ùXõ€èë[XZ[›Çà€\‹”ò[YOHúMõ€ùXõ€èï⁄]–\»[›Çà€\‹”ò[YOHúMõ€ùXõ€èî€›\òŸHÿ[\ZY€è›Çà€\‹”ò[YOHúMõ€ùXõ€èë\›àò[YO›Çà€\‹”ò[YOHúMõ€ùXõ€èî›]\»\[[ôO›Çà€\‹”ò[YOHúMõ€ùXõ€èêRHõ€›À]\›Çà›èÇà›XYÇàõŸH€\‹”ò[YOHô]öYK^H]öYK\€]KMLõ€ù[YY][H^\€]KMÃèÇà€XY¬àôö[\äOàõò[YKù”›Ÿ\êÿ\ŸJ
+Kö[ò€Y\ XYŸX\ò⁄ù”›Ÿ\êÿ\ŸJ
+JJBàôö[\äOàXY›]\—ö[\àOOH	–[	»ú›]\»OOHXY›]\—ö[\äBàú€‹ù
+
+KäHOà€€\]SXYÿ€‹ôJäHH€€\]SXYÿ€‹ôJJJBàõX\
+
+XY
+HOà¬à€€ú›ö[‹ö]HHXYö[‹ö]SXô[
+€€\]SXYÿ€‹ôJXY
+JN¬à€€ú›ö[‹ö]P€€‹àBàö[‹ö]HOOH	“›	»»	ÿôÀ\ôYLL^\ôYMÃ	»Çàö[‹ö]HOOH	’ÿ\õI»»	ÿôÀX[Xô\ãLL^X[Xô\ãN	»à	ÿôÀ\€]KLL^\€]KML	Œ¬àô]\õà
+ààŸ^O^€XYöYH€\‹”ò[YOHö›ô\éòôÀ\€]KMLÕèÇà€\‹”ò[YOHúMèÇà‹[à€\‹”ò[YO^ÿ^VŒ\Hõ€ùXõ€LàKLçHõ›[ôYYù[\\òÿ\ŸHòX⁄⁄[ôÀ]⁄Y\à	‹ö[‹ö]P€€‹üXOû‹ö[‹ö]_O‹‹[èÇà›Çà€\‹”ò[YOHúMõ€ùXõ€^\€]KNLèû€XYõò[Y_O›Çà€\‹”ò[YOHúMõ€ù[[€õ»^\€]KMLèû€XYô[XZ[O›Çà€\‹”ò[YOHúMõ€ù[[€õ»^\€]KMLèû€XYù⁄]ÿ\XYù[\€ô_O›Çà€\‹”ò[YOHúM^\€]KMåèû€XYú€›\òŸ_O›Çà€\‹”ò[YOHúMõ€ù[[€õ»õ€ùXõ€^Y[Y\ò[MåèìH€XYô\›[X]Yò[YKù”ÿÿ[T›ö[ô 
+_O›Çà€\‹”ò[YOHúMèÇàŸ[X›àò[YO^€XYú›]\ﬂBà€ê⁄[ôŸO^ Nà[ûJHOà\]SXY›]\ XYöYKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHòõ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LHôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàÇà‹[€èìô]œ€‹[€èÇà‹[€èê€€ùX›Y€‹[€èÇà‹[€èî]X[YöYY€‹[€èÇà‹[€èîõ‹‹ÿ[Ÿ[ù€‹[€èÇà‹[€èê€€ùô\ùY€‹[€èÇà‹[€èì‹›€‹[€èÇà‹Ÿ[X›Çà›Çà€\‹”ò[YOHúMèÇà]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\LàèÇàù]€Çà\OHòù]€àÇà\ÿXõY^»[XYù⁄]ÿ\Bà€ê€X⁄œ^ 
+HOà[ôQòYùõ€››\
+XY	›⁄]ÿ\	 _Bà]O^€XYù⁄]ÿ\»	—òYùH⁄]–\õ€›À]\	»à	”õ»⁄]–\ù[Xô\à€àö[IﬂBà€\‹”ò[YOHù^Y[Y\ò[Må›ô\éù^Y[Y\ò[MÃ\ÿXõYù^\€]KLÃ\ÿXõYò›\ú€‹ã[õ›X[›ŸY›\ú€‹ã\⁄[ù\àÇàÇàY\‹ÿYŸP⁄\ò€H€\‹”ò[YOHöLÀçHÀLÀçHàœÇàÿù]€èÇàù]€Çà\OHòù]€àÇà\ÿXõY^»[XYô[XZ[Bà€ê€X⁄œ^ 
+HOà[ôQòYùõ€››\
+XY	Ÿ[XZ[	 _Bà]O^€XYô[XZ[»	—òYù[à[XZ[õ€›À]\	»à	”õ»[XZ[€àö[IﬂBà€\‹”ò[YOHù^Y[Y\ò[Må›ô\éù^Y[Y\ò[MÃ\ÿXõYù^\€]KLÃ\ÿXõYò›\ú€‹ã[õ›X[›ŸY›\ú€‹ã\⁄[ù\àÇàÇàXZ[€\‹”ò[YOHöLÀçHÀLÀçHàœÇàÿù]€èÇàŸ]èÇà›Çà›èÇà
+N¬àJ_Bà›õŸOÇà›XõOÇàŸ]èÇÇàŸõ€››\XYY	âà
+
+
+HOà¬à€€ú›XYHXYÀôö[ô
+
+
+HOàöYOOHõ€››\XYY
+N¬àYà
+[XY
+Hô]\õàù[¬à€€ú›ÿQY⁄]»H
+XYù⁄]ÿ\	… Kúô\XŸJ÷◊åNWKŸÀ	… N¬à€€ú›ÿS[ö»HÿQY⁄]»»ŒãÀ›ÿKõYK…›ÿQY⁄]ﬂO›^IŸ[ò€ŸUTíP€€\€ô[ù
+õ€››\^
+_Xàù[¬à€€ú›XZ[[ö»HXYô[XZ[à»XZ[Œâ€XYô[XZ[O‹›XöôX›IŸ[ò€ŸUTíP€€\€ô[ù
+õ€›⁄[ô»\8†%	ÿúò[ô⁄]òúò[ôò[YH	›\…ﬂX
+_IòõŸOIŸ[ò€ŸUTíP€€\€ô[ù
+õ€››\^
+_Xààù[¬àô]\õà
+à]à€\‹”ò[YOHõ]MôÀY[Y\ò[MLÕåõ‹ô\àõ‹ô\ãY[Y\ò[LLõ›[ôY^M‹XŸK^KL»èÇà]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àù\›YûKXô]ŸY[àèÇà‹[à€\‹”ò[YOHù^^»õ€ùXõ€^Y[Y\ò[NLèÇàRKYòYùYŸõ€››\⁄[õô[OOH	›⁄]ÿ\	»»	’⁄]–\	»à	Ÿ[XZ[	ﬂHõ€›À]\õ‹à€XYõò[Y_Bà‹‹[èÇàù]€à\OHòù]€àà€ê€X⁄œ^ 
+HOàŸ]õ€››\XYY
+ù[
+_H€\‹”ò[YOHù^\€]KM›ô\éù^\€]KMå›\ú€‹ã\⁄[ù\àèÇà€\‹”ò[YOHöMÀMàœÇàÿù]€èÇàŸ]èÇàŸõ€››\ÿY[ô»»
+à€\‹”ò[YOHù^^»^\€]KML][X»èëòYù[ô¯†)è‹Çà
+Hàõ€››\\úõ‹à»
+à€\‹”ò[YOHù^^»^\ôYMåèûŸõ€››\\úõ‹üO‹Çà
+Hà
+àÇà^\ôXBàõ›‹œ^ÕBàò[YO^Ÿõ€››\^Bà€ê⁄[ôŸO^ JHOàŸ]õ€››\^
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHùÀYù[õ‹ô\àõ‹ô\ãY[Y\ò[Låõ›[ôY^L»ôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇà]à€\‹”ò[YOHôõ^õ^]‹ò\][\ÀXŸ[ù\àÿ\L»èÇàù]€Çà\OHòù]€àÇà€ê€X⁄œ^ 
+HOà[ôQòYùõ€››\
+XYõ€››\⁄[õô[
+_Bà€\‹”ò[YOHù^^»õ€ù\Ÿ[ZXõ€^Y[Y\ò[MÃ›ô\éù[ô\õ[ôH›\ú€‹ã\⁄[ù\àÇàÇàôYŸ[ô\ò]Bàÿù]€èÇàù]€Çà\OHòù]€àÇà€ê€X⁄œ^ 
+HOàò]öYÿ]‹ãò€\õÿ\ôù‹ö]U^
+õ€››\^
+_Bà€\‹”ò[YOHù^^»õ€ù\Ÿ[ZXõ€^Y[Y\ò[MÃ›ô\éù[ô\õ[ôH›\ú€‹ã\⁄[ù\àÇàÇà€‹Bàÿù]€èÇàŸõ€››\⁄[õô[OOH	›⁄]ÿ\	»	âàÿS[ö»	âà
+àHôYè^›ÿS[öﬂH\ôŸ]Hóÿõ[ö»àô[Hõõ€‹[ô\àõ‹ôYô\úô\àà€\‹”ò[YOHõ[X]]»ôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€MKLàõ›[ôY^^^»ò[ú⁄][€ãX[èÇà‹[à[à⁄]–\àÿOÇà
+_BàŸõ€››\⁄[õô[OOH	Ÿ[XZ[	»	âàXZ[[ö»	âà
+àHôYè^€XZ[[öﬂH€\‹”ò[YOHõ[X]]»ôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€MKLàõ›[ôY^^^»ò[ú⁄][€ãX[èÇà‹[à[à[XZ[àÿOÇà
+_BàŸ]èÇà€\‹”ò[YOHù^VÃLH^\€]KMèÇàõ›[ô»\»Ÿ[ù]]€X]Xÿ[H8†%\»‹[ú»[›\à›€à⁄]–\Ÿ[XZ[€Y[ù⁄]HY\‹ÿYŸHôKYö[Yõ‹à[›H»ô]öY]»[ôŸ[ôÇà‹ÇàœÇà
+_BàŸ]èÇà
+N¬àJJ
+_BàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»LàSëìQSê—Tî»”‘í‘‘P—BàYà
+X›]ôUXàOOH	⁄[ôõY[òŸ\ú… H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»XãLàèïô\öYöYY‹ôX]‹àX\öŸ]XŸO⁄œÇà€\‹”ò[YOHù^^»^\€]KMLXãMàèî\ùô\à⁄]ù\›Yÿÿ[‹àX\‹‹òH‹ôX]‹ú»\‹^Z[ô»Ÿ\ùYöYY[ôÿYŸ[Y[ù\ò[Y]\úÀè‹ÇÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLHYô‹öYX€€ÀLàÿ\MàèÇà⁄[ôõY[òŸ\îõŸö[\ÀõX\
+
+[ôäHOà
+à]àŸ^O^⁄[ôãöYH€\‹”ò[YOHòõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMH›ô\éú⁄Y›À^»ò[ú⁄][€ã\⁄Y›»õ^ù\›YûKXô]ŸY[à][\À\›\ùèÇà]à€\‹”ò[YOHú‹XŸK^KLà^\€HèÇà]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\LàèÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNèû⁄[ôãô\‹^Sò[Y_O⁄Çà⁄[ôãö\’ô\öYöYY	âà‹[à€\‹”ò[YOHòôÀXõYKLL^XõYKN^VŒ\Hõ€ùXõ€LàKLçHõ›[ôYYù[\\òÿ\ŸHèïô\öYöYY‹‹[èüBàŸ]èÇà‹[à€\‹”ò[YOHù^^»^\€]KMLõÿ⁄»èìÿÿ][€éà⁄[ôãõÿÿ][€üO‹‹[èÇà]à€\‹”ò[YOHôõ^ÿ\LàLHèÇà⁄[ôãòÿ]Y€‹öY\ÀõX\
+
+ÿ]JHOà
+à‹[àŸ^O^⁄_H€\‹”ò[YOHòôÀ\€]KLL^\€]KMå^VÃLHõ€ù\Ÿ[ZXõ€LàKLçHõ›[ôY[Yèûÿÿ]O‹‹[èÇà
+J_BàŸ]èÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀL»ÿ\ML»^^»õ‹ô\ã]õ‹ô\ã\€]KML]MèÇà]èÇà‹[à€\‹”ò[YOHù^\€]KMõÿ⁄»õ€ù[[€õ»èêUQQSê—O‹‹[èÇà›õ€ô»€\‹”ò[YOHù^\€]KMÃèû⁄[ôãò]YY[òŸT⁄^ô_O‹›õ€ôœÇàŸ]èÇà]èÇà‹[à€\‹”ò[YOHù^\€]KMõÿ⁄»õ€ù[[€õ»èëSë–Q—O‹‹[èÇà›õ€ô»€\‹”ò[YOHù^Y[Y\ò[Måèû⁄[ôãô[ôÿYŸ[Y[ùò]_O‹›õ€ôœÇàŸ]èÇà]èÇà‹[à€\‹”ò[YOHù^\€]KMõÿ⁄»õ€ù[[€õ»èîêUHêSë—O‹‹[èÇà›õ€ô»€\‹”ò[YOHù^\€]KMÃõÿ⁄»ù[òÿ]Hèû⁄[ôãúò]Tò[ôŸ_O‹›õ€ôœÇàŸ]èÇàŸ]èÇàŸ]èÇàù]€Çà€ê€X⁄œ^ÿ\ﬁ[ò»
+
+HOà¬à€€ú›ùYŸ]›àHõ€\
+õ‹‹ŸYùYŸ]õ‹à	⁄[ôãô\‹^Sò[Y_H
+[€ô\ Nò	Ã	 N¬àYà
+ùYŸ]›àOOHù[
+Hô]\õé¬àûH¬à€€ú›XYH]ÿZ]‹ôX]SXY
+X›]ôS‹ôÀöY¬àò[YNà[ôãô\‹^Sò[YKà€›\òŸNà	“[ôõY[òŸ\àX\öŸ]XŸIÀà\›öX›à[ôãô\›öX›à\›[X]Yò[YNàù[Xô\äùYŸ]›äHàJN¬àŸ]XY €XYããõXY◊JN¬à[\ù
+ôX[‘ìHXY‹ôX]Yõ‹à	⁄[ôãô\‹^Sò[Y_H8†%ŸYHH‘ìHXY»Xãò
+N¬àHÿ]⁄
+\úéà[ûJH¬à[\ù
+\úãõY\‹ÿYŸH	–€›[õ›‹ôX]HXYâ N¬àBà_Bà€\‹”ò[YOHòôÀY[Y\ò[ML^Y[Y\ò[N^^»õ€ù\Ÿ[ZXõ€L»KLKçHõ›[ôY[»õ‹ô\àõ‹ô\ãY[Y\ò[LL›ô\éòôÀY[Y\ò[LLò[ú⁄][€ãX€€‹ú»›\ú€‹ã\⁄[ù\à⁄ö[öÀLÇàÇà[ùö]H\ùô\Çàÿù]€èÇàŸ]èÇà
+J_BàŸ]èÇàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»LKàTëP’‘ñH”‘í‘‘P—BàYà
+X›]ôUXàOOH	Ÿ\ôX›‹ûI H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà]à€\‹”ò[YOHôõ^ù\›YûKXô]ŸY[à][\ÀXŸ[ù\àXãMàèÇà]èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èîXõX»ù\⁄[ô\‹»\ÿ€›ô\ûHôY⁄\›ûO⁄œÇà€\‹”ò[YOHù^^»^\€]KMLèëõ‹›\ö[ô»€‹ú‹ò]Hö\⁄Xö[]H[ôÿÿ[]ÀYX\‹‹òHò[úÿX›[€ò[ù\›è‹ÇàŸ]èÇàù]€Çà€ê€X⁄œ^ÿ\ﬁ[ò»
+
+HOà¬à€€ú›ò[YHHõ€\
+	—[ù\à[›\àù\⁄[ô\‹»ò[YNâ N¬àYà
+ò[YJH¬àûH¬à€€ú›ô]–àH]ÿZ]‹ôX]Q\ôX›‹ûS\›[ô X›]ôS‹ôÀöYò[YJN¬àŸ]\ôX›‹ûTõŸö[\ €ô]–ãããô\ôX›‹ûTõŸö[\◊JN¬àHÿ]⁄
+\úéà[ûJH¬à[\ù
+\úãõY\‹ÿYŸH	–€›[õ›Y\›[ôÀâ N¬àBàBà_Bà€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]H^^»õ€ù\Ÿ[ZXõ€MKLàõ›[ôY^õ^][\ÀXŸ[ù\àÿ\Là›\ú€‹ã\⁄[ù\àÇàÇà\»€\‹”ò[YOHöMÀMàœàY\›[ô¬àÿù]€èÇàŸ]èÇÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLHYô‹öYX€€ÀLàÿ\MàèÇàŸ\ôX›‹ûTõŸö[\ÀõX\
+
+
+HOà
+à]àŸ^O^‹öYH€\‹”ò[YOHòõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMH›ô\éú⁄Y›À^»ò[ú⁄][€ã\⁄Y›»õ^õ^X€€ù\›YûKXô]ŸY[àèÇà]èÇà]à€\‹”ò[YOHôõ^ù\›YûKXô]ŸY[à][\À\›\ùÿ\LàXãLàèÇà]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\LàèÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNèû‹òù\⁄[ô\‹”ò[Y_O⁄Çà‹ö\’ô\öYöYY»
+à‹[à€\‹”ò[YOHòôÀY[Y\ò[LL^Y[Y\ò[N^VŒ\Hõ€ùXõ€LàKLçHõ›[ôYYù[\\òÿ\ŸHèïô\öYöYY‹‹[èÇà
+Hà
+à‹[à€\‹”ò[YOHòôÀX[Xô\ãLL^X[Xô\ãN^VŒ\Hõ€ùXõ€LàKLçHõ›[ôYYù[\\òÿ\ŸHèê€Z[XXõO‹‹[èÇà
+_BàŸ]èÇà‹[à€\‹”ò[YOHòôÀ\€]KLL^\€]KMåõ€ù[[€õ»^VÃLHLàKLçHõ›[ôY[Yèû‹òÿ]Y€‹û_O‹‹[èÇàŸ]èÇà€\‹”ò[YOHù^\€]KML^^»XY[ôÀ\ô[^YXãMèû‹ô\ÿ‹ö\[€üO‹ÇàŸ]èÇÇà]à€\‹”ò[YOHòõ‹ô\ã]õ‹ô\ã\€]KMLMõ^ù\›YûKXô]ŸY[à][\ÀXŸ[ù\à^^»èÇà‹[à€\‹”ò[YOHù^\€]KMõ€ù[[€õ»èû‹ò⁄]_K‹ô\›öX›O‹‹[èÇà»\ö\’ô\öYöYY	âà
+àù]€Çà€ê€X⁄œ^ 
+HOà[ôP€Z[S\›[ô öY
+_Bà€\‹”ò[YOHù^Y[Y\ò[Må›ô\éù^Y[Y\ò[MÃõ€ù\Ÿ[ZXõ€›\ú€‹ã\⁄[ù\àÇàÇà€Z[H	àô\öYûH\›[ô¬àÿù]€èÇà
+_BàŸ]èÇàŸ]èÇà
+J_BàŸ]èÇàŸ]èÇÇàÀ à€Z[H\›[ô»[ô[
+ãﬂBàÿ€Z[Pù\⁄[ô\‹“Y	âà
+à]à€\‹”ò[YOHòôÀ\€]KMLõ‹ô\ãLàõ‹ô\ãY[Y\ò[MLõ›[ôYLûMà⁄Y›À[Y^[Yù‹XŸK^KMèÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^\€Hèï\ÿY€‹ú‹ò]HôY⁄\›ò][€à»ù\⁄[ô\‹»€Z[Hõ‹õO⁄Çàÿ€Z[QôYYòX⁄»»
+à€\‹”ò[YOHù^Y[Y\ò[N^^»õ€ù\Ÿ[ZXõ€ôÀY[Y\ò[MLL»õ›[ôY[»õ‹ô\àõ‹ô\ãY[Y\ò[LLèûÿ€Z[QôYYòX⁄ﬂO‹Çà
+Hà
+àõ‹õH€î›XõZ]^‹›XõZ]€Z[_H€\‹”ò[YOHú‹XŸK^KM^^»èÇà€\‹”ò[YOHù^\€]KMLèîõ›öYH[àŸôöX⁄X[€‹HŸà[›\à”ù\⁄[ô\‹»XŸ[úŸH‹à^Ÿ\ùYöXÿ]H»X\õà[›\àô\öYöXÿ][€àX\öÀè‹Çà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^\€]KMõ€ù[[€õ»\\òÿ\ŸHXãLHèê€‹ú‹ò]Hÿ›[Y[ù€Xô[Çà[ú]à\OHôö[HÇàô\]Z\ôYà€ê⁄[ôŸO^ JHOàŸ]€Z[Qö[JKù\ôŸ]ôö[\œÀñÃHœ»ù[
+_Bà€\‹”ò[YOHùÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY[»LàôÀ]⁄]H^\€]KMÃÇàœÇàŸ]èÇàù]€à\OHú›XõZ]à\ÿXõY^⁄\‘›XõZ][ô–€Z[_H€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ\ÿXõYòôÀY[Y\ò[N^]⁄]Hõ€ù\Ÿ[ZXõ€KLàMõ›[ôY^›\ú€‹ã\⁄[ù\àèÇà⁄\‘›XõZ][ô–€Z[H»	’\ÿY[ô¯†)â»à	‘›XõZ]ô\öYöXÿ][€àÿ›[Y[ù…ﬂBàÿù]€èÇàŸõ‹õOÇà
+_BàŸ]èÇà
+_BàŸ]èÇà
+N¬àBÇàÀ»LãàUëSï»”‘í‘‘P—BàYà
+X›]ôUXàOOH	Ÿ]ô[ù… H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»XãMèí€YX€€Z[ô»	àô\›]ò[õ€[›\úœ⁄œÇà€\‹”ò[YOHù^^»^\€]KMLXãMàèê€€õôX›X⁄Ÿ]ÿ[\»⁄]\ôX›òX⁄⁄[ô»ÿ[\ZY€ú»»òXŸHX⁄Ÿ]ù^Y\ú»\ôX›H[àHRÀ’T»X\‹‹òH€€[][ö]Y\Àè‹ÇÇà]à€\‹”ò[YOHú‹XŸK^KMèÇà÷¬à»]Nà	—úôY]›€àXŸ[Xô\à]\⁄X»ô\›åçâÀ]Nà	—X»çåçâÀÿÿ][€éà	”ò][€ò[›Y][H€€\^	Àÿ⁄Y[Y]Nà	ÃåçãLLãLç	Àù]€ìXô[à	‘õ€[›H€€òŸ\ù	»Kà»]Nà	‘⁄Y\úòH[€ôHX\‹‹òH[ùô\›Y[ù›[[Z]	À]Nà	”õ›àLãåçâÀÿÿ][€éà	‘òY\‹€€àõKúôY]›€âÀÿ⁄Y[Y]Nà	ÃåçãLLKLLâÀù]€ìXô[à	‘õ€[›H›[[Z]	»KàKõX\
+
+]äHOà
+à]àŸ^O^Ÿ]ãù]_H€\‹”ò[YOHòôÀ\€]KMLMõ‹ô\àõ‹ô\ã\€]KLLõ›[ôY^õ^ù\›YûKXô]ŸY[à][\ÀXŸ[ù\à^\€HèÇà]èÇà‹[à€\‹”ò[YOHôõ€ùXõ€^\€]KNõÿ⁄»èûŸ]ãù]_O‹‹[èÇà‹[à€\‹”ò[YOHù^^»^\€]KMLèë]NàŸ]ãô]_H0≠»ÿÿ][€éàŸ]ãõÿÿ][€üO‹‹[èÇàŸ]èÇàù]€Çà€ê€X⁄œ^ÿ\ﬁ[ò»
+
+HOà¬àûH¬à€€ú›ô]“][HH]ÿZ]‹ôX]P€€ù[ù][JX›]ôS‹ôÀöY¬à]Nàõ€[›Nà	Ÿ]ãù]_Xà€€ù[ù\Nà	‘€ÿ⁄X[‹›	Àà]õ‹õNà	—òXŸXõ€⁄»	à⁄]–\	ÀàXY[ôNà]ãù]KàõŸU^àõ⁄[à\»õ‹à	Ÿ]ãù]_H8†%	Ÿ]ãô]_H]	Ÿ]ãõÿÿ][€üKà€â›Z\‹»]Xà\⁄Y‹Œà…»”X[õ⁄XâÀ	»—X]ÿ[€ôI◊Kàÿ⁄Y[Y]Nà]ãúÿ⁄Y[Y]KàJN¬àŸ]€€ù[ù][\ €ô]“][Kããò€€ù[ù][\◊JN¬à[\ù
+ôX[òYù‹ôX]Y[à€€ù[ù›Y[»õ‹àâŸ]ãù]_Hãò
+N¬àHÿ]⁄
+\úéà[ûJH¬à[\ù
+\úãõY\‹ÿYŸH	–€›[õ›‹ôX]HòYùâ N¬àBà_Bà€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]H^^»õ€ù\Ÿ[ZXõ€KLàMõ›[ôY^›\ú€‹ã\⁄[ù\àÇàÇàŸ]ãòù]€ìXô[Bàÿù]€èÇàŸ]èÇà
+J_BàŸ]èÇàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»LÀà’TíT”H”‘í‘‘P—BàYà
+X›]ôUXàOOH	››\ö\€I H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»XãLàèí\ö]YŸH	à€YX€€Z[ô»›\à^›\ú⁄[€úœ⁄œÇà€\‹”ò[YOHù^^»^\€]KMLXãMàèî⁄›ÿÿ\ŸHX€À]›\ö\€H›‹›»[ô[òŸ\›ò[[ôX\ö‹»
+KôÀã]ÿZH\€[ôò[ò[òH\€[ô H⁄]⁄[\KòX⁄⁄[ôÀ\ôY\ôX›ÿ[]ÀXX›[€úÀè‹ÇÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLHYô‹öYX€€ÀLàÿ\Mà^\€HèÇà÷¬à»Xô[à	–ù[òŸH\€[ô\›‹öXÿ[^‹ò][€âÀõŸNà	–[òŸ\›ò[õ€›»›\ú»X\[ô»⁄Y\úòH[€ôX[à\ö]YŸH\ôX›Hõ‹àYúöXÿ[ãP[Y\öXÿ[à[ôÿ\öXòôX[àX\‹‹òHö\⁄]‹úÀâÀYò][\õà	⁄ŒãÀ›ÿKõYKÃåÃçÕå›^Pù[òŸILå\€[ô	Lå›\â»Kà»Xô[à	–ò[ò[òH\€[ô€õ‹öŸ[[ô»ô]ôX]	ÀõŸNà	—X€ÀYúöY[ôHÿ]\à‹‹ùÀÿÿ[[ö[ôÀ[ôôXX⁄ÿ[\[ô»\ÿÿ\\»Z[‹ôYõ‹àô\›]ôH‹õ›\ÀâÀYò][\õà	⁄ŒãÀ›ÿKõYKÃåÃçÕå›^Pò[ò[òILå\€[ô	Låô]ôX]	»KàKõX\
+
+\›
+HOà¬à€€ú›^\›[ô»HòX⁄⁄[ô”[ö‹Àôö[ô
+
+
+HOàõXô[OOH\›õXô[
+N¬àô]\õà
+à]àŸ^O^Ÿ\›õXô[H€\‹”ò[YOHòôÀ\€]KMLõ‹ô\àõ‹ô\ã\€]KLLMHõ›[ôY^‹XŸK^KLàèÇà‹[à€\‹”ò[YOHôõ€ùXõ€^\€]KNõÿ⁄»èûŸ\›õXô[O‹‹[èÇà€\‹”ò[YOHù^^»^\€]KMLXY[ôÀ\ô[^YèûŸ\›òõŸ_O‹ÇàŸ^\›[ô»»
+à]à€\‹”ò[YOHúLàèÇàù]€Çà€ê€X⁄œ^ 
+HOàò]öYÿ]‹ãò€\õÿ\ôù‹ö]U^
+	›⁄[ô›Àõÿÿ][€ãõ‹öY⁄[üK‹ã…Ÿ^\›[ôÀú⁄‹ù€Ÿ_X
+_Bà€\‹”ò[YOHù^Y[Y\ò[Måõ€ù[[€õ»^^»›ô\éù[ô\õ[ôH›\ú€‹ã\⁄[ù\àõÿ⁄»ù[òÿ]HÇà]OHê€‹H[ö»ÇàÇàÿ	›⁄[ô›Àõÿÿ][€ãõ‹öY⁄[üK‹ã…Ÿ^\›[ôÀú⁄‹ù€Ÿ_XBàÿù]€èÇà‹[à€\‹”ò[YOHù^VÃLH^\€]KMõ€ù[[€õ»èûŸ^\›[ôÀò€X⁄–€›[ùH€X⁄‹œ‹‹[èÇàŸ]èÇà
+Hà
+àù]€Çà€ê€X⁄œ^ÿ\ﬁ[ò»
+
+HOà¬à€€ú›[ö»H]ÿZ]Ÿ[ô\ò]Sò[YYòX⁄⁄[ô”[ö \›õXô[\›ôYò][\õ
+N¬àYà
+[ö HŸ]òX⁄⁄[ô”[ö‹ 
+ô]äHOà€[öÀããúô]óJN¬à_Bà€\‹”ò[YOHù^Y[Y\ò[Måõ€ù\Ÿ[ZXõ€›ô\éù[ô\õ[ôH^^»õÿ⁄»›\ú€‹ã\⁄[ù\àLàÇàÇàŸ[ô\ò]HòX⁄⁄[ô»[ö¬àÿù]€èÇà
+_BàŸ]èÇà
+N¬àJ_BàŸ]èÇàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»MàîêSë“U”‘í‘‘P—BàYà
+X›]ôUXàOOH	ÿúò[ô⁄]	 H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»‹XŸK^KMàèÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èêŸ[ùò[úò[ô⁄]⁄œÇà€\‹”ò[YOHù^^»^\€]KMLèî€Ÿÿ[àò[Y\»[ôŸ€»[]\»ôYY\ôX›H[ù»›\àRHŸ[ô\ò][€à€‹öŸõ›‹»õ‹à\ôôX››[\›X»úò[ô€€\X[òŸKè‹ÇÇà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLH€Nô‹öYX€€ÀLàÿ\Mà^\€HèÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèîö[X\ûH€Ÿÿ[à»Y€[ôO€Xô[Çà[ú]à\OHù^Çàò[YO^ÿúò[ô⁄]ùY€[ô_Bà€ê⁄[ôŸO^ JHOàŸ]úò[ô⁄]
+»ããòúò[ô⁄]Y€[ôNàKù\ôŸ]ùò[YHJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KMLõÿ›\ŒòôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèê€‹ôH€Ÿÿ[à»€Ÿÿ[à€ÿ[€Xô[Çà[ú]à\OHù^Çàò[YO^ÿúò[ô⁄]õZ\‹⁄[€üBà€ê⁄[ôŸO^ JHOàŸ]úò[ô⁄]
+»ããòúò[ô⁄]Z\‹⁄[€éàKù\ôŸ]ùò[YHJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KMLõÿ›\ŒòôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèîö[X\ûH€ôHŸàõ⁄XŸO€Xô[Çà[ú]à\OHù^Çàò[YO^ÿúò[ô⁄]ù€ôSŸïõ⁄XŸ_Bà€ê⁄[ôŸO^ JHOàŸ]úò[ô⁄]
+»ããòúò[ô⁄]€ôSŸïõ⁄XŸNàKù\ôŸ]ùò[YHJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KMLõÿ›\ŒòôÀ]⁄]H^\€Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèîö[X\ûH€€‹ú»[]O€Xô[Çà]à€\‹”ò[YOHôõ^ÿ\M]LàèÇà[ú]à\OHò€€‹àÇàò[YO^ÿúò[ô⁄]úö[X\ûP€€‹üBà€ê⁄[ôŸO^ JHOàŸ]úò[ô⁄]
+»ããòúò[ô⁄]ö[X\ûP€€‹éàKù\ôŸ]ùò[YHJ_Bà€\‹”ò[YOHúõ›[ôYLLÀLMàõ‹ô\àõ‹ô\ã\€]KLå›\ú€‹ã\⁄[ù\àÇàœÇà[ú]à\OHò€€‹àÇàò[YO^ÿúò[ô⁄]úŸX€€ô\ûP€€‹üBà€ê⁄[ôŸO^ JHOàŸ]úò[ô⁄]
+»ããòúò[ô⁄]ŸX€€ô\ûP€€‹éàKù\ôŸ]ùò[YHJ_Bà€\‹”ò[YOHúõ›[ôYLLÀLMàõ‹ô\àõ‹ô\ã\€]KLå›\ú€‹ã\⁄[ù\àÇàœÇà]à€\‹”ò[YOHôõ^õ^X€€ù\›YûKXŸ[ù\àèÇà‹[à€\‹”ò[YOHù^VÃLH^\€]KMõ€ù[[€õ»õ€ùXõ€õÿ⁄»èëSQTêSàÿúò[ô⁄]úö[X\ûP€€‹üO‹‹[èÇà‹[à€\‹”ò[YOHù^VÃLH^\€]KMõ€ù[[€õ»õ€ùXõ€õÿ⁄»èêSPëTéàÿúò[ô⁄]úŸX€€ô\ûP€€‹üO‹‹[èÇàŸ]èÇàŸ]èÇàŸ]èÇàŸ]èÇàÿúò[ô⁄]ôYYòX⁄»	âà
+à€\‹”ò[YO^ÿ^\€Hõ€ù\Ÿ[ZXõ€	ÿúò[ô⁄]ôYYòX⁄Àú›\ù’⁄]
+	—\úõ‹â H»	›^\ôYMå	»à	›^Y[Y\ò[MÃ	ﬂXOûÿúò[ô⁄]ôYYòX⁄ﬂO‹Çà
+_Bàù]€Çà€ê€X⁄œ^⁄[ôTÿ]ôPúò[ô⁄]Bà\ÿXõY^ÿúò[ô⁄]ÿ]ö[ôﬂBà€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€KLàMàõ›[ôY^^\€Hò[ú⁄][€ãX[›\ú€‹ã\⁄[ù\à\ÿXõYõ‹X⁄]KML\ÿXõYò›\ú€‹ã[õ›X[›ŸYÇàÇàÿúò[ô⁄]ÿ]ö[ô»»	‘ÿ]ö[ô¯†)â»à	‘ÿ]ôHúò[ô⁄]	ﬂBàÿù]€èÇàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»MKàPSH”‘í‘‘P—BàYà
+X›]ôUXàOOH	›X[I H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»‹XŸK^KMàèÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èïX[Hõ€\»	àŸX›\ôH[ùö]\œ⁄œÇà€\‹”ò[YOHù^^»^\€]KMLèÇàY^\›[ô»X[õ⁄Xà\Ÿ\ú»»ÿX›]ôS‹ôÀõò[Y_KÇà›X[S[Z]OOHù[	âà[›\à[à[›‹»\»	›X[S[Z]HX[HY[Xô\â›X[S[Z]OOHH»	…»à	‹…ﬂKòBà‹ÇÇà›X[QôYYòX⁄»	âà
+à]à€\‹”ò[YO^ÿ^\€HLÀçHõ›[ôY^õ€ù\Ÿ[ZXõ€	›X[QôYYòX⁄Àú›\ù’⁄]
+	—\úõ‹â H»	ÿôÀ\ôYMLõ‹ô\àõ‹ô\ã\ôYLå^\ôYMÃ	»à	ÿôÀY[Y\ò[MLõ‹ô\àõ‹ô\ãY[Y\ò[Lå^Y[Y\ò[N	ﬂXOÇà›X[QôYYòX⁄ﬂBàŸ]èÇà
+_BÇàõ‹õH€î›XõZ]^⁄[ôR[ùö]UX[_H€\‹”ò[YOHôõ^õ^X€€€Nôõ^\õ›»ÿ\MèÇà[ú]à\OHô[XZ[Çàô\]Z\ôYàXŸZ€\èHò€€XY›YP^[\Kò€€H
+]\›[ôXYH]ôHHX[õ⁄XàXÿ€›[ù
+HÇàò[YO^›X[Q[XZ[Bà€ê⁄[ôŸO^ JHOàŸ]X[Q[XZ[
+Kù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHôõ^LHõ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàœÇàŸ[X›àò[YO^›X[Tõ€_Bà€ê⁄[ôŸO^ JHOàŸ]X[Tõ€JKù\ôŸ]ùò[YH\»	ÿYZ[â»	€Y[Xô\â _Bà€\‹”ò[YOHòõ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLÇàÇà‹[€àò[YOHõY[Xô\àèìY[Xô\è€‹[€èÇà‹[€àò[YOHòYZ[àèêYZ[è€‹[€èÇà‹Ÿ[X›Çàù]€à\OHú›XõZ]à\ÿXõY^›X[R[ùö][ôﬂH€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€MàKLãçHõ›[ôY^^\€H›\ú€‹ã\⁄[ù\à⁄ö[öÀL\ÿXõYõ‹X⁄]KMLèÇà›X[R[ùö][ô»»	–Y[ô¯†)â»à	–YY[Xô\âﬂBàÿù]€èÇàŸõ‹õOÇÇà]à€\‹”ò[YOHòõ‹ô\ã]õ‹ô\ã\€]KMLMà‹XŸK^KMèÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KN^\€HèêX›]ôH€‹ö‹‹XŸHY[Xô\ú⁄\⁄Çà›X[SÿY[ô»»
+à€\‹”ò[YOHù^^»^\€]KMèìÿY[ô¯†)è‹Çà
+Hà
+à]à€\‹”ò[YOHú‹XŸK^KL»^^»èÇà›X[SY[Xô\úÀõX\
+
+JHOà
+à]àŸ^O^€Kù\Ÿ\íYH€\‹”ò[YOHòôÀ\€]KMLL»õ›[ôY^õ‹ô\àõ‹ô\ã\€]KLLõ^ù\›YûKXô]ŸY[à][\ÀXŸ[ù\àèÇà]èÇà‹[à€\‹”ò[YOHôõ€ùXõ€^\€]KNèû€Kôù[ò[YHKô[XZ[O‹‹[èÇà‹[à€\‹”ò[YOHù^VÃLH^\€]KMõ€ù[[€õ»õÿ⁄»èû€Kô[XZ[O‹‹[èÇàŸ]èÇà]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àÿ\L»èÇà‹[à€\‹”ò[YO^ÿõ€ùXõ€LãçHKLçHõ›[ôYYù[\\òÿ\ŸH^VÃLH	€Kúõ€HOOH	€›€ô\â»»	ÿôÀY[Y\ò[LL^Y[Y\ò[N	»à	ÿôÀXõYKLL^XõYKN	ﬂXOû€Kúõ€_O‹‹[èÇà€Kúõ€HOOH	€›€ô\â»	âà
+àù]€à€ê€X⁄œ^ 
+HOà[ôTô[[›ôUX[SY[Xô\äKù\Ÿ\íY
+_H€\‹”ò[YOHù^\ôYML›ô\éù[ô\õ[ôH›\ú€‹ã\⁄[ù\àèîô[[›ôOÿù]€èÇà
+_BàŸ]èÇàŸ]èÇà
+J_BàŸ]èÇà
+_BàŸ]èÇàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»MãàíSSë»”‘í‘‘P—BàYà
+X›]ôUXàOOH	ÿö[[ô… H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»‹XŸK^KMèÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èê›\úô[ù[è⁄œÇàÿö[[ô”ÿY[ô»»
+à€\‹”ò[YOHù^^»^\€]KMèìÿY[ô¯†)è‹Çà
+HàX›]ôT›Xúÿ‹ö\[€à»
+à]à€\‹”ò[YOHôõ^][\ÀXŸ[ù\àù\›YûKXô]ŸY[àèÇà]èÇà‹[à€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^Y[Y\ò[MÃ^[»èûÿX›]ôT›Xúÿ‹ö\[€ãú[ìò[Y_O‹‹[èÇàÿX›]ôT›Xúÿ‹ö\[€ãò›\úô[ù\ö[Ÿ[ô	âà
+à€\‹”ò[YOHù^^»^\€]KML]LHèîô[ô]‹»»^\ô\»€ô]»]JX›]ôT›Xúÿ‹ö\[€ãò›\úô[ù\ö[Ÿ[ô
+Kù”ÿÿ[Q]T›ö[ô 	Ÿ[ãQ–â _O‹Çà
+_BàŸ]èÇà‹[à€\‹”ò[YOHòôÀY[Y\ò[LL^Y[Y\ò[N^VŒ\Hõ€ùXõ€LãçHKLçHõ›[ôYYù[\\òÿ\ŸHèêX›]ôO‹‹[èÇàŸ]èÇà
+Hà
+à€\‹”ò[YOHù^\€H^\€]KMLèñ[›I‹ôH€àHúôYH[ãè‹Çà
+_BàŸ]èÇÇàÿö[[ô—ôYYòX⁄»	âà
+à]à€\‹”ò[YO^ÿ^\€HLÀçHõ›[ôY^õ€ù\Ÿ[ZXõ€	ÿö[[ô—ôYYòX⁄Àú›\ù’⁄]
+	—\úõ‹â H»	ÿôÀ\ôYMLõ‹ô\àõ‹ô\ã\ôYLå^\ôYMÃ	»à	ÿôÀY[Y\ò[MLõ‹ô\àõ‹ô\ãY[Y\ò[Lå^Y[Y\ò[N	ﬂXOÇàÿö[[ô—ôYYòX⁄ﬂBàŸ]èÇà
+_BÇà‹[ô[ô‘›Xúÿ‹ö\[€à	âà
+à]à€\‹”ò[YOHòôÀX[Xô\ãMLõ‹ô\àõ‹ô\ãX[Xô\ãLåõ›[ôYLûMà‹XŸK^KL»èÇà€\‹”ò[YOHù^\€H^X[Xô\ãNLèÇà›õ€ôœû‹[ô[ô‘›Xúÿ‹ö\[€ãú[ìò[Y_O‹›õ€ôœà\‹òYHô\]Y\›Y8†%]ÿZ][ô»^[Y[ù€€ôö\õX][€à[ôYZ[à\õ›ò[Çà‹Çà‹[ô[ô‘›Xúÿ‹ö\[€ãõõ›\»»
+à€\‹”ò[YOHù^^»^X[Xô\ãMÃõ€ù[[€õ»èîôYô\ô[òŸH€àö[Nà‹[ô[ô‘›Xúÿ‹ö\[€ãõõ›\ﬂO‹Çà
+Hà
+àù]€à€ê€X⁄œ^⁄[ôT›XõZ]^[Y[ùôYüH€\‹”ò[YOHù^^»õ€ù\Ÿ[ZXõ€^X[Xô\ãMÃ›ô\éù[ô\õ[ôH›\ú€‹ã\⁄[ù\àèÇà›XõZ]ò[ö»ò[úŸô\àôYô\ô[òŸBàÿù]€èÇà
+_BàŸ]èÇà
+_BÇà»\[ô[ô‘›Xúÿ‹ö\[€à	âà
+àõ‹õH€î›XõZ]^⁄[ôTô\]Y\›[üH€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»‹XŸK^KMèÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^\€Hèîô\]Y\›H[à⁄[ôŸO⁄Çà]à€\‹”ò[YOHô‹öY‹öYX€€ÀLH€Nô‹öYX€€ÀLàÿ\MèÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèî[è€Xô[ÇàŸ[X›ò[YO^‹Ÿ[X›Y[íYH€ê⁄[ôŸO^ JHOàŸ]Ÿ[X›Y[íY
+Kù\ôŸ]ùò[YJ_Hô\]Z\ôYà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLèÇà‹[€àò[YOHàèîŸ[X›H[è€‹[€èÇà‹[úÀõX\
+
+
+HOà‹[€àŸ^O^‹öYHò[YO^‹öYOû‹õò[Y_O€‹[€èä_Bà‹Ÿ[X›ÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèêö[[ô»ﬁX€O€Xô[ÇàŸ[X›ò[YO^ÿö[[ô–ﬁX€_H€ê⁄[ôŸO^ JHOàŸ]ö[[ô–ﬁX€JKù\ôŸ]ùò[YH\»	€[€ùI»	ÿ[õùX[	 _Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLèÇà‹[€àò[YOHõ[€ùHèì[€ùO€‹[€èÇà‹[€àò[YOHò[õùX[èê[õùX[€‹[€èÇà‹Ÿ[X›ÇàŸ]èÇàŸ]èÇà]èÇàXô[€\‹”ò[YOHòõÿ⁄»^^»õ€ùXõ€^\€]KML\\òÿ\ŸHèî^[Y[ùôYô\ô[òŸH
+‹[€ò[ò[ö»ò[úŸô\äO€Xô[Çà[ú]\OHù^àXŸZ€\èHôKôÀà”–ãNNLçHàò[YO^‹^[Y[ùôYüH€ê⁄[ôŸO^ JHOàŸ]^[Y[ùôYäKù\ôŸ]ùò[YJ_Bà€\‹”ò[YOHõ]LHÀYù[õ‹ô\àõ‹ô\ã\€]KLåõ›[ôY^LãçHôÀ\€]KML^\€Hõÿ›\ŒòôÀ]⁄]Hõÿ›\Œõ›][ôKY[Y\ò[MLàœÇàŸ]èÇàù]€à\OHú›XõZ]à\ÿXõY^‹ô\]Y\›[ô‘[üH€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]Hõ€ù\Ÿ[ZXõ€KLãçHMàõ›[ôY^^\€H›\ú€‹ã\⁄[ù\à\ÿXõYõ‹X⁄]KMLèÇà‹ô\]Y\›[ô‘[à»	‘ô\]Y\›[ô¯†)â»à	‘ô\]Y\›[à⁄[ôŸIﬂBàÿù]€èÇà€\‹”ò[YOHù^VÃLH^\€]KMèî^[Y[ù\»€€ôö\õYYX[ùX[HûH›\àö[ò[òŸHX[H8†%[›\à[àX›]ò]\»€òŸH\õ›ôYô]ô\à]]€X]Xÿ[H€à›XõZ\‹⁄[€ãè‹ÇàŸõ‹õOÇà
+_BÇà€^T›Xúÿ‹ö\[€úÀõ[ô›à	âà
+à]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»èÇà€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^\€HXãMèî›Xúÿ‹ö\[€à\›‹ûO⁄Çà]à€\‹”ò[YOHú‹XŸK^KLà^^»èÇà€^T›Xúÿ‹ö\[€úÀõX\
+
+ HOà
+à]àŸ^O^‹ÀöYH€\‹”ò[YOHôõ^][\ÀXŸ[ù\àù\›YûKXô]ŸY[àõ‹ô\ãXàõ‹ô\ã\€]KMLãLàèÇà‹[à€\‹”ò[YOHù^\€]KMÃèû‹Àú[ìò[Y_H0≠»€ô]»]JÀò‹ôX]Y]
+Kù”ÿÿ[Q]T›ö[ô 	Ÿ[ãQ–â _O‹‹[èÇà‹[à€\‹”ò[YO^ÿõ€ùXõ€LàKLçHõ›[ôYYù[\\òÿ\ŸH^VŒ\H	¬àÀú›]\»OOH	ÿX›]ôI»»	ÿôÀY[Y\ò[LL^Y[Y\ò[N	»ÇàÀú›]\»OOH	‹[ô[ô…»»	ÿôÀX[Xô\ãLL^X[Xô\ãN	»à	ÿôÀ\€]KLå^\€]KMå	¬àXOû‹Àú›]\ﬂO‹‹[èÇàŸ]èÇà
+J_BàŸ]èÇàŸ]èÇà
+_BàŸ]èÇà
+N¬àBÇàÀ»MÀàQRSàì–Të
+’TTàQRSàS—TêUS”äBàYà
+X›]ôUXàOOH	ÿYZ[â H¬àô]\õà
+à]à€\‹”ò[YOHú‹XŸK^KN^[YùèÇà]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûMà⁄Y›À^»‹XŸK^KMàèÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KNL^[»èî]õ‹õH[Ÿ\ò][€àÿYô]H\⁄œ⁄œÇà€\‹”ò[YOHù^^»^\€]KMLèî]õ‹õHYZ[ö\›ò]‹à\⁄»[ôõ‹ò⁄[ô»ÿYôH€‹ú‹ò]H\›[ô‹»[ô[€ö]‹ö[ô»ò[ŸH\ôX›‹ûH€Z[\Àè‹ÇÇà]à€\‹”ò[YOHôõ^ÿ\MèÇàù]€Çà€ê€X⁄œ^‹ù[îÿYô]S[Ÿ\ò][€üBà€\‹”ò[YOHòôÀY[Y\ò[Må›ô\éòôÀY[Y\ò[MÃ^]⁄]H^^»õ€ù\Ÿ[ZXõ€KLàMõ›[ôY^›\ú€‹ã\⁄[ù\àÇàÇàù[à\ôX›‹ûHÿYô]Hÿÿ[ú¬àÿù]€èÇàŸ]èÇÇà‹ÿÿ[õôYõYŸŸY	âà
+à]à€\‹”ò[YOHòôÀ\€]KNL^Y[Y\ò[MMõ›[ôY^õ€ù[[€õ»^^»‹XŸK^KLàX^ZMMà›ô\ôõ›À^KX]]»èÇà‹ÿYô]SŸÀõX\
+
+ŸŒà›ö[ôÀNàù[Xô\äHOà
+à]àŸ^O^⁄_H€\‹”ò[YOHôõ^ÿ\LàèÇà‹[à€\‹”ò[YOHù^Y[Y\ò[Måè∏ß$œ‹‹[èÇà‹[èû€ŸﬂO‹‹[èÇàŸ]èÇà
+J_BàŸ]èÇà
+_BàŸ]èÇàŸ]èÇà
+N¬àBÇàÀ»ò[òX⁄»»XŸZ€\àõ‹àXú»]Yâ›‹X⁄YûH›\›€Z^ôYöY]‹¬àô]\õà
+à]à€\‹”ò[YOHòôÀ]⁄]Hõ‹ô\àõ‹ô\ã\€]KLLõ›[ôYLûLLà^XŸ[ù\à^\€]KMèÇà[\ù⁄\ò€H€\‹”ò[YOHöLLàÀLLà^X]]»XãM^\€]KLÃàœÇà»€\‹”ò[YOHôõ€ùY\‹^Hõ€ùXõ€^\€]KMåèï€‹ö‹‹XŸH[ô[ô»[ö]X[^ò][€è⁄œÇà€\‹”ò[YOHù^^»]LàX^]À\€H^X]]»^\€]KMLXY[ôÀ\ô[^YèÇà\»€‹ö‹‹XŸH
+ÿX›]ôUXüJH\»ÿ][ŸŸY[ô\à\€€Z[ô»Z[\›€ôHÿ⁄Y[\ÀÇà‹ÇàŸ]èÇà
+N¬üB

@@ -249,6 +249,7 @@ function MainApp() {
     ...(!isPlatformAdmin && canAdvertise ? [{
       group: "Advertising",
       items: [
+        { id: 'campaign-performance', label: 'Campaign Performance', icon: BarChart2 },
         { id: 'advertising', label: 'My Adverts', icon: Sparkles },
       ]
     }] : []),
