@@ -3,7 +3,7 @@ import { Building2, CheckCircle2, FileCheck2, Loader2, Plus, ReceiptText, Users 
 import type { Organization } from '../types';
 import {
   AgencyApproval, AgencyClient, addAgencyClient, createAgencyApproval, decideAgencyApproval,
-  fetchAdvertOrders, fetchAgencyApprovals, fetchAgencyClients, saveAgencyProfile, updateAgencyClient,
+  fetchAgencyBilling, fetchAgencyApprovals, fetchAgencyClients, saveAgencyProfile, updateAgencyClient,
   saveAgencyBulkUpload,
 } from '../lib/procurementApi';
 
@@ -23,7 +23,7 @@ export function AgencyWorkspacePage({ activeOrg, isPlatformAdmin }: { activeOrg:
   const [brand,setBrand]=useState({tradingName:activeOrg.name,reportBrandName:activeOrg.name,reportPrimaryColor:'#059669',billingEmail:''});
   const [bulkClient,setBulkClient]=useState('');
 
-  const load=async()=>{setLoading(true);try{const c=await fetchAgencyClients(activeOrg.id);setClients(c);const [a,o]=await Promise.all([fetchAgencyApprovals(c.map(x=>x.id)),fetchAdvertOrders(activeOrg.id,isPlatformAdmin)]);setApprovals(a);setBillingTotal(o.filter(x=>x.status==='paid').reduce((s,x)=>s+x.totalAmount,0));}catch(e){setFeedback(e instanceof Error?e.message:'Agency workspace could not be loaded.');}finally{setLoading(false);}};
+  const load=async()=>{setLoading(true);try{const c=await fetchAgencyClients(activeOrg.id);setClients(c);const [a,o]=await Promise.all([fetchAgencyApprovals(c.map(x=>x.id)),fetchAgencyBilling(c.filter(x=>x.status==='active'&&x.permissions.includes('billing_read')).map(x=>x.clientOrgId))]);setApprovals(a);setBillingTotal(o.filter(x=>x.status==='paid').reduce((s,x)=>s+x.totalAmount,0));}catch(e){setFeedback(e instanceof Error?e.message:'Agency workspace could not be loaded.');}finally{setLoading(false);}};
   useEffect(()=>{void load();},[activeOrg.id,isPlatformAdmin]);
   const activeClients=useMemo(()=>clients.filter(c=>c.status==='active'),[clients]);
 
