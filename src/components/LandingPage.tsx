@@ -6,7 +6,7 @@ import {
   HeartPulse, GraduationCap, Palmtree, Zap, Truck, Briefcase, HandHeart, Building2, ChevronDown,
   Mail, MessageCircle, Bookmark, Clock, Coins, Store, ShoppingBag, Ticket,
 } from 'lucide-react';
-import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchLiveAdverts, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
+import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchLiveAdverts, fetchLandingContent, LandingContentBlock, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -120,6 +120,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const [countryCount, setCountryCount] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [liveAdverts, setLiveAdverts] = useState<Advert[]>([]);
+  const [landingContent, setLandingContent] = useState<Record<string, LandingContentBlock>>({});
 
   useEffect(() => {
     searchOpportunities({})
@@ -130,6 +131,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       .catch(() => setLatest([]))
       .finally(() => setLoadingLatest(false));
     fetchLiveAdverts().then(setLiveAdverts).catch(() => setLiveAdverts([]));
+    fetchLandingContent().then(rows=>setLandingContent(Object.fromEntries(rows.map(row=>[row.blockKey,row])))).catch(()=>{});
     Promise.all([fetchSectors(), fetchDistricts(), fetchCountries()])
       .then(([s, d, c]) => {
         setSectors(s);
@@ -156,6 +158,8 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
     .slice(0, 4);
   const heroTender = latest[0] || null;
   const popularSectors = sectors.slice(0, 4);
+  const heroContent = landingContent.hero;
+  const advertContent = landingContent.advert_marketplace;
 
   const navLinks = [
     { href: '#explorer', label: 'Live Tenders' },
@@ -238,7 +242,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       </header>
 
       {/* ============================ HERO ============================ */}
-      <section className="relative bg-[#0F172A] text-white overflow-hidden border-b-2 border-[#0F172A]">
+      <section className="relative bg-[#0F172A] text-white overflow-hidden border-b-2 border-[#0F172A]" style={{ background: `linear-gradient(125deg, ${heroContent?.surfaceColor || '#0F172A'} 0%, #0F172A 62%, #172554 100%)` }}>
         <div
           className="absolute inset-0 opacity-[0.06] pointer-events-none"
           style={{ backgroundImage: 'linear-gradient(#10B981 1px, transparent 1px), linear-gradient(90deg, #10B981 1px, transparent 1px)', backgroundSize: '56px 56px' }}
@@ -253,11 +257,10 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               </span>
             </div>
             <h1 className="mt-5 font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.4rem] leading-[1.05] tracking-tight !text-white">
-              Every public tender in <span className="text-[#10B981]">one place</span> — search, bid, win.
+              {heroContent?.title || <>Every public tender in <span className="text-[#10B981]">one place</span> — search, bid, win.</>}
             </h1>
             <p className="mt-5 text-base sm:text-lg text-slate-300 leading-relaxed max-w-xl">
-              Manohub brings live procurement notices, instant alerts, and a private bid pipeline together —
-              whether you're bidding, publishing, or promoting your business across the Mano River region.
+              {heroContent?.body || <>Manohub brings live procurement notices, instant alerts, and a private bid pipeline together — whether you're bidding, publishing, or promoting your business across the Mano River region.</>}
             </p>
 
             {/* Inline search */}
@@ -635,7 +638,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       </section>
 
       {/* ============================ ADVERTISE (scrolling banner) ============================ */}
-      <section id="advertise" className="py-14 bg-white border-b border-slate-100 overflow-hidden">
+      <section id="advertise" className="py-14 border-b border-slate-100 overflow-hidden" style={{ background: `linear-gradient(180deg, ${advertContent?.surfaceColor || '#FFFFFF'} 0%, #FFFFFF 100%)` }}>
         <style dangerouslySetInnerHTML={{ __html: `
           .mh-marquee-wrap { width: 100%; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
           .mh-marquee-track { display: flex; gap: 16px; width: max-content; padding: 4px 8px; animation: mh-marquee 48s linear infinite; }
@@ -645,14 +648,12 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
         ` }} />
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
           <div className="max-w-2xl flex flex-col gap-2">
-            <span className="text-emerald-600 font-bold tracking-widest text-xs uppercase font-mono">More than tenders</span>
+            <span className="font-bold tracking-widest text-xs uppercase font-mono" style={{color:advertContent?.accentColor||'#059669'}}>{advertContent?.eyebrow||'More than tenders'}</span>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-              Advertise your business across the region
+              {advertContent?.title||'Advertise your business across the region'}
             </h2>
             <p className="text-slate-600 leading-relaxed">
-              Manohub isn't only procurement. Shops, service providers, healthcare, transport operators and
-              event organisers promote what they do to buyers and communities across Sierra Leone and Liberia
-              — our team designs, builds, and runs each campaign for you.
+              {advertContent?.body || `Manohub isn't only procurement. Shops, service providers, healthcare, transport operators and event organisers promote what they do to buyers and communities across Sierra Leone and Liberia — our team designs, builds, and runs each campaign for you.`}
             </p>
           </div>
           <button onClick={onGetStarted} className="shrink-0 bg-emerald-600 text-white font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:bg-emerald-700 transition-colors cursor-pointer inline-flex items-center gap-2 self-start sm:self-auto">
