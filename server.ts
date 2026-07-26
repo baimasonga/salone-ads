@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import { createClient } from "@supabase/supabase-js";
 import { createServer as createViteServer } from "vite";
+import { Resend, type WebhookEventPayload } from "resend";
 
 // Load environment variables
 dotenv.config();
@@ -157,6 +158,22 @@ async function sendResendEmail(input: { to: string; subject: string; html: strin
   return String(result.id);
 }
 
+function resendEventMetadata(event: WebhookEventPayload): Record<string, string> {
+  if (event.type === "email.clicked") {
+    return { link: event.data.click.link };
+  }
+  if (event.type === "email.bounced") {
+    return { reason: event.data.bounce.message, type: event.data.bounce.type, subtype: event.data.bounce.subType };
+  }
+  if (event.type === "email.failed") {
+    return { reason: event.data.failed.reason };
+  }
+  if (event.type === "email.suppressed") {
+    return { reason: event.data.suppressed.message, type: event.data.suppressed.type };
+  }
+  return {};
+}
+
 async function dispatchAudienceCampaign(campaignId: string, force = false): Promise<{ sent: number; failed: number; remaining: number }> {
   if (!supabaseServiceClient) throw new Error("Email delivery requires SUPABASE_SERVICE_ROLE_KEY.");
   if (!process.env.RESEND_API_KEY?.trim() || !process.env.RESEND_FROM_EMAIL?.trim()) {
@@ -258,6 +275,70 @@ function injectAdvertMeta(
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // This route must receive the untouched request bytes: parsing or
+  // re-serialising the body before verification invalidates the signature.
+  app.post("/api/webhooks/resend", express.raw({ type: "application/json", limit: "250kb" }), async (req, res) => {
+    const webhookSecret = process.env.RESEND_WEBHOOK_SECRET?.trim();
+    const eventId = req.get("svix-id") || "";
+    const timestamp = req.get("svix-timestamp") || "";
+    const signature = req.get("svix-signature") || "";
+    if (!webhookSecret || !supabaseServiceClient) {
+      res.status(503).json({ error: { message: "Email event processing is not configured." } });
+      return;
+    }
+    if (!Buffer.isBuffer(req.body) || !eventId || !timestamp || !signature) {
+      res.status(400).json({ error: { message: "Invalid webhook request." } });
+      return;
+    }
+
+    let event: WebhookEventPayload;
+    try {
+      event = new Resend(process.env.RESEND_API_KEY).webhooks.verify({
+        payload: req.body.toString("utf8"),
+        headers: { id: eventId, timestamp, signature },
+        webhookSecret,
+      });
+    } catch {
+      res.status(400).json({ error: { message: "Webhook signature verification failed." } });
+      return;
+    }
+
+    if (!event.type.startsWith("email.") || event.type === "email.received" || !("email_id" in event.data)) {
+      res.status(200).json({ received: true, ignored: true });
+      return;
+    }
+
+    const { data: delivery, error: deliveryError } = await supabaseServiceClient
+      .from("audience_email_deliveries")
+      .select("id, campaign_id")
+      .eq("provider_message_id", event.data.email_id)
+      .maybeSingle();
+    if (deliveryError) {
+      res.status(500).json({ error: { message: "Email event lookup failed." } });
+      return;
+    }
+    if (!delivery) {
+      // Valid events for test emails or another Resend stream are acknowledged
+      // so the provider does not retry them indefinitely.
+      res.status(202).json({ received: true, matched: false });
+      return;
+    }
+
+    const { error: insertError } = await supabaseServiceClient.from("audience_email_events").insert({
+      provider_event_id: eventId,
+      delivery_id: delivery.id,
+      campaign_id: delivery.campaign_id,
+      event_type: event.type,
+      occurred_at: event.created_at,
+      metadata: resendEventMetadata(event),
+    });
+    if (insertError && insertError.code !== "23505") {
+      res.status(500).json({ error: { message: "Email event could not be recorded." } });
+      return;
+    }
+    res.status(200).json({ received: true, duplicate: insertError?.code === "23505" });
+  });
 
   app.use(express.json({ limit: "100kb" }));
 
