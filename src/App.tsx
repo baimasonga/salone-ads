@@ -4,7 +4,7 @@
  */
 
 import React, { lazy, Suspense, useState, useEffect, useCallback } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import {
   BarChart2, Calendar, FolderOpen, Users, Link2,
@@ -36,6 +36,12 @@ const AdvertDetailPage = lazy(() => import('./components/AdvertDetailPage').then
 const AdvertsFeedPage = lazy(() => import('./components/AdvertsFeedPage').then((module) => ({ default: module.AdvertsFeedPage })));
 const UnsubscribePage = lazy(() => import('./components/UnsubscribePage').then((module) => ({ default: module.UnsubscribePage })));
 
+function CmsPreviewRoute() {
+  const { blockId = '' } = useParams();
+  const navigate = useNavigate();
+  return <LandingPage previewBlockId={blockId} onGetStarted={() => navigate('/?auth=signup')} onSignIn={() => navigate('/?auth=signin')} />;
+}
+
 function PageLoader() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center border-4 md:border-8 border-[#0F172A]">
@@ -55,6 +61,7 @@ export default function App() {
         <Route path="/adverts" element={<AdvertsFeedPage />} />
         <Route path="/adverts/:slug" element={<AdvertDetailPage />} />
         <Route path="/unsubscribe" element={<UnsubscribePage />} />
+        <Route path="/cms-preview/:blockId" element={<CmsPreviewRoute />} />
         <Route path="/*" element={<MainApp />} />
       </Routes>
     </Suspense>
