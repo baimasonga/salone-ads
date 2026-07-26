@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { toPng } from 'html-to-image';
 import { Link } from 'react-router-dom';
 import { AdvertCreative, CreativeScaler, AdvertFormat, AdvertTheme } from './AdvertCreative';
+import { CampaignBuilderPage } from './CampaignBuilderPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
@@ -2117,6 +2118,7 @@ export function Workspaces({
         endDate: campForm.endDate || null,
         reachGoal: campForm.reachGoal ? Number(campForm.reachGoal) : null,
         orgId: activeOrg?.id ?? null,
+        status: 'active',
       });
       setCampForm({ name: '', businessName: '', startDate: '', endDate: '', reachGoal: '' });
       await reloadAdCampaigns();
@@ -3603,6 +3605,10 @@ export function Workspaces({
   // all. This subscriber submits what they want advertised and later sees
   // a read-only report of what happened -- platform, run count, reach.
   // The actual design/production work stays admin-only ad-platform tooling.
+  if (activeTab === 'campaign-builder') {
+    return <CampaignBuilderPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
+  }
+
   if (activeTab === 'campaign-performance') {
     return (
       <CampaignPerformancePage

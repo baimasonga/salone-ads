@@ -2042,33 +2042,74 @@ export async function deleteAdvert(id: string): Promise<void> {
 // A campaign groups several advert creatives, gives them a run window and a
 // reach goal; its creatives rotate through the marquee/feed while it is active.
 
-export type CampaignStatus = 'active' | 'paused';
+export type CampaignStatus =
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'rejected'
+  | 'active'
+  | 'paused'
+  | 'completed';
+
+export type AdCampaignObjective = 'awareness' | 'traffic' | 'leads' | 'sales';
+export type AdCampaignDevice = 'mobile' | 'desktop' | 'tablet';
 
 export interface AdCampaign {
   id: string;
+  orgId: string | null;
   name: string;
   businessName: string;
+  description: string;
+  objective: AdCampaignObjective;
   startDate: string | null;
   endDate: string | null;
   reachGoal: number | null;
+  totalBudget: number | null;
+  dailyBudget: number | null;
+  currencyCode: string;
+  locationTargets: string[];
+  categoryTargets: string[];
+  deviceTargets: AdCampaignDevice[];
   status: CampaignStatus;
+  rejectionReason: string | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface CampaignReach { adverts: number; views: number; clicks: number }
 
-const CAMPAIGN_SELECT = 'id, name, business_name, start_date, end_date, reach_goal, status, created_at';
+const CAMPAIGN_SELECT = [
+  'id', 'org_id', 'name', 'business_name', 'description', 'objective',
+  'start_date', 'end_date', 'reach_goal', 'total_budget', 'daily_budget',
+  'currency_code', 'location_targets', 'category_targets', 'device_targets',
+  'status', 'rejection_reason', 'submitted_at', 'approved_at', 'created_at', 'updated_at',
+].join(', ');
 
 function mapCampaign(row: any): AdCampaign {
   return {
     id: row.id,
+    orgId: row.org_id ?? null,
     name: row.name,
     businessName: row.business_name ?? '',
+    description: row.description ?? '',
+    objective: row.objective ?? 'awareness',
     startDate: row.start_date ?? null,
     endDate: row.end_date ?? null,
     reachGoal: row.reach_goal ?? null,
+    totalBudget: row.total_budget === null || row.total_budget === undefined ? null : Number(row.total_budget),
+    dailyBudget: row.daily_budget === null || row.daily_budget === undefined ? null : Number(row.daily_budget),
+    currencyCode: row.currency_code ?? 'SLE',
+    locationTargets: row.location_targets ?? [],
+    categoryTargets: row.category_targets ?? [],
+    deviceTargets: row.device_targets ?? [],
     status: row.status,
+    rejectionReason: row.rejection_reason ?? null,
+    submittedAt: row.submitted_at ?? null,
+    approvedAt: row.approved_at ?? null,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -2088,9 +2129,18 @@ export async function fetchCampaignReach(): Promise<Record<string, CampaignReach
 export interface CreateCampaignInput {
   name: string;
   businessName?: string;
+  description?: string;
+  objective?: AdCampaignObjective;
   startDate?: string | null;
   endDate?: string | null;
   reachGoal?: number | null;
+  totalBudget?: number | null;
+  dailyBudget?: number | null;
+  currencyCode?: string;
+  locationTargets?: string[];
+  categoryTargets?: string[];
+  deviceTargets?: AdCampaignDevice[];
+  status?: Extract<CampaignStatus, 'draft' | 'submitted' | 'active'>;
   orgId?: string | null;
 }
 
@@ -2101,12 +2151,63 @@ export async function createCampaign(input: CreateCampaignInput): Promise<AdCamp
     .insert({
       name: input.name,
       business_name: input.businessName ?? '',
+      description: input.description ?? '',
+      objective: input.objective ?? 'awareness',
       start_date: input.startDate ?? null,
       end_date: input.endDate ?? null,
       reach_goal: input.reachGoal ?? null,
+      total_budget: input.totalBudget ?? null,
+      daily_budget: input.dailyBudget ?? null,
+      currency_code: input.currencyCode ?? 'SLE',
+      location_targets: input.locationTargets ?? [],
+      category_targets: input.categoryTargets ?? [],
+      device_targets: input.deviceTargets ?? [],
+      status: input.status ?? 'draft',
+      submitted_at: input.status === 'submitted' ? new Date().toISOString() : null,
       org_id: input.orgId ?? null,
       created_by: user?.id ?? null,
     })
+    .select(CAMPAIGN_SELECT)
+    .single();
+  if (error) throw error;
+  return mapCampaign(data);
+}
+
+export async function fetchCampaignsForWorkspace(orgId: string, isPlatformAdmin: boolean): Promise<AdCampaign[]> {
+  let query = supabase.from('ad_campaigns').select(CAMPAIGN_SELECT);
+  if (!isPlatformAdmin) query = query.eq('org_id', orgId);
+  const { data, error } = await query.order('updated_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapCampaign);
+}
+
+export async function updateAdCampaign(
+  id: string,
+  input: Omit<CreateCampaignInput, 'orgId' | 'status'>,
+  status: Extract<CampaignStatus, 'draft' | 'submitted'> = 'draft'
+): Promise<AdCampaign> {
+  const { data, error } = await supabase
+    .from('ad_campaigns')
+    .update({
+      name: input.name,
+      business_name: input.businessName ?? '',
+      description: input.description ?? '',
+      objective: input.objective ?? 'awareness',
+      start_date: input.startDate ?? null,
+      end_date: input.endDate ?? null,
+      reach_goal: input.reachGoal ?? null,
+      total_budget: input.totalBudget ?? null,
+      daily_budget: input.dailyBudget ?? null,
+      currency_code: input.currencyCode ?? 'SLE',
+      location_targets: input.locationTargets ?? [],
+      category_targets: input.categoryTargets ?? [],
+      device_targets: input.deviceTargets ?? [],
+      status,
+      submitted_at: status === 'submitted' ? new Date().toISOString() : null,
+      rejection_reason: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
     .select(CAMPAIGN_SELECT)
     .single();
   if (error) throw error;
