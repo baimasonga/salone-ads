@@ -4,14 +4,19 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
+  CheckCircle2,
   CircleDollarSign,
+  Copy,
   Edit3,
+  Eye,
+  Image as ImageIcon,
   Loader2,
   Megaphone,
   Plus,
   Send,
   Target,
   Trash2,
+  XCircle,
 } from 'lucide-react';
 import type { Organization } from '../types';
 import {
@@ -21,7 +26,11 @@ import {
   AdCampaignObjective,
   createCampaign,
   deleteCampaign,
+  duplicateCampaign,
+  fetchCampaignCreatives,
   fetchCampaignsForWorkspace,
+  Advert,
+  reviewCampaign,
   updateAdCampaign,
 } from '../lib/procurementApi';
 
@@ -147,6 +156,8 @@ function campaignToForm(campaign: AdCampaign): CampaignForm {
 
 export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuilderPageProps) {
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
+  const [creatives, setCreatives] = useState<Record<string, Advert[]>>({});
+  const [previewingId, setPreviewingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -158,7 +169,9 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
   const loadCampaigns = async () => {
     setLoading(true);
     try {
-      setCampaigns(await fetchCampaignsForWorkspace(activeOrg.id, isPlatformAdmin));
+      const nextCampaigns = await fetchCampaignsForWorkspace(activeOrg.id, isPlatformAdmin);
+      setCampaigns(nextCampaigns);
+      setCreatives(await fetchCampaignCreatives(nextCampaigns.map((campaign) => campaign.id)));
       setFeedback(null);
     } catch (cause) {
       setFeedback(cause instanceof Error ? cause.message : 'Campaigns could not be loaded.');
@@ -272,6 +285,32 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
       setFeedback('Campaign deleted.');
     } catch (cause) {
       setFeedback(cause instanceof Error ? cause.message : 'Campaign could not be deleted.');
+    }
+  };
+
+  const duplicate = async (campaign: AdCampaign) => {
+    try {
+      await duplicateCampaign(campaign);
+      await loadCampaigns();
+      setFeedback('Campaign duplicated as a draft. Add new dates and review it before submission.');
+    } catch (cause) {
+      setFeedback(cause instanceof Error ? cause.message : 'Campaign could not be duplicated.');
+    }
+  };
+
+  const review = async (campaign: AdCampaign, decision: 'approved' | 'rejected') => {
+    const reason = decision === 'rejected'
+      ? window.prompt('What should the advertiser change?')
+      : undefined;
+    if (decision === 'rejected' && reason === null) return;
+    try {
+      await reviewCampaign(campaign.id, decision, reason ?? undefined);
+      await loadCampaigns();
+      setFeedback(decision === 'approved'
+        ? 'Campaign approved. It will publish automatically on its start date.'
+        : 'Campaign returned to the advertiser with your feedback.');
+    } catch (cause) {
+      setFeedback(cause instanceof Error ? cause.message : 'Campaign review could not be saved.');
     }
   };
 
@@ -537,6 +576,22 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
                       {campaign.rejectionReason && <p className="mt-3 border-l-4 border-red-500 bg-red-50 p-3 text-xs text-red-800">{campaign.rejectionReason}</p>}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
+                      {isPlatformAdmin && campaign.status === 'submitted' && (
+                        <>
+                          <button onClick={() => void review(campaign, 'approved')} className="inline-flex items-center gap-1.5 border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Approve
+                          </button>
+                          <button onClick={() => void review(campaign, 'rejected')} className="inline-flex items-center gap-1.5 border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50">
+                            <XCircle className="h-3.5 w-3.5" /> Request changes
+                          </button>
+                        </>
+                      )}
+                      <button onClick={() => setPreviewingId(previewingId === campaign.id ? null : campaign.id)} className="inline-flex items-center gap-1.5 border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-white">
+                        <Eye className="h-3.5 w-3.5" /> Creatives ({creatives[campaign.id]?.length ?? 0})
+                      </button>
+                      <button onClick={() => void duplicate(campaign)} className="inline-flex items-center gap-1.5 border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-white">
+                        <Copy className="h-3.5 w-3.5" /> Duplicate
+                      </button>
                       {editable && (
                         <button onClick={() => openEdit(campaign)} className="inline-flex items-center gap-1.5 border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-white">
                           <Edit3 className="h-3.5 w-3.5" /> Edit
@@ -549,6 +604,43 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
                       )}
                     </div>
                   </div>
+                  {previewingId === campaign.id && (
+                    <div className="mt-5 border-t border-slate-200 pt-5">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider text-slate-700">Creative preview</p>
+                          <p className="mt-1 text-xs text-slate-500">Responsive previews of the adverts assigned to this campaign.</p>
+                        </div>
+                      </div>
+                      {(creatives[campaign.id]?.length ?? 0) === 0 ? (
+                        <div className="flex items-center gap-3 border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
+                          <ImageIcon className="h-5 w-5 text-slate-400" />
+                          No creatives are assigned yet. Manohub administrators can add multiple adverts in the Advert Publisher.
+                        </div>
+                      ) : (
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                          {creatives[campaign.id].map((creative) => (
+                            <article key={creative.id} className="overflow-hidden border border-slate-200 bg-white">
+                              <div className="aspect-[16/9] bg-slate-100">
+                                {creative.creativeUrl || creative.mediaUrl ? (
+                                  <img src={creative.creativeUrl || creative.mediaUrl || ''} alt={`${creative.title} creative`} className="h-full w-full object-cover" />
+                                ) : (
+                                  <div className="flex h-full items-center justify-center px-5 text-center text-sm font-bold text-slate-500">{creative.title}</div>
+                                )}
+                              </div>
+                              <div className="p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="text-sm font-bold text-slate-900">{creative.title}</p>
+                                  <span className="border border-slate-200 px-2 py-0.5 font-mono text-[9px] uppercase text-slate-500">{creative.format}</span>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500">{creative.socialPlatform || 'Manohub'} · {creative.status}</p>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </article>
               );
             })}
