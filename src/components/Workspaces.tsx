@@ -7,6 +7,7 @@ import { CampaignBuilderPage } from './CampaignBuilderPage';
 import { AdvertBillingPage } from './AdvertBillingPage';
 import { AgencyWorkspacePage } from './AgencyWorkspacePage';
 import { LandingCmsPage } from './LandingCmsPage';
+import { AudienceSubscribersPage } from './AudienceSubscribersPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
@@ -3621,6 +3622,9 @@ export function Workspaces({
   }
   if (activeTab === 'landing-cms') {
     return <LandingCmsPage />;
+  }
+  if (activeTab === 'audience-subscribers') {
+    return <AudienceSubscribersPage />;
   }
 
   if (activeTab === 'campaign-performance') {
