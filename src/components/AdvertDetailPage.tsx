@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, ExternalLink, Megaphone, Store, Share2, Check, Copy } from 'lucide-react';
-import { fetchAdvertBySlug, trackAdvertView, trackAdvertClick, buildAdvertSharePack, buildAdvertShareIntents, advertPublicUrl, Advert } from '../lib/procurementApi';
+import { ArrowLeft, Loader2, ExternalLink, Megaphone, Store, Share2, Check, Copy, Download } from 'lucide-react';
+import { fetchAdvertBySlug, buildAdvertSharePack, buildAdvertShareIntents, advertPublicUrl, Advert } from '../lib/procurementApi';
+import { AdvertAction, trackAdvertEvent } from '../lib/advertAnalytics';
 import { AdvertCreative, CreativeScaler } from './AdvertCreative';
 
 function platformLabel(p: string | null): string {
   if (!p) return 'social media';
   return p;
+}
+
+function ctaAction(url: string): AdvertAction {
+  const normalized = url.toLowerCase();
+  if (normalized.startsWith('tel:')) return 'phone';
+  if (normalized.includes('wa.me/') || normalized.includes('whatsapp.com/')) return 'whatsapp';
+  if (/facebook|instagram|tiktok|linkedin|youtube|twitter|x\.com/.test(normalized)) return 'social';
+  return 'website';
 }
 
 export function AdvertDetailPage() {
@@ -16,9 +25,15 @@ export function AdvertDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const copyCaption = async (key: string, text: string) => {
+  const copyCaption = async (adv: Advert, key: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
+      void trackAdvertEvent({
+        advertId: adv.id,
+        eventType: 'share',
+        action: 'copy_link',
+        channel: key,
+      });
       setCopiedKey(key);
       setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1600);
     } catch { /* clipboard unavailable */ }
@@ -27,7 +42,6 @@ export function AdvertDetailPage() {
   // Native share sheet (mobile) — attaches the creative image when supported,
   // so a tap opens WhatsApp/Facebook/etc. with the ad card + link ready to send.
   const nativeShare = async (adv: Advert) => {
-    void trackAdvertClick(adv.id);
     const url = advertPublicUrl(adv);
     const text = `${adv.title} — ${adv.businessName}`;
     const nav = navigator as any;
@@ -39,12 +53,18 @@ export function AdvertDetailPage() {
           const file = new File([blob], `${adv.slug}.png`, { type: blob.type || 'image/png' });
           if (nav.canShare({ files: [file] })) {
             await nav.share({ files: [file], title: text, text, url });
+            void trackAdvertEvent({ advertId: adv.id, eventType: 'share', action: 'native_share', channel: 'native' });
             return;
           }
         } catch { /* fall through to text-only share */ }
       }
-      if (nav.share) { await nav.share({ title: text, text, url }); return; }
+      if (nav.share) {
+        await nav.share({ title: text, text, url });
+        void trackAdvertEvent({ advertId: adv.id, eventType: 'share', action: 'native_share', channel: 'native' });
+        return;
+      }
       await navigator.clipboard.writeText(`${text}\n${url}`);
+      void trackAdvertEvent({ advertId: adv.id, eventType: 'share', action: 'copy_link', channel: 'clipboard' });
       setCopiedKey('native');
       setTimeout(() => setCopiedKey((k) => (k === 'native' ? null : k)), 1600);
     } catch { /* user cancelled */ }
@@ -59,7 +79,12 @@ export function AdvertDetailPage() {
         if (!a || a.status !== 'live') setNotFound(true);
         else {
           setAdvert(a);
-          void trackAdvertView(a.slug);
+          void trackAdvertEvent({
+            advertId: a.id,
+            eventType: 'detail_view',
+            channel: 'manohub_detail',
+            metadata: { category: a.category },
+          });
         }
       })
       .catch(() => setNotFound(true))
@@ -145,7 +170,12 @@ export function AdvertDetailPage() {
                     href={advert.socialUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => void trackAdvertClick(advert.id)}
+                    onClick={() => void trackAdvertEvent({
+                      advertId: advert.id,
+                      eventType: 'cta_click',
+                      action: ctaAction(advert.socialUrl!),
+                      channel: advert.socialPlatform || 'external',
+                    })}
                     className="bg-emerald-600 text-white font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:bg-emerald-700 transition-colors inline-flex items-center gap-2"
                   >
                     View on {platformLabel(advert.socialPlatform)} <ExternalLink className="h-3.5 w-3.5" />
@@ -156,6 +186,21 @@ export function AdvertDetailPage() {
                 <Link to="/#advertise" className="border border-[#0F172A] text-[#0F172A] font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:bg-[#0F172A] hover:text-white transition-colors inline-flex items-center gap-2">
                   <Megaphone className="h-3.5 w-3.5" /> Advertise your business
                 </Link>
+                {advert.creativeUrl && (
+                  <a
+                    href={advert.creativeUrl}
+                    download={`${advert.slug}.png`}
+                    onClick={() => void trackAdvertEvent({
+                      advertId: advert.id,
+                      eventType: 'download',
+                      action: 'download',
+                      channel: 'creative',
+                    })}
+                    className="border border-slate-300 text-slate-700 font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:border-[#0F172A] hover:text-[#0F172A] transition-colors inline-flex items-center gap-2"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download creative
+                  </a>
+                )}
               </div>
 
               {/* Share this advert — ready-to-paste captions linking back here */}
@@ -180,7 +225,12 @@ export function AdvertDetailPage() {
                       href={it.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={() => void trackAdvertClick(advert.id)}
+                      onClick={() => void trackAdvertEvent({
+                        advertId: advert.id,
+                        eventType: 'share',
+                        action: 'native_share',
+                        channel: it.key,
+                      })}
                       className="border border-slate-200 text-slate-700 font-mono text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 hover:border-[#0F172A] hover:text-[#0F172A] transition-colors cursor-pointer"
                     >
                       {it.label}
@@ -195,7 +245,7 @@ export function AdvertDetailPage() {
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{cap.label}</span>
                         <button
-                          onClick={() => copyCaption(cap.key, cap.text)}
+                          onClick={() => copyCaption(advert, cap.key, cap.text)}
                           className="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer inline-flex items-center gap-1"
                         >
                           {copiedKey === cap.key ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}

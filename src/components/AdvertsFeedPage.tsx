@@ -1,8 +1,76 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Megaphone, Store } from 'lucide-react';
 import { fetchLiveAdverts, Advert } from '../lib/procurementApi';
+import { trackAdvertEvent } from '../lib/advertAnalytics';
 import { AdvertCreative, CreativeScaler } from './AdvertCreative';
+
+function AdvertFeedCard({ advert }: { advert: Advert }) {
+  const cardRef = useRef<HTMLAnchorElement>(null);
+
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card || typeof IntersectionObserver === 'undefined') return;
+
+    let viewTimer: number | undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        window.clearTimeout(viewTimer);
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          viewTimer = window.setTimeout(() => {
+            void trackAdvertEvent({
+              advertId: advert.id,
+              eventType: 'impression',
+              action: 'advert_card',
+              channel: 'manohub_feed',
+              metadata: { category: advert.category },
+            });
+            observer.disconnect();
+          }, 1_000);
+        }
+      },
+      { threshold: [0.5] }
+    );
+
+    observer.observe(card);
+    return () => {
+      window.clearTimeout(viewTimer);
+      observer.disconnect();
+    };
+  }, [advert.id, advert.category]);
+
+  return (
+    <Link
+      ref={cardRef}
+      to={`/adverts/${advert.slug}`}
+      className="group block bg-white border border-[#0F172A] hover:-translate-y-0.5 transition-transform"
+    >
+      <div className="bg-slate-50 border-b border-[#0F172A] p-3">
+        <CreativeScaler format="square">
+          <AdvertCreative
+            format="square"
+            theme={advert.theme}
+            withPhoto={advert.withPhoto}
+            businessName={advert.businessName}
+            headline={advert.title}
+            body={advert.summary || advert.content}
+            category={advert.category}
+            mediaUrl={advert.mediaUrl}
+            platform={advert.socialPlatform}
+            ctaUrl={advert.socialUrl}
+            accentColor={advert.accentColor}
+            logoUrl={advert.logoUrl}
+          />
+        </CreativeScaler>
+      </div>
+      <div className="p-4">
+        <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[10px] font-bold uppercase tracking-wider px-2 py-0.5">{advert.category}</span>
+        <h3 className="font-display font-bold text-slate-900 text-base mt-2 leading-snug group-hover:text-emerald-700 transition-colors">{advert.title}</h3>
+        <p className="text-xs text-slate-500 mt-1">{advert.businessName}</p>
+      </div>
+    </Link>
+  );
+}
 
 // Public advert marketplace — the discovery surface social click-throughs land
 // on. Every live advert, browsable by category, each linking to its own page.
@@ -79,31 +147,7 @@ export function AdvertsFeedPage() {
         {!loading && shown.length > 0 && (
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {shown.map((adv) => (
-              <Link key={adv.id} to={`/adverts/${adv.slug}`} className="group block bg-white border border-[#0F172A] hover:-translate-y-0.5 transition-transform">
-                <div className="bg-slate-50 border-b border-[#0F172A] p-3">
-                  <CreativeScaler format="square">
-                    <AdvertCreative
-                      format="square"
-                      theme={adv.theme}
-                      withPhoto={adv.withPhoto}
-                      businessName={adv.businessName}
-                      headline={adv.title}
-                      body={adv.summary || adv.content}
-                      category={adv.category}
-                      mediaUrl={adv.mediaUrl}
-                      platform={adv.socialPlatform}
-                      ctaUrl={adv.socialUrl}
-                      accentColor={adv.accentColor}
-                      logoUrl={adv.logoUrl}
-                    />
-                  </CreativeScaler>
-                </div>
-                <div className="p-4">
-                  <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[10px] font-bold uppercase tracking-wider px-2 py-0.5">{adv.category}</span>
-                  <h3 className="font-display font-bold text-slate-900 text-base mt-2 leading-snug group-hover:text-emerald-700 transition-colors">{adv.title}</h3>
-                  <p className="text-xs text-slate-500 mt-1">{adv.businessName}</p>
-                </div>
-              </Link>
+              <AdvertFeedCard key={adv.id} advert={adv} />
             ))}
           </div>
         )}
