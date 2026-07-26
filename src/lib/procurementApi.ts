@@ -2656,6 +2656,12 @@ export interface AudienceEmailCampaign {
   queuedCount: number;
   sentCount: number;
   failedCount: number;
+  deliveredCount: number;
+  openedCount: number;
+  clickedCount: number;
+  bouncedCount: number;
+  complainedCount: number;
+  suppressedCount: number;
   createdAt: string;
 }
 
@@ -2675,6 +2681,12 @@ const mapAudienceEmailCampaign = (row: any): AudienceEmailCampaign => ({
   queuedCount: row.queued_count ?? 0,
   sentCount: row.sent_count ?? 0,
   failedCount: row.failed_count ?? 0,
+  deliveredCount: row.delivered_count ?? 0,
+  openedCount: row.opened_count ?? 0,
+  clickedCount: row.clicked_count ?? 0,
+  bouncedCount: row.bounced_count ?? 0,
+  complainedCount: row.complained_count ?? 0,
+  suppressedCount: row.suppressed_count ?? 0,
   createdAt: row.created_at,
 });
 
