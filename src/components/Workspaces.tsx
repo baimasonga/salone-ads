@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { AdvertCreative, CreativeScaler, AdvertFormat, AdvertTheme } from './AdvertCreative';
 import { CampaignBuilderPage } from './CampaignBuilderPage';
 import { AdvertBillingPage } from './AdvertBillingPage';
+import { AgencyWorkspacePage } from './AgencyWorkspacePage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
@@ -3613,6 +3614,9 @@ export function Workspaces({
   }
   if (activeTab === 'advert-packages' || activeTab === 'admin-advert-revenue') {
     return <AdvertBillingPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
+  }
+  if (activeTab === 'agency-workspace') {
+    return <AgencyWorkspacePage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
   }
 
   if (activeTab === 'campaign-performance') {
