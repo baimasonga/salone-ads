@@ -10,7 +10,7 @@ import {
   BarChart2, Calendar, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
   Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, ShieldAlert, Loader2, FileSearch, Bell,
-  ChevronDown, ChevronRight
+  ChevronDown, ChevronRight, Mail
 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
 import { AuthScreens } from './components/AuthScreens';
@@ -297,6 +297,7 @@ function MainApp() {
         { id: 'admin-advert-revenue', label: 'Advert Revenue', icon: CreditCard },
         { id: 'landing-cms', label: 'Landing CMS', icon: Sparkles },
         { id: 'audience-subscribers', label: 'Audience Subscribers', icon: Users },
+        { id: 'audience-messaging', label: 'Audience Messaging', icon: Mail },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
         { id: 'admin', label: 'Super Admin Desk', icon: Shield },
       ]
