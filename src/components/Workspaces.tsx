@@ -8,6 +8,7 @@ import { AdvertBillingPage } from './AdvertBillingPage';
 import { AgencyWorkspacePage } from './AgencyWorkspacePage';
 import { LandingCmsPage } from './LandingCmsPage';
 import { AudienceSubscribersPage } from './AudienceSubscribersPage';
+import { AudienceEmailCampaignsPage } from './AudienceEmailCampaignsPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
@@ -3625,6 +3626,9 @@ export function Workspaces({
   }
   if (activeTab === 'audience-subscribers') {
     return <AudienceSubscribersPage />;
+  }
+  if (activeTab === 'audience-messaging') {
+    return <AudienceEmailCampaignsPage />;
   }
 
   if (activeTab === 'campaign-performance') {
