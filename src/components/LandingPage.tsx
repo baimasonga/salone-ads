@@ -6,7 +6,8 @@ import {
   HeartPulse, GraduationCap, Palmtree, Zap, Truck, Briefcase, HandHeart, Building2, ChevronDown,
   Mail, MessageCircle, Bookmark, Clock, Coins, Store, ShoppingBag, Ticket,
 } from 'lucide-react';
-import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchLiveAdverts, fetchLandingContent, LandingContentBlock, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
+import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchLiveAdverts, fetchLandingContent, fetchLandingAdvertPlacements, LandingAdvertPlacement, LandingContentBlock, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
+import { trackAdvertEvent } from '../lib/advertAnalytics';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -121,6 +122,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [liveAdverts, setLiveAdverts] = useState<Advert[]>([]);
   const [landingContent, setLandingContent] = useState<Record<string, LandingContentBlock>>({});
+  const [spotlight, setSpotlight] = useState<LandingAdvertPlacement | null>(null);
 
   useEffect(() => {
     searchOpportunities({})
@@ -132,6 +134,14 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       .finally(() => setLoadingLatest(false));
     fetchLiveAdverts().then(setLiveAdverts).catch(() => setLiveAdverts([]));
     fetchLandingContent().then(rows=>setLandingContent(Object.fromEntries(rows.map(row=>[row.blockKey,row])))).catch(()=>{});
+    fetchLandingAdvertPlacements().then(rows=>{
+      const eligible=rows.filter(row=>row.placementCode==='homepage_spotlight'&&row.advert.status==='live').filter(row=>{
+        try{return Number(sessionStorage.getItem(`mh-placement-${row.assignmentId}`)||0)<row.sessionFrequencyCap;}catch{return true;}
+      });
+      if(!eligible.length)return;
+      const pool=eligible.flatMap(row=>Array.from({length:row.weight},()=>row));
+      setSpotlight(pool[Math.floor(Math.random()*pool.length)]||eligible[0]);
+    }).catch(()=>{});
     Promise.all([fetchSectors(), fetchDistricts(), fetchCountries()])
       .then(([s, d, c]) => {
         setSectors(s);
@@ -140,6 +150,11 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       })
       .catch(() => {});
   }, []);
+  useEffect(()=>{
+    if(!spotlight)return;
+    try{const key=`mh-placement-${spotlight.assignmentId}`;sessionStorage.setItem(key,String(Number(sessionStorage.getItem(key)||0)+1));}catch{}
+    void trackAdvertEvent({advertId:spotlight.advert.id,eventType:'impression',action:'advert_card',channel:'manohub_homepage',metadata:{placement:'homepage_spotlight'}});
+  },[spotlight]);
 
   const handleHeroSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -368,6 +383,18 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
             {buyers.map((b) => (
               <span key={b} className="font-semibold text-sm text-slate-600 whitespace-nowrap">{b}</span>
             ))}
+          </div>
+        </section>
+      )}
+
+      {spotlight && (
+        <section aria-label="Sponsored spotlight" className="border-b-2 border-[#0F172A] bg-[#F4D35E] px-6 py-10">
+          <div className="mx-auto grid max-w-7xl overflow-hidden border-2 border-[#0F172A] bg-white lg:grid-cols-[1.15fr_.85fr]">
+            <div className="flex flex-col justify-between p-6 sm:p-9">
+              <div><div className="flex items-center gap-2"><span className="bg-[#0F172A] px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-white">Homepage Spotlight</span><span className="font-mono text-[9px] uppercase tracking-widest text-slate-500">Sponsored</span></div><p className="mt-6 font-mono text-xs font-bold uppercase tracking-widest text-orange-700">{spotlight.advert.category}</p><h2 className="mt-2 font-display text-3xl font-extrabold text-slate-950 sm:text-4xl">{spotlight.advert.title}</h2><p className="mt-3 max-w-xl text-slate-600">{spotlight.advert.summary||spotlight.advert.content}</p></div>
+              <Link onClick={()=>void trackAdvertEvent({advertId:spotlight.advert.id,eventType:'cta_click',action:'advert_card',channel:'manohub_homepage',metadata:{placement:'homepage_spotlight'}})} to={`/adverts/${spotlight.advert.slug}`} className="mt-7 inline-flex w-fit items-center gap-2 border border-[#0F172A] bg-[#0F172A] px-5 py-3 font-mono text-xs font-bold uppercase tracking-widest text-white">Discover {spotlight.advert.businessName}<ArrowUpRight className="h-4 w-4"/></Link>
+            </div>
+            <div className="min-h-64 border-t-2 border-[#0F172A] bg-[#172554] lg:border-l-2 lg:border-t-0">{spotlight.advert.mediaUrl||spotlight.advert.creativeUrl?<img src={spotlight.advert.creativeUrl||spotlight.advert.mediaUrl||''} alt={spotlight.advert.title} loading="eager" className="h-full w-full object-cover"/>:<div className="flex h-full min-h-64 items-center justify-center"><Megaphone className="h-16 w-16 text-[#F4D35E]"/></div>}</div>
           </div>
         </section>
       )}
