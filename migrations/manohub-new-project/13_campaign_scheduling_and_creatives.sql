@@ -5,6 +5,7 @@
 begin;
 
 create schema if not exists private;
+create extension if not exists pg_cron;
 
 -- Advertisers may inspect creatives assigned to campaigns owned by their
 -- organisation. Creative authoring and reassignment remain admin-only.
@@ -75,23 +76,21 @@ $function$;
 revoke all on function private.run_ad_campaign_schedule() from public, anon, authenticated;
 grant execute on function private.run_ad_campaign_schedule() to service_role;
 
--- Supabase Cron uses pg_cron. Installation is deliberately conditional so the
--- migration remains portable to local/test databases without the extension.
+-- Supabase Cron uses pg_cron. Register one idempotent five-minute lifecycle
+-- sweep so approved campaigns start and finish without an application request.
 do $block$
 declare
   existing_job bigint;
 begin
-  if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    select jobid into existing_job from cron.job where jobname = 'manohub-ad-campaign-schedule' limit 1;
-    if existing_job is not null then
-      perform cron.unschedule(existing_job);
-    end if;
-    perform cron.schedule(
-      'manohub-ad-campaign-schedule',
-      '*/5 * * * *',
-      'select * from private.run_ad_campaign_schedule();'
-    );
+  select jobid into existing_job from cron.job where jobname = 'manohub-ad-campaign-schedule' limit 1;
+  if existing_job is not null then
+    perform cron.unschedule(existing_job);
   end if;
+  perform cron.schedule(
+    'manohub-ad-campaign-schedule',
+    '*/5 * * * *',
+    'select * from private.run_ad_campaign_schedule();'
+  );
 end;
 $block$;
 
