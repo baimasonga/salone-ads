@@ -175,6 +175,9 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const popularSectors = sectors.slice(0, 4);
   const heroContent = landingContent.hero;
   const advertContent = landingContent.advert_marketplace;
+  const editorialBlocks = Object.values(landingContent)
+    .filter(block => block.section === 'editorial')
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 
   const navLinks = [
     { href: '#explorer', label: 'Live Tenders' },
@@ -395,6 +398,43 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               <Link onClick={()=>void trackAdvertEvent({advertId:spotlight.advert.id,eventType:'cta_click',action:'advert_card',channel:'manohub_homepage',metadata:{placement:'homepage_spotlight'}})} to={`/adverts/${spotlight.advert.slug}`} className="mt-7 inline-flex w-fit items-center gap-2 border border-[#0F172A] bg-[#0F172A] px-5 py-3 font-mono text-xs font-bold uppercase tracking-widest text-white">Discover {spotlight.advert.businessName}<ArrowUpRight className="h-4 w-4"/></Link>
             </div>
             <div className="min-h-64 border-t-2 border-[#0F172A] bg-[#172554] lg:border-l-2 lg:border-t-0">{spotlight.advert.mediaUrl||spotlight.advert.creativeUrl?<img src={spotlight.advert.creativeUrl||spotlight.advert.mediaUrl||''} alt={spotlight.advert.title} loading="eager" className="h-full w-full object-cover"/>:<div className="flex h-full min-h-64 items-center justify-center"><Megaphone className="h-16 w-16 text-[#F4D35E]"/></div>}</div>
+          </div>
+        </section>
+      )}
+
+      {editorialBlocks.length > 0 && (
+        <section aria-label="Featured stories" className="border-b-2 border-[#0F172A] bg-white px-6 py-14">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="font-mono text-[10px] font-bold uppercase tracking-[.2em] text-orange-600">Discover on Manohub</p>
+                <h2 className="mt-2 font-display text-2xl font-extrabold text-slate-950 sm:text-3xl">Stories, offers and market updates</h2>
+              </div>
+              <span className="border border-[#0F172A] px-3 py-1.5 font-mono text-[9px] font-bold uppercase tracking-widest">{editorialBlocks.length} featured</span>
+            </div>
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {editorialBlocks.map((block, index) => (
+                <article
+                  key={block.id}
+                  className="flex min-h-72 flex-col justify-between border-2 border-[#0F172A] p-6"
+                  style={{ backgroundColor: block.surfaceColor }}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-[10px] font-bold uppercase tracking-[.18em]" style={{ color: block.accentColor }}>{block.eyebrow || 'Featured'}</span>
+                      <span className="font-display text-4xl font-black text-slate-950/10">{String(index + 1).padStart(2, '0')}</span>
+                    </div>
+                    <h3 className="mt-5 font-display text-2xl font-extrabold leading-tight text-slate-950">{block.title}</h3>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-700">{block.body}</p>
+                  </div>
+                  {block.ctaLabel && block.ctaHref && (
+                    <a href={block.ctaHref} className="mt-7 inline-flex w-fit items-center gap-2 border border-[#0F172A] bg-[#0F172A] px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-widest text-white">
+                      {block.ctaLabel}<ArrowUpRight className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </article>
+              ))}
+            </div>
           </div>
         </section>
       )}
