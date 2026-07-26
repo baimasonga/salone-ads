@@ -5,14 +5,17 @@ import {
   Search, KeyRound, Send, MapPin, Menu, X, Wheat, HardHat, Mountain, Wifi, Landmark,
   HeartPulse, GraduationCap, Palmtree, Zap, Truck, Briefcase, HandHeart, Building2, ChevronDown,
   Mail, MessageCircle, Bookmark, Clock, Coins, Store, ShoppingBag, Ticket,
+  Eye,
 } from 'lucide-react';
-import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchLiveAdverts, fetchLandingContent, fetchLandingAdvertPlacements, LandingAdvertPlacement, LandingContentBlock, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
+import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchLiveAdverts, fetchLandingContent, fetchLandingContentPreview, fetchLandingAdvertPlacements, LandingAdvertPlacement, LandingContentBlock, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
 import { trackAdvertEvent } from '../lib/advertAnalytics';
 import { PublicSubscriptionSection } from './PublicSubscriptionSection';
+import { supabase } from '../lib/supabaseClient';
 
 interface LandingPageProps {
   onGetStarted: () => void;
   onSignIn: () => void;
+  previewBlockId?: string;
 }
 
 function formatDeadline(iso: string): string {
@@ -109,7 +112,7 @@ const EXAMPLE_TENDER = {
   deadlineCls: 'text-amber-600',
 };
 
-export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
+export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingPageProps) {
   const navigate = useNavigate();
   const [latest, setLatest] = useState<OpportunityListItem[]>([]);
   const [totalOpen, setTotalOpen] = useState(0);
@@ -124,6 +127,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const [liveAdverts, setLiveAdverts] = useState<Advert[]>([]);
   const [landingContent, setLandingContent] = useState<Record<string, LandingContentBlock>>({});
   const [spotlight, setSpotlight] = useState<LandingAdvertPlacement | null>(null);
+  const [previewError, setPreviewError] = useState('');
 
   useEffect(() => {
     searchOpportunities({})
@@ -134,7 +138,25 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       .catch(() => setLatest([]))
       .finally(() => setLoadingLatest(false));
     fetchLiveAdverts().then(setLiveAdverts).catch(() => setLiveAdverts([]));
-    fetchLandingContent().then(rows=>setLandingContent(Object.fromEntries(rows.map(row=>[row.blockKey,row])))).catch(()=>{});
+    void (async () => {
+      try {
+        const rows = await fetchLandingContent();
+        if (!previewBlockId) {
+          setLandingContent(Object.fromEntries(rows.map(row => [row.blockKey, row])));
+          return;
+        }
+        await supabase.auth.getSession();
+        const preview = await fetchLandingContentPreview(previewBlockId);
+        if (!preview) {
+          setPreviewError('This draft preview is unavailable. Sign in as a platform administrator and try again.');
+          setLandingContent(Object.fromEntries(rows.map(row => [row.blockKey, row])));
+          return;
+        }
+        setLandingContent(Object.fromEntries([...rows.filter(row => row.id !== preview.id), preview].map(row => [row.blockKey, row])));
+      } catch {
+        setPreviewError('The draft preview could not be loaded.');
+      }
+    })();
     fetchLandingAdvertPlacements().then(rows=>{
       const eligible=rows.filter(row=>row.placementCode==='homepage_spotlight'&&row.advert.status==='live').filter(row=>{
         try{return Number(sessionStorage.getItem(`mh-placement-${row.assignmentId}`)||0)<row.sessionFrequencyCap;}catch{return true;}
@@ -150,7 +172,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
         setCountryCount(c.length);
       })
       .catch(() => {});
-  }, []);
+  }, [previewBlockId]);
   useEffect(()=>{
     if(!spotlight)return;
     try{const key=`mh-placement-${spotlight.assignmentId}`;sessionStorage.setItem(key,String(Number(sessionStorage.getItem(key)||0)+1));}catch{}
@@ -196,6 +218,9 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
 
   return (
     <div className="bg-[#F8FAFC] font-sans text-[#0F172A] min-h-screen">
+      {previewBlockId && <div role="status" className={`sticky top-0 z-[60] flex flex-wrap items-center justify-center gap-3 border-b-2 border-[#0F172A] px-4 py-2 text-center font-mono text-[10px] font-bold uppercase tracking-widest ${previewError ? 'bg-red-100 text-red-800' : 'bg-[#F4D35E] text-[#0F172A]'}`}>
+        <Eye className="h-3.5 w-3.5" />{previewError || 'Secure CMS preview · Draft changes are visible only to platform administrators'}
+      </div>}
       {/* Navigation Header */}
       <header className="sticky top-0 bg-[#F8FAFC]/95 backdrop-blur-sm border-b-2 border-[#0F172A] z-50 px-4 sm:px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center gap-3">
@@ -262,6 +287,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
 
       {/* ============================ HERO ============================ */}
       <section className="relative bg-[#0F172A] text-white overflow-hidden border-b-2 border-[#0F172A]" style={{ background: `linear-gradient(125deg, ${heroContent?.surfaceColor || '#0F172A'} 0%, #0F172A 62%, #172554 100%)` }}>
+        {heroContent?.mediaUrl && <img src={heroContent.mediaUrl} alt="" className="pointer-events-none absolute inset-y-0 right-0 h-full w-1/2 object-cover opacity-15" />}
         <div
           className="absolute inset-0 opacity-[0.06] pointer-events-none"
           style={{ backgroundImage: 'linear-gradient(#10B981 1px, transparent 1px), linear-gradient(90deg, #10B981 1px, transparent 1px)', backgroundSize: '56px 56px' }}
@@ -417,9 +443,11 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
               {editorialBlocks.map((block, index) => (
                 <article
                   key={block.id}
-                  className="flex min-h-72 flex-col justify-between border-2 border-[#0F172A] p-6"
+                  className="flex min-h-72 flex-col justify-between overflow-hidden border-2 border-[#0F172A]"
                   style={{ backgroundColor: block.surfaceColor }}
                 >
+                  {block.mediaUrl && <img src={block.mediaUrl} alt={block.mediaAlt || ''} loading="lazy" className="h-44 w-full border-b-2 border-[#0F172A] object-cover" />}
+                  <div className="flex flex-1 flex-col justify-between p-6">
                   <div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-mono text-[10px] font-bold uppercase tracking-[.18em]" style={{ color: block.accentColor }}>{block.eyebrow || 'Featured'}</span>
@@ -433,6 +461,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
                       {block.ctaLabel}<ArrowUpRight className="h-3.5 w-3.5" />
                     </a>
                   )}
+                  </div>
                 </article>
               ))}
             </div>
