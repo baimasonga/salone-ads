@@ -3607,7 +3607,8 @@ export function Workspaces({
     return (
       <CampaignPerformancePage
         activeOrg={activeOrg}
-        onCreateAdvert={() => setActiveTab('advertising')}
+        isPlatformAdmin={isPlatformAdmin}
+        onCreateAdvert={() => setActiveTab(isPlatformAdmin ? 'admin-advertising' : 'advertising')}
       />
     );
   }

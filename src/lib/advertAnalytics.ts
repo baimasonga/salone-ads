@@ -95,6 +95,7 @@ export interface AdvertPerformanceReport extends AdvertPerformance {
 }
 
 export interface AdvertCampaignPerformance extends AdvertPerformanceReport {
+  organizationId: string;
   title: string;
   category: string;
   businessName: string;
@@ -417,17 +418,20 @@ export async function updateAdvertOutcomeStatus(
 
 export async function fetchOrganizationAdvertPerformance(
   organizationId: string,
-  periodDays = 30
+  periodDays = 30,
+  includeAllOrganizations = false
 ): Promise<AdvertCampaignPerformance[]> {
-  const { data: adverts, error } = await supabase
+  let query = supabase
     .from('adverts')
     .select(
-      'id, title, category, business_name, summary, creative_url, og_image_url, accent_color, status, starts_at, ends_at, published_at'
+      'id, org_id, title, category, business_name, summary, creative_url, og_image_url, accent_color, status, starts_at, ends_at, published_at'
     )
-    .eq('org_id', organizationId)
     .order('published_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
 
+  if (!includeAllOrganizations) query = query.eq('org_id', organizationId);
+
+  const { data: adverts, error } = await query;
   if (error) throw error;
 
   return Promise.all(
@@ -435,6 +439,7 @@ export async function fetchOrganizationAdvertPerformance(
       const performance = await fetchAdvertPerformanceReport(advert.id, periodDays);
       return {
         ...performance,
+        organizationId: advert.org_id,
         title: advert.title,
         category: advert.category,
         businessName: advert.business_name,

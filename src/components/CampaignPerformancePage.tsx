@@ -36,6 +36,7 @@ import { Organization } from '../types';
 
 interface CampaignPerformancePageProps {
   activeOrg: Organization;
+  isPlatformAdmin: boolean;
   onCreateAdvert: () => void;
 }
 
@@ -171,7 +172,11 @@ function campaignScore(campaign: AdvertCampaignPerformance) {
   return Math.round(detailRate * 35 + actionRate * 50 + engagement * 15);
 }
 
-export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignPerformancePageProps) {
+export function CampaignPerformancePage({
+  activeOrg,
+  isPlatformAdmin,
+  onCreateAdvert,
+}: CampaignPerformancePageProps) {
   const [periodDays, setPeriodDays] = useState(30);
   const [campaigns, setCampaigns] = useState<AdvertCampaignPerformance[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -199,7 +204,7 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
     setLoading(true);
     setError(null);
 
-    fetchOrganizationAdvertPerformance(activeOrg.id, periodDays)
+    fetchOrganizationAdvertPerformance(activeOrg.id, periodDays, isPlatformAdmin)
       .then((result) => {
         if (cancelled) return;
         setCampaigns(result);
@@ -221,7 +226,7 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
     return () => {
       cancelled = true;
     };
-  }, [activeOrg.id, periodDays, reloadKey]);
+  }, [activeOrg.id, isPlatformAdmin, periodDays, reloadKey]);
 
   const selected = campaigns.find((campaign) => campaign.advertId === selectedId) ?? campaigns[0] ?? null;
   useEffect(() => {
@@ -251,7 +256,7 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
     try {
       await saveAdvertCommercialSettings({
         advertId: selected.advertId,
-        organizationId: activeOrg.id,
+        organizationId: selected.organizationId,
         goalType,
         budgetAmount: parsedBudget,
         currencyCode,
@@ -278,7 +283,7 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
     try {
       await addAdvertSpendEntry({
         advertId: selected.advertId,
-        organizationId: activeOrg.id,
+        organizationId: selected.organizationId,
         amount,
         currencyCode,
         spentOn: spendDate,
@@ -312,7 +317,7 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
     try {
       await addAdvertOutcome({
         advertId: selected.advertId,
-        organizationId: activeOrg.id,
+        organizationId: selected.organizationId,
         outcomeType,
         sourceAction: outcomeSource,
         status: outcomeStatus,
