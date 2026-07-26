@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchLiveAdverts, fetchLandingContent, fetchLandingAdvertPlacements, LandingAdvertPlacement, LandingContentBlock, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
 import { trackAdvertEvent } from '../lib/advertAnalytics';
+import { PublicSubscriptionSection } from './PublicSubscriptionSection';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -776,6 +777,8 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
           </Link>
         </div>
       </section>
+
+      <PublicSubscriptionSection />
 
       {/* ============================ PRICING ============================ */}
       <section id="pricing" className="py-14 bg-slate-50 border-b border-slate-100 px-6">
