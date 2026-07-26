@@ -293,6 +293,7 @@ function MainApp() {
         { id: 'admin-services', label: 'Service Requests', icon: UserCheck },
         { id: 'admin-advertising', label: 'Advertising Requests', icon: Sparkles },
         { id: 'admin-advert-revenue', label: 'Advert Revenue', icon: CreditCard },
+        { id: 'landing-cms', label: 'Landing CMS', icon: Sparkles },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
         { id: 'admin', label: 'Super Admin Desk', icon: Shield },
       ]
