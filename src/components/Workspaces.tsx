@@ -6,6 +6,7 @@ import { AdvertCreative, CreativeScaler, AdvertFormat, AdvertTheme } from './Adv
 import { CampaignBuilderPage } from './CampaignBuilderPage';
 import { AdvertBillingPage } from './AdvertBillingPage';
 import { AgencyWorkspacePage } from './AgencyWorkspacePage';
+import { LandingCmsPage } from './LandingCmsPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
@@ -3617,6 +3618,9 @@ export function Workspaces({
   }
   if (activeTab === 'agency-workspace') {
     return <AgencyWorkspacePage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
+  }
+  if (activeTab === 'landing-cms') {
+    return <LandingCmsPage />;
   }
 
   if (activeTab === 'campaign-performance') {
