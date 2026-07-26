@@ -62,11 +62,9 @@ jobs:
           EOF
 
       - name: Deploy container (builds Docker image, pushes it, deploys the Worker)
-        # --var BUILD_ID:<sha> makes the Worker route to a brand new
-        # container instance on every deploy (see worker/index.ts) instead
-        # of reusing whatever instance was already warm and running the
-        # previous build.
-        run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate --var BUILD_ID:${{ github.sha }} ${{ inputs.dry_run && '--dry-run' || '' }}
+        # Replace the single stable production container immediately so a
+        # warm instance cannot continue serving the previous image.
+        run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate ${{ inputs.dry_run && '--dry-run' || '' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

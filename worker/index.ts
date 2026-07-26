@@ -11,10 +11,9 @@ interface Env {
   APP_URL?: string;
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
-  BUILD_ID?: string;
 }
 
-// A single always-on instance is intentional: server.ts's AI rate limiter
+// A single routed instance is intentional: server.ts's AI rate limiter
 // keeps its counters in in-process memory (express-rate-limit's default
 // store), which only behaves correctly with one instance. Don't switch this
 // to getRandom()/load balancing without moving the rate limiter to a shared
@@ -41,13 +40,10 @@ export class ManohubContainer extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Naming the instance after the deployed commit (BUILD_ID, set by the
-    // GitHub Actions workflow via --var) means every deploy gets a brand
-    // new Durable Object/container instance instead of reusing whatever
-    // instance happened to already be running — otherwise a warm instance
-    // just keeps serving its old in-memory build indefinitely across
-    // redeploys, since nothing tells it to restart on a new image.
-    const container = getContainer(env.MANOHUB_CONTAINER, env.BUILD_ID || 'local');
+    // Keep one stable Durable Object identity so Cloudflare can replace its
+    // image during a rollout instead of accumulating one running instance per
+    // commit. The workflow uses an immediate rollout to restart this instance.
+    const container = getContainer(env.MANOHUB_CONTAINER, 'production');
     return container.fetch(request);
   },
 };

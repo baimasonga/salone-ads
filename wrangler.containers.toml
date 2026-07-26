@@ -19,7 +19,9 @@ compatibility_date = "2026-07-21"
 [[containers]]
 class_name = "ManohubContainer"
 image = "./Dockerfile"
-max_instances = 1
+# Traffic is routed to one stable instance. A second slot is reserved only so
+# Cloudflare can hand over from the legacy commit-named instance during rollout.
+max_instances = 2
 instance_type = "basic"
 
 [[durable_objects.bindings]]
