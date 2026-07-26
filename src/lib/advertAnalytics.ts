@@ -434,23 +434,37 @@ export async function fetchOrganizationAdvertPerformance(
   const { data: adverts, error } = await query;
   if (error) throw error;
 
-  return Promise.all(
-    (adverts ?? []).map(async (advert) => {
-      const performance = await fetchAdvertPerformanceReport(advert.id, periodDays);
-      return {
-        ...performance,
-        organizationId: advert.org_id,
-        title: advert.title,
-        category: advert.category,
-        businessName: advert.business_name,
-        summary: advert.summary ?? null,
-        creativeUrl: advert.creative_url ?? advert.og_image_url ?? null,
-        accentColor: advert.accent_color ?? null,
-        status: advert.status,
-        startsAt: advert.starts_at ?? null,
-        endsAt: advert.ends_at ?? null,
-        publishedAt: advert.published_at ?? null,
-      } as AdvertCampaignPerformance;
+  const rows = adverts ?? [];
+  const reports: AdvertCampaignPerformance[] = new Array(rows.length);
+  const workerCount = Math.min(6, rows.length);
+  let nextIndex = 0;
+
+  // Avoid issuing one simultaneous RPC for every advert in the platform-admin
+  // view. A small worker pool keeps Supabase request volume predictable while
+  // preserving the original result order.
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < rows.length) {
+        const index = nextIndex++;
+        const advert = rows[index];
+        const performance = await fetchAdvertPerformanceReport(advert.id, periodDays);
+        reports[index] = {
+          ...performance,
+          organizationId: advert.org_id,
+          title: advert.title,
+          category: advert.category,
+          businessName: advert.business_name,
+          summary: advert.summary ?? null,
+          creativeUrl: advert.creative_url ?? advert.og_image_url ?? null,
+          accentColor: advert.accent_color ?? null,
+          status: advert.status,
+          startsAt: advert.starts_at ?? null,
+          endsAt: advert.ends_at ?? null,
+          publishedAt: advert.published_at ?? null,
+        } as AdvertCampaignPerformance;
+      }
     })
   );
+
+  return reports;
 }

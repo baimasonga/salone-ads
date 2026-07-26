@@ -357,11 +357,17 @@ export async function createCampaign(
   orgId: string,
   input: Pick<Campaign, 'name' | 'description' | 'objective' | 'totalBudget' | 'startDate' | 'endDate' | 'channels' | 'district' | 'diasporaMarket'>
 ): Promise<Campaign> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Sign in to create a campaign.');
+
   const row = unwrap(
     await supabase
       .from('ad_campaigns')
       .insert({
         org_id: orgId,
+        created_by: user.id,
         name: input.name,
         description: input.description,
         objective: normalizeCampaignObjective(input.objective),
@@ -409,7 +415,7 @@ export async function deleteCampaign(id: string): Promise<void> {
 // low-click-activity flags) on demand, admin-gated inside the RPC itself.
 // Returns how many new notifications were created.
 export async function runCampaignHealthCheck(): Promise<number> {
-  const { data, error } = await supabase.rpc('run_campaign_health_check');
+  const { data, error } = await supabase.rpc('run_campaign_health_sweep');
   if (error) throw error;
   return data as number;
 }
