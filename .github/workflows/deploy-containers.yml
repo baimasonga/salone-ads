@@ -78,3 +78,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 # Deployment trigger: publish advertising measurement-quality controls.
+# Deployment trigger: publish commercial conversion and ROI measurement.
