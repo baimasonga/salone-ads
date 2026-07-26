@@ -255,6 +255,10 @@ function MainApp() {
         ...(!isPlatformAdmin ? [{ id: 'advertising', label: 'My Adverts', icon: Sparkles }] : []),
       ]
     }] : []),
+    ...((isPlatformAdmin || activeOrg.type.toLowerCase().includes('agency')) ? [{
+      group: "Agency",
+      items: [{ id: 'agency-workspace', label: 'Agency Workspace', icon: Users }]
+    }] : []),
     ...(isPlatformAdmin ? [{
       group: "Discovery",
       adminOnly: true,
