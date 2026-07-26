@@ -111,6 +111,26 @@ create policy agency_bulk_create on public.agency_bulk_uploads for insert to aut
   uploaded_by=(select auth.uid()) and exists(select 1 from public.agency_clients ac where ac.id=agency_client_id and ac.status='active' and (select public.is_org_member(ac.agency_org_id)))
 );
 
+create policy ad_campaigns_agency_read on public.ad_campaigns for select to authenticated using (
+  exists(select 1 from public.agency_clients ac where ac.client_org_id=ad_campaigns.org_id and ac.status='active'
+    and (select public.is_org_member(ac.agency_org_id))
+    and ac.permissions && array['campaigns_read','campaigns_write','reports_read']::text[])
+);
+create policy ad_campaigns_agency_write on public.ad_campaigns for update to authenticated
+  using (status in ('draft','rejected') and exists(select 1 from public.agency_clients ac where ac.client_org_id=ad_campaigns.org_id and ac.status='active'
+    and (select public.is_org_member(ac.agency_org_id)) and 'campaigns_write'=any(ac.permissions)))
+  with check (status in ('draft','submitted') and exists(select 1 from public.agency_clients ac where ac.client_org_id=ad_campaigns.org_id and ac.status='active'
+    and (select public.is_org_member(ac.agency_org_id)) and 'campaigns_write'=any(ac.permissions)));
+create policy advert_orders_agency_billing_read on public.advert_orders for select to authenticated using (
+  exists(select 1 from public.agency_clients ac where ac.client_org_id=advert_orders.org_id and ac.status='active'
+    and (select public.is_org_member(ac.agency_org_id)) and 'billing_read'=any(ac.permissions))
+);
+create policy adverts_agency_reports_read on public.adverts for select to authenticated using (
+  exists(select 1 from public.agency_clients ac join public.ad_campaigns c on c.org_id=ac.client_org_id
+    where c.id=adverts.campaign_id and ac.status='active' and ac.report_access_enabled
+      and (select public.is_org_member(ac.agency_org_id)) and 'reports_read'=any(ac.permissions))
+);
+
 grant select,insert,update on public.agency_profiles,public.agency_clients,public.agency_approval_requests,public.agency_bulk_uploads to authenticated;
 grant all on public.agency_profiles,public.agency_clients,public.agency_approval_requests,public.agency_bulk_uploads to service_role;
 commit;
