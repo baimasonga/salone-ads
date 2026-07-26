@@ -16,6 +16,7 @@ import {
 import type { Organization } from '../types';
 import {
   AdCampaign,
+  AdCampaignChannel,
   AdCampaignDevice,
   AdCampaignObjective,
   createCampaign,
@@ -61,6 +62,16 @@ const DEVICES: Array<{ value: AdCampaignDevice; label: string }> = [
   { value: 'desktop', label: 'Desktop' },
   { value: 'tablet', label: 'Tablet' },
 ];
+const CHANNELS: Array<{ value: AdCampaignChannel; label: string; description: string }> = [
+  { value: 'manohub', label: 'Manohub', description: 'Paid adverts delivered inside Manohub.' },
+  { value: 'facebook', label: 'Facebook', description: 'Facebook posts and promotion tracking.' },
+  { value: 'instagram', label: 'Instagram', description: 'Instagram content and promotion tracking.' },
+  { value: 'whatsapp', label: 'WhatsApp', description: 'WhatsApp promotion and enquiry activity.' },
+  { value: 'tiktok', label: 'TikTok', description: 'TikTok content and promotion tracking.' },
+  { value: 'youtube', label: 'YouTube', description: 'YouTube video activity.' },
+  { value: 'linkedin', label: 'LinkedIn', description: 'LinkedIn content activity.' },
+  { value: 'x', label: 'X', description: 'Posts and promotion activity on X.' },
+];
 
 const STATUS_STYLES: Record<string, string> = {
   draft: 'border-slate-300 bg-slate-50 text-slate-700',
@@ -85,6 +96,7 @@ interface CampaignForm {
   locationTargets: string[];
   categoryTargets: string[];
   deviceTargets: AdCampaignDevice[];
+  channels: AdCampaignChannel[];
 }
 
 const EMPTY_FORM: CampaignForm = {
@@ -100,6 +112,7 @@ const EMPTY_FORM: CampaignForm = {
   locationTargets: [],
   categoryTargets: [],
   deviceTargets: ['mobile'],
+  channels: ['manohub'],
 };
 
 const money = (value: number | null, currency: string) =>
@@ -128,6 +141,7 @@ function campaignToForm(campaign: AdCampaign): CampaignForm {
     locationTargets: campaign.locationTargets,
     categoryTargets: campaign.categoryTargets,
     deviceTargets: campaign.deviceTargets,
+    channels: campaign.channels,
   };
 }
 
@@ -183,6 +197,7 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
   const validateStep = (targetStep: number) => {
     if (targetStep >= 1 && !form.name.trim()) return 'Enter a campaign name.';
     if (targetStep >= 1 && !form.description.trim()) return 'Describe what the campaign should achieve.';
+    if (targetStep >= 1 && form.channels.length === 0) return 'Choose at least one delivery channel.';
     if (targetStep >= 2 && form.startDate && form.endDate && form.endDate < form.startDate) {
       return 'The end date must be on or after the start date.';
     }
@@ -231,6 +246,7 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
       locationTargets: form.locationTargets,
       categoryTargets: form.categoryTargets,
       deviceTargets: form.deviceTargets,
+      channels: form.channels,
     };
     try {
       if (editingId) {
@@ -271,9 +287,9 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">Enhancement 2</p>
-            <h2 className="mt-1 font-display text-2xl font-extrabold text-slate-950">Campaign Builder</h2>
+            <h2 className="mt-1 font-display text-2xl font-extrabold text-slate-950">Campaign Management</h2>
             <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Plan an advertising campaign, define its budget and audience, then submit it to Manohub for review.
+              Create one campaign for Manohub, social media, or both—without entering the same plan twice.
             </p>
           </div>
           <button onClick={openNew} className="inline-flex items-center justify-center gap-2 bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">
@@ -345,6 +361,25 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
                       <span className="mt-1 block text-xs text-slate-500">{objective.description}</span>
                     </button>
                   ))}
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">Delivery channels</label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {CHANNELS.map((channel) => (
+                      <button
+                        key={channel.value}
+                        type="button"
+                        onClick={() => setForm({ ...form, channels: toggleValue(form.channels, channel.value) })}
+                        className={`border p-3 text-left ${form.channels.includes(channel.value) ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 hover:border-slate-400'}`}
+                      >
+                        <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                          <Check className={`h-4 w-4 ${form.channels.includes(channel.value) ? 'text-emerald-600' : 'text-slate-300'}`} />
+                          {channel.label}
+                        </span>
+                        <span className="mt-1 block text-xs text-slate-500">{channel.description}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -427,6 +462,7 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
                   <p><strong className="text-slate-900">Dates:</strong> {form.startDate || 'Not set'} → {form.endDate || 'Not set'}</p>
                   <p><strong className="text-slate-900">Budget:</strong> {form.totalBudget ? `${form.currencyCode} ${form.totalBudget}` : 'Not set'}</p>
                   <p><strong className="text-slate-900">Locations:</strong> {form.locationTargets.length}</p>
+                  <p className="sm:col-span-2"><strong className="text-slate-900">Channels:</strong> {form.channels.map((channel) => CHANNELS.find((item) => item.value === channel)?.label ?? channel).join(', ')}</p>
                 </div>
               </div>
             )}
@@ -496,6 +532,7 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
                         <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 text-blue-500" /> {formatDate(campaign.startDate)} → {formatDate(campaign.endDate)}</span>
                         <span className="inline-flex items-center gap-1.5"><CircleDollarSign className="h-3.5 w-3.5 text-amber-500" /> {money(campaign.totalBudget, campaign.currencyCode)}</span>
                         <span>{campaign.locationTargets.length} location{campaign.locationTargets.length === 1 ? '' : 's'}</span>
+                        <span>{campaign.channels.map((channel) => CHANNELS.find((item) => item.value === channel)?.label ?? channel).join(' + ')}</span>
                       </div>
                       {campaign.rejectionReason && <p className="mt-3 border-l-4 border-red-500 bg-red-50 p-3 text-xs text-red-800">{campaign.rejectionReason}</p>}
                     </div>

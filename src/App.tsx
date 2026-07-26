@@ -214,7 +214,7 @@ function MainApp() {
   }
 
   // Define sidebar navigation items grouped logically.
-  // Social media advertising (Campaigns, Content Studio, Calendar, Media
+  // Social media operations (Content Studio, Calendar, Media
   // Library, Audiences, Social Accounts, Analytics, CRM Leads, Brand Kit) is
   // internal Manohub-team tooling, not a customer-facing feature — only
   // shown to platform admins. This is a UI convenience only; the real
@@ -249,7 +249,7 @@ function MainApp() {
     ...((isPlatformAdmin || canAdvertise) ? [{
       group: "Advertising",
       items: [
-        { id: 'campaign-builder', label: 'Campaign Builder', icon: Compass },
+        { id: 'campaign-builder', label: 'Campaign Management', icon: Compass },
         { id: 'campaign-performance', label: 'Campaign Performance', icon: BarChart2 },
         ...(!isPlatformAdmin ? [{ id: 'advertising', label: 'My Adverts', icon: Sparkles }] : []),
       ]
@@ -265,10 +265,9 @@ function MainApp() {
       ]
     }] : []),
     ...(isPlatformAdmin ? [{
-      group: "Social Media Advertising",
+      group: "Social Media Operations",
       adminOnly: true,
       items: [
-        { id: 'campaigns', label: 'Campaigns', icon: Compass },
         { id: 'content', label: 'Content Studio', icon: Sparkles },
         { id: 'calendar', label: 'Calendar', icon: Calendar },
         { id: 'media', label: 'Media Library', icon: FolderOpen },

@@ -64,18 +64,28 @@ function mapBrandKit(row: any): BrandKit {
 }
 
 function mapCampaign(row: any): Campaign {
+  const statusMap: Record<string, Campaign['status']> = {
+    draft: 'Draft',
+    submitted: 'Planning',
+    approved: 'Approved',
+    active: 'Active',
+    paused: 'Scheduled',
+    completed: 'Completed',
+    rejected: 'Failed',
+  };
+  const locations: string[] = row.location_targets ?? [];
   return {
     id: row.id,
     name: row.name,
     description: row.description ?? '',
     objective: row.objective ?? '',
-    status: row.status,
+    status: statusMap[row.status] ?? 'Draft',
     totalBudget: Number(row.total_budget) || 0,
     startDate: row.start_date ?? '',
     endDate: row.end_date ?? '',
     channels: row.channels ?? [],
-    district: row.district ?? undefined,
-    diasporaMarket: row.diaspora_market ?? undefined,
+    district: locations.find((location) => !location.toLowerCase().includes('diaspora')),
+    diasporaMarket: locations.find((location) => location.toLowerCase().includes('diaspora')),
   };
 }
 
@@ -154,6 +164,43 @@ function unwrap<T>({ data, error }: { data: T | null; error: any }): T {
   if (error) throw error;
   if (data === null) throw new Error('No data returned from Supabase.');
   return data;
+}
+
+const CAMPAIGN_CHANNELS = ['manohub', 'facebook', 'instagram', 'whatsapp', 'tiktok', 'youtube', 'linkedin', 'x'];
+
+function normalizeCampaignChannels(channels: string[]): string[] {
+  const normalized = channels.map((channel) => {
+    const value = channel.toLowerCase();
+    if (value.includes('facebook')) return 'facebook';
+    if (value.includes('instagram')) return 'instagram';
+    if (value.includes('whatsapp')) return 'whatsapp';
+    if (value.includes('tiktok')) return 'tiktok';
+    if (value.includes('youtube')) return 'youtube';
+    if (value.includes('linkedin')) return 'linkedin';
+    if (value === 'x' || value.includes('twitter')) return 'x';
+    return 'manohub';
+  }).filter((channel) => CAMPAIGN_CHANNELS.includes(channel));
+  return Array.from(new Set(normalized.length > 0 ? normalized : ['manohub']));
+}
+
+function normalizeCampaignObjective(objective: string): 'awareness' | 'traffic' | 'leads' | 'sales' {
+  const value = objective.toLowerCase();
+  if (value.includes('sale') || value.includes('booking')) return 'sales';
+  if (value.includes('lead') || value.includes('enquir')) return 'leads';
+  if (value.includes('traffic')) return 'traffic';
+  return 'awareness';
+}
+
+function normalizeCampaignStatus(status: Campaign['status']): string {
+  return {
+    Draft: 'draft',
+    Planning: 'submitted',
+    Approved: 'approved',
+    Scheduled: 'approved',
+    Active: 'active',
+    Completed: 'completed',
+    Failed: 'rejected',
+  }[status];
 }
 
 // --- fetchers ---
@@ -250,7 +297,7 @@ export async function fetchOrgBundle(orgId: string): Promise<OrgBundle> {
   const [orgRes, brandKitRes, campaignsRes, contentRes, leadsRes, socialRes] = await Promise.all([
     supabase.from('organizations').select('*').eq('id', orgId).single(),
     supabase.from('brand_kits').select('*').eq('org_id', orgId).maybeSingle(),
-    supabase.from('campaigns').select('*').eq('org_id', orgId).order('created_at', { ascending: false }),
+    supabase.from('ad_campaigns').select('*').eq('org_id', orgId).order('created_at', { ascending: false }),
     supabase.from('content_items').select('*').eq('org_id', orgId).order('created_at', { ascending: false }),
     supabase.from('leads').select('*').eq('org_id', orgId).order('created_at', { ascending: false }),
     supabase.from('social_connections').select('*').eq('org_id', orgId).order('created_at', { ascending: true }),
@@ -312,19 +359,18 @@ export async function createCampaign(
 ): Promise<Campaign> {
   const row = unwrap(
     await supabase
-      .from('campaigns')
+      .from('ad_campaigns')
       .insert({
         org_id: orgId,
         name: input.name,
         description: input.description,
-        objective: input.objective,
-        status: 'Planning',
+        objective: normalizeCampaignObjective(input.objective),
+        status: 'draft',
         total_budget: input.totalBudget,
         start_date: input.startDate,
         end_date: input.endDate,
-        channels: input.channels,
-        district: input.district,
-        diaspora_market: input.diasporaMarket,
+        channels: normalizeCampaignChannels(input.channels),
+        location_targets: [input.district, input.diasporaMarket].filter(Boolean),
       })
       .select('*')
       .single()
@@ -339,22 +385,23 @@ export async function updateCampaign(
   const dbPatch: Record<string, unknown> = {};
   if (patch.name !== undefined) dbPatch.name = patch.name;
   if (patch.description !== undefined) dbPatch.description = patch.description;
-  if (patch.objective !== undefined) dbPatch.objective = patch.objective;
-  if (patch.status !== undefined) dbPatch.status = patch.status;
+  if (patch.objective !== undefined) dbPatch.objective = normalizeCampaignObjective(patch.objective);
+  if (patch.status !== undefined) dbPatch.status = normalizeCampaignStatus(patch.status);
   if (patch.totalBudget !== undefined) dbPatch.total_budget = patch.totalBudget;
   if (patch.startDate !== undefined) dbPatch.start_date = patch.startDate;
   if (patch.endDate !== undefined) dbPatch.end_date = patch.endDate;
-  if (patch.channels !== undefined) dbPatch.channels = patch.channels;
-  if (patch.district !== undefined) dbPatch.district = patch.district;
-  if (patch.diasporaMarket !== undefined) dbPatch.diaspora_market = patch.diasporaMarket;
+  if (patch.channels !== undefined) dbPatch.channels = normalizeCampaignChannels(patch.channels);
+  if (patch.district !== undefined || patch.diasporaMarket !== undefined) {
+    dbPatch.location_targets = [patch.district, patch.diasporaMarket].filter(Boolean);
+  }
   const row = unwrap(
-    await supabase.from('campaigns').update(dbPatch).eq('id', id).select('*').single()
+    await supabase.from('ad_campaigns').update(dbPatch).eq('id', id).select('*').single()
   );
   return mapCampaign(row);
 }
 
 export async function deleteCampaign(id: string): Promise<void> {
-  const { error } = await supabase.from('campaigns').delete().eq('id', id);
+  const { error } = await supabase.from('ad_campaigns').delete().eq('id', id);
   if (error) throw error;
 }
 

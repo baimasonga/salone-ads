@@ -3605,7 +3605,9 @@ export function Workspaces({
   // all. This subscriber submits what they want advertised and later sees
   // a read-only report of what happened -- platform, run count, reach.
   // The actual design/production work stays admin-only ad-platform tooling.
-  if (activeTab === 'campaign-builder') {
+  // Keep the retired "campaigns" route as a compatibility redirect. Both
+  // navigation paths now render the same authoritative campaign workflow.
+  if (activeTab === 'campaign-builder' || activeTab === 'campaigns') {
     return <CampaignBuilderPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
   }
 
@@ -3865,8 +3867,9 @@ export function Workspaces({
           )}
         </div>
 
-        {/* Campaigns: run windows, rotating creatives, reach goals */}
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+        {/* Retained temporarily in source for release comparison; no longer rendered.
+            Campaign creation and controls live only in Campaign Management. */}
+        {false && <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
           <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-emerald-600" /> Campaigns
           </h3>
@@ -3946,6 +3949,22 @@ export function Workspaces({
               })}
             </div>
           )}
+        </div>}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-emerald-600" /> Campaign Management
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Campaign setup, channels, budgets, targeting, approvals, and schedules are managed in one place.
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveTab('campaign-builder')}
+            className="mt-4 inline-flex items-center gap-2 bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
+          >
+            Open Campaign Management <ArrowRight className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Publish adverts to the public site */}
@@ -4488,7 +4507,7 @@ export function Workspaces({
   }
 
   // 2. CAMPAIGNS WORKSPACE
-  if (activeTab === 'campaigns') {
+  if (false && activeTab === 'campaigns') {
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
@@ -4717,7 +4736,7 @@ export function Workspaces({
               <div className="flex items-center justify-between">
                 <div>
                   <span className="inline-flex items-center gap-2 bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs px-3 py-1 rounded-full font-mono uppercase tracking-widest">
-                    <Sparkles className="h-3.5 w-3.5" /> AI Content Plan — {camp.name}
+                    <Sparkles className="h-3.5 w-3.5" /> AI Content Plan — {camp!.name}
                   </span>
                   <p className="text-emerald-300 text-[11px] mt-2">Nothing is saved yet — pick which drafts to actually create below.</p>
                 </div>

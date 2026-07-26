@@ -2053,6 +2053,7 @@ export type CampaignStatus =
 
 export type AdCampaignObjective = 'awareness' | 'traffic' | 'leads' | 'sales';
 export type AdCampaignDevice = 'mobile' | 'desktop' | 'tablet';
+export type AdCampaignChannel = 'manohub' | 'facebook' | 'instagram' | 'whatsapp' | 'tiktok' | 'youtube' | 'linkedin' | 'x';
 
 export interface AdCampaign {
   id: string;
@@ -2070,6 +2071,7 @@ export interface AdCampaign {
   locationTargets: string[];
   categoryTargets: string[];
   deviceTargets: AdCampaignDevice[];
+  channels: AdCampaignChannel[];
   status: CampaignStatus;
   rejectionReason: string | null;
   submittedAt: string | null;
@@ -2084,7 +2086,7 @@ const CAMPAIGN_SELECT = [
   'id', 'org_id', 'name', 'business_name', 'description', 'objective',
   'start_date', 'end_date', 'reach_goal', 'total_budget', 'daily_budget',
   'currency_code', 'location_targets', 'category_targets', 'device_targets',
-  'status', 'rejection_reason', 'submitted_at', 'approved_at', 'created_at', 'updated_at',
+  'channels', 'status', 'rejection_reason', 'submitted_at', 'approved_at', 'created_at', 'updated_at',
 ].join(', ');
 
 function mapCampaign(row: any): AdCampaign {
@@ -2104,6 +2106,7 @@ function mapCampaign(row: any): AdCampaign {
     locationTargets: row.location_targets ?? [],
     categoryTargets: row.category_targets ?? [],
     deviceTargets: row.device_targets ?? [],
+    channels: row.channels ?? ['manohub'],
     status: row.status,
     rejectionReason: row.rejection_reason ?? null,
     submittedAt: row.submitted_at ?? null,
@@ -2140,6 +2143,7 @@ export interface CreateCampaignInput {
   locationTargets?: string[];
   categoryTargets?: string[];
   deviceTargets?: AdCampaignDevice[];
+  channels?: AdCampaignChannel[];
   status?: Extract<CampaignStatus, 'draft' | 'submitted' | 'active'>;
   orgId?: string | null;
 }
@@ -2162,6 +2166,7 @@ export async function createCampaign(input: CreateCampaignInput): Promise<AdCamp
       location_targets: input.locationTargets ?? [],
       category_targets: input.categoryTargets ?? [],
       device_targets: input.deviceTargets ?? [],
+      channels: input.channels ?? ['manohub'],
       status: input.status ?? 'draft',
       submitted_at: input.status === 'submitted' ? new Date().toISOString() : null,
       org_id: input.orgId ?? null,
@@ -2202,6 +2207,7 @@ export async function updateAdCampaign(
       location_targets: input.locationTargets ?? [],
       category_targets: input.categoryTargets ?? [],
       device_targets: input.deviceTargets ?? [],
+      channels: input.channels ?? ['manohub'],
       status,
       submitted_at: status === 'submitted' ? new Date().toISOString() : null,
       rejection_reason: null,
