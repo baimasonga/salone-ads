@@ -250,6 +250,7 @@ function MainApp() {
       group: "Advertising",
       items: [
         { id: 'campaign-builder', label: 'Campaign Management', icon: Compass },
+        { id: 'advert-packages', label: 'Packages & Checkout', icon: CreditCard },
         { id: 'campaign-performance', label: 'Campaign Performance', icon: BarChart2 },
         ...(!isPlatformAdmin ? [{ id: 'advertising', label: 'My Adverts', icon: Sparkles }] : []),
       ]
@@ -287,6 +288,7 @@ function MainApp() {
         { id: 'admin-subscriptions', label: 'Subscription Requests', icon: CreditCard },
         { id: 'admin-services', label: 'Service Requests', icon: UserCheck },
         { id: 'admin-advertising', label: 'Advertising Requests', icon: Sparkles },
+        { id: 'admin-advert-revenue', label: 'Advert Revenue', icon: CreditCard },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
         { id: 'admin', label: 'Super Admin Desk', icon: Shield },
       ]
