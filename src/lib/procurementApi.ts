@@ -2461,3 +2461,32 @@ export async function fetchAgencyBilling(clientOrgIds: string[]): Promise<Advert
     status: row.status, createdAt: row.created_at,
   }));
 }
+
+export interface LandingContentBlock {
+  id: string; blockKey: string; section: string; eyebrow: string; title: string; body: string;
+  ctaLabel: string; ctaHref: string; accentColor: string; surfaceColor: string; status: string; sortOrder: number;
+}
+const mapLandingBlock = (row: any): LandingContentBlock => ({
+  id: row.id, blockKey: row.block_key, section: row.section, eyebrow: row.eyebrow ?? '',
+  title: row.title, body: row.body, ctaLabel: row.cta_label ?? '', ctaHref: row.cta_href ?? '',
+  accentColor: row.accent_color, surfaceColor: row.surface_color, status: row.status, sortOrder: row.sort_order,
+});
+export async function fetchLandingContent(): Promise<LandingContentBlock[]> {
+  const { data, error } = await supabase.from('landing_content_blocks').select('*').order('sort_order');
+  if (error) throw error;
+  return (data ?? []).map(mapLandingBlock);
+}
+export async function fetchAllLandingContent(): Promise<LandingContentBlock[]> {
+  const { data, error } = await supabase.from('landing_content_blocks').select('*').order('sort_order');
+  if (error) throw error;
+  return (data ?? []).map(mapLandingBlock);
+}
+export async function updateLandingContent(block: LandingContentBlock): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase.from('landing_content_blocks').update({
+    eyebrow:block.eyebrow,title:block.title,body:block.body,cta_label:block.ctaLabel,cta_href:block.ctaHref,
+    accent_color:block.accentColor,surface_color:block.surfaceColor,status:block.status,sort_order:block.sortOrder,
+    published_at:block.status==='published'?new Date().toISOString():null,updated_by:user?.id??null,updated_at:new Date().toISOString(),
+  }).eq('id',block.id);
+  if(error) throw error;
+}
