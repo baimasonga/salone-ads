@@ -34,6 +34,7 @@ const TenderSearchPage = lazy(() => import('./components/TenderSearchPage').then
 const TenderDetailPage = lazy(() => import('./components/TenderDetailPage').then((module) => ({ default: module.TenderDetailPage })));
 const AdvertDetailPage = lazy(() => import('./components/AdvertDetailPage').then((module) => ({ default: module.AdvertDetailPage })));
 const AdvertsFeedPage = lazy(() => import('./components/AdvertsFeedPage').then((module) => ({ default: module.AdvertsFeedPage })));
+const UnsubscribePage = lazy(() => import('./components/UnsubscribePage').then((module) => ({ default: module.UnsubscribePage })));
 
 function PageLoader() {
   return (
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/tenders/:slug" element={<TenderDetailPage />} />
         <Route path="/adverts" element={<AdvertsFeedPage />} />
         <Route path="/adverts/:slug" element={<AdvertDetailPage />} />
+        <Route path="/unsubscribe" element={<UnsubscribePage />} />
         <Route path="/*" element={<MainApp />} />
       </Routes>
     </Suspense>
@@ -294,6 +296,7 @@ function MainApp() {
         { id: 'admin-advertising', label: 'Advertising Requests', icon: Sparkles },
         { id: 'admin-advert-revenue', label: 'Advert Revenue', icon: CreditCard },
         { id: 'landing-cms', label: 'Landing CMS', icon: Sparkles },
+        { id: 'audience-subscribers', label: 'Audience Subscribers', icon: Users },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
         { id: 'admin', label: 'Super Admin Desk', icon: Shield },
       ]
