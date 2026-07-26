@@ -11,6 +11,10 @@ interface Env {
   APP_URL?: string;
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  RESEND_API_KEY?: string;
+  RESEND_FROM_EMAIL?: string;
+  EMAIL_DISPATCH_SECRET?: string;
 }
 
 // A single routed instance is intentional: server.ts's AI rate limiter
@@ -34,6 +38,10 @@ export class ManohubContainer extends Container<Env> {
       APP_URL: env.APP_URL ?? '',
       VITE_SUPABASE_URL: env.VITE_SUPABASE_URL ?? '',
       VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY ?? '',
+      SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+      RESEND_API_KEY: env.RESEND_API_KEY ?? '',
+      RESEND_FROM_EMAIL: env.RESEND_FROM_EMAIL ?? '',
+      EMAIL_DISPATCH_SECRET: env.EMAIL_DISPATCH_SECRET ?? '',
     };
   }
 }
@@ -45,6 +53,14 @@ export default {
     // commit. The workflow uses an immediate rollout to restart this instance.
     const container = getContainer(env.MANOHUB_CONTAINER, 'production');
     return container.fetch(request);
+  },
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (!env.EMAIL_DISPATCH_SECRET) return;
+    const container = getContainer(env.MANOHUB_CONTAINER, 'production');
+    ctx.waitUntil(container.fetch(new Request('http://container/api/audience-email/dispatch-due', {
+      method: 'POST',
+      headers: { 'x-manohub-dispatch-secret': env.EMAIL_DISPATCH_SECRET },
+    })));
   },
 };
 
