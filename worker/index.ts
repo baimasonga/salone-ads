@@ -14,6 +14,7 @@ interface Env {
   SUPABASE_SERVICE_ROLE_KEY?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM_EMAIL?: string;
+  RESEND_WEBHOOK_SECRET?: string;
   EMAIL_DISPATCH_SECRET?: string;
 }
 
@@ -41,6 +42,7 @@ export class ManohubContainer extends Container<Env> {
       SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY ?? '',
       RESEND_API_KEY: env.RESEND_API_KEY ?? '',
       RESEND_FROM_EMAIL: env.RESEND_FROM_EMAIL ?? '',
+      RESEND_WEBHOOK_SECRET: env.RESEND_WEBHOOK_SECRET ?? '',
       EMAIL_DISPATCH_SECRET: env.EMAIL_DISPATCH_SECRET ?? '',
     };
   }
