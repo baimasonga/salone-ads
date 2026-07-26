@@ -16,6 +16,9 @@ name = "manohub-container"
 main = "worker/index.ts"
 compatibility_date = "2026-07-21"
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [[containers]]
 class_name = "ManohubContainer"
 image = "./Dockerfile"
@@ -34,6 +37,8 @@ new_sqlite_classes = ["ManohubContainer"]
 
 # GEMINI_API_KEY is a secret — set it with:
 #   wrangler secret put GEMINI_API_KEY --config wrangler.containers.toml
+# Email delivery also requires SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY,
+# RESEND_FROM_EMAIL and EMAIL_DISPATCH_SECRET as Worker secrets.
 # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are safe to expose (RLS is the
 # real access boundary) but still needed at container *runtime* (server.ts's
 # auth check), separately from being baked into the frontend at *build*
