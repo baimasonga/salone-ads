@@ -79,3 +79,4 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 # Deployment trigger: publish advertising measurement-quality controls.
 # Deployment trigger: publish commercial conversion and ROI measurement.
+# Deployment trigger: publish admin campaign-visibility fix.
