@@ -2445,3 +2445,19 @@ export async function saveAgencyBulkUpload(clientId: string, fileName: string, r
   });
   if (error) throw error;
 }
+
+export async function fetchAgencyBilling(clientOrgIds: string[]): Promise<AdvertOrder[]> {
+  if (!clientOrgIds.length) return [];
+  const { data, error } = await supabase.from('advert_orders').select(
+    'id, order_number, invoice_number, receipt_number, org_id, campaign_id, billing_period, quantity, total_amount, currency_code, payment_method, payment_reference, status, created_at, advert_packages(name)'
+  ).in('org_id', clientOrgIds).order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id, orderNumber: row.order_number, invoiceNumber: row.invoice_number,
+    receiptNumber: row.receipt_number ?? null, orgId: row.org_id, campaignId: row.campaign_id ?? null,
+    packageName: row.advert_packages?.name ?? 'Advert package', billingPeriod: row.billing_period,
+    quantity: row.quantity, totalAmount: Number(row.total_amount), currencyCode: row.currency_code,
+    paymentMethod: row.payment_method, paymentReference: row.payment_reference ?? null,
+    status: row.status, createdAt: row.created_at,
+  }));
+}
