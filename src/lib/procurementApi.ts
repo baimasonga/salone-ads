@@ -2186,6 +2186,22 @@ export async function fetchCampaignsForWorkspace(orgId: string, isPlatformAdmin:
   return (data ?? []).map(mapCampaign);
 }
 
+export async function fetchCampaignCreatives(campaignIds: string[]): Promise<Record<string, Advert[]>> {
+  if (campaignIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from('adverts')
+    .select(ADVERT_SELECT)
+    .in('campaign_id', campaignIds)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).reduce<Record<string, Advert[]>>((grouped, row) => {
+    const advert = mapAdvert(row);
+    if (!advert.campaignId) return grouped;
+    (grouped[advert.campaignId] ??= []).push(advert);
+    return grouped;
+  }, {});
+}
+
 export async function updateAdCampaign(
   id: string,
   input: Omit<CreateCampaignInput, 'orgId' | 'status'>,
@@ -2228,9 +2244,40 @@ export async function setCampaignStatus(id: string, status: CampaignStatus): Pro
   if (error) throw error;
   if (status === 'paused') {
     await supabase.from('adverts').update({ status: 'archived' }).eq('campaign_id', id).eq('status', 'live');
-  } else {
+  } else if (status === 'active') {
     await supabase.from('adverts').update({ status: 'live' }).eq('campaign_id', id).eq('status', 'archived');
   }
+}
+
+export async function reviewCampaign(id: string, decision: 'approved' | 'rejected', rejectionReason?: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  const now = new Date().toISOString();
+  const patch = decision === 'approved'
+    ? { status: 'approved', approved_at: now, reviewed_by: user?.id ?? null, rejection_reason: null, updated_at: now }
+    : { status: 'rejected', approved_at: null, reviewed_by: user?.id ?? null, rejection_reason: rejectionReason?.trim() || 'Changes requested by Manohub.', updated_at: now };
+  const { error } = await supabase.from('ad_campaigns').update(patch).eq('id', id).eq('status', 'submitted');
+  if (error) throw error;
+}
+
+export async function duplicateCampaign(campaign: AdCampaign): Promise<AdCampaign> {
+  return createCampaign({
+    orgId: campaign.orgId,
+    name: `${campaign.name} (copy)`,
+    businessName: campaign.businessName,
+    description: campaign.description,
+    objective: campaign.objective,
+    startDate: null,
+    endDate: null,
+    reachGoal: campaign.reachGoal,
+    totalBudget: campaign.totalBudget,
+    dailyBudget: campaign.dailyBudget,
+    currencyCode: campaign.currencyCode,
+    locationTargets: campaign.locationTargets,
+    categoryTargets: campaign.categoryTargets,
+    deviceTargets: campaign.deviceTargets,
+    channels: campaign.channels,
+    status: 'draft',
+  });
 }
 
 export async function deleteCampaign(id: string): Promise<void> {
