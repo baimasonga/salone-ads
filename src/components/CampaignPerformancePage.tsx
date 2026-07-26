@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  BarChart3,
   CalendarDays,
   Download,
   Eye,
+  FileDown,
   Megaphone,
   MessageCircle,
   MousePointerClick,
   Plus,
+  Printer,
   RefreshCw,
   Share2,
   Target,
@@ -57,6 +60,57 @@ const formatDate = (value: string | null) =>
   value ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(value)) : 'Not published';
 const rate = (numerator: number, denominator: number) =>
   denominator > 0 ? `${((numerator / denominator) * 100).toFixed(2)}%` : '0.00%';
+const titleCase = (value: string) =>
+  value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+const csvCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
+const formatPeriod = (value: string, granularity: 'day' | 'week' | 'month') =>
+  new Intl.DateTimeFormat('en-GB', granularity === 'month'
+    ? { month: 'short', year: 'numeric' }
+    : { day: 'numeric', month: 'short' }
+  ).format(new Date(value));
+
+function downloadCampaignCsv(campaign: AdvertCampaignPerformance) {
+  const rows: Array<Array<string | number>> = [
+    ['Manohub campaign performance report'],
+    ['Campaign', campaign.title],
+    ['Period (days)', campaign.periodDays],
+    [],
+    ['Metric', 'Value'],
+    ['Impressions', campaign.impressions],
+    ['Unique reach', campaign.uniqueViewers],
+    ['Advert opens', campaign.detailViews],
+    ['CTA clicks', campaign.ctaClicks],
+    ['Shares', campaign.shares],
+    ['Downloads', campaign.downloads],
+    [],
+    ['Time series'],
+    ['Period', 'Impressions', 'Unique reach', 'Advert opens', 'CTA clicks', 'Shares', 'Downloads'],
+    ...campaign.timeSeries.map((point) => [
+      point.period,
+      point.impressions,
+      point.uniqueViewers,
+      point.detailViews,
+      point.ctaClicks,
+      point.shares,
+      point.downloads,
+    ]),
+    [],
+    ['Traffic sources'],
+    ['Source', 'Events'],
+    ...campaign.sources.map((item) => [item.label, item.value]),
+    [],
+    ['Devices'],
+    ['Device', 'Events'],
+    ...campaign.devices.map((item) => [item.label, item.value]),
+  ];
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `manohub-${campaign.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'campaign'}-performance.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 function statusLabel(campaign: AdvertCampaignPerformance) {
   if (campaign.status === 'live') return 'Live';
@@ -134,6 +188,12 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
       .sort((a, b) => b.value - a.value);
   }, [selected]);
   const maxAction = Math.max(1, ...actionRows.map((row) => row.value));
+  const maxSeries = Math.max(
+    1,
+    ...(selected?.timeSeries.map((point) =>
+      point.impressions + point.detailViews + point.ctaClicks + point.shares + point.downloads
+    ) ?? [])
+  );
   const metrics: Array<[string, number, LucideIcon]> = [
     ['Impressions', totals.impressions, Eye],
     ['Unique reach', totals.uniqueViewers, Target],
@@ -178,8 +238,16 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
+          <button
+            type="button"
+            onClick={() => selected && downloadCampaignCsv(selected)}
+            disabled={!selected}
+            className="btn-geometric-secondary h-10 inline-flex cursor-pointer items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <FileDown className="h-3.5 w-3.5" /> CSV
+          </button>
           <button type="button" onClick={() => window.print()} className="btn-geometric-secondary h-10 inline-flex cursor-pointer items-center gap-2">
-            <Download className="h-3.5 w-3.5" /> Report
+            <Printer className="h-3.5 w-3.5" /> Print / PDF
           </button>
           <button type="button" onClick={onCreateAdvert} className="btn-geometric h-10 inline-flex cursor-pointer items-center gap-2">
             <Plus className="h-3.5 w-3.5" /> Create advert
@@ -266,53 +334,134 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
           </section>
 
           {selected && (
-            <section className="grid border border-[#0F172A] bg-white xl:grid-cols-[1.5fr_0.9fr]">
-              <div className="border-b border-[#0F172A] p-5 xl:border-b-0 xl:border-r">
-                <h3 className="font-display text-lg font-extrabold text-slate-950">Customer action breakdown</h3>
-                <p className="mt-1 text-xs text-slate-500">{selected.title} · last {periodDays === 366 ? '12 months' : `${periodDays} days`}</p>
-                {actionRows.length ? (
-                  <div className="mt-6 space-y-4">
-                    {actionRows.map(({ action, value }) => (
-                      <div key={action}>
-                        <div className="mb-1.5 flex justify-between font-mono text-[9px] font-bold uppercase tracking-wider text-slate-600">
-                          <span>{ACTION_LABELS[action] || action.replaceAll('_', ' ')}</span>
-                          <span>{formatNumber(value)}</span>
+            <>
+              <section className="grid border border-[#0F172A] bg-white xl:grid-cols-[1.5fr_0.9fr]">
+                <div className="border-b border-[#0F172A] p-5 xl:border-b-0 xl:border-r">
+                  <h3 className="font-display text-lg font-extrabold text-slate-950">Customer action breakdown</h3>
+                  <p className="mt-1 text-xs text-slate-500">{selected.title} · last {periodDays === 366 ? '12 months' : `${periodDays} days`}</p>
+                  {actionRows.length ? (
+                    <div className="mt-6 space-y-4">
+                      {actionRows.map(({ action, value }) => (
+                        <div key={action}>
+                          <div className="mb-1.5 flex justify-between font-mono text-[9px] font-bold uppercase tracking-wider text-slate-600">
+                            <span>{ACTION_LABELS[action] || action.replaceAll('_', ' ')}</span>
+                            <span>{formatNumber(value)}</span>
+                          </div>
+                          <div className="h-3 bg-slate-100">
+                            <div className="h-full" style={{ width: `${(value / maxAction) * 100}%`, backgroundColor: ACTION_COLORS[action] || '#64748B' }} />
+                          </div>
                         </div>
-                        <div className="h-3 bg-slate-100">
-                          <div className="h-full" style={{ width: `${(value / maxAction) * 100}%`, backgroundColor: ACTION_COLORS[action] || '#64748B' }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-6 border-l-4 border-amber-500 bg-amber-50 p-4 text-sm text-amber-900">
-                    No CTA, share or download actions have been recorded for this advert in the selected period.
-                  </div>
-                )}
-              </div>
-              <aside className="bg-slate-50 p-5">
-                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-700">Performance pulse</span>
-                <div className="mt-2 flex items-baseline gap-2 border-b border-[#0F172A] pb-5">
-                  <strong className="font-display text-5xl font-extrabold text-slate-950">{campaignScore(selected)}</strong>
-                  <span className="font-mono text-xs text-slate-500">/100</span>
-                </div>
-                <h4 className="mt-5 font-display text-sm font-extrabold text-slate-950">Evidence-based next step</h4>
-                <div className="mt-3 border border-[#0F172A] bg-white p-4">
-                  {selected.impressions === 0 ? (
-                    <p className="text-xs leading-relaxed text-slate-600">This campaign needs delivery before performance can be assessed.</p>
-                  ) : selected.ctaClicks === 0 ? (
-                    <p className="text-xs leading-relaxed text-slate-600">People are seeing the advert but have not used a customer-action link yet. Review the offer and CTA wording.</p>
+                      ))}
+                    </div>
                   ) : (
-                    <div className="flex gap-3">
-                      <MessageCircle className="h-4 w-4 shrink-0 text-emerald-700" />
-                      <p className="text-xs leading-relaxed text-slate-600">
-                        The strongest recorded action is <strong>{ACTION_LABELS[actionRows[0]?.action] || 'customer engagement'}</strong>. Keep it prominent in the creative and advert detail.
-                      </p>
+                    <div className="mt-6 border-l-4 border-amber-500 bg-amber-50 p-4 text-sm text-amber-900">
+                      No CTA, share or download actions have been recorded for this advert in the selected period.
                     </div>
                   )}
                 </div>
-              </aside>
-            </section>
+                <aside className="bg-slate-50 p-5">
+                  <span className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-700">Performance pulse</span>
+                  <div className="mt-2 flex items-baseline gap-2 border-b border-[#0F172A] pb-5">
+                    <strong className="font-display text-5xl font-extrabold text-slate-950">{campaignScore(selected)}</strong>
+                    <span className="font-mono text-xs text-slate-500">/100</span>
+                  </div>
+                  <h4 className="mt-5 font-display text-sm font-extrabold text-slate-950">Evidence-based next step</h4>
+                  <div className="mt-3 border border-[#0F172A] bg-white p-4">
+                    {selected.impressions === 0 ? (
+                      <p className="text-xs leading-relaxed text-slate-600">This campaign needs delivery before performance can be assessed.</p>
+                    ) : selected.ctaClicks === 0 ? (
+                      <p className="text-xs leading-relaxed text-slate-600">People are seeing the advert but have not used a customer-action link yet. Review the offer and CTA wording.</p>
+                    ) : (
+                      <div className="flex gap-3">
+                        <MessageCircle className="h-4 w-4 shrink-0 text-emerald-700" />
+                        <p className="text-xs leading-relaxed text-slate-600">
+                          The strongest recorded action is <strong>{ACTION_LABELS[actionRows[0]?.action] || 'customer engagement'}</strong>. Keep it prominent in the creative and advert detail.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </aside>
+              </section>
+
+              <section className="border border-[#0F172A] bg-white">
+                <div className="flex flex-col gap-3 border-b border-[#0F172A] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h3 className="font-display text-lg font-extrabold text-slate-950">Performance over time</h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Real {selected.granularity}ly event totals. Periods with no recorded activity are not invented.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3 font-mono text-[8px] font-bold uppercase tracking-wider text-slate-600">
+                    <span><i className="mr-1 inline-block h-2 w-2 bg-emerald-600" />Impressions</span>
+                    <span><i className="mr-1 inline-block h-2 w-2 bg-blue-600" />Opens</span>
+                    <span><i className="mr-1 inline-block h-2 w-2 bg-amber-500" />CTA</span>
+                    <span><i className="mr-1 inline-block h-2 w-2 bg-indigo-600" />Share/download</span>
+                  </div>
+                </div>
+                {selected.timeSeries.length ? (
+                  <div className="overflow-x-auto p-5">
+                    <div className="flex h-64 min-w-[560px] items-end gap-2 border-b border-l border-slate-300 px-3 pt-6">
+                      {selected.timeSeries.map((point) => {
+                        const total = point.impressions + point.detailViews + point.ctaClicks + point.shares + point.downloads;
+                        const height = Math.max(4, (total / maxSeries) * 100);
+                        return (
+                          <div key={point.period} className="flex min-w-12 flex-1 flex-col items-center justify-end">
+                            <span className="mb-1 font-mono text-[8px] font-bold text-slate-600">{formatNumber(total)}</span>
+                            <div className="flex w-full max-w-14 flex-col-reverse" style={{ height: `${height}%` }}>
+                              <div className="bg-emerald-600" style={{ flex: point.impressions }} />
+                              <div className="bg-blue-600" style={{ flex: point.detailViews }} />
+                              <div className="bg-amber-500" style={{ flex: point.ctaClicks }} />
+                              <div className="bg-indigo-600" style={{ flex: point.shares + point.downloads }} />
+                            </div>
+                            <span className="mt-2 whitespace-nowrap font-mono text-[8px] text-slate-500">
+                              {formatPeriod(point.period, selected.granularity)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center">
+                    <BarChart3 className="mx-auto h-7 w-7 text-slate-400" />
+                    <p className="mt-3 text-sm font-bold text-slate-800">No time-series activity yet</p>
+                    <p className="mt-1 text-xs text-slate-500">The chart will begin with the first verified event in this period.</p>
+                  </div>
+                )}
+              </section>
+
+              <section className="grid border border-[#0F172A] bg-white lg:grid-cols-2">
+                {[
+                  { title: 'Traffic sources', rows: selected.sources, fallback: 'No traffic source has been recorded yet.' },
+                  { title: 'Devices', rows: selected.devices, fallback: 'No device activity has been recorded yet.' },
+                ].map((group, groupIndex) => {
+                  const maxValue = Math.max(1, ...group.rows.map((row) => row.value));
+                  return (
+                    <div key={group.title} className={`p-5 ${groupIndex ? 'border-t border-[#0F172A] lg:border-l lg:border-t-0' : ''}`}>
+                      <h3 className="font-display text-lg font-extrabold text-slate-950">{group.title}</h3>
+                      <p className="mt-1 text-xs text-slate-500">Verified event distribution for the selected period.</p>
+                      {group.rows.length ? (
+                        <div className="mt-5 space-y-4">
+                          {group.rows.map((row) => (
+                            <div key={row.label}>
+                              <div className="mb-1.5 flex justify-between font-mono text-[9px] font-bold uppercase tracking-wider text-slate-600">
+                                <span>{titleCase(row.label)}</span>
+                                <span>{formatNumber(row.value)}</span>
+                              </div>
+                              <div className="h-2.5 bg-slate-100">
+                                <div className="h-full bg-[#0F172A]" style={{ width: `${(row.value / maxValue) * 100}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-5 border-l-4 border-slate-400 bg-slate-50 p-4 text-xs text-slate-600">{group.fallback}</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </section>
+            </>
           )}
 
           <section className="border border-[#0F172A] bg-white">

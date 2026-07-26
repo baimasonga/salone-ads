@@ -37,7 +37,29 @@ export interface AdvertPerformance {
   actions: Record<string, number>;
 }
 
-export interface AdvertCampaignPerformance extends AdvertPerformance {
+export interface AdvertTimeSeriesPoint {
+  period: string;
+  impressions: number;
+  uniqueViewers: number;
+  detailViews: number;
+  ctaClicks: number;
+  shares: number;
+  downloads: number;
+}
+
+export interface AdvertBreakdownItem {
+  label: string;
+  value: number;
+}
+
+export interface AdvertPerformanceReport extends AdvertPerformance {
+  granularity: 'day' | 'week' | 'month';
+  timeSeries: AdvertTimeSeriesPoint[];
+  sources: AdvertBreakdownItem[];
+  devices: AdvertBreakdownItem[];
+}
+
+export interface AdvertCampaignPerformance extends AdvertPerformanceReport {
   title: string;
   category: string;
   businessName: string;
@@ -175,6 +197,57 @@ export async function fetchAdvertPerformance(
   };
 }
 
+function breakdown(value: unknown): AdvertBreakdownItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    const row = item as Record<string, unknown>;
+    return { label: String(row.label ?? 'other'), value: Number(row.value ?? 0) };
+  });
+}
+
+function timeSeries(value: unknown): AdvertTimeSeriesPoint[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    const row = item as Record<string, unknown>;
+    return {
+      period: String(row.period ?? ''),
+      impressions: Number(row.impressions ?? 0),
+      uniqueViewers: Number(row.unique_viewers ?? 0),
+      detailViews: Number(row.detail_views ?? 0),
+      ctaClicks: Number(row.cta_clicks ?? 0),
+      shares: Number(row.shares ?? 0),
+      downloads: Number(row.downloads ?? 0),
+    };
+  });
+}
+
+export async function fetchAdvertPerformanceReport(
+  advertId: string,
+  periodDays = 30
+): Promise<AdvertPerformanceReport> {
+  const { data, error } = await supabase.rpc('get_advert_performance_report', {
+    p_advert_id: advertId,
+    p_days: periodDays,
+  });
+  if (error) throw error;
+  const result = (data ?? {}) as Record<string, unknown>;
+  return {
+    advertId: String(result.advert_id ?? advertId),
+    periodDays: Number(result.period_days ?? periodDays),
+    granularity: (result.granularity ?? 'day') as AdvertPerformanceReport['granularity'],
+    impressions: Number(result.impressions ?? 0),
+    uniqueViewers: Number(result.unique_viewers ?? 0),
+    detailViews: Number(result.detail_views ?? 0),
+    ctaClicks: Number(result.cta_clicks ?? 0),
+    shares: Number(result.shares ?? 0),
+    downloads: Number(result.downloads ?? 0),
+    actions: (result.actions ?? {}) as Record<string, number>,
+    timeSeries: timeSeries(result.time_series),
+    sources: breakdown(result.sources),
+    devices: breakdown(result.devices),
+  };
+}
+
 export async function fetchOrganizationAdvertPerformance(
   organizationId: string,
   periodDays = 30
@@ -192,7 +265,7 @@ export async function fetchOrganizationAdvertPerformance(
 
   return Promise.all(
     (adverts ?? []).map(async (advert) => {
-      const performance = await fetchAdvertPerformance(advert.id, periodDays);
+      const performance = await fetchAdvertPerformanceReport(advert.id, periodDays);
       return {
         ...performance,
         title: advert.title,
