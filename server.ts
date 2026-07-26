@@ -18,11 +18,16 @@ if (MISSING_VARS.length > 0) {
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Used only to validate the caller's access token (auth.getUser), never to
 // bypass RLS — no service-role key is used here.
 const supabaseAuthClient =
   SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const supabaseServiceClient =
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+    : null;
 
 async function requireUser(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authHeader = req.headers.authorization || "";
@@ -40,6 +45,25 @@ async function requireUser(req: express.Request, res: express.Response, next: ex
   }
 
   (req as any).userId = data.user.id;
+  next();
+}
+
+async function requirePlatformAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    res.status(401).json({ error: { message: "Authentication required." } });
+    return;
+  }
+  const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data, error } = await userClient.rpc("is_platform_admin");
+  if (error || data !== true) {
+    res.status(403).json({ error: { message: "Platform administrator access required." } });
+    return;
+  }
   next();
 }
 
@@ -86,6 +110,118 @@ function requestOrigin(req: express.Request): string | null {
   const forwardedProtocol = req.get('x-forwarded-proto')?.split(',')[0].trim();
   const protocol = forwardedProtocol === 'http' || forwardedProtocol === 'https' ? forwardedProtocol : req.protocol;
   return `${protocol}://${host}`;
+}
+
+function renderAudienceEmail(input: {
+  subject: string;
+  previewText: string;
+  body: string;
+  ctaLabel: string;
+  ctaHref: string;
+  unsubscribeHref?: string;
+}): string {
+  const paragraphs = input.body.split(/\n{2,}/).map(paragraph =>
+    `<p style="margin:0 0 18px;color:#334155;font-size:15px;line-height:1.7">${htmlEscape(paragraph).replace(/\n/g, "<br />")}</p>`
+  ).join("");
+  let safeCtaHref = "";
+  try {
+    const parsed = new URL(input.ctaHref);
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") safeCtaHref = parsed.toString();
+  } catch {
+    safeCtaHref = "";
+  }
+  const cta = input.ctaLabel && safeCtaHref
+    ? `<a href="${htmlEscape(safeCtaHref)}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:13px 20px;font-weight:700;font-size:13px;margin:6px 0 24px">${htmlEscape(input.ctaLabel)}</a>`
+    : "";
+  const unsubscribe = input.unsubscribeHref
+    ? `<p style="margin:24px 0 0;color:#94a3b8;font-size:11px;line-height:1.5">You received this because you subscribed to Manohub updates. <a href="${htmlEscape(input.unsubscribeHref)}" style="color:#64748b">Unsubscribe securely</a>.</p>`
+    : `<p style="margin:24px 0 0;color:#94a3b8;font-size:11px">This is a Manohub test message.</p>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${htmlEscape(input.subject)}</title></head><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden">${htmlEscape(input.previewText)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#fff;border:2px solid #0f172a"><tr><td style="background:#0f172a;padding:22px 28px;color:#fff"><div style="font-size:21px;font-weight:900;letter-spacing:3px">MANO<span style="color:#10b981">HUB</span></div><div style="margin-top:5px;color:#94a3b8;font-size:10px;letter-spacing:2px">OPPORTUNITIES · BUSINESS · AUDIENCE</div></td></tr><tr><td style="padding:30px 28px"><h1 style="margin:0 0 20px;color:#0f172a;font-size:28px;line-height:1.2">${htmlEscape(input.subject)}</h1>${paragraphs}${cta}${unsubscribe}</td></tr><tr><td style="background:#f4d35e;border-top:2px solid #0f172a;padding:14px 28px;color:#0f172a;font-size:11px;font-weight:700">Manohub · Built for the Mano River market</td></tr></table></td></tr></table></body></html>`;
+}
+
+async function sendResendEmail(input: { to: string; subject: string; html: string; idempotencyKey: string }): Promise<string> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.RESEND_FROM_EMAIL?.trim();
+  if (!apiKey || !from) throw new Error("Email delivery is not configured. Add RESEND_API_KEY and RESEND_FROM_EMAIL.");
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": input.idempotencyKey,
+    },
+    body: JSON.stringify({ from, to: [input.to], subject: input.subject, html: input.html }),
+  });
+  const result = await response.json() as any;
+  if (!response.ok || !result?.id) throw new Error(result?.message || "Resend rejected the email.");
+  return String(result.id);
+}
+
+async function dispatchAudienceCampaign(campaignId: string, force = false): Promise<{ sent: number; failed: number; remaining: number }> {
+  if (!supabaseServiceClient) throw new Error("Email delivery requires SUPABASE_SERVICE_ROLE_KEY.");
+  if (!process.env.RESEND_API_KEY?.trim() || !process.env.RESEND_FROM_EMAIL?.trim()) {
+    throw new Error("Email delivery requires RESEND_API_KEY and RESEND_FROM_EMAIL.");
+  }
+  const appOrigin = configuredAppOrigin();
+  if (!appOrigin) throw new Error("Email delivery requires a valid APP_URL for secure unsubscribe links.");
+  const { data: campaign, error: campaignError } = await supabaseServiceClient.from("audience_email_campaigns")
+    .select("id, subject, preview_text, body, cta_label, cta_href, status, scheduled_at")
+    .eq("id", campaignId).single();
+  if (campaignError || !campaign) throw new Error("Email campaign was not found.");
+  if (campaign.status === "cancelled" || campaign.status === "sent") return { sent: 0, failed: 0, remaining: 0 };
+  if (!force && campaign.scheduled_at && new Date(campaign.scheduled_at) > new Date()) return { sent: 0, failed: 0, remaining: 0 };
+
+  await supabaseServiceClient.from("audience_email_campaigns").update({ status: "processing", updated_at: new Date().toISOString() }).eq("id", campaignId);
+  const { data: deliveries, error: deliveryError } = await supabaseServiceClient.from("audience_email_deliveries")
+    .select("id, recipient_email, public_audience_subscribers!inner(full_name, unsubscribe_token, status)")
+    .eq("campaign_id", campaignId).eq("status", "queued").order("queued_at").limit(25);
+  if (deliveryError) throw deliveryError;
+
+  let sent = 0;
+  let failed = 0;
+  for (const delivery of deliveries ?? []) {
+    const subscriber = (delivery as any).public_audience_subscribers;
+    if (subscriber?.status !== "active") {
+      await supabaseServiceClient.from("audience_email_deliveries").update({ status: "suppressed", event_at: new Date().toISOString() }).eq("id", delivery.id);
+      continue;
+    }
+    await supabaseServiceClient.from("audience_email_deliveries").update({ status: "sending" }).eq("id", delivery.id);
+    try {
+      const unsubscribeHref = `${appOrigin}/unsubscribe?token=${subscriber.unsubscribe_token}`;
+      const providerId = await sendResendEmail({
+        to: delivery.recipient_email,
+        subject: campaign.subject,
+        html: renderAudienceEmail({
+          subject: campaign.subject, previewText: campaign.preview_text, body: campaign.body,
+          ctaLabel: campaign.cta_label, ctaHref: campaign.cta_href, unsubscribeHref,
+        }),
+        idempotencyKey: `manohub-audience-${delivery.id}`,
+      });
+      await supabaseServiceClient.from("audience_email_deliveries").update({
+        status: "sent", provider_message_id: providerId, sent_at: new Date().toISOString(), error_message: null,
+      }).eq("id", delivery.id);
+      sent += 1;
+    } catch (error) {
+      await supabaseServiceClient.from("audience_email_deliveries").update({
+        status: "failed", error_message: error instanceof Error ? error.message.slice(0, 500) : "Delivery failed", event_at: new Date().toISOString(),
+      }).eq("id", delivery.id);
+      failed += 1;
+    }
+  }
+
+  const { data: statuses } = await supabaseServiceClient.from("audience_email_deliveries").select("status").eq("campaign_id", campaignId);
+  const allStatuses = statuses ?? [];
+  const remaining = allStatuses.filter(row => row.status === "queued" || row.status === "sending").length;
+  const sentCount = allStatuses.filter(row => row.status === "sent" || row.status === "delivered").length;
+  const failedCount = allStatuses.filter(row => row.status === "failed" || row.status === "bounced" || row.status === "complained").length;
+  await supabaseServiceClient.from("audience_email_campaigns").update({
+    status: remaining ? "queued" : "sent",
+    sent_count: sentCount,
+    failed_count: failedCount,
+    sent_at: remaining ? null : new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", campaignId);
+  return { sent, failed, remaining };
 }
 
 // Inject Open Graph + Twitter Card meta into the base index.html so a shared
@@ -529,6 +665,75 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
         error: { code: "GEMINI_ERROR", message: "An error occurred calling the AI assist service. Please try again shortly." }
       });
     }
+  });
+
+  app.post("/api/audience-email/test", requireUser, requirePlatformAdmin, async (req, res) => {
+    const { to, subject, previewText = "", body, ctaLabel = "", ctaHref = "" } = req.body ?? {};
+    if (typeof to !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || to.length > 254) {
+      res.status(400).json({ error: { message: "Enter a valid test email address." } });
+      return;
+    }
+    if (typeof subject !== "string" || !subject.trim() || subject.length > 180 || typeof body !== "string" || !body.trim() || body.length > 12000) {
+      res.status(400).json({ error: { message: "A valid subject and message body are required." } });
+      return;
+    }
+    try {
+      const providerId = await sendResendEmail({
+        to: to.trim().toLowerCase(),
+        subject: subject.trim(),
+        html: renderAudienceEmail({
+          subject: subject.trim(),
+          previewText: String(previewText).slice(0, 220),
+          body,
+          ctaLabel: String(ctaLabel).slice(0, 80),
+          ctaHref: String(ctaHref).slice(0, 1000),
+        }),
+        idempotencyKey: `manohub-test-${(req as any).userId}-${Date.now()}`,
+      });
+      res.json({ id: providerId });
+    } catch (error) {
+      res.status(503).json({ error: { message: error instanceof Error ? error.message : "Test delivery failed." } });
+    }
+  });
+
+  app.post("/api/audience-email/dispatch/:campaignId", requireUser, requirePlatformAdmin, async (req, res) => {
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.campaignId)) {
+      res.status(400).json({ error: { message: "Invalid campaign identifier." } });
+      return;
+    }
+    try {
+      res.json(await dispatchAudienceCampaign(req.params.campaignId, true));
+    } catch (error) {
+      res.status(503).json({ error: { message: error instanceof Error ? error.message : "Campaign delivery failed." } });
+    }
+  });
+
+  app.post("/api/audience-email/dispatch-due", async (req, res) => {
+    const expectedSecret = process.env.EMAIL_DISPATCH_SECRET?.trim();
+    const suppliedSecret = req.get("x-manohub-dispatch-secret")?.trim();
+    if (!expectedSecret || !suppliedSecret || suppliedSecret !== expectedSecret || !supabaseServiceClient) {
+      res.status(403).json({ error: { message: "Dispatch authorization failed." } });
+      return;
+    }
+    const { data: dueCampaigns, error } = await supabaseServiceClient.from("audience_email_campaigns")
+      .select("id")
+      .in("status", ["queued", "scheduled", "processing"])
+      .or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`)
+      .order("scheduled_at", { ascending: true, nullsFirst: true })
+      .limit(10);
+    if (error) {
+      res.status(500).json({ error: { message: error.message } });
+      return;
+    }
+    const results = [];
+    for (const campaign of dueCampaigns ?? []) {
+      try {
+        results.push({ id: campaign.id, ...(await dispatchAudienceCampaign(campaign.id)) });
+      } catch (dispatchError) {
+        results.push({ id: campaign.id, error: dispatchError instanceof Error ? dispatchError.message : "Dispatch failed" });
+      }
+    }
+    res.json({ processed: results });
   });
 
   // Vite Middleware Setup
