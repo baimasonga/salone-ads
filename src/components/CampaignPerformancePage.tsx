@@ -492,7 +492,7 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
 
       <div className="flex items-start gap-2 border-l-4 border-emerald-600 bg-emerald-50 px-4 py-3 text-[11px] leading-relaxed text-emerald-900">
         <MousePointerClick className="mt-0.5 h-4 w-4 shrink-0" />
-        <p><strong>Verified measurement:</strong> figures come from deduplicated Manohub events. No names, contact details, IP addresses or user IDs are included in public event metadata.</p>
+        <p><strong>Verified measurement:</strong> unique reach means distinct privacy-safe visitors whose advert was at least 50% visible for one second. Repeat impressions and advert opens are limited to one per visitor and advert every 30 minutes; identical actions are limited to one every 10 seconds. Common automated agents and excessive event bursts are excluded. No names, contact details, IP addresses, raw visitor tokens, user-agent strings or user IDs are stored.</p>
       </div>
     </div>
   );

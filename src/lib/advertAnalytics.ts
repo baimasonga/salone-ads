@@ -75,6 +75,16 @@ export interface AdvertCampaignPerformance extends AdvertPerformanceReport {
 const VISITOR_TOKEN_KEY = 'manohub.analytics.visitor';
 const MAX_METADATA_ENTRIES = 12;
 
+function isLikelyAutomatedBrowser(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  if (navigator.webdriver) return true;
+
+  const agent = navigator.userAgent.toLowerCase();
+  return /(^|[^a-z])(bot|crawler|spider|slurp)([^a-z]|$)|headlesschrome|phantomjs|selenium|playwright|lighthouse|pagespeed/.test(
+    agent
+  );
+}
+
 function getOrCreateVisitorToken(): string {
   if (typeof window === 'undefined') return crypto.randomUUID();
 
@@ -145,6 +155,14 @@ function dedupeWindow(eventType: PublicAdvertEventType): number {
 
 export async function trackAdvertEvent(input: AdvertEventInput): Promise<boolean> {
   try {
+    if (isLikelyAutomatedBrowser()) return false;
+    if (
+      typeof document !== 'undefined' &&
+      ['hidden', 'prerender'].includes(document.visibilityState as string)
+    ) {
+      return false;
+    }
+
     const visitorTokenHash = await sha256(getOrCreateVisitorToken());
     const bucket = Math.floor(Date.now() / dedupeWindow(input.eventType));
     const dedupeKey = await sha256(
