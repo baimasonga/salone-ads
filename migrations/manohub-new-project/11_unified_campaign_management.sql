@@ -127,6 +127,10 @@ declare
   rec record;
   admin_id uuid;
 begin
+  if auth.uid() is null or not public.is_platform_admin() then
+    raise exception 'Platform administrator access required';
+  end if;
+
   for rec in
     select c.id, c.org_id, c.name
     from ad_campaigns c
@@ -201,9 +205,11 @@ begin
 end;
 $function$;
 
+revoke all on function public.run_campaign_health_sweep() from public, anon, authenticated;
+grant execute on function public.run_campaign_health_sweep() to authenticated, service_role;
+
 drop table public.campaigns;
 
 revoke all on table public.ad_campaigns from anon;
 grant select, insert, update, delete on table public.ad_campaigns to authenticated;
 grant all on table public.ad_campaigns to service_role;
-
