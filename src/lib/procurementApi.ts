@@ -2503,31 +2503,52 @@ export async function createLandingContentBlock(): Promise<void> {
 export async function updateLandingContent(block: LandingContentBlock): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   const { error } = await supabase.from('landing_content_blocks').update({
-    eyebrow:block.eyebrow,title:block.title,body:block.body,cta_label:block.ctaLabel,cta_href:block.ctaHref,
+    section:block.section,eyebrow:block.eyebrow,title:block.title,body:block.body,cta_label:block.ctaLabel,cta_href:block.ctaHref,
     accent_color:block.accentColor,surface_color:block.surfaceColor,status:block.status,sort_order:block.sortOrder,
     published_at:block.status==='published'?new Date().toISOString():null,updated_by:user?.id??null,updated_at:new Date().toISOString(),
   }).eq('id',block.id);
   if(error) throw error;
 }
 export interface LandingAdvertPlacement {
-  assignmentId: string; placementCode: string; priority: number; weight: number;
-  sessionFrequencyCap: number; advert: Advert;
+  assignmentId: string; placementId: string; placementCode: string; placementName: string;
+  priority: number; weight: number; sessionFrequencyCap: number;
+  startsAt: string | null; endsAt: string | null; isActive: boolean; advert: Advert;
 }
 export async function fetchLandingAdvertPlacements(): Promise<LandingAdvertPlacement[]> {
   const { data, error } = await supabase.from('landing_ad_assignments').select(
-    `id, priority, weight, session_frequency_cap,
-     landing_ad_placements!inner(code),
+    `id, placement_id, priority, weight, session_frequency_cap, starts_at, ends_at, is_active,
+     landing_ad_placements!inner(code, name),
      adverts!inner(${ADVERT_SELECT})`
   ).order('priority',{ascending:false});
   if(error) throw error;
   return (data??[]).map((row:any)=>({
-    assignmentId:row.id,placementCode:row.landing_ad_placements.code,priority:row.priority,
-    weight:row.weight,sessionFrequencyCap:row.session_frequency_cap,advert:mapAdvert(row.adverts),
+    assignmentId:row.id,placementId:row.placement_id,placementCode:row.landing_ad_placements.code,
+    placementName:row.landing_ad_placements.name,priority:row.priority,weight:row.weight,
+    sessionFrequencyCap:row.session_frequency_cap,startsAt:row.starts_at??null,endsAt:row.ends_at??null,
+    isActive:row.is_active,advert:mapAdvert(row.adverts),
   }));
 }
 export async function assignLandingAdvert(placementId:string,advertId:string):Promise<void>{
   const {error}=await supabase.from('landing_ad_assignments').upsert({placement_id:placementId,advert_id:advertId,is_active:true},{onConflict:'placement_id,advert_id'});
   if(error) throw error;
+}
+export async function updateLandingAdvertAssignment(
+  assignmentId: string,
+  patch: Pick<LandingAdvertPlacement, 'priority' | 'weight' | 'sessionFrequencyCap' | 'startsAt' | 'endsAt' | 'isActive'>,
+): Promise<void> {
+  const { error } = await supabase.from('landing_ad_assignments').update({
+    priority: patch.priority,
+    weight: patch.weight,
+    session_frequency_cap: patch.sessionFrequencyCap,
+    starts_at: patch.startsAt || null,
+    ends_at: patch.endsAt || null,
+    is_active: patch.isActive,
+  }).eq('id', assignmentId);
+  if (error) throw error;
+}
+export async function removeLandingAdvertAssignment(assignmentId: string): Promise<void> {
+  const { error } = await supabase.from('landing_ad_assignments').delete().eq('id', assignmentId);
+  if (error) throw error;
 }
 export async function fetchLandingPlacementOptions():Promise<Array<{id:string;code:string;name:string}>>{
   const {data,error}=await supabase.from('landing_ad_placements').select('id,code,name').order('sort_order');
