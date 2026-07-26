@@ -52,11 +52,46 @@ export interface AdvertBreakdownItem {
   value: number;
 }
 
+export type AdvertGoalType = 'awareness' | 'traffic' | 'lead' | 'sale';
+export type AdvertOutcomeType = 'lead' | 'sale';
+export type AdvertOutcomeStatus = 'pending' | 'confirmed' | 'rejected';
+export type AdvertOutcomeSource =
+  | 'whatsapp'
+  | 'phone'
+  | 'website'
+  | 'social'
+  | 'offline'
+  | 'other';
+
+export interface AdvertOutcome {
+  id: string;
+  outcomeType: AdvertOutcomeType;
+  sourceAction: AdvertOutcomeSource;
+  status: AdvertOutcomeStatus;
+  revenueAmount: number | null;
+  currencyCode: string;
+  occurredAt: string;
+  note: string | null;
+}
+
+export interface AdvertCommercialPerformance {
+  goalType: AdvertGoalType;
+  budgetAmount: number | null;
+  currencyCode: string;
+  actualSpend: number;
+  confirmedLeads: number;
+  confirmedSales: number;
+  confirmedRevenue: number;
+  pendingOutcomes: number;
+  recentOutcomes: AdvertOutcome[];
+}
+
 export interface AdvertPerformanceReport extends AdvertPerformance {
   granularity: 'day' | 'week' | 'month';
   timeSeries: AdvertTimeSeriesPoint[];
   sources: AdvertBreakdownItem[];
   devices: AdvertBreakdownItem[];
+  commercial: AdvertCommercialPerformance;
 }
 
 export interface AdvertCampaignPerformance extends AdvertPerformanceReport {
@@ -239,6 +274,43 @@ function timeSeries(value: unknown): AdvertTimeSeriesPoint[] {
   });
 }
 
+function commercialPerformance(value: unknown): AdvertCommercialPerformance {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const outcomes = Array.isArray(row.recent_outcomes)
+    ? row.recent_outcomes.map((item) => {
+      const outcome = item as Record<string, unknown>;
+      return {
+        id: String(outcome.id ?? ''),
+        outcomeType: String(outcome.outcome_type ?? 'lead') as AdvertOutcomeType,
+        sourceAction: String(outcome.source_action ?? 'other') as AdvertOutcomeSource,
+        status: String(outcome.status ?? 'pending') as AdvertOutcomeStatus,
+        revenueAmount:
+          outcome.revenue_amount === null || outcome.revenue_amount === undefined
+            ? null
+            : Number(outcome.revenue_amount),
+        currencyCode: String(outcome.currency_code ?? 'SLE'),
+        occurredAt: String(outcome.occurred_at ?? ''),
+        note: outcome.note === null || outcome.note === undefined ? null : String(outcome.note),
+      };
+    })
+    : [];
+
+  return {
+    goalType: String(row.goal_type ?? 'lead') as AdvertGoalType,
+    budgetAmount:
+      row.budget_amount === null || row.budget_amount === undefined
+        ? null
+        : Number(row.budget_amount),
+    currencyCode: String(row.currency_code ?? 'SLE'),
+    actualSpend: Number(row.actual_spend ?? 0),
+    confirmedLeads: Number(row.confirmed_leads ?? 0),
+    confirmedSales: Number(row.confirmed_sales ?? 0),
+    confirmedRevenue: Number(row.confirmed_revenue ?? 0),
+    pendingOutcomes: Number(row.pending_outcomes ?? 0),
+    recentOutcomes: outcomes,
+  };
+}
+
 export async function fetchAdvertPerformanceReport(
   advertId: string,
   periodDays = 30
@@ -263,7 +335,84 @@ export async function fetchAdvertPerformanceReport(
     timeSeries: timeSeries(result.time_series),
     sources: breakdown(result.sources),
     devices: breakdown(result.devices),
+    commercial: commercialPerformance(result.commercial),
   };
+}
+
+export async function saveAdvertCommercialSettings(input: {
+  advertId: string;
+  organizationId: string;
+  goalType: AdvertGoalType;
+  budgetAmount: number | null;
+  currencyCode: string;
+}): Promise<void> {
+  const { error } = await supabase.from('advert_commercial_settings').upsert(
+    {
+      advert_id: input.advertId,
+      org_id: input.organizationId,
+      goal_type: input.goalType,
+      budget_amount: input.budgetAmount,
+      currency_code: input.currencyCode.toUpperCase(),
+    },
+    { onConflict: 'advert_id' }
+  );
+  if (error) throw error;
+}
+
+export async function addAdvertSpendEntry(input: {
+  advertId: string;
+  organizationId: string;
+  amount: number;
+  currencyCode: string;
+  spentOn: string;
+  note?: string;
+}): Promise<void> {
+  const { error } = await supabase.from('advert_spend_entries').insert({
+    advert_id: input.advertId,
+    org_id: input.organizationId,
+    amount: input.amount,
+    currency_code: input.currencyCode.toUpperCase(),
+    spent_on: input.spentOn,
+    note: input.note?.trim() || null,
+  });
+  if (error) throw error;
+}
+
+export async function addAdvertOutcome(input: {
+  advertId: string;
+  organizationId: string;
+  outcomeType: AdvertOutcomeType;
+  sourceAction: AdvertOutcomeSource;
+  status: AdvertOutcomeStatus;
+  revenueAmount: number | null;
+  currencyCode: string;
+  occurredAt: string;
+  note?: string;
+}): Promise<void> {
+  const { error } = await supabase.from('advert_outcomes').insert({
+    advert_id: input.advertId,
+    org_id: input.organizationId,
+    outcome_type: input.outcomeType,
+    source_action: input.sourceAction,
+    status: input.status,
+    revenue_amount: input.revenueAmount,
+    currency_code: input.currencyCode.toUpperCase(),
+    occurred_at: input.occurredAt,
+    note: input.note?.trim() || null,
+  });
+  if (error) throw error;
+}
+
+export async function updateAdvertOutcomeStatus(
+  outcomeId: string,
+  status: AdvertOutcomeStatus,
+  revenueAmount: number | null
+): Promise<void> {
+  const { error } = await supabase
+    .from('advert_outcomes')
+    .update({ status, revenue_amount: revenueAmount })
+    .eq('id', outcomeId);
+  if (error) throw error;
 }
 
 export async function fetchOrganizationAdvertPerformance(

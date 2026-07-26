@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
   CalendarDays,
+  CheckCircle2,
+  CircleDollarSign,
   Download,
   Eye,
   FileDown,
@@ -10,14 +12,25 @@ import {
   MousePointerClick,
   Plus,
   Printer,
+  ReceiptText,
   RefreshCw,
+  Save,
   Share2,
   Target,
+  XCircle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
+  addAdvertOutcome,
+  addAdvertSpendEntry,
   AdvertCampaignPerformance,
+  AdvertGoalType,
+  AdvertOutcomeSource,
+  AdvertOutcomeStatus,
+  AdvertOutcomeType,
   fetchOrganizationAdvertPerformance,
+  saveAdvertCommercialSettings,
+  updateAdvertOutcomeStatus,
 } from '../lib/advertAnalytics';
 import { Organization } from '../types';
 
@@ -60,6 +73,16 @@ const formatDate = (value: string | null) =>
   value ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(value)) : 'Not published';
 const rate = (numerator: number, denominator: number) =>
   denominator > 0 ? `${((numerator / denominator) * 100).toFixed(2)}%` : '0.00%';
+const measuredRate = (numerator: number, denominator: number) =>
+  denominator > 0 ? `${((numerator / denominator) * 100).toFixed(2)}%` : 'Not available';
+const money = (value: number, currency: string) =>
+  new Intl.NumberFormat('en-SL', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 2,
+  }).format(value);
+const measuredMoney = (value: number | null, currency: string) =>
+  value === null ? 'Not available' : money(value, currency);
 const titleCase = (value: string) =>
   value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const csvCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
@@ -82,6 +105,28 @@ function downloadCampaignCsv(campaign: AdvertCampaignPerformance) {
     ['CTA clicks', campaign.ctaClicks],
     ['Shares', campaign.shares],
     ['Downloads', campaign.downloads],
+    [],
+    ['Commercial measurement'],
+    ['Goal', titleCase(campaign.commercial.goalType)],
+    ['Budget', campaign.commercial.budgetAmount ?? 'Not available'],
+    ['Actual spend', campaign.commercial.actualSpend || 'Not available'],
+    ['Currency', campaign.commercial.currencyCode],
+    ['Confirmed leads', campaign.commercial.confirmedLeads],
+    ['Confirmed sales', campaign.commercial.confirmedSales],
+    ['Confirmed revenue', campaign.commercial.confirmedRevenue],
+    ['Pending outcomes', campaign.commercial.pendingOutcomes],
+    ['Cost per click', campaign.commercial.actualSpend > 0 && campaign.ctaClicks > 0
+      ? campaign.commercial.actualSpend / campaign.ctaClicks
+      : 'Not available'],
+    ['Cost per lead', campaign.commercial.actualSpend > 0 && campaign.commercial.confirmedLeads > 0
+      ? campaign.commercial.actualSpend / campaign.commercial.confirmedLeads
+      : 'Not available'],
+    ['Click-to-sale conversion rate', campaign.ctaClicks > 0
+      ? `${((campaign.commercial.confirmedSales / campaign.ctaClicks) * 100).toFixed(2)}%`
+      : 'Not available'],
+    ['ROAS', campaign.commercial.actualSpend > 0
+      ? `${(campaign.commercial.confirmedRevenue / campaign.commercial.actualSpend).toFixed(2)}x`
+      : 'Not available'],
     [],
     ['Time series'],
     ['Period', 'Impressions', 'Unique reach', 'Advert opens', 'CTA clicks', 'Shares', 'Downloads'],
@@ -133,6 +178,21 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [commercialEditor, setCommercialEditor] = useState<'settings' | 'spend' | 'outcome' | null>(null);
+  const [commercialFeedback, setCommercialFeedback] = useState<string | null>(null);
+  const [commercialSaving, setCommercialSaving] = useState(false);
+  const [goalType, setGoalType] = useState<AdvertGoalType>('lead');
+  const [budgetAmount, setBudgetAmount] = useState('');
+  const [currencyCode, setCurrencyCode] = useState('SLE');
+  const [spendAmount, setSpendAmount] = useState('');
+  const [spendDate, setSpendDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [spendNote, setSpendNote] = useState('');
+  const [outcomeType, setOutcomeType] = useState<AdvertOutcomeType>('lead');
+  const [outcomeSource, setOutcomeSource] = useState<AdvertOutcomeSource>('whatsapp');
+  const [outcomeStatus, setOutcomeStatus] = useState<AdvertOutcomeStatus>('confirmed');
+  const [outcomeRevenue, setOutcomeRevenue] = useState('');
+  const [outcomeDate, setOutcomeDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [outcomeNote, setOutcomeNote] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -164,6 +224,146 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
   }, [activeOrg.id, periodDays, reloadKey]);
 
   const selected = campaigns.find((campaign) => campaign.advertId === selectedId) ?? campaigns[0] ?? null;
+  useEffect(() => {
+    if (!selected) return;
+    setGoalType(selected.commercial.goalType);
+    setBudgetAmount(selected.commercial.budgetAmount?.toString() ?? '');
+    setCurrencyCode(selected.commercial.currencyCode);
+    setCommercialEditor(null);
+    setCommercialFeedback(null);
+  }, [selected?.advertId]);
+
+  const refreshCommercial = () => setReloadKey((value) => value + 1);
+
+  const saveCommercialSettings = async () => {
+    if (!selected) return;
+    const parsedBudget = budgetAmount.trim() === '' ? null : Number(budgetAmount);
+    if (parsedBudget !== null && (!Number.isFinite(parsedBudget) || parsedBudget < 0)) {
+      setCommercialFeedback('Enter a valid budget or leave it blank.');
+      return;
+    }
+    if (!/^[A-Z]{3}$/.test(currencyCode.toUpperCase())) {
+      setCommercialFeedback('Currency must be a three-letter code such as SLE or USD.');
+      return;
+    }
+    setCommercialSaving(true);
+    setCommercialFeedback(null);
+    try {
+      await saveAdvertCommercialSettings({
+        advertId: selected.advertId,
+        organizationId: activeOrg.id,
+        goalType,
+        budgetAmount: parsedBudget,
+        currencyCode,
+      });
+      setCommercialEditor(null);
+      setCommercialFeedback('Commercial goal and budget saved.');
+      refreshCommercial();
+    } catch (cause) {
+      setCommercialFeedback(cause instanceof Error ? cause.message : 'Commercial settings could not be saved.');
+    } finally {
+      setCommercialSaving(false);
+    }
+  };
+
+  const saveSpend = async () => {
+    if (!selected) return;
+    const amount = Number(spendAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setCommercialFeedback('Enter a spend amount greater than zero.');
+      return;
+    }
+    setCommercialSaving(true);
+    setCommercialFeedback(null);
+    try {
+      await addAdvertSpendEntry({
+        advertId: selected.advertId,
+        organizationId: activeOrg.id,
+        amount,
+        currencyCode,
+        spentOn: spendDate,
+        note: spendNote,
+      });
+      setSpendAmount('');
+      setSpendNote('');
+      setCommercialEditor(null);
+      setCommercialFeedback('Campaign spend recorded for the selected date.');
+      refreshCommercial();
+    } catch (cause) {
+      setCommercialFeedback(cause instanceof Error ? cause.message : 'Campaign spend could not be recorded.');
+    } finally {
+      setCommercialSaving(false);
+    }
+  };
+
+  const saveOutcome = async () => {
+    if (!selected) return;
+    const revenue = outcomeRevenue.trim() === '' ? null : Number(outcomeRevenue);
+    if (outcomeType === 'sale' && outcomeStatus === 'confirmed' && (!revenue || revenue <= 0)) {
+      setCommercialFeedback('A confirmed sale requires revenue greater than zero.');
+      return;
+    }
+    if (revenue !== null && (!Number.isFinite(revenue) || revenue < 0)) {
+      setCommercialFeedback('Enter a valid revenue amount or leave it blank.');
+      return;
+    }
+    setCommercialSaving(true);
+    setCommercialFeedback(null);
+    try {
+      await addAdvertOutcome({
+        advertId: selected.advertId,
+        organizationId: activeOrg.id,
+        outcomeType,
+        sourceAction: outcomeSource,
+        status: outcomeStatus,
+        revenueAmount: outcomeType === 'sale' ? revenue : null,
+        currencyCode,
+        occurredAt: new Date(`${outcomeDate}T12:00:00`).toISOString(),
+        note: outcomeNote,
+      });
+      setOutcomeRevenue('');
+      setOutcomeNote('');
+      setCommercialEditor(null);
+      setCommercialFeedback('Campaign outcome recorded.');
+      refreshCommercial();
+    } catch (cause) {
+      setCommercialFeedback(cause instanceof Error ? cause.message : 'Campaign outcome could not be recorded.');
+    } finally {
+      setCommercialSaving(false);
+    }
+  };
+
+  const changeOutcomeStatus = async (
+    outcomeId: string,
+    status: AdvertOutcomeStatus,
+    revenueAmount: number | null,
+    outcomeKind: AdvertOutcomeType
+  ) => {
+    if (
+      status === 'confirmed'
+      && outcomeKind === 'sale'
+      && (revenueAmount === null || revenueAmount <= 0)
+    ) {
+      const entered = window.prompt('Confirmed sale revenue:', '');
+      if (entered === null) return;
+      revenueAmount = Number(entered);
+      if (!Number.isFinite(revenueAmount) || revenueAmount <= 0) {
+        setCommercialFeedback('A confirmed sale requires revenue greater than zero.');
+        return;
+      }
+    }
+    setCommercialSaving(true);
+    setCommercialFeedback(null);
+    try {
+      await updateAdvertOutcomeStatus(outcomeId, status, revenueAmount);
+      setCommercialFeedback(status === 'confirmed' ? 'Outcome confirmed.' : 'Outcome rejected.');
+      refreshCommercial();
+    } catch (cause) {
+      setCommercialFeedback(cause instanceof Error ? cause.message : 'Outcome status could not be updated.');
+    } finally {
+      setCommercialSaving(false);
+    }
+  };
   const totals = useMemo(
     () =>
       campaigns.reduce(
@@ -174,11 +374,30 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
           ctaClicks: sum.ctaClicks + campaign.ctaClicks,
           shares: sum.shares + campaign.shares,
           downloads: sum.downloads + campaign.downloads,
+          actualSpend: sum.actualSpend + campaign.commercial.actualSpend,
+          confirmedLeads: sum.confirmedLeads + campaign.commercial.confirmedLeads,
+          confirmedSales: sum.confirmedSales + campaign.commercial.confirmedSales,
+          confirmedRevenue: sum.confirmedRevenue + campaign.commercial.confirmedRevenue,
         }),
-        { impressions: 0, uniqueViewers: 0, detailViews: 0, ctaClicks: 0, shares: 0, downloads: 0 }
+        {
+          impressions: 0,
+          uniqueViewers: 0,
+          detailViews: 0,
+          ctaClicks: 0,
+          shares: 0,
+          downloads: 0,
+          actualSpend: 0,
+          confirmedLeads: 0,
+          confirmedSales: 0,
+          confirmedRevenue: 0,
+        }
       ),
     [campaigns]
   );
+  const organizationCurrency = useMemo(() => {
+    const currencies = new Set(campaigns.map((campaign) => campaign.commercial.currencyCode));
+    return currencies.size === 1 ? [...currencies][0] : null;
+  }, [campaigns]);
 
   const actionRows = useMemo(() => {
     if (!selected) return [];
@@ -270,6 +489,37 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
             </div>
             <strong className="mt-2 block font-display text-2xl font-extrabold tabular-nums text-slate-950">
               {loading ? '—' : formatNumber(Number(value))}
+            </strong>
+          </div>
+        ))}
+      </section>
+
+      <section className="grid grid-cols-2 gap-px border border-[#0F172A] bg-[#0F172A] lg:grid-cols-6">
+        {[
+          ['Recorded spend', organizationCurrency && totals.actualSpend > 0
+            ? money(totals.actualSpend, organizationCurrency)
+            : organizationCurrency ? 'Not available' : 'Mixed currencies'],
+          ['Confirmed leads', formatNumber(totals.confirmedLeads)],
+          ['Confirmed sales', formatNumber(totals.confirmedSales)],
+          ['Confirmed revenue', organizationCurrency && totals.confirmedSales > 0
+            ? money(totals.confirmedRevenue, organizationCurrency)
+            : organizationCurrency ? 'Not available' : 'Mixed currencies'],
+          ['Organisation CPL', organizationCurrency
+            ? measuredMoney(
+              totals.actualSpend > 0 && totals.confirmedLeads > 0
+                ? totals.actualSpend / totals.confirmedLeads
+                : null,
+              organizationCurrency
+            )
+            : 'Not available'],
+          ['Organisation ROAS', organizationCurrency && totals.actualSpend > 0
+            ? `${(totals.confirmedRevenue / totals.actualSpend).toFixed(2)}x`
+            : 'Not available'],
+        ].map(([label, value]) => (
+          <div key={label} className="bg-slate-50 p-4">
+            <span className="font-mono text-[8px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+            <strong className="mt-2 block break-words font-display text-lg font-extrabold tabular-nums text-slate-950">
+              {loading ? '—' : value}
             </strong>
           </div>
         ))}
@@ -384,6 +634,284 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
               </section>
 
               <section className="border border-[#0F172A] bg-white">
+                <div className="flex flex-col gap-3 border-b border-[#0F172A] px-5 py-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <span className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-700">
+                      Commercial outcomes
+                    </span>
+                    <h3 className="mt-1 font-display text-lg font-extrabold text-slate-950">
+                      Cost, leads and return
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {selected.title} · confirmed outcomes and spend recorded within the selected reporting period.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setCommercialEditor('settings')} className="btn-geometric-secondary h-9">
+                      Goal & budget
+                    </button>
+                    <button type="button" onClick={() => setCommercialEditor('spend')} className="btn-geometric-secondary h-9 inline-flex items-center gap-2">
+                      <ReceiptText className="h-3.5 w-3.5" /> Add spend
+                    </button>
+                    <button type="button" onClick={() => setCommercialEditor('outcome')} className="btn-geometric h-9 inline-flex items-center gap-2">
+                      <CircleDollarSign className="h-3.5 w-3.5" /> Record outcome
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-px bg-[#0F172A] lg:grid-cols-4 xl:grid-cols-8">
+                  {[
+                    ['Goal', titleCase(selected.commercial.goalType)],
+                    ['Budget', selected.commercial.budgetAmount === null
+                      ? 'Not available'
+                      : money(selected.commercial.budgetAmount, selected.commercial.currencyCode)],
+                    ['Actual spend', selected.commercial.actualSpend > 0
+                      ? money(selected.commercial.actualSpend, selected.commercial.currencyCode)
+                      : 'Not available'],
+                    ['Confirmed leads', formatNumber(selected.commercial.confirmedLeads)],
+                    ['Confirmed sales', formatNumber(selected.commercial.confirmedSales)],
+                    ['Cost per click', measuredMoney(
+                      selected.commercial.actualSpend > 0 && selected.ctaClicks > 0
+                        ? selected.commercial.actualSpend / selected.ctaClicks
+                        : null,
+                      selected.commercial.currencyCode
+                    )],
+                    ['Cost per lead', measuredMoney(
+                      selected.commercial.actualSpend > 0 && selected.commercial.confirmedLeads > 0
+                        ? selected.commercial.actualSpend / selected.commercial.confirmedLeads
+                        : null,
+                      selected.commercial.currencyCode
+                    )],
+                    ['ROAS', selected.commercial.actualSpend > 0
+                      ? `${(selected.commercial.confirmedRevenue / selected.commercial.actualSpend).toFixed(2)}x`
+                      : 'Not available'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="min-w-0 bg-white p-4">
+                      <span className="block font-mono text-[8px] font-bold uppercase tracking-wider text-slate-500">{label}</span>
+                      <strong className="mt-2 block break-words font-display text-lg font-extrabold tabular-nums text-slate-950">
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid border-t border-[#0F172A] lg:grid-cols-[0.8fr_1.2fr]">
+                  <div className="border-b border-[#0F172A] p-5 lg:border-b-0 lg:border-r">
+                    <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                      Conversion evidence
+                    </span>
+                    <div className="mt-4 grid grid-cols-2 gap-px bg-slate-300">
+                      <div className="bg-slate-50 p-4">
+                        <span className="block text-[9px] font-bold uppercase text-slate-500">Click-to-sale rate</span>
+                        <strong className="mt-1 block font-display text-2xl text-slate-950">
+                          {measuredRate(selected.commercial.confirmedSales, selected.ctaClicks)}
+                        </strong>
+                      </div>
+                      <div className="bg-slate-50 p-4">
+                        <span className="block text-[9px] font-bold uppercase text-slate-500">Confirmed revenue</span>
+                        <strong className="mt-1 block font-display text-2xl text-slate-950">
+                          {selected.commercial.confirmedSales > 0
+                            ? money(selected.commercial.confirmedRevenue, selected.commercial.currencyCode)
+                            : 'Not available'}
+                        </strong>
+                      </div>
+                    </div>
+                    <p className="mt-4 text-[11px] leading-relaxed text-slate-600">
+                      ROAS uses confirmed sale revenue divided by spend recorded in this date range. Subscription fees and CRM estimates are excluded.
+                    </p>
+                  </div>
+
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="font-display text-sm font-extrabold text-slate-950">Recent advertiser-confirmed outcomes</h4>
+                        <p className="mt-1 text-xs text-slate-500">Up to 50 outcomes in the selected period.</p>
+                      </div>
+                      {selected.commercial.pendingOutcomes > 0 && (
+                        <span className="border border-amber-400 bg-amber-50 px-2 py-1 font-mono text-[9px] font-bold uppercase text-amber-800">
+                          {selected.commercial.pendingOutcomes} pending
+                        </span>
+                      )}
+                    </div>
+                    {selected.commercial.recentOutcomes.length ? (
+                      <div className="mt-4 overflow-x-auto">
+                        <table className="w-full min-w-[620px]">
+                          <thead>
+                            <tr>
+                              <th className="text-left">Date</th>
+                              <th className="text-left">Outcome</th>
+                              <th className="text-left">Source</th>
+                              <th className="text-left">Status</th>
+                              <th className="text-right">Revenue</th>
+                              <th className="text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selected.commercial.recentOutcomes.map((outcome) => (
+                              <tr key={outcome.id}>
+                                <td className="font-mono text-[10px]">{formatDate(outcome.occurredAt)}</td>
+                                <td className="font-bold">{titleCase(outcome.outcomeType)}</td>
+                                <td>{titleCase(outcome.sourceAction)}</td>
+                                <td>{titleCase(outcome.status)}</td>
+                                <td className="text-right font-bold">
+                                  {outcome.revenueAmount === null
+                                    ? '—'
+                                    : money(outcome.revenueAmount, outcome.currencyCode)}
+                                </td>
+                                <td className="text-right">
+                                  {outcome.status === 'pending' ? (
+                                    <div className="flex justify-end gap-1">
+                                      <button
+                                        type="button"
+                                        disabled={commercialSaving}
+                                        onClick={() => changeOutcomeStatus(
+                                          outcome.id,
+                                          'confirmed',
+                                          outcome.revenueAmount,
+                                          outcome.outcomeType
+                                        )}
+                                        className="border border-emerald-700 p-1.5 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                                        title="Confirm outcome"
+                                      >
+                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={commercialSaving}
+                                        onClick={() => changeOutcomeStatus(
+                                          outcome.id,
+                                          'rejected',
+                                          outcome.revenueAmount,
+                                          outcome.outcomeType
+                                        )}
+                                        className="border border-red-700 p-1.5 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                        title="Reject outcome"
+                                      >
+                                        <XCircle className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  ) : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="mt-4 border-l-4 border-slate-400 bg-slate-50 p-4 text-xs text-slate-600">
+                        No lead or sale outcome has been recorded for this advert in the selected period.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {commercialEditor && (
+                  <div className="border-t border-[#0F172A] bg-slate-50 p-5">
+                    {commercialEditor === 'settings' && (
+                      <div className="grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+                        <label className="text-xs font-bold text-slate-700">
+                          Conversion goal
+                          <select value={goalType} onChange={(event) => setGoalType(event.target.value as AdvertGoalType)} className="mt-1 h-10 w-full bg-white">
+                            <option value="awareness">Awareness</option>
+                            <option value="traffic">Traffic</option>
+                            <option value="lead">Lead generation</option>
+                            <option value="sale">Sales</option>
+                          </select>
+                        </label>
+                        <label className="text-xs font-bold text-slate-700">
+                          Campaign budget
+                          <input type="number" min="0" step="0.01" value={budgetAmount} onChange={(event) => setBudgetAmount(event.target.value)} placeholder="Optional" className="mt-1 h-10 w-full bg-white" />
+                        </label>
+                        <label className="text-xs font-bold text-slate-700">
+                          Currency
+                          <input value={currencyCode} maxLength={3} onChange={(event) => setCurrencyCode(event.target.value.toUpperCase())} className="mt-1 h-10 w-full bg-white uppercase" />
+                        </label>
+                        <button type="button" disabled={commercialSaving} onClick={saveCommercialSettings} className="btn-geometric h-10 inline-flex items-center justify-center gap-2 disabled:opacity-50">
+                          <Save className="h-3.5 w-3.5" /> Save
+                        </button>
+                      </div>
+                    )}
+
+                    {commercialEditor === 'spend' && (
+                      <div className="grid gap-4 md:grid-cols-[1fr_1fr_2fr_auto] md:items-end">
+                        <label className="text-xs font-bold text-slate-700">
+                          Spend amount
+                          <input type="number" min="0.01" step="0.01" value={spendAmount} onChange={(event) => setSpendAmount(event.target.value)} className="mt-1 h-10 w-full bg-white" />
+                        </label>
+                        <label className="text-xs font-bold text-slate-700">
+                          Spend date
+                          <input type="date" value={spendDate} onChange={(event) => setSpendDate(event.target.value)} className="mt-1 h-10 w-full bg-white" />
+                        </label>
+                        <label className="text-xs font-bold text-slate-700">
+                          Note
+                          <input value={spendNote} maxLength={500} onChange={(event) => setSpendNote(event.target.value)} placeholder="Optional invoice, channel or placement note" className="mt-1 h-10 w-full bg-white" />
+                        </label>
+                        <button type="button" disabled={commercialSaving} onClick={saveSpend} className="btn-geometric h-10 inline-flex items-center justify-center gap-2 disabled:opacity-50">
+                          <Save className="h-3.5 w-3.5" /> Record
+                        </button>
+                      </div>
+                    )}
+
+                    {commercialEditor === 'outcome' && (
+                      <div className="grid gap-4 lg:grid-cols-3">
+                        <label className="text-xs font-bold text-slate-700">
+                          Outcome
+                          <select value={outcomeType} onChange={(event) => setOutcomeType(event.target.value as AdvertOutcomeType)} className="mt-1 h-10 w-full bg-white">
+                            <option value="lead">Lead / enquiry</option>
+                            <option value="sale">Sale</option>
+                          </select>
+                        </label>
+                        <label className="text-xs font-bold text-slate-700">
+                          Source
+                          <select value={outcomeSource} onChange={(event) => setOutcomeSource(event.target.value as AdvertOutcomeSource)} className="mt-1 h-10 w-full bg-white">
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="phone">Phone</option>
+                            <option value="website">Website</option>
+                            <option value="social">Social</option>
+                            <option value="offline">Offline</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </label>
+                        <label className="text-xs font-bold text-slate-700">
+                          Verification status
+                          <select value={outcomeStatus} onChange={(event) => setOutcomeStatus(event.target.value as AdvertOutcomeStatus)} className="mt-1 h-10 w-full bg-white">
+                            <option value="confirmed">Confirmed</option>
+                            <option value="pending">Pending</option>
+                          </select>
+                        </label>
+                        <label className="text-xs font-bold text-slate-700">
+                          Outcome date
+                          <input type="date" value={outcomeDate} onChange={(event) => setOutcomeDate(event.target.value)} className="mt-1 h-10 w-full bg-white" />
+                        </label>
+                        <label className="text-xs font-bold text-slate-700">
+                          Sale revenue
+                          <input type="number" min="0" step="0.01" disabled={outcomeType !== 'sale'} value={outcomeRevenue} onChange={(event) => setOutcomeRevenue(event.target.value)} placeholder={outcomeType === 'sale' ? 'Required when confirmed' : 'Not applicable'} className="mt-1 h-10 w-full bg-white disabled:bg-slate-100" />
+                        </label>
+                        <label className="text-xs font-bold text-slate-700">
+                          Note
+                          <input value={outcomeNote} maxLength={500} onChange={(event) => setOutcomeNote(event.target.value)} placeholder="Optional non-personal reference" className="mt-1 h-10 w-full bg-white" />
+                        </label>
+                        <div className="flex gap-2 lg:col-span-3 lg:justify-end">
+                          <button type="button" onClick={() => setCommercialEditor(null)} className="btn-geometric-secondary h-10">Cancel</button>
+                          <button type="button" disabled={commercialSaving} onClick={saveOutcome} className="btn-geometric h-10 inline-flex items-center gap-2 disabled:opacity-50">
+                            <Save className="h-3.5 w-3.5" /> Record outcome
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {commercialFeedback && (
+                  <div className={`border-t px-5 py-3 text-xs font-semibold ${commercialFeedback.includes('could not') || commercialFeedback.startsWith('Enter') || commercialFeedback.startsWith('A confirmed') || commercialFeedback.startsWith('Currency')
+                    ? 'border-red-300 bg-red-50 text-red-800'
+                    : 'border-emerald-300 bg-emerald-50 text-emerald-800'}`}>
+                    {commercialFeedback}
+                  </div>
+                )}
+              </section>
+
+              <section className="border border-[#0F172A] bg-white">
                 <div className="flex flex-col gap-3 border-b border-[#0F172A] px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <h3 className="font-display text-lg font-extrabold text-slate-950">Performance over time</h3>
@@ -467,20 +995,22 @@ export function CampaignPerformancePage({ activeOrg, onCreateAdvert }: CampaignP
           <section className="border border-[#0F172A] bg-white">
             <div className="border-b border-[#0F172A] px-5 py-4">
               <h3 className="font-display text-lg font-extrabold text-slate-950">Campaign ranking</h3>
-              <p className="mt-1 text-xs text-slate-500">Ranked by verified customer actions, then impressions.</p>
+              <p className="mt-1 text-xs text-slate-500">Organisation-level comparison of verified attention and confirmed commercial outcomes.</p>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px]">
-                <thead><tr><th className="px-5 text-left">Campaign</th><th className="px-4 text-right">Reach</th><th className="px-4 text-right">Impressions</th><th className="px-4 text-right">Opens</th><th className="px-4 text-right">CTA clicks</th><th className="px-5 text-right">CTA rate</th></tr></thead>
+              <table className="w-full min-w-[980px]">
+                <thead><tr><th className="px-5 text-left">Campaign</th><th className="px-4 text-right">Reach</th><th className="px-4 text-right">Impressions</th><th className="px-4 text-right">CTA clicks</th><th className="px-4 text-right">Spend</th><th className="px-4 text-right">Leads</th><th className="px-4 text-right">Sales</th><th className="px-5 text-right">ROAS</th></tr></thead>
                 <tbody>
                   {[...campaigns].sort((a, b) => b.ctaClicks - a.ctaClicks || b.impressions - a.impressions).map((campaign) => (
                     <tr key={campaign.advertId} className={campaign.advertId === selected?.advertId ? 'bg-emerald-50' : 'hover:bg-slate-50'}>
                       <td className="px-5"><button type="button" onClick={() => setSelectedId(campaign.advertId)} className="cursor-pointer text-left"><span className="block text-xs font-bold text-slate-950">{campaign.title}</span><span className="text-[10px] text-slate-500">{campaign.category} · {statusLabel(campaign)}</span></button></td>
                       <td className="px-4 text-right font-bold">{formatNumber(campaign.uniqueViewers)}</td>
                       <td className="px-4 text-right font-bold">{formatNumber(campaign.impressions)}</td>
-                      <td className="px-4 text-right font-bold">{formatNumber(campaign.detailViews)}</td>
                       <td className="px-4 text-right font-bold">{formatNumber(campaign.ctaClicks)}</td>
-                      <td className="px-5 text-right font-bold">{rate(campaign.ctaClicks, campaign.impressions)}</td>
+                      <td className="px-4 text-right font-bold">{campaign.commercial.actualSpend > 0 ? money(campaign.commercial.actualSpend, campaign.commercial.currencyCode) : '—'}</td>
+                      <td className="px-4 text-right font-bold">{formatNumber(campaign.commercial.confirmedLeads)}</td>
+                      <td className="px-4 text-right font-bold">{formatNumber(campaign.commercial.confirmedSales)}</td>
+                      <td className="px-5 text-right font-bold">{campaign.commercial.actualSpend > 0 ? `${(campaign.commercial.confirmedRevenue / campaign.commercial.actualSpend).toFixed(2)}x` : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
