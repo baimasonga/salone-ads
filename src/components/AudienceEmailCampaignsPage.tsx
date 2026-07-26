@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Calendar, Loader2, Mail, Pause, Play, Send, Users } from 'lucide-react';
+import { Calendar, Loader2, Mail, Pause, Play, Send } from 'lucide-react';
 import {
   AudienceEmailCampaign,
   cancelAudienceEmailCampaign,
@@ -56,6 +56,12 @@ export function AudienceEmailCampaignsPage() {
     && (!targetLocations.length || subscriber.locations.some(location => targetLocations.includes(location)))
     && targetFrequencies.includes(subscriber.frequency)
   ).length, [subscribers, targetFrequencies, targetInterests, targetLocations]);
+  const totals = useMemo(() => campaigns.reduce((result, campaign) => ({
+    sent: result.sent + campaign.sentCount,
+    delivered: result.delivered + campaign.deliveredCount,
+    opened: result.opened + campaign.openedCount,
+    clicked: result.clicked + campaign.clickedCount,
+  }), { sent: 0, delivered: 0, opened: 0, clicked: 0 }), [campaigns]);
 
   const toggle = (value: string, values: string[], setter: (next: string[]) => void) => {
     setter(values.includes(value) ? values.filter(item => item !== value) : [...values, value]);
@@ -152,6 +158,15 @@ export function AudienceEmailCampaignsPage() {
 
     {feedback && <div role="status" className="border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-800">{feedback}</div>}
 
+    <section aria-label="Email performance overview" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {[
+        { label: 'Sent', value: totals.sent, accent: 'border-blue-500 bg-blue-50 text-blue-800' },
+        { label: 'Delivered', value: totals.delivered, accent: 'border-emerald-500 bg-emerald-50 text-emerald-800' },
+        { label: 'Unique opens', value: totals.opened, accent: 'border-violet-500 bg-violet-50 text-violet-800' },
+        { label: 'Unique clicks', value: totals.clicked, accent: 'border-amber-500 bg-amber-50 text-amber-800' },
+      ].map(metric => <div key={metric.label} className={`border-l-4 p-4 ${metric.accent}`}><p className="font-display text-2xl font-extrabold">{metric.value}</p><p className="font-mono text-[9px] font-bold uppercase tracking-widest">{metric.label}</p></div>)}
+    </section>
+
     <form onSubmit={saveCampaign} className="border border-slate-200 bg-white p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-emerald-700">Campaign composer</p><h3 className="mt-1 font-display text-xl font-extrabold">Create an audience email</h3></div>
@@ -182,7 +197,28 @@ export function AudienceEmailCampaignsPage() {
 
     <section className="border border-slate-200 bg-white p-5 sm:p-6">
       <div className="flex items-center justify-between"><h3 className="font-display text-lg font-extrabold">Delivery history</h3><span className="font-mono text-[9px] uppercase tracking-widest text-slate-400">{campaigns.length} campaigns</span></div>
-      {loading ? <div className="flex justify-center p-10 text-sm text-slate-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading campaigns…</div> : campaigns.length === 0 ? <p className="mt-5 border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No email campaigns yet.</p> : <div className="mt-4 grid gap-3">{campaigns.map(campaign => <article key={campaign.id} className="border border-slate-200 p-4"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2"><span className="bg-slate-950 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-white">{campaign.status}</span>{campaign.scheduledAt && <span className="font-mono text-[9px] text-slate-400">{new Date(campaign.scheduledAt).toLocaleString('en-GB')}</span>}</div><h4 className="mt-2 font-display font-bold">{campaign.name}</h4><p className="mt-1 text-xs text-slate-500">{campaign.subject}</p></div><div className="grid grid-cols-3 gap-4 text-right"><div><p className="font-display text-xl font-extrabold">{campaign.queuedCount}</p><p className="text-[9px] uppercase text-slate-400">Queued</p></div><div><p className="font-display text-xl font-extrabold text-emerald-700">{campaign.sentCount}</p><p className="text-[9px] uppercase text-slate-400">Sent</p></div><div><p className="font-display text-xl font-extrabold text-red-600">{campaign.failedCount}</p><p className="text-[9px] uppercase text-slate-400">Failed</p></div></div></div>{['queued', 'scheduled', 'processing'].includes(campaign.status) && <div className="mt-4 flex gap-2"><button onClick={() => void dispatch(campaign)} disabled={saving === campaign.id} className="inline-flex items-center gap-2 bg-slate-950 px-3 py-2 text-[10px] font-bold uppercase text-white"><Play className="h-3.5 w-3.5" /> Dispatch now</button><button onClick={() => void cancel(campaign)} disabled={saving === campaign.id} className="inline-flex items-center gap-2 border border-slate-300 px-3 py-2 text-[10px] font-bold uppercase"><Pause className="h-3.5 w-3.5" /> Cancel</button></div>}</article>)}</div>}
+      {loading ? <div className="flex justify-center p-10 text-sm text-slate-500"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading campaigns…</div> : campaigns.length === 0 ? <p className="mt-5 border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No email campaigns yet.</p> : <div className="mt-4 grid gap-3">{campaigns.map(campaign => {
+        const deliveryRate = campaign.sentCount ? Math.round((campaign.deliveredCount / campaign.sentCount) * 100) : 0;
+        const openRate = campaign.deliveredCount ? Math.round((campaign.openedCount / campaign.deliveredCount) * 100) : 0;
+        const clickRate = campaign.deliveredCount ? Math.round((campaign.clickedCount / campaign.deliveredCount) * 100) : 0;
+        return <article key={campaign.id} className="border border-slate-200 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div><div className="flex items-center gap-2"><span className="bg-slate-950 px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-white">{campaign.status}</span>{campaign.scheduledAt && <span className="font-mono text-[9px] text-slate-400">{new Date(campaign.scheduledAt).toLocaleString('en-GB')}</span>}</div><h4 className="mt-2 font-display font-bold">{campaign.name}</h4><p className="mt-1 text-xs text-slate-500">{campaign.subject}</p></div>
+            <div className="grid grid-cols-3 gap-4 text-right"><div><p className="font-display text-xl font-extrabold">{campaign.queuedCount}</p><p className="text-[9px] uppercase text-slate-400">Queued</p></div><div><p className="font-display text-xl font-extrabold text-emerald-700">{campaign.sentCount}</p><p className="text-[9px] uppercase text-slate-400">Sent</p></div><div><p className="font-display text-xl font-extrabold text-red-600">{campaign.failedCount}</p><p className="text-[9px] uppercase text-slate-400">Failed</p></div></div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-4 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              ['Delivered', campaign.deliveredCount, `${deliveryRate}%`],
+              ['Opened', campaign.openedCount, `${openRate}%`],
+              ['Clicked', campaign.clickedCount, `${clickRate}%`],
+              ['Bounced', campaign.bouncedCount, ''],
+              ['Complaints', campaign.complainedCount, ''],
+              ['Suppressed', campaign.suppressedCount, ''],
+            ].map(([label, value, rate]) => <div key={label} className="bg-slate-50 p-2"><p className="font-display text-base font-extrabold">{value} <span className="text-[10px] font-semibold text-slate-400">{rate}</span></p><p className="text-[8px] font-bold uppercase tracking-wider text-slate-500">{label}</p></div>)}
+          </div>
+          {['queued', 'scheduled', 'processing'].includes(campaign.status) && <div className="mt-4 flex gap-2"><button onClick={() => void dispatch(campaign)} disabled={saving === campaign.id} className="inline-flex items-center gap-2 bg-slate-950 px-3 py-2 text-[10px] font-bold uppercase text-white"><Play className="h-3.5 w-3.5" /> Dispatch now</button><button onClick={() => void cancel(campaign)} disabled={saving === campaign.id} className="inline-flex items-center gap-2 border border-slate-300 px-3 py-2 text-[10px] font-bold uppercase"><Pause className="h-3.5 w-3.5" /> Cancel</button></div>}
+        </article>;
+      })}</div>}
     </section>
   </div>;
 }
