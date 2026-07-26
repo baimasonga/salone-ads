@@ -37,6 +37,19 @@ export interface AdvertPerformance {
   actions: Record<string, number>;
 }
 
+export interface AdvertCampaignPerformance extends AdvertPerformance {
+  title: string;
+  category: string;
+  businessName: string;
+  summary: string | null;
+  creativeUrl: string | null;
+  accentColor: string | null;
+  status: 'draft' | 'live' | 'archived';
+  startsAt: string | null;
+  endsAt: string | null;
+  publishedAt: string | null;
+}
+
 const VISITOR_TOKEN_KEY = 'manohub.analytics.visitor';
 const MAX_METADATA_ENTRIES = 12;
 
@@ -160,4 +173,39 @@ export async function fetchAdvertPerformance(
     downloads: Number(result.downloads ?? 0),
     actions: (result.actions ?? {}) as Record<string, number>,
   };
+}
+
+export async function fetchOrganizationAdvertPerformance(
+  organizationId: string,
+  periodDays = 30
+): Promise<AdvertCampaignPerformance[]> {
+  const { data: adverts, error } = await supabase
+    .from('adverts')
+    .select(
+      'id, title, category, business_name, summary, creative_url, og_image_url, accent_color, status, starts_at, ends_at, published_at'
+    )
+    .eq('org_id', organizationId)
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  return Promise.all(
+    (adverts ?? []).map(async (advert) => {
+      const performance = await fetchAdvertPerformance(advert.id, periodDays);
+      return {
+        ...performance,
+        title: advert.title,
+        category: advert.category,
+        businessName: advert.business_name,
+        summary: advert.summary ?? null,
+        creativeUrl: advert.creative_url ?? advert.og_image_url ?? null,
+        accentColor: advert.accent_color ?? null,
+        status: advert.status,
+        startsAt: advert.starts_at ?? null,
+        endsAt: advert.ends_at ?? null,
+        publishedAt: advert.published_at ?? null,
+      } as AdvertCampaignPerformance;
+    })
+  );
 }
