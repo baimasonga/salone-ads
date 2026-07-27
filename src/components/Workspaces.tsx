@@ -7,6 +7,7 @@ import { CampaignBuilderPage } from './CampaignBuilderPage';
 import { AdvertBillingPage } from './AdvertBillingPage';
 import { AgencyWorkspacePage } from './AgencyWorkspacePage';
 import { LandingCmsPage } from './LandingCmsPage';
+import { CmsContentManagerPage } from './CmsContentManagerPage';
 import { AudienceSubscribersPage } from './AudienceSubscribersPage';
 import { AudienceEmailCampaignsPage } from './AudienceEmailCampaignsPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
@@ -3623,6 +3624,9 @@ export function Workspaces({
   }
   if (activeTab === 'landing-cms') {
     return <LandingCmsPage />;
+  }
+  if (activeTab === 'content-cms') {
+    return <CmsContentManagerPage />;
   }
   if (activeTab === 'audience-subscribers') {
     return <AudienceSubscribersPage />;
