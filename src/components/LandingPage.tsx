@@ -204,6 +204,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
 
   const navLinks = [
     { href: '#explorer', label: 'Live Tenders' },
+    { href: '/insights', label: 'Insights' },
     { href: '#how', label: 'How It Works' },
     { href: '#advertise', label: 'Advertise' },
     { href: '#pricing', label: 'Pricing' },
