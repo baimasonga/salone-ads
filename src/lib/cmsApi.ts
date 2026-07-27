@@ -25,6 +25,13 @@ export interface CmsContent {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  reviewNote: string;
+  reviewRequestedAt: string | null;
+  reviewedAt: string | null;
+  lockedBy: string | null;
+  lockedUntil: string | null;
+  nativeAdvertId: string | null;
+  emailCampaignId: string | null;
 }
 
 export interface CmsContentRevision {
@@ -56,7 +63,17 @@ const mapContent = (row: any): CmsContent => ({
   deletedAt: row.deleted_at ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+  reviewNote: row.review_note ?? '',
+  reviewRequestedAt: row.review_requested_at ?? null,
+  reviewedAt: row.reviewed_at ?? null,
+  lockedBy: row.locked_by ?? null,
+  lockedUntil: row.locked_until ?? null,
+  nativeAdvertId: row.native_advert_id ?? null,
+  emailCampaignId: row.email_campaign_id ?? null,
 });
+
+export interface CmsEditorialComment { id: string; body: string; authorId: string; createdAt: string }
+export interface CmsContentAnalytics { views: number; ctaClicks: number; adImpressions: number; adClicks: number; subscriptions: number }
 
 export function cmsSlug(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 180) || `content-${Date.now()}`;
@@ -137,11 +154,90 @@ export async function saveCmsContent(content: CmsContent): Promise<void> {
     seo_description: content.seoDescription.trim(),
     social_image_url: content.socialImageUrl || null,
     canonical_url: content.canonicalUrl || null,
+    review_note: content.reviewNote,
+    review_requested_at: content.status === 'review' ? content.reviewRequestedAt || new Date().toISOString() : content.reviewRequestedAt,
+    reviewed_at: content.status === 'published' ? content.reviewedAt || new Date().toISOString() : content.reviewedAt,
+    reviewed_by: content.status === 'published' ? user.id : null,
+    native_advert_id: content.nativeAdvertId,
     published_at: publishedAt,
     updated_by: user.id,
     updated_at: new Date().toISOString(),
   }).eq('id', content.id);
   if (error) throw error;
+}
+
+export async function addCmsEditorialComment(contentId: string, body: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Please sign in.');
+  const { error } = await supabase.from('cms_editorial_comments').insert({ content_id: contentId, body: body.trim(), author_id: user.id });
+  if (error) throw error;
+}
+
+export async function fetchCmsEditorialComments(contentId: string): Promise<CmsEditorialComment[]> {
+  const { data, error } = await supabase.from('cms_editorial_comments').select('id,body,author_id,created_at').eq('content_id', contentId).order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({ id: row.id, body: row.body, authorId: row.author_id, createdAt: row.created_at }));
+}
+
+export async function fetchCmsContentAnalytics(contentId: string): Promise<CmsContentAnalytics> {
+  const { data, error } = await supabase.from('cms_content_events').select('event_type').eq('content_id', contentId);
+  if (error) throw error;
+  const types = (data ?? []).map(row => row.event_type);
+  return {
+    views: types.filter(type => type === 'view').length,
+    ctaClicks: types.filter(type => type === 'cta_click').length,
+    adImpressions: types.filter(type => type === 'ad_impression').length,
+    adClicks: types.filter(type => type === 'ad_click').length,
+    subscriptions: types.filter(type => type === 'subscription').length,
+  };
+}
+
+export async function trackCmsContentEvent(contentId: string, eventType: 'view' | 'cta_click' | 'ad_impression' | 'ad_click' | 'subscription'): Promise<void> {
+  let sessionId = '';
+  try {
+    sessionId = localStorage.getItem('manohub.cms.session') || '';
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      localStorage.setItem('manohub.cms.session', sessionId);
+    }
+  } catch {
+    sessionId = crypto.randomUUID();
+  }
+  await supabase.from('cms_content_events').insert({ content_id: contentId, event_type: eventType, session_id: sessionId });
+}
+
+export async function acquireCmsContentLock(contentId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const { error } = await supabase.from('cms_content').update({
+    locked_by: user.id, locked_until: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+  }).eq('id', contentId).or(`locked_until.is.null,locked_until.lt.${new Date().toISOString()},locked_by.eq.${user.id}`);
+  if (error) throw error;
+}
+
+export async function releaseCmsContentLock(contentId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('cms_content').update({ locked_by: null, locked_until: null }).eq('id', contentId).eq('locked_by', user.id);
+}
+
+export async function createCmsEmailDraft(content: CmsContent): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Please sign in.');
+  const href = `${window.location.origin}/${content.contentType === 'post' ? 'insights' : 'pages'}/${content.slug}`;
+  const { data, error } = await supabase.from('audience_email_campaigns').insert({
+    name: `Content: ${content.title}`,
+    subject: content.title,
+    preview_text: content.excerpt.slice(0, 220),
+    body: `${content.excerpt}\n\n${content.body.split('\n').filter(Boolean).slice(0, 3).join('\n\n')}`,
+    cta_label: 'Read on Manohub',
+    cta_href: href,
+    status: 'draft',
+    created_by: user.id,
+  }).select('id').single();
+  if (error) throw error;
+  await supabase.from('cms_content').update({ email_campaign_id: data.id, updated_at: new Date().toISOString() }).eq('id', content.id);
+  return data.id;
 }
 
 export async function fetchCmsRevisions(contentId: string): Promise<CmsContentRevision[]> {
