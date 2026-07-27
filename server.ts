@@ -272,6 +272,49 @@ function injectAdvertMeta(
   return html.replace(/<title>[\s\S]*?<\/title>/i, "").replace("</head>", `    ${tags}\n  </head>`);
 }
 
+function injectCmsMeta(
+  html: string,
+  content: {
+    slug: string; content_type: string; title: string; excerpt?: string | null; body?: string | null;
+    seo_title?: string | null; seo_description?: string | null; social_image_url?: string | null;
+    featured_image_url?: string | null; canonical_url?: string | null; author_name?: string | null; published_at?: string | null;
+  },
+  url: string,
+): string {
+  const title = content.seo_title || content.title;
+  const description = (content.seo_description || content.excerpt || content.body || "").slice(0, 200);
+  const image = content.social_image_url || content.featured_image_url || "";
+  const canonical = content.canonical_url || url;
+  const structuredData = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": content.content_type === "post" ? "Article" : "WebPage",
+    headline: content.title,
+    description,
+    url: canonical,
+    ...(image ? { image: [image] } : {}),
+    ...(content.author_name ? { author: { "@type": "Organization", name: content.author_name } } : {}),
+    ...(content.published_at ? { datePublished: content.published_at } : {}),
+    publisher: { "@type": "Organization", name: "Manohub" },
+  }).replace(/</g, "\\u003c");
+  const tags = [
+    `<title>${htmlEscape(title)} · Manohub</title>`,
+    `<meta name="description" content="${htmlEscape(description)}" />`,
+    `<link rel="canonical" href="${htmlEscape(canonical)}" />`,
+    `<meta property="og:type" content="${content.content_type === "post" ? "article" : "website"}" />`,
+    `<meta property="og:site_name" content="Manohub" />`,
+    `<meta property="og:title" content="${htmlEscape(title)}" />`,
+    `<meta property="og:description" content="${htmlEscape(description)}" />`,
+    `<meta property="og:url" content="${htmlEscape(url)}" />`,
+    image ? `<meta property="og:image" content="${htmlEscape(image)}" />` : "",
+    `<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}" />`,
+    `<meta name="twitter:title" content="${htmlEscape(title)}" />`,
+    `<meta name="twitter:description" content="${htmlEscape(description)}" />`,
+    image ? `<meta name="twitter:image" content="${htmlEscape(image)}" />` : "",
+    `<script type="application/ld+json">${structuredData}</script>`,
+  ].filter(Boolean).join("\n    ");
+  return html.replace(/<title>[\s\S]*?<\/title>/i, "").replace("</head>", `    ${tags}\n  </head>`);
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -850,6 +893,52 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
         /* fall back to the default shell */
       }
       res.set("Content-Type", "text/html; charset=utf-8").send(out);
+    });
+
+    app.get(["/insights/:slug", "/pages/:slug"], async (req, res) => {
+      let out = indexHtml;
+      try {
+        if (supabaseAuthClient) {
+          const { data } = await supabaseAuthClient.from("cms_content")
+            .select("slug, content_type, title, excerpt, body, seo_title, seo_description, social_image_url, featured_image_url, canonical_url, author_name, published_at")
+            .eq("slug", req.params.slug)
+            .eq("content_type", req.path.startsWith("/insights/") ? "post" : "page")
+            .maybeSingle();
+          const base = requestOrigin(req);
+          if (data && base) out = injectCmsMeta(indexHtml, data, `${base}${req.path}`);
+        }
+      } catch {
+        /* fall back to the default shell */
+      }
+      res.set("Content-Type", "text/html; charset=utf-8").send(out);
+    });
+
+    app.get("/sitemap.xml", async (req, res) => {
+      const base = requestOrigin(req);
+      if (!base || !supabaseAuthClient) {
+        res.status(503).type("text/plain").send("Sitemap is not configured.");
+        return;
+      }
+      const { data } = await supabaseAuthClient.from("cms_content")
+        .select("content_type, slug, updated_at")
+        .order("updated_at", { ascending: false });
+      const urls = [
+        { loc: base, lastmod: null },
+        { loc: `${base}/tenders`, lastmod: null },
+        { loc: `${base}/adverts`, lastmod: null },
+        { loc: `${base}/insights`, lastmod: null },
+        ...(data ?? []).map(item => ({
+          loc: `${base}/${item.content_type === "post" ? "insights" : "pages"}/${item.slug}`,
+          lastmod: item.updated_at,
+        })),
+      ];
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(item => `  <url><loc>${htmlEscape(item.loc)}</loc>${item.lastmod ? `<lastmod>${htmlEscape(item.lastmod)}</lastmod>` : ""}</url>`).join("\n")}\n</urlset>`;
+      res.set("Content-Type", "application/xml; charset=utf-8").send(xml);
+    });
+
+    app.get("/robots.txt", (req, res) => {
+      const base = requestOrigin(req);
+      res.type("text/plain").send(`User-agent: *\nAllow: /\nDisallow: /cms-preview/\n${base ? `Sitemap: ${base}/sitemap.xml\n` : ""}`);
     });
 
     app.get("*", (req, res) => {
