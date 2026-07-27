@@ -4,7 +4,7 @@ import { fetchCountries, fetchDistricts, subscribePublicAudience, TaxonomyOption
 
 const INTERESTS = ['Tenders', 'Jobs', 'Business offers', 'Events', 'Training', 'Products & services'];
 
-export function PublicSubscriptionSection() {
+export function PublicSubscriptionSection({ onSubscribed }: { onSubscribed?: () => void }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -60,6 +60,7 @@ export function PublicSubscriptionSection() {
     try {
       await subscribePublicAudience({ fullName, email, phone, interests, locations, preferredChannels, frequency });
       setSubscribed(true);
+      onSubscribed?.();
       setFeedback('Your preferences have been saved. Welcome to the Manohub audience.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Your subscription could not be saved.');
