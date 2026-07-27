@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, Megaphone } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
-import { CmsContent, CmsContentType, fetchCmsContentPreview, fetchPublishedCmsContent, fetchPublishedCmsItem } from '../lib/cmsApi';
+import { CmsContent, CmsContentType, fetchCmsContentPreview, fetchPublishedCmsContent, fetchPublishedCmsItem, trackCmsContentEvent } from '../lib/cmsApi';
 import { Advert, fetchLiveAdverts } from '../lib/procurementApi';
 import { CmsBody } from './CmsBody';
 import { PublicSubscriptionSection } from './PublicSubscriptionSection';
@@ -30,7 +30,12 @@ export function CmsArticlePage({ contentType, preview = false }: { contentType?:
         if (!item || (contentType && item.contentType !== contentType)) return;
         setContent(item);
         setRelated(all.filter(candidate => candidate.id !== item.id && candidate.contentType === item.contentType && candidate.category === item.category).slice(0, 3));
-        setAdvert(adverts[0] ?? null);
+        const selectedAdvert = adverts.find(advert => advert.id === item.nativeAdvertId) ?? adverts[0] ?? null;
+        setAdvert(selectedAdvert);
+        if (!preview) {
+          void trackCmsContentEvent(item.id, 'view');
+          if (selectedAdvert) void trackCmsContentEvent(item.id, 'ad_impression');
+        }
         document.title = `${item.seoTitle || item.title} · Manohub`;
         const description = item.seoDescription || item.excerpt;
         setMeta('description', description);
@@ -53,9 +58,9 @@ export function CmsArticlePage({ contentType, preview = false }: { contentType?:
     <article>
       <section className="border-b-2 border-[#0F172A] bg-[#0F172A] px-6 py-14 text-white"><div className="mx-auto max-w-4xl"><p className="font-mono text-[10px] font-bold uppercase tracking-[.2em] text-violet-300">{content.category} · {contentType}</p><h1 className="mt-4 font-display text-4xl font-extrabold leading-tight !text-white sm:text-5xl">{content.title}</h1><p className="mt-5 max-w-3xl text-lg leading-8 text-slate-300">{content.excerpt}</p><p className="mt-6 font-mono text-[9px] uppercase tracking-widest text-slate-400">{content.authorName} · {readingMinutes} min read {content.publishedAt ? `· ${new Date(content.publishedAt).toLocaleDateString('en-GB', { dateStyle: 'long' })}` : ''}</p></div></section>
       {content.featuredImageUrl && <div className="mx-auto max-w-5xl px-6 pt-10"><img src={content.featuredImageUrl} alt={content.featuredImageAlt || ''} className="max-h-[560px] w-full border-2 border-[#0F172A] object-cover" /></div>}
-      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-12 lg:grid-cols-[1fr_280px]"><div className="min-w-0"><CmsBody body={content.body} />{content.tags.length > 0 && <div className="mt-10 flex flex-wrap gap-2 border-t border-slate-200 pt-6">{content.tags.map(tag => <span key={tag} className="border border-slate-300 bg-white px-3 py-1.5 font-mono text-[9px] font-bold uppercase">{tag}</span>)}</div>}</div><aside>{advert && <div className="sticky top-5 border-2 border-[#0F172A] bg-[#F4D35E] p-4"><p className="font-mono text-[8px] font-bold uppercase tracking-widest">Sponsored on Manohub</p>{advert.mediaUrl && <img src={advert.mediaUrl} alt={advert.title} className="mt-3 h-36 w-full border border-[#0F172A] object-cover" />}<h2 className="mt-4 font-display text-lg font-extrabold">{advert.title}</h2><p className="mt-2 text-xs text-slate-700">{advert.summary || advert.content}</p><Link to={`/adverts/${advert.slug}`} className="mt-4 inline-flex items-center gap-2 border border-[#0F172A] bg-[#0F172A] px-3 py-2 font-mono text-[9px] font-bold uppercase text-white">Discover <Megaphone className="h-3.5 w-3.5" /></Link></div>}</aside></div>
+      <div className="mx-auto grid max-w-6xl gap-10 px-6 py-12 lg:grid-cols-[1fr_280px]"><div className="min-w-0"><CmsBody body={content.body} onLinkClick={() => { if (!preview) void trackCmsContentEvent(content.id, 'cta_click'); }} />{content.tags.length > 0 && <div className="mt-10 flex flex-wrap gap-2 border-t border-slate-200 pt-6">{content.tags.map(tag => <span key={tag} className="border border-slate-300 bg-white px-3 py-1.5 font-mono text-[9px] font-bold uppercase">{tag}</span>)}</div>}</div><aside>{advert && <div className="sticky top-5 border-2 border-[#0F172A] bg-[#F4D35E] p-4"><p className="font-mono text-[8px] font-bold uppercase tracking-widest">Sponsored on Manohub</p>{advert.mediaUrl && <img src={advert.mediaUrl} alt={advert.title} className="mt-3 h-36 w-full border border-[#0F172A] object-cover" />}<h2 className="mt-4 font-display text-lg font-extrabold">{advert.title}</h2><p className="mt-2 text-xs text-slate-700">{advert.summary || advert.content}</p><Link onClick={() => { if (!preview) void trackCmsContentEvent(content.id, 'ad_click'); }} to={`/adverts/${advert.slug}`} className="mt-4 inline-flex items-center gap-2 border border-[#0F172A] bg-[#0F172A] px-3 py-2 font-mono text-[9px] font-bold uppercase text-white">Discover <Megaphone className="h-3.5 w-3.5" /></Link></div>}</aside></div>
     </article>
     {related.length > 0 && <section className="border-y-2 border-[#0F172A] bg-white px-6 py-10"><div className="mx-auto max-w-6xl"><h2 className="font-display text-2xl font-extrabold">Related content</h2><div className="mt-5 grid gap-4 md:grid-cols-3">{related.map(item => <Link key={item.id} to={`/${item.contentType === 'post' ? 'insights' : 'pages'}/${item.slug}`} className="border-2 border-[#0F172A] p-5"><p className="font-mono text-[9px] font-bold uppercase text-violet-700">{item.category}</p><h3 className="mt-3 font-display text-lg font-bold">{item.title}</h3><span className="mt-4 inline-flex items-center gap-1 font-mono text-[9px] font-bold uppercase text-emerald-700">Read <ArrowRight className="h-3.5 w-3.5" /></span></Link>)}</div></div></section>}
-    <PublicSubscriptionSection />
+    <PublicSubscriptionSection onSubscribed={() => { if (!preview) void trackCmsContentEvent(content.id, 'subscription'); }} />
   </main>;
 }
