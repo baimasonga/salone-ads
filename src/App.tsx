@@ -35,6 +35,8 @@ const TenderDetailPage = lazy(() => import('./components/TenderDetailPage').then
 const AdvertDetailPage = lazy(() => import('./components/AdvertDetailPage').then((module) => ({ default: module.AdvertDetailPage })));
 const AdvertsFeedPage = lazy(() => import('./components/AdvertsFeedPage').then((module) => ({ default: module.AdvertsFeedPage })));
 const UnsubscribePage = lazy(() => import('./components/UnsubscribePage').then((module) => ({ default: module.UnsubscribePage })));
+const InsightsPage = lazy(() => import('./components/InsightsPage').then((module) => ({ default: module.InsightsPage })));
+const CmsArticlePage = lazy(() => import('./components/CmsArticlePage').then((module) => ({ default: module.CmsArticlePage })));
 
 function CmsPreviewRoute() {
   const { blockId = '' } = useParams();
@@ -61,6 +63,10 @@ export default function App() {
         <Route path="/adverts" element={<AdvertsFeedPage />} />
         <Route path="/adverts/:slug" element={<AdvertDetailPage />} />
         <Route path="/unsubscribe" element={<UnsubscribePage />} />
+        <Route path="/insights" element={<InsightsPage />} />
+        <Route path="/insights/:slug" element={<CmsArticlePage contentType="post" />} />
+        <Route path="/pages/:slug" element={<CmsArticlePage contentType="page" />} />
+        <Route path="/content-preview/:contentId" element={<CmsArticlePage preview />} />
         <Route path="/cms-preview/:blockId" element={<CmsPreviewRoute />} />
         <Route path="/*" element={<MainApp />} />
       </Routes>
@@ -303,6 +309,7 @@ function MainApp() {
         { id: 'admin-advertising', label: 'Advertising Requests', icon: Sparkles },
         { id: 'admin-advert-revenue', label: 'Advert Revenue', icon: CreditCard },
         { id: 'landing-cms', label: 'Landing CMS', icon: Sparkles },
+        { id: 'content-cms', label: 'Pages & Posts', icon: BookOpen },
         { id: 'audience-subscribers', label: 'Audience Subscribers', icon: Users },
         { id: 'audience-messaging', label: 'Audience Messaging', icon: Mail },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
