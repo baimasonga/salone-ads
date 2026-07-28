@@ -247,6 +247,13 @@ function MainApp() {
         { id: 'overview', label: 'Overview', icon: BarChart2 },
       ]
     },
+    ...((cmsRole || isPlatformAdmin) ? [{
+      group: "Content Management",
+      items: [
+        ...(isPlatformAdmin ? [{ id: 'landing-cms', label: 'Landing Page CMS', icon: Sparkles }] : []),
+        { id: 'content-cms', label: 'Pages, Posts & Editorial', icon: BookOpen },
+      ]
+    }] : []),
     // Subscriber-only self-service tooling: publishing/tracking/managing
     // tenders is a paid-subscriber (Publisher/Viewer) activity, not
     // something a platform admin's own account should be doing -- an admin
@@ -289,12 +296,6 @@ function MainApp() {
         { id: 'tourism', label: 'Tourism Excursions', icon: Compass },
       ]
     }] : []),
-    ...((cmsRole || isPlatformAdmin) ? [{
-      group: "Editorial",
-      items: [
-        { id: 'content-cms', label: 'Pages & Posts', icon: BookOpen },
-      ]
-    }] : []),
     ...(isPlatformAdmin ? [{
       group: "Social Media Operations",
       adminOnly: true,
@@ -319,7 +320,6 @@ function MainApp() {
         { id: 'admin-services', label: 'Service Requests', icon: UserCheck },
         { id: 'admin-advertising', label: 'Advertising Requests', icon: Sparkles },
         { id: 'admin-advert-revenue', label: 'Advert Revenue', icon: CreditCard },
-        { id: 'landing-cms', label: 'Landing CMS', icon: Sparkles },
         { id: 'audience-subscribers', label: 'Audience Subscribers', icon: Users },
         { id: 'audience-messaging', label: 'Audience Messaging', icon: Mail },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
