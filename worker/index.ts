@@ -38,7 +38,7 @@ export class ManohubContainer extends Container<Env> {
       GEMINI_API_KEY: env.GEMINI_API_KEY ?? '',
       APP_URL: env.APP_URL ?? '',
       VITE_SUPABASE_URL: env.VITE_SUPABASE_URL ?? '',
-      VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY ?? '',
+      VITE_SUPABASE_ANON_KEY: env.VITE_SUPAASE_ANON_KEY ?? '',
       SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY ?? '',
       RESEND_API_KEY: env.RESEND_API_KEY ?? '',
       RESEND_FROM_EMAIL: env.RESEND_FROM_EMAIL ?? '',
@@ -53,12 +53,12 @@ export default {
     // Keep one stable Durable Object identity so Cloudflare can replace its
     // image during a rollout instead of accumulating one running instance per
     // commit. The workflow uses an immediate rollout to restart this instance.
-    const container = getContainer(env.MANOHUB_CONTAINER, 'production');
+    const container = getContainer(env.MANOHUB_CONTAINER, 'production-measurement-v2');
     return container.fetch(request);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (!env.EMAIL_DISPATCH_SECRET) return;
-    const container = getContainer(env.MANOHUB_CONTAINER, 'production');
+    const container = getContainer(env.MANOHUB_CONTAINER, 'production-measurement-v2');
     ctx.waitUntil(container.fetch(new Request('http://container/api/audience-email/dispatch-due', {
       method: 'POST',
       headers: { 'x-manohub-dispatch-secret': env.EMAIL_DISPATCH_SECRET },
