@@ -30,7 +30,7 @@ import { CmsWorkflowPanel } from './CmsWorkflowPanel';
 
 const EMPTY: CmsContent[] = [];
 
-export function CmsContentManagerPage() {
+export function CmsContentManagerPage({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const [items, setItems] = useState<CmsContent[]>(EMPTY);
   const [trash, setTrash] = useState<CmsContent[]>(EMPTY);
   const [selectedId, setSelectedId] = useState('');
@@ -47,7 +47,7 @@ export function CmsContentManagerPage() {
   const [comment, setComment] = useState('');
   const [analytics, setAnalytics] = useState<CmsContentAnalytics>({ views: 0, ctaClicks: 0, adImpressions: 0, adClicks: 0, subscriptions: 0 });
   const [localSavedAt, setLocalSavedAt] = useState('');
-  const [cmsRole, setCmsRole] = useState<CmsTeamRole | null>(null);
+  const [cmsRole, setCmsRole] = useState<CmsTeamRole | null>(isPlatformAdmin ? 'administrator' : null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
@@ -59,8 +59,10 @@ export function CmsContentManagerPage() {
   }, []);
 
   useEffect(() => {
-    fetchCmsCurrentRole().then(setCmsRole).catch(() => setCmsRole(null));
-  }, []);
+    fetchCmsCurrentRole()
+      .then(role => setCmsRole(role || (isPlatformAdmin ? 'administrator' : null)))
+      .catch(() => setCmsRole(isPlatformAdmin ? 'administrator' : null));
+  }, [isPlatformAdmin]);
 
   useEffect(() => {
     load().catch(error => setFeedback(error instanceof Error ? error.message : 'CMS content could not be loaded.'))
@@ -274,7 +276,7 @@ export function CmsContentManagerPage() {
 
     {feedback && <div role="status" className="border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-800">{feedback}</div>}
 
-    <CmsWorkflowPanel items={items} selected={draft} onReload={load} onSelect={setSelectedId} onFeedback={setFeedback} />
+    <CmsWorkflowPanel items={items} selected={draft} fallbackRole={isPlatformAdmin ? 'administrator' : null} onReload={load} onSelect={setSelectedId} onFeedback={setFeedback} />
 
     <div className="grid gap-5 xl:grid-cols-[310px_1fr]">
       <aside className="border border-slate-200 bg-white p-4">
