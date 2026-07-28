@@ -1,7 +1,8 @@
 import { supabase } from './supabaseClient';
 
 export type CmsContentType = 'page' | 'post';
-export type CmsContentStatus = 'draft' | 'review' | 'published' | 'archived';
+export type CmsContentStatus = 'draft' | 'review' | 'approved' | 'published' | 'archived';
+export type CmsTeamRole = 'writer' | 'editor' | 'publisher' | 'administrator';
 
 export interface CmsContent {
   id: string;
@@ -25,9 +26,12 @@ export interface CmsContent {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  createdBy: string | null;
+  assignedTo: string | null;
   reviewNote: string;
   reviewRequestedAt: string | null;
   reviewedAt: string | null;
+  reviewedBy: string | null;
   lockedBy: string | null;
   lockedUntil: string | null;
   nativeAdvertId: string | null;
@@ -63,9 +67,12 @@ const mapContent = (row: any): CmsContent => ({
   deletedAt: row.deleted_at ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+  createdBy: row.created_by ?? null,
+  assignedTo: row.assigned_to ?? null,
   reviewNote: row.review_note ?? '',
   reviewRequestedAt: row.review_requested_at ?? null,
   reviewedAt: row.reviewed_at ?? null,
+  reviewedBy: row.reviewed_by ?? null,
   lockedBy: row.locked_by ?? null,
   lockedUntil: row.locked_until ?? null,
   nativeAdvertId: row.native_advert_id ?? null,
@@ -74,6 +81,18 @@ const mapContent = (row: any): CmsContent => ({
 
 export interface CmsEditorialComment { id: string; body: string; authorId: string; createdAt: string }
 export interface CmsContentAnalytics { views: number; ctaClicks: number; adImpressions: number; adClicks: number; subscriptions: number }
+export interface CmsTeamMember { userId: string; fullName: string; email: string; role: CmsTeamRole }
+export interface CmsProfileOption { id: string; fullName: string; email: string }
+export interface CmsActivity {
+  id: number;
+  contentId: string | null;
+  actorId: string | null;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
 
 export function cmsSlug(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 180) || `content-${Date.now()}`;
@@ -156,14 +175,96 @@ export async function saveCmsContent(content: CmsContent): Promise<void> {
     canonical_url: content.canonicalUrl || null,
     review_note: content.reviewNote,
     review_requested_at: content.status === 'review' ? content.reviewRequestedAt || new Date().toISOString() : content.reviewRequestedAt,
-    reviewed_at: content.status === 'published' ? content.reviewedAt || new Date().toISOString() : content.reviewedAt,
-    reviewed_by: content.status === 'published' ? user.id : null,
+    reviewed_at: content.reviewedAt,
+    reviewed_by: content.reviewedBy,
+    assigned_to: content.assignedTo,
     native_advert_id: content.nativeAdvertId,
     published_at: publishedAt,
     updated_by: user.id,
     updated_at: new Date().toISOString(),
   }).eq('id', content.id);
   if (error) throw error;
+}
+
+export async function fetchCmsCurrentRole(): Promise<CmsTeamRole | null> {
+  const { data, error } = await supabase.rpc('cms_current_role');
+  if (error) throw error;
+  return (data as CmsTeamRole | null) ?? null;
+}
+
+export async function fetchCmsTeam(): Promise<{ members: CmsTeamMember[]; profiles: CmsProfileOption[] }> {
+  const [{ data: memberRows, error: memberError }, { data: profileRows, error: profileError }] = await Promise.all([
+    supabase.from('cms_team_members').select('user_id,role').order('created_at'),
+    supabase.from('profiles').select('id,full_name,email').order('full_name'),
+  ]);
+  if (memberError) throw memberError;
+  if (profileError) throw profileError;
+  const profiles = (profileRows ?? []).map((row: any) => ({ id: row.id, fullName: row.full_name || '', email: row.email || '' }));
+  const byId = new Map(profiles.map(profile => [profile.id, profile]));
+  return {
+    profiles,
+    members: (memberRows ?? []).map((row: any) => ({
+      userId: row.user_id,
+      role: row.role,
+      fullName: byId.get(row.user_id)?.fullName || '',
+      email: byId.get(row.user_id)?.email || '',
+    })),
+  };
+}
+
+export async function saveCmsTeamMember(userId: string, role: CmsTeamRole): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Please sign in.');
+  const { error } = await supabase.from('cms_team_members').upsert({
+    user_id: userId,
+    role,
+    added_by: user.id,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+  if (error) throw error;
+}
+
+export async function removeCmsTeamMember(userId: string): Promise<void> {
+  const { error } = await supabase.from('cms_team_members').delete().eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function assignCmsContent(contentId: string, userId: string | null): Promise<void> {
+  const { error } = await supabase.from('cms_content').update({
+    assigned_to: userId,
+    updated_at: new Date().toISOString(),
+  }).eq('id', contentId);
+  if (error) throw error;
+}
+
+export async function transitionCmsContent(contentId: string, status: CmsContentStatus, reviewNote: string, publishedAt?: string): Promise<void> {
+  const values: Record<string, unknown> = {
+    status,
+    review_note: reviewNote.trim(),
+    updated_at: new Date().toISOString(),
+  };
+  if (status === 'published') values.published_at = publishedAt || new Date().toISOString();
+  const { error } = await supabase.from('cms_content').update(values).eq('id', contentId);
+  if (error) throw error;
+}
+
+export async function fetchCmsActivity(contentId?: string): Promise<CmsActivity[]> {
+  let query = supabase.from('cms_activity_log')
+    .select('id,content_id,actor_id,action,from_status,to_status,details,created_at')
+    .order('created_at', { ascending: false }).limit(contentId ? 50 : 100);
+  if (contentId) query = query.eq('content_id', contentId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: Number(row.id),
+    contentId: row.content_id,
+    actorId: row.actor_id,
+    action: row.action,
+    fromStatus: row.from_status,
+    toStatus: row.to_status,
+    details: row.details ?? {},
+    createdAt: row.created_at,
+  }));
 }
 
 export async function addCmsEditorialComment(contentId: string, body: string): Promise<void> {
