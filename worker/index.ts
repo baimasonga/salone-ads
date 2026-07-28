@@ -66,4 +66,4 @@ export default {
   },
 };
 
-// Deployment marker: rebuild the container after analytics UI publication.
+// Deployment marker: roll out privacy-safe public measurement protection.
