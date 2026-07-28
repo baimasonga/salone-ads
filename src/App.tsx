@@ -240,99 +240,71 @@ function MainApp() {
   // shown to platform admins. This is a UI convenience only; the real
   // boundary is the RLS policies on those tables (they now require
   // is_platform_admin(), see docs/procurement-expansion-assessment.md).
-  const NAV_GROUPS = [
+  const NAV_GROUPS = isPlatformAdmin ? [
+    { group: 'Workspace', items: [{ id: 'overview', label: 'Overview', icon: BarChart2 }] },
     {
-      group: "Overview",
+      group: 'Publishing',
       items: [
-        { id: 'overview', label: 'Overview', icon: BarChart2 },
-      ]
+        { id: 'landing-cms', label: 'Landing Page', icon: Sparkles },
+        { id: 'content-cms', label: 'Pages & Editorial', icon: BookOpen },
+        { id: 'audience-hub', label: 'Audience & Messaging', icon: Mail },
+      ],
     },
-    ...((cmsRole || isPlatformAdmin) ? [{
-      group: "Content Management",
+    {
+      group: 'Advertising',
       items: [
-        ...(isPlatformAdmin ? [{ id: 'landing-cms', label: 'Landing Page CMS', icon: Sparkles }] : []),
-        { id: 'content-cms', label: 'Pages, Posts & Editorial', icon: BookOpen },
-      ]
-    }] : []),
-    // Subscriber-only self-service tooling: publishing/tracking/managing
-    // tenders is a paid-subscriber (Publisher/Viewer) activity, not
-    // something a platform admin's own account should be doing -- an admin
-    // publishing and then being the one who reviews/approves tenders would
-    // be a conflict of interest. Admins get their own oversight tools in
-    // the "Platform Admin" group below (Tender Review, etc.) instead.
-    ...(!isPlatformAdmin ? [{
-      group: "Procurement",
+        { id: 'campaign-builder', label: 'Campaigns', icon: Compass },
+        { id: 'admin-advertising', label: 'Advert Requests', icon: Sparkles },
+        { id: 'campaign-performance', label: 'Performance', icon: BarChart2 },
+        { id: 'agency-workspace', label: 'Agency Clients', icon: Users },
+      ],
+    },
+    {
+      group: 'Operations',
+      items: [
+        { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
+        { id: 'operations-hub', label: 'Customer Requests', icon: UserCheck },
+      ],
+    },
+    {
+      group: 'Administration',
+      items: [
+        { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
+        { id: 'admin', label: 'Settings & Access', icon: Settings },
+      ],
+    },
+  ] : [
+    { group: 'Workspace', items: [{ id: 'overview', label: 'Overview', icon: BarChart2 }] },
+    ...(cmsRole ? [{ group: 'Editorial', items: [{ id: 'content-cms', label: 'Pages & Editorial', icon: BookOpen }] }] : []),
+    {
+      group: 'Procurement',
       items: [
         { id: 'tenders', label: 'Tenders', icon: FileSearch },
         { id: 'pipeline', label: 'My Pipeline', icon: BarChart2 },
         { id: 'supplier-profile', label: 'Supplier Profile', icon: Award },
         { id: 'services', label: 'Support Services', icon: UserCheck },
-      ]
-    }] : []),
-    // Advertiser-tier subscribers only -- hidden entirely (not shown-then-
-    // blocked) unless the org's org has the business_advertising
-    // entitlement. No directory/event-promotion browsing tools here, just
-    // the submission form + read-only fulfillment report.
-    ...((isPlatformAdmin || canAdvertise) ? [{
-      group: "Advertising",
+      ],
+    },
+    ...(canAdvertise ? [{
+      group: 'Advertising',
       items: [
-        { id: 'campaign-builder', label: 'Campaign Management', icon: Compass },
+        { id: 'campaign-builder', label: 'Campaigns', icon: Compass },
         { id: 'advert-packages', label: 'Packages & Checkout', icon: CreditCard },
-        { id: 'campaign-performance', label: 'Campaign Performance', icon: BarChart2 },
-        ...(!isPlatformAdmin ? [{ id: 'advertising', label: 'My Adverts', icon: Sparkles }] : []),
-      ]
+        { id: 'campaign-performance', label: 'Performance', icon: BarChart2 },
+        { id: 'advertising', label: 'My Adverts', icon: Sparkles },
+      ],
     }] : []),
-    ...((isPlatformAdmin || activeOrg.type.toLowerCase().includes('agency')) ? [{
-      group: "Agency",
-      items: [{ id: 'agency-workspace', label: 'Agency Workspace', icon: Users }]
-    }] : []),
-    ...(isPlatformAdmin ? [{
-      group: "Discovery",
-      adminOnly: true,
-      items: [
-        { id: 'influencers', label: 'Influencer Market', icon: Award },
-        { id: 'directory', label: 'Business Directory', icon: BookOpen },
-        { id: 'events', label: 'Event Promotion', icon: UserCheck },
-        { id: 'tourism', label: 'Tourism Excursions', icon: Compass },
-      ]
-    }] : []),
-    ...(isPlatformAdmin ? [{
-      group: "Social Media Operations",
-      adminOnly: true,
-      items: [
-        { id: 'content', label: 'Content Studio', icon: Sparkles },
-        { id: 'calendar', label: 'Calendar', icon: Calendar },
-        { id: 'media', label: 'Media Library', icon: FolderOpen },
-        { id: 'audiences', label: 'Audiences', icon: Users },
-        { id: 'social', label: 'Social Accounts', icon: Link2 },
-        { id: 'analytics', label: 'Analytics', icon: Landmark },
-        { id: 'leads', label: 'CRM Leads', icon: MessageSquare },
-        { id: 'brandkit', label: 'Brand Kit', icon: Settings },
-      ]
-    }] : []),
-    ...(isPlatformAdmin ? [{
-      group: "Platform Admin",
-      adminOnly: true,
-      items: [
-        { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
-        { id: 'admin-verification', label: 'Verification Requests', icon: ShieldAlert },
-        { id: 'admin-subscriptions', label: 'Subscription Requests', icon: CreditCard },
-        { id: 'admin-services', label: 'Service Requests', icon: UserCheck },
-        { id: 'admin-advertising', label: 'Advertising Requests', icon: Sparkles },
-        { id: 'admin-advert-revenue', label: 'Advert Revenue', icon: CreditCard },
-        { id: 'audience-subscribers', label: 'Audience Subscribers', icon: Users },
-        { id: 'audience-messaging', label: 'Audience Messaging', icon: Mail },
-        { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
-        { id: 'admin', label: 'Super Admin Desk', icon: Shield },
-      ]
+    ...(activeOrg.type.toLowerCase().includes('agency') ? [{
+      group: 'Agency',
+      items: [{ id: 'agency-workspace', label: 'Client Workspace', icon: Users }],
     }] : []),
     {
-      group: "Workspace Settings",
+      group: 'Account',
       items: [
-        { id: 'team', label: 'Team Roles', icon: UserPlus },
-        { id: 'billing', label: 'Billing Invoices', icon: CreditCard },
-      ]
-    }
+        { id: 'team', label: 'Team', icon: UserPlus },
+        { id: 'billing', label: 'Billing', icon: CreditCard },
+      ],
+    },
   ];
 
   return (
