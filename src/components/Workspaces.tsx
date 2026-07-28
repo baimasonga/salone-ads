@@ -19,6 +19,11 @@ import { ProcurementOverview } from '../modules/procurement/ProcurementOverview'
 import { useProcurementOverview } from '../modules/procurement/useProcurementOverview';
 import { useTenderWorkspace } from '../modules/procurement/useTenderWorkspace';
 import {
+  partitionTenderDocuments,
+  submitTenderWithDocuments,
+  tenderSubmissionFeedback,
+} from '../modules/procurement/tenderSubmission';
+import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
@@ -1461,9 +1466,7 @@ export function Workspaces({
 
   const handleTenderDocumentSelect = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
-    const incoming = Array.from(fileList);
-    const oversized = incoming.filter((f) => f.size > MAX_DOCUMENT_SIZE_BYTES);
-    const accepted = incoming.filter((f) => f.size <= MAX_DOCUMENT_SIZE_BYTES);
+    const { accepted, rejected: oversized } = partitionTenderDocuments(Array.from(fileList), MAX_DOCUMENT_SIZE_BYTES);
     setTenderDocumentFiles((prev) => [...prev, ...accepted]);
     setTenderDocumentError(
       oversized.length > 0
@@ -1480,34 +1483,34 @@ export function Workspaces({
     e.preventDefault();
     setTenderSubmitting(true);
     try {
-      const created = await createOpportunity(activeOrg.id, activeOrg.name, {
-        title: tenderTitle,
-        summary: tenderSummary,
-        description: tenderDescription,
-        opportunityTypeId: tenderTypeId,
-        sectorId: tenderSectorId,
-        countryId: tenderCountryId,
-        districtId: tenderDistrictId,
-        estimatedValue: tenderValue ? Number(tenderValue) : undefined,
-        currencyCode: tenderCurrencyCode || undefined,
-        submissionDeadline: tenderDeadline,
-        contactDetails: tenderContact,
+      const result = await submitTenderWithDocuments({
+        organizationId: activeOrg.id,
+        organizationName: activeOrg.name,
+        input: {
+          title: tenderTitle,
+          summary: tenderSummary,
+          description: tenderDescription,
+          opportunityTypeId: tenderTypeId,
+          sectorId: tenderSectorId,
+          countryId: tenderCountryId,
+          districtId: tenderDistrictId,
+          estimatedValue: tenderValue ? Number(tenderValue) : undefined,
+          currencyCode: tenderCurrencyCode || undefined,
+          submissionDeadline: tenderDeadline,
+          contactDetails: tenderContact,
+        },
+        documents: tenderDocumentFiles,
+        documentsArePublic: tenderDocumentIsPublic,
+      }, {
+        createOpportunity,
+        uploadDocument: uploadOpportunityDocument,
       });
-      setMyOpportunities([created, ...myOpportunities]);
-
-      let uploadFailures = 0;
-      if (tenderDocumentFiles.length > 0) {
-        const uploaded: OpportunityDocument[] = [];
-        for (const file of tenderDocumentFiles) {
-          try {
-            uploaded.push(await uploadOpportunityDocument(activeOrg.id, created.id, file, tenderDocumentIsPublic));
-          } catch {
-            uploadFailures += 1;
-          }
-        }
-        if (uploaded.length > 0) {
-          setDocsByOpportunity((prev) => ({ ...prev, [created.id]: uploaded }));
-        }
+      setMyOpportunities((current) => [result.opportunity, ...current]);
+      if (result.uploadedDocuments.length > 0) {
+        setDocsByOpportunity((current) => ({
+          ...current,
+          [result.opportunity.id]: result.uploadedDocuments,
+        }));
       }
 
       setTenderTitle('');
@@ -1518,11 +1521,7 @@ export function Workspaces({
       setTenderContact('');
       setTenderDocumentFiles([]);
       setTenderDocumentError('');
-      setTendersFeedback(
-        uploadFailures > 0
-          ? `Tender submitted for admin review, but ${uploadFailures} document${uploadFailures === 1 ? '' : 's'} failed to upload — attach ${uploadFailures === 1 ? 'it' : 'them'} again from the Documents panel below.`
-          : 'Tender submitted for admin review. It will go live once approved.'
-      );
+      setTendersFeedback(tenderSubmissionFeedback(result.failedDocumentCount));
     } catch (err: any) {
       setTendersFeedback(`Error: ${err.message || 'Could not submit tender.'}`);
     } finally {
