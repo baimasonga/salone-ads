@@ -318,7 +318,7 @@ export function TenderCreationForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase">Tender Documents</label>
+          <label htmlFor="tender-document-input" className="block text-xs font-bold text-slate-500 uppercase">Tender Documents</label>
           <label
             htmlFor="tender-document-input"
             className="mt-1.5 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl px-6 py-8 text-center cursor-pointer transition-colors hover:border-emerald-400 hover:bg-emerald-50/40"
