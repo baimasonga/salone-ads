@@ -21,6 +21,7 @@ import { useTenderWorkspace } from '../modules/procurement/useTenderWorkspace';
 import { TenderCreationForm } from '../modules/procurement/TenderCreationForm';
 import { TenderManagementPanel } from '../modules/procurement/TenderManagementPanel';
 import { AdminTenderReviewWorkspace } from '../modules/procurement/AdminTenderReviewWorkspace';
+import { AdminAuditLogWorkspace } from '../modules/platform-admin/AdminAuditLogWorkspace';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
@@ -2363,6 +2364,17 @@ export function Workspaces({
       );
     }
     return <AdminTenderReviewWorkspace />;
+  }
+
+  if (activeTab === 'admin-audit-log') {
+    if (!isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          You do not have platform admin access.
+        </div>
+      );
+    }
+    return <AdminAuditLogWorkspace />;
   }
 
   // SUPPLIER PROFILE WORKSPACE

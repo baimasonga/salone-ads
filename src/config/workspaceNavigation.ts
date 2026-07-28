@@ -4,6 +4,7 @@ import {
   BarChart2,
   BookOpen,
   Compass,
+  ClipboardList,
   CreditCard,
   FileSearch,
   Landmark,
@@ -61,6 +62,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         group: 'Administration',
         items: [
           { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
+          { id: 'admin-audit-log', label: 'Audit Log', icon: ClipboardList },
           { id: 'admin', label: 'Settings & Access', icon: Settings },
         ],
       },
