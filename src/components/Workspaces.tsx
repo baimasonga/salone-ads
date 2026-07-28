@@ -18,18 +18,14 @@ import {
 import { ProcurementOverview } from '../modules/procurement/ProcurementOverview';
 import { useProcurementOverview } from '../modules/procurement/useProcurementOverview';
 import { useTenderWorkspace } from '../modules/procurement/useTenderWorkspace';
-import {
-  partitionTenderDocuments,
-  submitTenderWithDocuments,
-  tenderSubmissionFeedback,
-} from '../modules/procurement/tenderSubmission';
+import { TenderCreationForm } from '../modules/procurement/TenderCreationForm';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
   FileSearch, ExternalLink, Sparkle, Trophy, Landmark, Megaphone, X, Image as ImageIcon,
-  ChevronLeft, ChevronRight, FileUp, Paperclip, Mail, MessageCircle, ShieldCheck,
+  ChevronLeft, ChevronRight, Mail, MessageCircle, ShieldCheck,
   ArrowRight, Clock, Bookmark, Bell, MapPin
 } from 'lucide-react';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink, AudienceSegment } from '../types';
@@ -72,7 +68,6 @@ import {
   fetchOpportunityResponses,
   OpportunityResponse,
   enableBuyerMode,
-  createOpportunity,
   closeOpportunity,
   cancelOpportunity,
   resubmitForReview,
@@ -147,7 +142,6 @@ import {
   fetchSavedSearches,
   deleteSavedSearch,
   SavedSearch,
-  aiSuggestSector,
   PipelineRecord,
   PipelineStage,
   AdminAnalyticsSummary,
@@ -1381,20 +1375,6 @@ export function Workspaces({
 
   // --- Tenders (Procurement) States ---
   const [enablingBuyer, setEnablingBuyer] = useState(false);
-  const [tenderTitle, setTenderTitle] = useState('');
-  const [tenderSummary, setTenderSummary] = useState('');
-  const [tenderDescription, setTenderDescription] = useState('');
-  const [tenderTypeId, setTenderTypeId] = useState('');
-  const [tenderSectorId, setTenderSectorId] = useState('');
-  const [tenderValue, setTenderValue] = useState('');
-  const [tenderCurrencyCode, setTenderCurrencyCode] = useState('');
-  const [tenderDeadline, setTenderDeadline] = useState('');
-  const [tenderContact, setTenderContact] = useState('');
-  const [tenderDocumentFiles, setTenderDocumentFiles] = useState<File[]>([]);
-  const [tenderDocumentIsPublic, setTenderDocumentIsPublic] = useState(true);
-  const [tenderDocumentError, setTenderDocumentError] = useState('');
-  const [tenderSubmitting, setTenderSubmitting] = useState(false);
-  const [suggestingSector, setSuggestingSector] = useState(false);
   const {
     opportunities: myOpportunities,
     setOpportunities: setMyOpportunities,
@@ -1424,30 +1404,6 @@ export function Workspaces({
     enabled: activeTab === 'overview' && !isPlatformAdmin,
   });
 
-  const handleSuggestSector = async () => {
-    if (!tenderTitle.trim()) {
-      setTendersFeedback('Error: Enter a title first so AI has something to work with.');
-      setTimeout(() => setTendersFeedback(''), 4000);
-      return;
-    }
-    setSuggestingSector(true);
-    try {
-      const suggestedName = await aiSuggestSector(`${tenderTitle}. ${tenderSummary}`, tenderSectors.map((s) => s.name));
-      const match = tenderSectors.find((s) => s.name.toLowerCase() === suggestedName.trim().toLowerCase());
-      if (match) {
-        setTenderSectorId(match.id);
-        setTendersFeedback(`AI suggested: ${match.name}`);
-      } else {
-        setTendersFeedback('AI could not confidently match a sector — please select one manually.');
-      }
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'AI suggestion failed.'}`);
-    } finally {
-      setSuggestingSector(false);
-      setTimeout(() => setTendersFeedback(''), 5000);
-    }
-  };
-
   const handleEnableBuyerMode = async () => {
     setEnablingBuyer(true);
     try {
@@ -1461,72 +1417,6 @@ export function Workspaces({
     } catch (err: any) {
       setTendersFeedback(`Error: ${err.message || 'Could not enable buyer mode.'}`);
       setEnablingBuyer(false);
-    }
-  };
-
-  const handleTenderDocumentSelect = (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return;
-    const { accepted, rejected: oversized } = partitionTenderDocuments(Array.from(fileList), MAX_DOCUMENT_SIZE_BYTES);
-    setTenderDocumentFiles((prev) => [...prev, ...accepted]);
-    setTenderDocumentError(
-      oversized.length > 0
-        ? `${oversized.map((f) => f.name).join(', ')} ${oversized.length === 1 ? 'exceeds' : 'exceed'} the 10MB limit and ${oversized.length === 1 ? "wasn't" : "weren't"} added.`
-        : ''
-    );
-  };
-
-  const handleRemoveTenderDocument = (index: number) => {
-    setTenderDocumentFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleCreateOpportunity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setTenderSubmitting(true);
-    try {
-      const result = await submitTenderWithDocuments({
-        organizationId: activeOrg.id,
-        organizationName: activeOrg.name,
-        input: {
-          title: tenderTitle,
-          summary: tenderSummary,
-          description: tenderDescription,
-          opportunityTypeId: tenderTypeId,
-          sectorId: tenderSectorId,
-          countryId: tenderCountryId,
-          districtId: tenderDistrictId,
-          estimatedValue: tenderValue ? Number(tenderValue) : undefined,
-          currencyCode: tenderCurrencyCode || undefined,
-          submissionDeadline: tenderDeadline,
-          contactDetails: tenderContact,
-        },
-        documents: tenderDocumentFiles,
-        documentsArePublic: tenderDocumentIsPublic,
-      }, {
-        createOpportunity,
-        uploadDocument: uploadOpportunityDocument,
-      });
-      setMyOpportunities((current) => [result.opportunity, ...current]);
-      if (result.uploadedDocuments.length > 0) {
-        setDocsByOpportunity((current) => ({
-          ...current,
-          [result.opportunity.id]: result.uploadedDocuments,
-        }));
-      }
-
-      setTenderTitle('');
-      setTenderSummary('');
-      setTenderDescription('');
-      setTenderValue('');
-      setTenderDeadline('');
-      setTenderContact('');
-      setTenderDocumentFiles([]);
-      setTenderDocumentError('');
-      setTendersFeedback(tenderSubmissionFeedback(result.failedDocumentCount));
-    } catch (err: any) {
-      setTendersFeedback(`Error: ${err.message || 'Could not submit tender.'}`);
-    } finally {
-      setTenderSubmitting(false);
-      setTimeout(() => setTendersFeedback(''), 5000);
     }
   };
 
@@ -2665,213 +2555,29 @@ export function Workspaces({
           </div>
         ) : (
           <>
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-xs overflow-hidden">
-              <div className="bg-[#0F172A] px-6 py-5 flex items-start gap-3">
-                <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                  <FileSearch className="h-4.5 w-4.5 text-emerald-400" />
-                </div>
-                <div>
-                  <h4 className="font-display font-bold !text-white text-sm">Publish New Tender</h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    The fields below capture the key facts for search and alerts. Attach the official notice
-                    (bidding document, lots, bid security schedule, eligibility requirements, etc.) so bidders
-                    get the full detail your form fields can't hold.
-                  </p>
-                </div>
-              </div>
-              <form onSubmit={handleCreateOpportunity} className="p-6 space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Tender Title</label>
-                  <input
-                    type="text" required
-                    placeholder="e.g. Rehabilitation of Bo-Kenema Feeder Road"
-                    value={tenderTitle}
-                    onChange={(e) => setTenderTitle(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Summary</label>
-                  <textarea
-                    required rows={2}
-                    placeholder="One or two sentence summary shown in search results"
-                    value={tenderSummary}
-                    onChange={(e) => setTenderSummary(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Full Description</label>
-                  <textarea
-                    rows={4}
-                    placeholder="Scope of work, deliverables, and background"
-                    value={tenderDescription}
-                    onChange={(e) => setTenderDescription(e.target.value)}
-                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Notice Type</label>
-                    <select
-                      value={tenderTypeId}
-                      onChange={(e) => setTenderTypeId(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      <option value="">Select type</option>
-                      {tenderTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold text-slate-500 uppercase">Sector</label>
-                      <button type="button" onClick={handleSuggestSector} disabled={suggestingSector} className="text-[10px] text-emerald-600 hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-50">
-                        <Sparkle className="h-3 w-3" /> {suggestingSector ? 'Thinking…' : 'Suggest with AI'}
-                      </button>
-                    </div>
-                    <select
-                      value={tenderSectorId}
-                      onChange={(e) => setTenderSectorId(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      <option value="">Select sector</option>
-                      {tenderSectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Country</label>
-                    <select
-                      value={tenderCountryId}
-                      onChange={(e) => setTenderCountryId(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      {tenderCountries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">District</label>
-                    <select
-                      value={tenderDistrictId}
-                      onChange={(e) => setTenderDistrictId(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      <option value="">Select district</option>
-                      {tenderDistricts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Estimated Value</label>
-                    <input
-                      type="number" min="0" step="any"
-                      placeholder="Optional"
-                      value={tenderValue}
-                      onChange={(e) => setTenderValue(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Currency</label>
-                    <select
-                      value={tenderCurrencyCode}
-                      onChange={(e) => setTenderCurrencyCode(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    >
-                      <option value="">Select currency</option>
-                      {tenderCurrencies.map((c) => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Submission Deadline</label>
-                    <input
-                      type="datetime-local" required
-                      value={tenderDeadline}
-                      onChange={(e) => setTenderDeadline(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase">Contact Details</label>
-                    <input
-                      type="text"
-                      placeholder="email, phone, or WhatsApp"
-                      value={tenderContact}
-                      onChange={(e) => setTenderContact(e.target.value)}
-                      className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Tender Documents</label>
-                  <label
-                    htmlFor="tender-document-input"
-                    className="mt-1.5 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-xl px-6 py-8 text-center cursor-pointer transition-colors hover:border-emerald-400 hover:bg-emerald-50/40"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-                      <FileUp className="h-4.5 w-4.5 text-emerald-600" />
-                    </div>
-                    <p className="text-sm font-semibold text-slate-700">
-                      Drop the official bidding document here, or click to browse
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      PDF or Word, up to 10MB each — bid data sheets, lot schedules, forms, and addenda all welcome
-                    </p>
-                    <input
-                      id="tender-document-input"
-                      type="file"
-                      multiple
-                      accept=".pdf,.doc,.docx,.xls,.xlsx"
-                      className="hidden"
-                      onChange={(e) => {
-                        handleTenderDocumentSelect(e.target.files);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-
-                  {tenderDocumentError && (
-                    <p className="mt-2 text-[11px] text-red-600 font-medium">{tenderDocumentError}</p>
-                  )}
-
-                  {tenderDocumentFiles.length > 0 && (
-                    <ul className="mt-3 space-y-1.5">
-                      {tenderDocumentFiles.map((file, idx) => (
-                        <li key={`${file.name}-${idx}`} className="flex items-center justify-between gap-2 text-xs bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                          <span className="flex items-center gap-2 min-w-0 text-slate-700">
-                            <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                            <span className="truncate font-medium">{file.name}</span>
-                            <span className="text-slate-400 shrink-0">{formatFileSize(file.size)}</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTenderDocument(idx)}
-                            className="text-slate-400 hover:text-red-600 cursor-pointer shrink-0"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  <label className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer w-fit">
-                    <input type="checkbox" checked={tenderDocumentIsPublic} onChange={(e) => setTenderDocumentIsPublic(e.target.checked)} />
-                    Public (visible to anyone viewing this tender, not just subscribers)
-                  </label>
-                </div>
-
-                <button
-                  type="submit" disabled={tenderSubmitting}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 shadow-sm shadow-emerald-600/20"
-                >
-                  {tenderSubmitting ? 'Publishing…' : 'Publish Tender'}
-                </button>
-              </form>
-            </div>
+            <TenderCreationForm
+              organizationId={activeOrg.id}
+              organizationName={activeOrg.name}
+              sectors={tenderSectors}
+              countries={tenderCountries}
+              districts={tenderDistricts}
+              currencies={tenderCurrencies}
+              opportunityTypes={tenderTypes}
+              countryId={tenderCountryId}
+              onCountryChange={setTenderCountryId}
+              districtId={tenderDistrictId}
+              onDistrictChange={setTenderDistrictId}
+              onCreated={(result) => {
+                setMyOpportunities((current) => [result.opportunity, ...current]);
+                if (result.uploadedDocuments.length > 0) {
+                  setDocsByOpportunity((current) => ({
+                    ...current,
+                    [result.opportunity.id]: result.uploadedDocuments,
+                  }));
+                }
+              }}
+              onFeedback={setTendersFeedback}
+            />
 
             <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
               <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Tenders</h4>
