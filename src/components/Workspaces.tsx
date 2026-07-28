@@ -15,6 +15,7 @@ import {
   isPlatformAdminWorkspaceTab,
   PlatformAdminWorkspace,
 } from '../modules/platform-admin/PlatformAdminWorkspace';
+import { ProcurementOverview } from '../modules/procurement/ProcurementOverview';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
@@ -2615,138 +2616,17 @@ export function Workspaces({
 
   // 1. OVERVIEW WORKSPACE
   if (activeTab === 'overview' && !isPlatformAdmin) {
-    const statCards = [
-      { icon: Sparkles, label: 'Recommended matches', value: overviewRecommended.length },
-      { icon: Bookmark, label: 'Saved searches', value: overviewSavedSearchCount },
-      { icon: Bell, label: 'Alerts active', value: overviewSavedSearchCount },
-      { icon: BarChart2, label: 'Tenders in pipeline', value: overviewPipelineCount },
-    ];
     return (
-      <div className="space-y-8 text-left">
-        {/* Welcome header with quick actions */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-emerald-50/50 border border-emerald-100/50 p-6 rounded-2xl">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 bg-[#0F172A] text-white flex items-center justify-center font-display font-black text-lg shrink-0">
-              {activeOrg.name.slice(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <h2 className="font-display font-bold text-xl text-emerald-950">Welcome back!</h2>
-              <p className="text-sm text-slate-500 mt-0.5">
-                {activeOrg.name}
-                {overviewTier && <> · <span className="font-semibold text-emerald-700">{overviewTier} plan</span></>}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link to="/tenders" target="_blank" className="flex items-center gap-2 bg-white border border-[#0F172A] text-[#0F172A] font-mono text-xs font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-[#0F172A] hover:text-white transition-colors">
-              <Search className="h-3.5 w-3.5" /> Find tenders
-            </Link>
-            <Link to="/tenders" target="_blank" className="flex items-center gap-2 bg-emerald-600 text-white font-mono text-xs font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-emerald-700 transition-colors">
-              <Plus className="h-3.5 w-3.5" /> New saved search
-            </Link>
-          </div>
-        </div>
-
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {statCards.map((card) => {
-            const Icon = card.icon;
-            return (
-              <div key={card.label} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs">
-                <div className="h-9 w-9 border border-[#0F172A] bg-emerald-50 flex items-center justify-center mb-3">
-                  <Icon className="h-4 w-4 text-emerald-700" />
-                </div>
-                <span className="font-display font-extrabold text-2xl text-slate-900 block">{card.value}</span>
-                <span className="text-slate-400 font-mono text-[10px] uppercase tracking-widest block mt-1">{card.label}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6 items-start">
-          {/* Recommended for you */}
-          <div className="lg:col-span-2 bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-slate-800 text-lg flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-emerald-600" /> Recommended for you
-              </h3>
-              <Link to="/tenders" target="_blank" className="text-xs font-mono font-bold uppercase tracking-widest text-emerald-600 hover:underline flex items-center gap-1">
-                View all <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-            {overviewRecommended.length === 0 ? (
-              <p className="text-sm text-slate-500 py-6 text-center">
-                No matches yet — set your sectors in your supplier profile and save a search to start getting recommendations.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {overviewRecommended.map((op) => (
-                  <Link
-                    key={op.id}
-                    to={`/tenders/${op.slug}`}
-                    target="_blank"
-                    className="flex items-center gap-3 border border-slate-100 hover:border-[#0F172A] p-3 transition-colors group"
-                  >
-                    <span className="w-10 h-10 border border-[#0F172A] bg-emerald-50 flex items-center justify-center shrink-0">
-                      <FileSearch className="h-4 w-4 text-emerald-700" />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm text-slate-900 group-hover:text-emerald-700 transition-colors truncate">{op.title}</h4>
-                      <p className="text-xs text-slate-500 truncate">{[op.buyerName, op.sector].filter(Boolean).join(' · ')}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-500 shrink-0">
-                      <Clock className="h-3.5 w-3.5" /> {new Date(op.submissionDeadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Saved searches */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-slate-800 text-lg flex items-center gap-2">
-                <Bookmark className="h-4 w-4 text-emerald-600" /> Saved searches
-              </h3>
-              <span className="font-mono text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5">{overviewSavedSearchCount}</span>
-            </div>
-            {overviewSavedSearches.length === 0 ? (
-              <p className="text-sm text-slate-500 py-4">
-                No saved searches yet. Browse tenders and save a search to get alerts for matching opportunities.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {overviewSavedSearches.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2 border border-slate-100 p-3">
-                    <Bell className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                    <span className="flex-1 text-sm font-medium text-slate-700 truncate">{s.name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {overviewTier === 'Publisher' && (
-              <button onClick={() => setActiveTab('tenders')} className="w-full mt-4 text-left bg-slate-50 hover:bg-slate-100 border border-slate-100 p-3 transition-colors cursor-pointer flex items-center gap-2">
-                <Award className="h-4 w-4 text-emerald-600 shrink-0" />
-                <span className="text-sm font-semibold text-slate-800">{myOpportunities.length} tenders published</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {overviewTier === 'Free' && (
-          <div className="bg-[#0F172A] text-white p-6 text-center space-y-3 rounded-2xl">
-            <h3 className="font-display font-bold text-sm uppercase !text-white">Subscribe for full tender access</h3>
-            <p className="text-sm text-slate-300 max-w-md mx-auto">
-              Viewer plans unlock full tender details and alerts. Publisher plans add the ability to post your own
-              tenders.
-            </p>
-            <Link to="/#pricing" target="_blank" className="inline-block bg-emerald-500 hover:bg-emerald-400 text-[#0F172A] font-semibold px-6 py-2.5 text-sm rounded-xl">
-              View subscription plans
-            </Link>
-          </div>
-        )}
-      </div>
+      <ProcurementOverview
+        organizationName={activeOrg.name}
+        tier={overviewTier}
+        pipelineCount={overviewPipelineCount}
+        savedSearchCount={overviewSavedSearchCount}
+        savedSearches={overviewSavedSearches}
+        recommended={overviewRecommended}
+        publishedTenderCount={myOpportunities.length}
+        onNavigate={setActiveTab}
+      />
     );
   }
 
