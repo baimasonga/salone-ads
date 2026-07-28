@@ -20,6 +20,7 @@ import { useProcurementOverview } from '../modules/procurement/useProcurementOve
 import { useTenderWorkspace } from '../modules/procurement/useTenderWorkspace';
 import { TenderCreationForm } from '../modules/procurement/TenderCreationForm';
 import { TenderManagementPanel } from '../modules/procurement/TenderManagementPanel';
+import { AdminTenderReviewWorkspace } from '../modules/procurement/AdminTenderReviewWorkspace';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
@@ -73,11 +74,6 @@ import {
   CurrencyOption,
   fetchOpportunityTypes,
   MAX_DOCUMENT_SIZE_BYTES,
-  fetchOpportunitiesForReview,
-  findSimilarTitledOpportunities,
-  approveOpportunity,
-  requestCorrection,
-  rejectOpportunity,
   enableSupplierMode,
   fetchSupplierProfile,
   saveSupplierProfile,
@@ -87,7 +83,6 @@ import {
   approveVerification,
   rejectVerification,
   OpportunityListItem,
-  ReviewQueueItem,
   TaxonomyOption,
   SupplierProfile,
   VerificationRequest,
@@ -103,7 +98,6 @@ import {
   fetchPendingSubscriptions,
   activateSubscription,
   cancelSubscriptionRequest,
-  setOpportunityFeatured,
   createServiceRequest,
   fetchMyServiceRequests,
   fetchAllServiceRequests,
@@ -1408,65 +1402,6 @@ export function Workspaces({
     }
   };
 
-  // --- Admin Tender Review States ---
-  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewFeedback, setReviewFeedback] = useState('');
-  const [duplicateWarnings, setDuplicateWarnings] = useState<Record<string, string[]>>({});
-
-  useEffect(() => {
-    if (activeTab !== 'admin-tender-review' || !isPlatformAdmin) return;
-    setReviewLoading(true);
-    fetchOpportunitiesForReview()
-      .then(async (items) => {
-        setReviewQueue(items);
-        const warnings: Record<string, string[]> = {};
-        for (const item of items) {
-          warnings[item.id] = await findSimilarTitledOpportunities(item.title, item.id);
-        }
-        setDuplicateWarnings(warnings);
-      })
-      .catch((err: any) => setReviewFeedback(`Error: ${err.message || 'Could not load review queue.'}`))
-      .finally(() => setReviewLoading(false));
-  }, [activeTab, isPlatformAdmin]);
-
-  const handleApprove = async (id: string) => {
-    const previous = reviewQueue;
-    setReviewQueue(reviewQueue.filter((o) => o.id !== id));
-    try {
-      await approveOpportunity(id);
-    } catch (err: any) {
-      setReviewQueue(previous);
-      setReviewFeedback(`Error: ${err.message || 'Could not approve tender.'}`);
-    }
-  };
-
-  const handleRequestCorrection = async (id: string) => {
-    const note = prompt('What needs to be corrected?');
-    if (!note) return;
-    const previous = reviewQueue;
-    setReviewQueue(reviewQueue.filter((o) => o.id !== id));
-    try {
-      await requestCorrection(id, note);
-    } catch (err: any) {
-      setReviewQueue(previous);
-      setReviewFeedback(`Error: ${err.message || 'Could not request correction.'}`);
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    const note = prompt('Reason for rejecting this tender:');
-    if (!note) return;
-    const previous = reviewQueue;
-    setReviewQueue(reviewQueue.filter((o) => o.id !== id));
-    try {
-      await rejectOpportunity(id, note);
-    } catch (err: any) {
-      setReviewQueue(previous);
-      setReviewFeedback(`Error: ${err.message || 'Could not reject tender.'}`);
-    }
-  };
-
   // --- Supplier Profile States ---
   const EMPTY_SUPPLIER: SupplierProfile = {
     tradingName: '', registrationNumber: '', taxIdentificationNumber: '', description: '',
@@ -1564,15 +1499,6 @@ export function Workspaces({
     } catch (err: any) {
       setVerificationQueue(previous);
       setVerificationFeedback(`Error: ${err.message || 'Could not reject verification.'}`);
-    }
-  };
-
-  const handleToggleFeatured = async (op: ReviewQueueItem | OpportunityListItem, featured: boolean) => {
-    try {
-      await setOpportunityFeatured(op.id, featured);
-      setReviewQueue(reviewQueue.map((o) => (o.id === op.id ? { ...o, isFeatured: featured } : o)));
-    } catch (err: any) {
-      setReviewFeedback(`Error: ${err.message || 'Could not update featured status.'}`);
     }
   };
 
@@ -2436,66 +2362,7 @@ export function Workspaces({
         </div>
       );
     }
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <ShieldAlert className="h-5 w-5 text-emerald-600" /> Tender Review Queue
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Approve, request corrections, or reject tenders submitted by buyers before they go public.</p>
-        </div>
-
-        {reviewFeedback && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{reviewFeedback}</div>
-        )}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {reviewLoading ? (
-            <p className="text-xs text-slate-400">Loading review queue…</p>
-          ) : reviewQueue.length === 0 ? (
-            <p className="text-xs text-slate-400">No tenders awaiting review. Nice and clear.</p>
-          ) : (
-            <div className="space-y-4">
-              {reviewQueue.map((op) => (
-                <div key={op.id} className="border border-slate-100 rounded-xl p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h4 className="font-semibold text-slate-800 text-sm">{op.title}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{op.buyerName} · Submitted {new Date(op.createdAt).toLocaleDateString('en-GB')}</p>
-                    </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${op.statusCode === 'needs_correction' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
-                      {op.statusLabel}
-                    </span>
-                  </div>
-
-                  {duplicateWarnings[op.id]?.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs text-amber-800 flex items-start gap-2">
-                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                      <span>Possibly similar to: {duplicateWarnings[op.id].join('; ')}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <button onClick={() => handleApprove(op.id)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1">
-                      <Check className="h-3.5 w-3.5" /> Approve
-                    </button>
-                    <button
-                      onClick={async () => { await handleToggleFeatured(op, true); await handleApprove(op.id); }}
-                      className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer"
-                    >
-                      Approve & Feature
-                    </button>
-                    <button onClick={() => handleRequestCorrection(op.id)} className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer">Request Correction</button>
-                    <button onClick={() => handleReject(op.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
-                    <Link to={`/tenders/${op.slug}`} target="_blank" className="text-xs text-slate-400 hover:underline ml-auto">Preview</Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+    return <AdminTenderReviewWorkspace />;
   }
 
   // SUPPLIER PROFILE WORKSPACE
