@@ -25,6 +25,7 @@ import {
   storeActiveOrganizationId,
 } from './lib/api';
 import { fetchMyNotifications, markNotificationRead, AppNotification, hasFeature } from './lib/procurementApi';
+import { CmsTeamRole, fetchCmsCurrentRole } from './lib/cmsApi';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
 
 type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
@@ -95,6 +96,7 @@ function MainApp() {
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [canAdvertise, setCanAdvertise] = useState(false);
+  const [cmsRole, setCmsRole] = useState<CmsTeamRole | null>(null);
 
   // --- DASHBOARD NAVIGATION STATES ---
   const [activeTab, setActiveTab] = useState('overview');
@@ -113,6 +115,7 @@ function MainApp() {
       setInfluencerProfiles([]);
       setIsPlatformAdmin(false);
       setCanAdvertise(false);
+      setCmsRole(null);
       setWorkspaceLoading(false);
       setView((v) => (v === 'dashboard' || v === 'onboarding' ? 'landing' : v));
       return;
@@ -131,12 +134,13 @@ function MainApp() {
       const org = availableOrganizations.find((item) => item.id === savedOrgId) ?? availableOrganizations[0];
       storeActiveOrganizationId(activeSession.user.id, org.id);
       setOrganizations(availableOrganizations);
-      const [bundle, directory, influencers, platformRole, advertisingEntitled] = await Promise.all([
+      const [bundle, directory, influencers, platformRole, advertisingEntitled, editorialRole] = await Promise.all([
         fetchOrgBundle(org.id),
         fetchDirectoryProfiles(),
         fetchInfluencerProfiles(),
         fetchMyPlatformRole(),
         hasFeature(org.id, 'business_advertising').catch(() => false),
+        fetchCmsCurrentRole().catch(() => null),
       ]);
       setActiveOrg(bundle.organization);
       setBrandKit(bundle.brandKit);
@@ -148,6 +152,7 @@ function MainApp() {
       setInfluencerProfiles(influencers);
       setIsPlatformAdmin(platformRole === 'admin');
       setCanAdvertise(advertisingEntitled);
+      setCmsRole(editorialRole);
       setView('dashboard');
     } catch (err: any) {
       setWorkspaceError(err.message || 'Failed to load your workspace from the server.');
@@ -284,6 +289,12 @@ function MainApp() {
         { id: 'tourism', label: 'Tourism Excursions', icon: Compass },
       ]
     }] : []),
+    ...(cmsRole ? [{
+      group: "Editorial",
+      items: [
+        { id: 'content-cms', label: 'Pages & Posts', icon: BookOpen },
+      ]
+    }] : []),
     ...(isPlatformAdmin ? [{
       group: "Social Media Operations",
       adminOnly: true,
@@ -309,7 +320,6 @@ function MainApp() {
         { id: 'admin-advertising', label: 'Advertising Requests', icon: Sparkles },
         { id: 'admin-advert-revenue', label: 'Advert Revenue', icon: CreditCard },
         { id: 'landing-cms', label: 'Landing CMS', icon: Sparkles },
-        { id: 'content-cms', label: 'Pages & Posts', icon: BookOpen },
         { id: 'audience-subscribers', label: 'Audience Subscribers', icon: Users },
         { id: 'audience-messaging', label: 'Audience Messaging', icon: Mail },
         { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
