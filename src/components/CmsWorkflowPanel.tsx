@@ -25,13 +25,14 @@ const ROLE_COPY: Record<CmsTeamRole, string> = {
 interface Props {
   items: CmsContent[];
   selected: CmsContent | null;
+  fallbackRole?: CmsTeamRole | null;
   onReload: () => Promise<void>;
   onSelect: (id: string) => void;
   onFeedback: (message: string) => void;
 }
 
-export function CmsWorkflowPanel({ items, selected, onReload, onSelect, onFeedback }: Props) {
-  const [role, setRole] = useState<CmsTeamRole | null>(null);
+export function CmsWorkflowPanel({ items, selected, fallbackRole = null, onReload, onSelect, onFeedback }: Props) {
+  const [role, setRole] = useState<CmsTeamRole | null>(fallbackRole);
   const [members, setMembers] = useState<CmsTeamMember[]>([]);
   const [profiles, setProfiles] = useState<CmsProfileOption[]>([]);
   const [activity, setActivity] = useState<CmsActivity[]>([]);
@@ -50,11 +51,14 @@ export function CmsWorkflowPanel({ items, selected, onReload, onSelect, onFeedba
   useEffect(() => {
     fetchCmsCurrentRole()
       .then(async currentRole => {
-        setRole(currentRole);
-        await Promise.all([loadTeam(currentRole), fetchCmsActivity().then(setActivity)]);
+        const effectiveRole = currentRole || fallbackRole;
+        setRole(effectiveRole);
+        await Promise.all([loadTeam(effectiveRole), fetchCmsActivity().then(setActivity)]);
       })
-      .catch(error => onFeedback(error instanceof Error ? error.message : 'Editorial workflow could not be loaded.'));
-  }, []);
+      .catch(error => {
+        if (!fallbackRole) onFeedback(error instanceof Error ? error.message : 'Editorial workflow could not be loaded.');
+      });
+  }, [fallbackRole]);
 
   useEffect(() => {
     setPublishAt(selected?.publishedAt?.slice(0, 16) || '');
