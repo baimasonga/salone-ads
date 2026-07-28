@@ -12,8 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { OpportunityListItem, SavedSearch } from '../../lib/procurementApi';
-
-export type ProcurementTier = 'Free' | 'Viewer' | 'Publisher' | null;
+import type { ProcurementTier } from './model';
 
 interface ProcurementOverviewProps {
   organizationName: string;
@@ -23,6 +22,8 @@ interface ProcurementOverviewProps {
   savedSearches: SavedSearch[];
   recommended: OpportunityListItem[];
   publishedTenderCount: number;
+  loading?: boolean;
+  degraded?: boolean;
   onNavigate: (tab: string) => void;
 }
 
@@ -34,6 +35,8 @@ export function ProcurementOverview({
   savedSearches,
   recommended,
   publishedTenderCount,
+  loading = false,
+  degraded = false,
   onNavigate,
 }: ProcurementOverviewProps) {
   const statCards = [
@@ -45,6 +48,16 @@ export function ProcurementOverview({
 
   return (
     <div className="space-y-8 text-left">
+      {loading && (
+        <div role="status" className="border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+          Loading your procurement workspace…
+        </div>
+      )}
+      {degraded && (
+        <div role="status" className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Some procurement information could not be refreshed. Available information is shown below; retry by reopening Overview.
+        </div>
+      )}
       <div className="flex flex-col gap-4 rounded-2xl border border-emerald-100/50 bg-emerald-50/50 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center bg-[#0F172A] font-display text-lg font-black text-white">

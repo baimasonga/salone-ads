@@ -16,6 +16,7 @@ import {
   PlatformAdminWorkspace,
 } from '../modules/platform-admin/PlatformAdminWorkspace';
 import { ProcurementOverview } from '../modules/procurement/ProcurementOverview';
+import { useProcurementOverview } from '../modules/procurement/useProcurementOverview';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
@@ -1402,31 +1403,10 @@ export function Workspaces({
   const [canViewTenderDetails, setCanViewTenderDetails] = useState(false);
   const [viewerSavedSearches, setViewerSavedSearches] = useState<SavedSearch[]>([]);
 
-  // --- Non-admin Overview States ---
-  const [overviewTier, setOverviewTier] = useState<'Free' | 'Viewer' | 'Publisher' | null>(null);
-  const [overviewPipelineCount, setOverviewPipelineCount] = useState(0);
-  const [overviewSavedSearchCount, setOverviewSavedSearchCount] = useState(0);
-  const [overviewSavedSearches, setOverviewSavedSearches] = useState<SavedSearch[]>([]);
-  const [overviewRecommended, setOverviewRecommended] = useState<OpportunityListItem[]>([]);
-
-  useEffect(() => {
-    if (activeTab !== 'overview' || isPlatformAdmin) return;
-    Promise.all([
-      hasFeature(activeOrg.id, 'tender_publishing'),
-      hasFeature(activeOrg.id, 'tender_alerts_and_details'),
-      fetchPipeline(activeOrg.id).catch(() => []),
-      fetchSavedSearches().catch(() => []),
-      fetchRecommendedOpportunities(activeOrg.id).catch(() => []),
-    ])
-      .then(([canPublish, canView, pipeline, savedSearches, recommended]) => {
-        setOverviewTier(canPublish ? 'Publisher' : canView ? 'Viewer' : 'Free');
-        setOverviewPipelineCount(pipeline.length);
-        setOverviewSavedSearchCount(savedSearches.length);
-        setOverviewSavedSearches(savedSearches.slice(0, 5));
-        setOverviewRecommended(recommended.slice(0, 4));
-      })
-      .catch(() => {});
-  }, [activeTab, activeOrg.id, isPlatformAdmin]);
+  const procurementOverview = useProcurementOverview({
+    organizationId: activeOrg.id,
+    enabled: activeTab === 'overview' && !isPlatformAdmin,
+  });
 
   const handleSuggestSector = async () => {
     if (!tenderTitle.trim()) {
@@ -2619,12 +2599,14 @@ export function Workspaces({
     return (
       <ProcurementOverview
         organizationName={activeOrg.name}
-        tier={overviewTier}
-        pipelineCount={overviewPipelineCount}
-        savedSearchCount={overviewSavedSearchCount}
-        savedSearches={overviewSavedSearches}
-        recommended={overviewRecommended}
-        publishedTenderCount={myOpportunities.length}
+        tier={procurementOverview.tier}
+        pipelineCount={procurementOverview.pipelineCount}
+        savedSearchCount={procurementOverview.savedSearchCount}
+        savedSearches={procurementOverview.savedSearches}
+        recommended={procurementOverview.recommended}
+        publishedTenderCount={procurementOverview.publishedTenderCount}
+        loading={procurementOverview.loading}
+        degraded={procurementOverview.degraded}
         onNavigate={setActiveTab}
       />
     );
