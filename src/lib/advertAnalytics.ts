@@ -1,4 +1,9 @@
 import { supabase } from './supabaseClient';
+import {
+  getPublicVisitorTokenHash,
+  isLikelyAutomatedBrowser,
+  sha256,
+} from './publicVisitor';
 
 export type PublicAdvertEventType =
   | 'impression'
@@ -108,40 +113,7 @@ export interface AdvertCampaignPerformance extends AdvertPerformanceReport {
   publishedAt: string | null;
 }
 
-const VISITOR_TOKEN_KEY = 'manohub.analytics.visitor';
 const MAX_METADATA_ENTRIES = 12;
-
-function isLikelyAutomatedBrowser(): boolean {
-  if (typeof navigator === 'undefined') return true;
-  if (navigator.webdriver) return true;
-
-  const agent = navigator.userAgent.toLowerCase();
-  return /(^|[^a-z])(bot|crawler|spider|slurp)([^a-z]|$)|headlesschrome|phantomjs|selenium|playwright|lighthouse|pagespeed/.test(
-    agent
-  );
-}
-
-function getOrCreateVisitorToken(): string {
-  if (typeof window === 'undefined') return crypto.randomUUID();
-
-  try {
-    const existing = window.localStorage.getItem(VISITOR_TOKEN_KEY);
-    if (existing) return existing;
-    const created = crypto.randomUUID();
-    window.localStorage.setItem(VISITOR_TOKEN_KEY, created);
-    return created;
-  } catch {
-    return crypto.randomUUID();
-  }
-}
-
-async function sha256(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-}
 
 function detectDeviceClass(): 'mobile' | 'tablet' | 'desktop' | 'other' {
   if (typeof navigator === 'undefined') return 'other';
@@ -199,7 +171,7 @@ export async function trackAdvertEvent(input: AdvertEventInput): Promise<boolean
       return false;
     }
 
-    const visitorTokenHash = await sha256(getOrCreateVisitorToken());
+    const visitorTokenHash = await getPublicVisitorTokenHash();
     const bucket = Math.floor(Date.now() / dedupeWindow(input.eventType));
     const dedupeKey = await sha256(
       [input.advertId, input.eventType, input.action || '', visitorTokenHash, bucket].join(':')

@@ -1,6 +1,8 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import { createHash, randomUUID } from "node:crypto";
+import { isIP } from "node:net";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import { createClient } from "@supabase/supabase-js";
@@ -77,6 +79,19 @@ const aiRateLimiter = rateLimit({
   message: { error: { message: "Too many AI requests. Please wait a moment and try again." } },
 });
 
+const redirectRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const address = req.get("cf-connecting-ip") || req.ip || "anonymous";
+    if (isIP(address) !== 6) return address;
+    return address.split(":").slice(0, 4).join(":");
+  },
+  message: "Too many redirect requests. Please wait a moment and try again.",
+});
+
 const MAX_PROMPT_LENGTH = 2000;
 const MAX_FIELD_LENGTH = 300;
 
@@ -111,6 +126,39 @@ function requestOrigin(req: express.Request): string | null {
   const forwardedProtocol = req.get('x-forwarded-proto')?.split(',')[0].trim();
   const protocol = forwardedProtocol === 'http' || forwardedProtocol === 'https' ? forwardedProtocol : req.protocol;
   return `${protocol}://${host}`;
+}
+
+function redirectVisitorToken(req: express.Request, res: express.Response): string {
+  const cookie = req.headers.cookie
+    ?.split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith("manohub_redirect_visitor="))
+    ?.slice("manohub_redirect_visitor=".length);
+  const existing = cookie && /^[0-9a-f-]{36}$/i.test(cookie) ? cookie : null;
+  const token = existing || randomUUID();
+
+  if (!existing) {
+    res.cookie("manohub_redirect_visitor", token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+  }
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function safeReferrerHost(value: string | undefined): string | null {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:"
+      ? parsed.hostname.slice(0, 255).toLowerCase()
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function renderAudienceEmail(input: {
@@ -389,14 +437,15 @@ async function startServer() {
   // resolve_tracking_link() RPC (which also logs the click), then issues a
   // real HTTP redirect. A server route rather than a client-side SPA route
   // so it works as a real, fast, share-preview-friendly short link.
-  app.get("/r/:code", async (req, res) => {
+  app.get("/r/:code", redirectRateLimiter, async (req, res) => {
     if (!supabaseAuthClient) {
       res.status(503).send("Tracking links are not configured.");
       return;
     }
     const { data, error } = await supabaseAuthClient.rpc("resolve_tracking_link", {
       p_code: req.params.code,
-      p_referrer: req.get("referer") || null,
+      p_referrer_host: safeReferrerHost(req.get("referer")),
+      p_visitor_token_hash: redirectVisitorToken(req, res),
     });
     if (error || !data) {
       res.status(404).send("This link is invalid or has expired.");

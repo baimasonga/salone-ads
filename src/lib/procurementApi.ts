@@ -1,4 +1,8 @@
 import { supabase } from './supabaseClient';
+import {
+  getPublicVisitorTokenHash,
+  isLikelyAutomatedBrowser,
+} from './publicVisitor';
 import { fetchMyOrganization } from './api';
 
 export interface TaxonomyOption {
@@ -1489,10 +1493,19 @@ export async function fetchRecommendedOpportunities(orgId: string): Promise<Oppo
 // --- View tracking ---
 
 export async function incrementOpportunityView(opportunityId: string): Promise<void> {
-  const { error } = await supabase.rpc('increment_opportunity_view', { p_opportunity_id: opportunityId });
-  if (error) {
-    /* view counting is best-effort, never block the page on it */
-    console.warn('Could not record tender view', error.message);
+  try {
+    if (isLikelyAutomatedBrowser()) return;
+    const visitorTokenHash = await getPublicVisitorTokenHash();
+    const { error } = await supabase.rpc('increment_opportunity_view', {
+      p_opportunity_id: opportunityId,
+      p_visitor_token_hash: visitorTokenHash,
+    });
+    if (error) {
+      /* view counting is best-effort, never block the page on it */
+      console.warn('Could not record tender view', error.message);
+    }
+  } catch {
+    /* privacy-safe analytics must never block tender discovery */
   }
 }
 
