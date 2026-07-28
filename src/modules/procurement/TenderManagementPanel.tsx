@@ -17,6 +17,15 @@ import {
   type OpportunityListItem,
   type OpportunityResponse,
 } from '../../lib/procurementApi';
+import { ProcurementActionDialog } from './ProcurementActionDialog';
+
+type ManagementDialogType = 'cancel' | 'close' | 'deadline' | 'award';
+
+interface ManagementDialog {
+  type: ManagementDialogType;
+  opportunityId: string;
+  opportunityTitle: string;
+}
 
 interface TenderManagementPanelProps {
   organizationId: string;
@@ -39,6 +48,12 @@ export function TenderManagementPanel({
   const [uploadingDocumentFor, setUploadingDocumentFor] = useState<string | null>(null);
   const [expandedResponsesId, setExpandedResponsesId] = useState<string | null>(null);
   const [responsesByOpportunity, setResponsesByOpportunity] = useState<Record<string, OpportunityResponse[]>>({});
+  const [dialog, setDialog] = useState<ManagementDialog | null>(null);
+  const [dialogSubmitting, setDialogSubmitting] = useState(false);
+  const [dialogNote, setDialogNote] = useState('');
+  const [dialogDeadline, setDialogDeadline] = useState('');
+  const [awardSupplierName, setAwardSupplierName] = useState('');
+  const [awardValue, setAwardValue] = useState('');
 
   const reportFeedback = (message: string, duration = 5000) => {
     onFeedback(message);
@@ -128,31 +143,6 @@ export function TenderManagementPanel({
     }
   };
 
-  const handleCloseOpportunity = async (id: string) => {
-    const previous = opportunities;
-    setOpportunities((current) => current.map((opportunity) => (
-      opportunity.id === id
-        ? { ...opportunity, statusCode: 'closed', statusLabel: 'Closed' }
-        : opportunity
-    )));
-    try {
-      await closeOpportunity(id);
-    } catch (error) {
-      setOpportunities(previous);
-      reportFeedback(`Error: ${error instanceof Error ? error.message : 'Could not close tender.'}`);
-    }
-  };
-
-  const handleCancelOpportunity = async (id: string) => {
-    const reason = window.prompt('Reason for cancelling this tender:') || '';
-    try {
-      await cancelOpportunity(id, reason);
-      await refreshOpportunities();
-    } catch (error) {
-      reportFeedback(`Error: ${error instanceof Error ? error.message : 'Could not cancel tender.'}`);
-    }
-  };
-
   const handleResubmit = async (id: string) => {
     try {
       await resubmitForReview(id);
@@ -163,33 +153,59 @@ export function TenderManagementPanel({
     }
   };
 
-  const handleExtendDeadline = async (id: string) => {
-    const newDeadline = window.prompt('New submission deadline (YYYY-MM-DD):');
-    if (!newDeadline) return;
-
-    try {
-      await extendDeadline(id, new Date(newDeadline).toISOString(), '');
-      await refreshOpportunities();
-      reportFeedback('Deadline extended.', 4000);
-    } catch (error) {
-      reportFeedback(`Error: ${error instanceof Error ? error.message : 'Could not extend deadline.'}`, 4000);
-    }
+  const openDialog = (type: ManagementDialogType, opportunity: OpportunityListItem) => {
+    setDialog({
+      type,
+      opportunityId: opportunity.id,
+      opportunityTitle: opportunity.title,
+    });
+    setDialogNote('');
+    setDialogDeadline('');
+    setAwardSupplierName('');
+    setAwardValue('');
   };
 
-  const handleRecordAward = async (id: string) => {
-    const winningSupplierName = window.prompt('Winning supplier / contractor name:');
-    if (!winningSupplierName) return;
+  const handleDialogSubmit = async () => {
+    if (!dialog) return;
+    setDialogSubmitting(true);
 
-    const awardedValue = window.prompt('Awarded value (optional, numbers only):') || '';
     try {
-      await recordAward(id, {
-        winningSupplierName,
-        awardedValue: awardedValue ? Number(awardedValue) : undefined,
-      });
-      await refreshOpportunities();
-      reportFeedback('Contract award published.', 4000);
+      if (dialog.type === 'cancel') {
+        await cancelOpportunity(dialog.opportunityId, dialogNote);
+        await refreshOpportunities();
+        reportFeedback('Tender cancelled.', 4000);
+      } else if (dialog.type === 'close') {
+        await closeOpportunity(dialog.opportunityId);
+        setOpportunities((current) => current.map((opportunity) => (
+          opportunity.id === dialog.opportunityId
+            ? { ...opportunity, statusCode: 'closed', statusLabel: 'Closed' }
+            : opportunity
+        )));
+        reportFeedback('Tender closed.', 4000);
+      } else if (dialog.type === 'deadline') {
+        await extendDeadline(dialog.opportunityId, new Date(dialogDeadline).toISOString(), dialogNote);
+        await refreshOpportunities();
+        reportFeedback('Deadline extended.', 4000);
+      } else {
+        await recordAward(dialog.opportunityId, {
+          winningSupplierName: awardSupplierName,
+          awardedValue: awardValue ? Number(awardValue) : undefined,
+        });
+        await refreshOpportunities();
+        reportFeedback('Contract award published.', 4000);
+      }
+      setDialog(null);
     } catch (error) {
-      reportFeedback(`Error: ${error instanceof Error ? error.message : 'Could not record award.'}`, 4000);
+      const fallback = dialog.type === 'cancel'
+        ? 'Could not cancel tender.'
+        : dialog.type === 'close'
+          ? 'Could not close tender.'
+          : dialog.type === 'deadline'
+            ? 'Could not extend deadline.'
+            : 'Could not record award.';
+      reportFeedback(`Error: ${error instanceof Error ? error.message : fallback}`, 4000);
+    } finally {
+      setDialogSubmitting(false);
     }
   };
 
@@ -232,14 +248,14 @@ export function TenderManagementPanel({
                   ) : null}
                   {canManage ? (
                     <>
-                      <button onClick={() => handleExtendDeadline(opportunity.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Extend Deadline</button>
-                      <button onClick={() => handleRecordAward(opportunity.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Record Award</button>
-                      <button onClick={() => handleCloseOpportunity(opportunity.id)} className="text-xs text-slate-500 hover:underline cursor-pointer">Close</button>
-                      <button onClick={() => handleCancelOpportunity(opportunity.id)} className="text-xs text-red-600 hover:underline cursor-pointer">Cancel</button>
+                      <button onClick={() => openDialog('deadline', opportunity)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Extend Deadline</button>
+                      <button onClick={() => openDialog('award', opportunity)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Record Award</button>
+                      <button onClick={() => openDialog('close', opportunity)} className="text-xs text-slate-500 hover:underline cursor-pointer">Close</button>
+                      <button onClick={() => openDialog('cancel', opportunity)} className="text-xs text-red-600 hover:underline cursor-pointer">Cancel</button>
                     </>
                   ) : null}
                   {opportunity.statusCode === 'closed' ? (
-                    <button onClick={() => handleRecordAward(opportunity.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Record Award</button>
+                    <button onClick={() => openDialog('award', opportunity)} className="text-xs text-emerald-600 hover:underline cursor-pointer">Record Award</button>
                   ) : null}
                   <button onClick={() => toggleDocumentsPanel(opportunity.id)} className="text-xs text-slate-500 hover:underline cursor-pointer flex items-center gap-1">
                     <FileText className="h-3 w-3" /> Documents ({documentsByOpportunity[opportunity.id]?.length ?? '…'})
@@ -316,6 +332,109 @@ export function TenderManagementPanel({
           })}
         </div>
       )}
+      {dialog ? (
+        <ProcurementActionDialog
+          title={
+            dialog.type === 'cancel' ? 'Cancel tender' :
+            dialog.type === 'close' ? 'Close tender' :
+            dialog.type === 'deadline' ? 'Extend submission deadline' :
+            'Record contract award'
+          }
+          description={
+            dialog.type === 'cancel'
+              ? `Cancel “${dialog.opportunityTitle}”. This removes it from active procurement.`
+              : dialog.type === 'close'
+                ? `Close “${dialog.opportunityTitle}” to stop accepting new responses.`
+                : dialog.type === 'deadline'
+                  ? `Set a new submission deadline for “${dialog.opportunityTitle}”.`
+                  : `Publish the winning supplier for “${dialog.opportunityTitle}”.`
+          }
+          submitLabel={
+            dialog.type === 'cancel' ? 'Cancel tender' :
+            dialog.type === 'close' ? 'Close tender' :
+            dialog.type === 'deadline' ? 'Extend deadline' :
+            'Publish award'
+          }
+          tone={dialog.type === 'cancel' ? 'danger' : 'primary'}
+          submitting={dialogSubmitting}
+          onClose={() => setDialog(null)}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleDialogSubmit();
+          }}
+        >
+          {dialog.type === 'cancel' ? (
+            <div>
+              <label htmlFor="tender-cancellation-reason" className="block text-xs font-bold uppercase text-slate-500">Cancellation reason</label>
+              <textarea
+                id="tender-cancellation-reason"
+                required
+                rows={4}
+                value={dialogNote}
+                onChange={(event) => setDialogNote(event.target.value)}
+                placeholder="Explain why this tender is being cancelled"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:bg-white focus:outline-emerald-500"
+              />
+            </div>
+          ) : dialog.type === 'close' ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Existing tender records and responses will remain available, but suppliers will no longer be able to respond.
+            </p>
+          ) : dialog.type === 'deadline' ? (
+            <>
+              <div>
+                <label htmlFor="extended-tender-deadline" className="block text-xs font-bold uppercase text-slate-500">New deadline</label>
+                <input
+                  id="extended-tender-deadline"
+                  type="datetime-local"
+                  required
+                  value={dialogDeadline}
+                  onChange={(event) => setDialogDeadline(event.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:bg-white focus:outline-emerald-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="deadline-extension-note" className="block text-xs font-bold uppercase text-slate-500">Reason or note</label>
+                <textarea
+                  id="deadline-extension-note"
+                  rows={3}
+                  value={dialogNote}
+                  onChange={(event) => setDialogNote(event.target.value)}
+                  placeholder="Optional explanation for suppliers"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:bg-white focus:outline-emerald-500"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label htmlFor="award-supplier-name" className="block text-xs font-bold uppercase text-slate-500">Winning supplier or contractor</label>
+                <input
+                  id="award-supplier-name"
+                  type="text"
+                  required
+                  value={awardSupplierName}
+                  onChange={(event) => setAwardSupplierName(event.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:bg-white focus:outline-emerald-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="award-value" className="block text-xs font-bold uppercase text-slate-500">Awarded value</label>
+                <input
+                  id="award-value"
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={awardValue}
+                  onChange={(event) => setAwardValue(event.target.value)}
+                  placeholder="Optional"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:bg-white focus:outline-emerald-500"
+                />
+              </div>
+            </>
+          )}
+        </ProcurementActionDialog>
+      ) : null}
     </div>
   );
 }

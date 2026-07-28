@@ -10,12 +10,19 @@ import {
   setOpportunityFeatured,
   type ReviewQueueItem,
 } from '../../lib/procurementApi';
+import { ProcurementActionDialog } from './ProcurementActionDialog';
 
 type ReviewAction = 'approve' | 'feature' | 'correction' | 'reject';
 
 interface ActiveReviewAction {
   opportunityId: string;
   action: ReviewAction;
+}
+
+interface ReviewDialog {
+  action: 'correction' | 'reject';
+  opportunityId: string;
+  opportunityTitle: string;
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -28,6 +35,9 @@ export function AdminTenderReviewWorkspace() {
   const [feedback, setFeedback] = useState('');
   const [duplicateWarnings, setDuplicateWarnings] = useState<Record<string, string[]>>({});
   const [activeAction, setActiveAction] = useState<ActiveReviewAction | null>(null);
+  const [dialog, setDialog] = useState<ReviewDialog | null>(null);
+  const [dialogNote, setDialogNote] = useState('');
+  const [dialogSubmitting, setDialogSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,7 +75,7 @@ export function AdminTenderReviewWorkspace() {
     action: ReviewAction,
     operation: () => Promise<void>,
     fallback: string,
-  ) => {
+  ): Promise<boolean> => {
     const previous = reviewQueue;
     setActiveAction({ opportunityId, action });
     setFeedback('');
@@ -73,9 +83,11 @@ export function AdminTenderReviewWorkspace() {
 
     try {
       await operation();
+      return true;
     } catch (error) {
       setReviewQueue(previous);
       setFeedback(errorMessage(error, fallback));
+      return false;
     } finally {
       setActiveAction(null);
     }
@@ -103,26 +115,33 @@ export function AdminTenderReviewWorkspace() {
     'Could not feature and approve tender.',
   );
 
-  const handleRequestCorrection = (opportunityId: string) => {
-    const note = window.prompt('What needs to be corrected?');
-    if (!note) return;
-    void removeOptimistically(
-      opportunityId,
-      'correction',
-      () => requestCorrection(opportunityId, note),
-      'Could not request correction.',
-    );
+  const openReviewDialog = (
+    action: ReviewDialog['action'],
+    opportunity: ReviewQueueItem,
+  ) => {
+    setDialog({
+      action,
+      opportunityId: opportunity.id,
+      opportunityTitle: opportunity.title,
+    });
+    setDialogNote('');
   };
 
-  const handleReject = (opportunityId: string) => {
-    const note = window.prompt('Reason for rejecting this tender:');
-    if (!note) return;
-    void removeOptimistically(
-      opportunityId,
-      'reject',
-      () => rejectOpportunity(opportunityId, note),
-      'Could not reject tender.',
+  const handleDialogSubmit = async () => {
+    if (!dialog) return;
+    setDialogSubmitting(true);
+    const succeeded = await removeOptimistically(
+      dialog.opportunityId,
+      dialog.action,
+      dialog.action === 'correction'
+        ? () => requestCorrection(dialog.opportunityId, dialogNote)
+        : () => rejectOpportunity(dialog.opportunityId, dialogNote),
+      dialog.action === 'correction'
+        ? 'Could not request correction.'
+        : 'Could not reject tender.',
     );
+    setDialogSubmitting(false);
+    if (succeeded) setDialog(null);
   };
 
   return (
@@ -183,14 +202,14 @@ export function AdminTenderReviewWorkspace() {
                     </button>
                     <button
                       disabled={actionInProgress}
-                      onClick={() => handleRequestCorrection(opportunity.id)}
+                      onClick={() => openReviewDialog('correction', opportunity)}
                       className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer disabled:opacity-50"
                     >
                       Request Correction
                     </button>
                     <button
                       disabled={actionInProgress}
-                      onClick={() => handleReject(opportunity.id)}
+                      onClick={() => openReviewDialog('reject', opportunity)}
                       className="text-xs font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50"
                     >
                       Reject
@@ -203,6 +222,44 @@ export function AdminTenderReviewWorkspace() {
           </div>
         )}
       </div>
+      {dialog ? (
+        <ProcurementActionDialog
+          title={dialog.action === 'correction' ? 'Request tender correction' : 'Reject tender'}
+          description={
+            dialog.action === 'correction'
+              ? `Send clear correction instructions to the publisher of “${dialog.opportunityTitle}”.`
+              : `Reject “${dialog.opportunityTitle}”. The publisher will see the reason you provide.`
+          }
+          submitLabel={dialog.action === 'correction' ? 'Send correction request' : 'Reject tender'}
+          submittingLabel={dialog.action === 'correction' ? 'Sending…' : 'Rejecting…'}
+          tone={dialog.action === 'reject' ? 'danger' : 'primary'}
+          submitting={dialogSubmitting}
+          onClose={() => setDialog(null)}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleDialogSubmit();
+          }}
+        >
+          <div>
+            <label htmlFor="tender-review-note" className="block text-xs font-bold uppercase text-slate-500">
+              {dialog.action === 'correction' ? 'Required corrections' : 'Rejection reason'}
+            </label>
+            <textarea
+              id="tender-review-note"
+              required
+              rows={5}
+              value={dialogNote}
+              onChange={(event) => setDialogNote(event.target.value)}
+              placeholder={
+                dialog.action === 'correction'
+                  ? 'List the specific information or documents that must be corrected'
+                  : 'Explain why this tender cannot be approved'
+              }
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm focus:bg-white focus:outline-emerald-500"
+            />
+          </div>
+        </ProcurementActionDialog>
+      ) : null}
     </div>
   );
 }
