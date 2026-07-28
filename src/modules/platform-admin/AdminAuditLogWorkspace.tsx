@@ -150,7 +150,9 @@ export function AdminAuditLogWorkspace() {
                   <span className="mt-1 block font-mono text-[9px] uppercase text-violet-600">{event.entityType}</span>
                 </div>
                 <div className="min-w-0">
-                  <span className="block truncate font-medium text-slate-700">{event.organizationName ?? 'Platform'}</span>
+                  <span className="block truncate font-medium text-slate-700">
+                    {event.organizationName ?? event.organizationId ?? 'Platform'}
+                  </span>
                   <span className="mt-1 block truncate font-mono text-[9px] text-slate-400">{event.entityId ?? '—'}</span>
                 </div>
                 <div className="min-w-0">

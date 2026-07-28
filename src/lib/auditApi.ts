@@ -23,7 +23,7 @@ export interface AuditEventFilters {
 export async function fetchAuditEvents(filters: AuditEventFilters = {}): Promise<AuditEvent[]> {
   let query = supabase
     .from('audit_logs')
-    .select('id, actor_id, org_id, action, entity_type, entity_id, metadata, created_at, organizations(name)')
+    .select('id, actor_id, org_id, action, entity_type, entity_id, metadata, created_at')
     .order('created_at', { ascending: false })
     .limit(Math.min(filters.limit ?? 100, 200));
 
@@ -35,11 +35,29 @@ export async function fetchAuditEvents(filters: AuditEventFilters = {}): Promise
   const { data, error } = await query;
   if (error) throw error;
 
+  const organizationIds = [...new Set(
+    (data ?? [])
+      .map((row: any) => row.org_id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0),
+  )];
+  const organizationNames = new Map<string, string>();
+
+  if (organizationIds.length > 0) {
+    const { data: organizations } = await supabase
+      .from('organizations')
+      .select('id, name')
+      .in('id', organizationIds);
+
+    for (const organization of organizations ?? []) {
+      organizationNames.set(organization.id, organization.name);
+    }
+  }
+
   return (data ?? []).map((row: any) => ({
     id: row.id,
     actorId: row.actor_id,
     organizationId: row.org_id,
-    organizationName: row.organizations?.name ?? null,
+    organizationName: row.org_id ? organizationNames.get(row.org_id) ?? null : null,
     action: row.action,
     entityType: row.entity_type,
     entityId: row.entity_id,
