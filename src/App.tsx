@@ -289,7 +289,7 @@ function MainApp() {
         { id: 'tourism', label: 'Tourism Excursions', icon: Compass },
       ]
     }] : []),
-    ...(cmsRole ? [{
+    ...((cmsRole || isPlatformAdmin) ? [{
       group: "Editorial",
       items: [
         { id: 'content-cms', label: 'Pages & Posts', icon: BookOpen },
