@@ -17,6 +17,7 @@ import {
 } from '../modules/platform-admin/PlatformAdminWorkspace';
 import { ProcurementOverview } from '../modules/procurement/ProcurementOverview';
 import { useProcurementOverview } from '../modules/procurement/useProcurementOverview';
+import { useTenderWorkspace } from '../modules/procurement/useTenderWorkspace';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
@@ -1374,22 +1375,12 @@ export function Workspaces({
   };
 
   // --- Tenders (Procurement) States ---
-  const [myOpportunities, setMyOpportunities] = useState<OpportunityListItem[]>([]);
-  const [tendersLoading, setTendersLoading] = useState(false);
-  const [tendersFeedback, setTendersFeedback] = useState('');
   const [enablingBuyer, setEnablingBuyer] = useState(false);
-  const [tenderSectors, setTenderSectors] = useState<TaxonomyOption[]>([]);
-  const [tenderCountries, setTenderCountries] = useState<TaxonomyOption[]>([]);
-  const [tenderDistricts, setTenderDistricts] = useState<TaxonomyOption[]>([]);
-  const [tenderCurrencies, setTenderCurrencies] = useState<CurrencyOption[]>([]);
-  const [tenderTypes, setTenderTypes] = useState<TaxonomyOption[]>([]);
   const [tenderTitle, setTenderTitle] = useState('');
   const [tenderSummary, setTenderSummary] = useState('');
   const [tenderDescription, setTenderDescription] = useState('');
   const [tenderTypeId, setTenderTypeId] = useState('');
   const [tenderSectorId, setTenderSectorId] = useState('');
-  const [tenderCountryId, setTenderCountryId] = useState('');
-  const [tenderDistrictId, setTenderDistrictId] = useState('');
   const [tenderValue, setTenderValue] = useState('');
   const [tenderCurrencyCode, setTenderCurrencyCode] = useState('');
   const [tenderDeadline, setTenderDeadline] = useState('');
@@ -1399,9 +1390,29 @@ export function Workspaces({
   const [tenderDocumentError, setTenderDocumentError] = useState('');
   const [tenderSubmitting, setTenderSubmitting] = useState(false);
   const [suggestingSector, setSuggestingSector] = useState(false);
-  const [canPublishTenders, setCanPublishTenders] = useState(false);
-  const [canViewTenderDetails, setCanViewTenderDetails] = useState(false);
-  const [viewerSavedSearches, setViewerSavedSearches] = useState<SavedSearch[]>([]);
+  const {
+    opportunities: myOpportunities,
+    setOpportunities: setMyOpportunities,
+    loading: tendersLoading,
+    feedback: tendersFeedback,
+    setFeedback: setTendersFeedback,
+    sectors: tenderSectors,
+    countries: tenderCountries,
+    districts: tenderDistricts,
+    currencies: tenderCurrencies,
+    opportunityTypes: tenderTypes,
+    countryId: tenderCountryId,
+    setCountryId: setTenderCountryId,
+    districtId: tenderDistrictId,
+    setDistrictId: setTenderDistrictId,
+    canPublish: canPublishTenders,
+    canViewDetails: canViewTenderDetails,
+    savedSearches: viewerSavedSearches,
+    removeSavedSearch: handleDeleteViewerSavedSearch,
+  } = useTenderWorkspace({
+    organizationId: activeOrg.id,
+    enabled: activeTab === 'tenders',
+  });
 
   const procurementOverview = useProcurementOverview({
     organizationId: activeOrg.id,
@@ -1431,54 +1442,6 @@ export function Workspaces({
       setTimeout(() => setTendersFeedback(''), 5000);
     }
   };
-
-  useEffect(() => {
-    if (activeTab !== 'tenders') return;
-    setTendersLoading(true);
-    Promise.all([
-      fetchMyOpportunities(activeOrg.id),
-      fetchSectors(),
-      fetchCountries(),
-      fetchCurrencies(),
-      fetchOpportunityTypes(),
-      hasFeature(activeOrg.id, 'tender_publishing'),
-      hasFeature(activeOrg.id, 'tender_alerts_and_details'),
-      fetchSavedSearches().catch(() => []),
-    ])
-      .then(([opps, sectors, countries, currencies, types, canPublish, canView, savedSearches]) => {
-        setMyOpportunities(opps);
-        setTenderSectors(sectors);
-        setTenderCountries(countries);
-        setTenderCurrencies(currencies);
-        setTenderTypes(types);
-        setCanPublishTenders(canPublish);
-        setCanViewTenderDetails(canView);
-        setViewerSavedSearches(savedSearches);
-        if (countries.length > 0) setTenderCountryId((prev) => prev || countries[0].id);
-      })
-      .catch((err: any) => setTendersFeedback(`Error: ${err.message || 'Could not load tenders.'}`))
-      .finally(() => setTendersLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  const handleDeleteViewerSavedSearch = async (id: string) => {
-    const previous = viewerSavedSearches;
-    setViewerSavedSearches(viewerSavedSearches.filter((s) => s.id !== id));
-    try {
-      await deleteSavedSearch(id);
-    } catch {
-      setViewerSavedSearches(previous);
-    }
-  };
-
-  useEffect(() => {
-    if (!tenderCountryId) return;
-    fetchDistricts(tenderCountryId)
-      .then((districts) => {
-        setTenderDistricts(districts);
-        setTenderDistrictId((prev) => (districts.some((d) => d.id === prev) ? prev : ''));
-      })
-      .catch(() => {});
-  }, [tenderCountryId]);
 
   const handleEnableBuyerMode = async () => {
     setEnablingBuyer(true);

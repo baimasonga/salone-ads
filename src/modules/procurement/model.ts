@@ -9,3 +9,9 @@ export function resolveProcurementTier(
   return 'Free';
 }
 
+export function retainValidTaxonomySelection(
+  currentId: string,
+  options: ReadonlyArray<{ id: string }>,
+): string {
+  return options.some((option) => option.id === currentId) ? currentId : '';
+}

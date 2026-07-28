@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveProcurementTier } from './model';
+import { resolveProcurementTier, retainValidTaxonomySelection } from './model';
 
 describe('procurement subscription tier resolution', () => {
   it('prioritizes publishing access over viewer access', () => {
@@ -16,3 +16,14 @@ describe('procurement subscription tier resolution', () => {
   });
 });
 
+describe('dependent taxonomy selection', () => {
+  const districts = [{ id: 'western-area' }, { id: 'bo' }];
+
+  it('retains a selection that belongs to the refreshed options', () => {
+    expect(retainValidTaxonomySelection('bo', districts)).toBe('bo');
+  });
+
+  it('clears a selection that does not belong to the refreshed options', () => {
+    expect(retainValidTaxonomySelection('kenema', districts)).toBe('');
+  });
+});
