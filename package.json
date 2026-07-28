@@ -12,7 +12,9 @@
     "deploy:containers": "wrangler deploy --config wrangler.containers.toml",
     "clean": "rm -rf dist server.cjs",
     "lint": "tsc --noEmit",
-    "lint:worker": "tsc --noEmit -p worker/tsconfig.json"
+    "lint:worker": "tsc --noEmit -p worker/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -44,6 +46,7 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
+    "vitest": "^3.2.7",
     "wrangler": "^4.112.0"
   }
 }

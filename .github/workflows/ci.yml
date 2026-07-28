@@ -26,5 +26,8 @@ jobs:
     - name: Run Linter & Typechecks
       run: npm run lint
 
+    - name: Run Automated Tests
+      run: npm test
+
     - name: Build Production Server and Frontend
       run: npm run build

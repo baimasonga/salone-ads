@@ -7,10 +7,7 @@ import React, { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import {
-  BarChart2, Calendar, FolderOpen, Users, Link2,
-  MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
-  Settings, CreditCard, UserPlus, LogOut, Menu, X, Landmark, Shield, ShieldAlert, Loader2, FileSearch, Bell,
-  ChevronDown, ChevronRight, Mail
+  LogOut, Menu, X, Loader2, Bell,
 } from 'lucide-react';
 import { LandingPage } from './components/LandingPage';
 import { AuthScreens } from './components/AuthScreens';
@@ -27,8 +24,12 @@ import {
 import { fetchMyNotifications, markNotificationRead, AppNotification, hasFeature } from './lib/procurementApi';
 import { CmsTeamRole, fetchCmsCurrentRole } from './lib/cmsApi';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
+import { buildWorkspaceNavigation } from './config/workspaceNavigation';
+import type { WorkspaceNavigationGroup } from './config/workspaceNavigation';
 
 type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
+const NO_FEATURES = new Set<string>();
+const ADVERTISING_FEATURES = new Set(['business_advertising']);
 
 const Workspaces = lazy(() => import('./components/Workspaces').then((module) => ({ default: module.Workspaces })));
 const TenderSearchPage = lazy(() => import('./components/TenderSearchPage').then((module) => ({ default: module.TenderSearchPage })));
@@ -233,79 +234,12 @@ function MainApp() {
     );
   }
 
-  // Define sidebar navigation items grouped logically.
-  // Social media operations (Content Studio, Calendar, Media
-  // Library, Audiences, Social Accounts, Analytics, CRM Leads, Brand Kit) is
-  // internal Manohub-team tooling, not a customer-facing feature — only
-  // shown to platform admins. This is a UI convenience only; the real
-  // boundary is the RLS policies on those tables (they now require
-  // is_platform_admin(), see docs/procurement-expansion-assessment.md).
-  const NAV_GROUPS = isPlatformAdmin ? [
-    { group: 'Workspace', items: [{ id: 'overview', label: 'Overview', icon: BarChart2 }] },
-    {
-      group: 'Publishing',
-      items: [
-        { id: 'landing-cms', label: 'Landing Page', icon: Sparkles },
-        { id: 'content-cms', label: 'Pages & Editorial', icon: BookOpen },
-        { id: 'audience-hub', label: 'Audience & Messaging', icon: Mail },
-      ],
-    },
-    {
-      group: 'Advertising',
-      items: [
-        { id: 'campaign-builder', label: 'Campaigns', icon: Compass },
-        { id: 'admin-advertising', label: 'Advert Requests', icon: Sparkles },
-        { id: 'campaign-performance', label: 'Performance', icon: BarChart2 },
-        { id: 'agency-workspace', label: 'Agency Clients', icon: Users },
-      ],
-    },
-    {
-      group: 'Operations',
-      items: [
-        { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
-        { id: 'operations-hub', label: 'Customer Requests', icon: UserCheck },
-      ],
-    },
-    {
-      group: 'Administration',
-      items: [
-        { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
-        { id: 'admin', label: 'Settings & Access', icon: Settings },
-      ],
-    },
-  ] : [
-    { group: 'Workspace', items: [{ id: 'overview', label: 'Overview', icon: BarChart2 }] },
-    ...(cmsRole ? [{ group: 'Editorial', items: [{ id: 'content-cms', label: 'Pages & Editorial', icon: BookOpen }] }] : []),
-    {
-      group: 'Procurement',
-      items: [
-        { id: 'tenders', label: 'Tenders', icon: FileSearch },
-        { id: 'pipeline', label: 'My Pipeline', icon: BarChart2 },
-        { id: 'supplier-profile', label: 'Supplier Profile', icon: Award },
-        { id: 'services', label: 'Support Services', icon: UserCheck },
-      ],
-    },
-    ...(canAdvertise ? [{
-      group: 'Advertising',
-      items: [
-        { id: 'campaign-builder', label: 'Campaigns', icon: Compass },
-        { id: 'advert-packages', label: 'Packages & Checkout', icon: CreditCard },
-        { id: 'campaign-performance', label: 'Performance', icon: BarChart2 },
-        { id: 'advertising', label: 'My Adverts', icon: Sparkles },
-      ],
-    }] : []),
-    ...(activeOrg.type.toLowerCase().includes('agency') ? [{
-      group: 'Agency',
-      items: [{ id: 'agency-workspace', label: 'Client Workspace', icon: Users }],
-    }] : []),
-    {
-      group: 'Account',
-      items: [
-        { id: 'team', label: 'Team', icon: UserPlus },
-        { id: 'billing', label: 'Billing', icon: CreditCard },
-      ],
-    },
-  ];
+  const navGroups = buildWorkspaceNavigation({
+    isPlatformAdmin,
+    cmsRole,
+    features: canAdvertise ? ADVERTISING_FEATURES : NO_FEATURES,
+    organizationType: activeOrg.type,
+  });
 
   return (
     <DashboardShell
@@ -317,7 +251,7 @@ function MainApp() {
       setActiveTab={setActiveTab}
       sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}
-      navGroups={NAV_GROUPS}
+      navGroups={navGroups}
       onLogout={handleLogout}
     >
       <Workspaces
@@ -357,7 +291,7 @@ interface DashboardShellProps {
   setActiveTab: (tab: string) => void;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
-  navGroups: { group: string; adminOnly?: boolean; items: { id: string; label: string; icon: any }[] }[];
+  navGroups: WorkspaceNavigationGroup[];
   onLogout: () => void;
   children: React.ReactNode;
 }
@@ -431,16 +365,6 @@ function DashboardShell({
   onLogout,
   children,
 }: DashboardShellProps) {
-  const orgNavGroups = navGroups.filter((g) => !g.adminOnly);
-  const adminNavGroups = navGroups.filter((g) => g.adminOnly);
-
-  // Collapsed by default — auto-expand once if the active tab happens to
-  // already be inside it (e.g. reloading while on an admin tab), then leave
-  // it under the user's control from then on.
-  const [adminSectionOpen, setAdminSectionOpen] = useState(
-    () => adminNavGroups.some((g) => g.items.some((item) => item.id === activeTab))
-  );
-
   // Track current time formatted for Greenwich Mean Time / Freetown Time
   const [timeStr, setTimeStr] = useState('');
   useEffect(() => {
@@ -543,17 +467,13 @@ function DashboardShell({
             <span className="text-[10px] text-slate-600 font-mono mt-1 block">PLAN: Trial Tier</span>
           </div>
 
-          {/* Navigation Items Grouped — everyday workspace groups first, then
-              a clearly separated, collapsed-by-default "Admin Tools" zone.
-              Two zones instead of one flat list because admins otherwise see
-              ~26 equal-weight items with no cue that half of them are
-              internal-only tooling, not their daily procurement work. */}
+          {/* Navigation is generated from the central access policy. */}
           <nav className="space-y-5 text-left">
-            {orgNavGroups.map((group, gIdx) => (
+            {navGroups.map((group, gIdx) => (
               <NavGroupBlock
                 key={gIdx}
                 group={group}
-                itemNumOffset={computeItemNumOffset(gIdx, orgNavGroups)}
+                itemNumOffset={computeItemNumOffset(gIdx, navGroups)}
                 activeTab={activeTab}
                 onSelect={(id) => {
                   setActiveTab(id);
@@ -561,41 +481,6 @@ function DashboardShell({
                 }}
               />
             ))}
-
-            {adminNavGroups.length > 0 && (
-              <div className="pt-4 border-t border-dashed border-amber-300">
-                <button
-                  onClick={() => setAdminSectionOpen((open) => !open)}
-                  className="w-full flex items-center justify-between px-2 py-1 cursor-pointer"
-                >
-                  <span className="flex items-center gap-1.5 text-[10px] text-amber-700 font-bold uppercase tracking-[0.3em]">
-                    <Shield className="h-3 w-3" /> Admin Tools
-                  </span>
-                  {adminSectionOpen ? (
-                    <ChevronDown className="h-3.5 w-3.5 text-amber-600" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5 text-amber-600" />
-                  )}
-                </button>
-                {adminSectionOpen && (
-                  <div className="space-y-5 mt-3">
-                    {adminNavGroups.map((group, gIdx) => (
-                      <NavGroupBlock
-                        key={gIdx}
-                        group={group}
-                        itemNumOffset={computeItemNumOffset(gIdx, adminNavGroups)}
-                        activeTab={activeTab}
-                        accent="amber"
-                        onSelect={(id) => {
-                          setActiveTab(id);
-                          setSidebarOpen(false);
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </nav>
         </div>
 

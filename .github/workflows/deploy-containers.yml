@@ -50,6 +50,9 @@ jobs:
           npm run lint
           npm run lint:worker
 
+      - name: Run automated tests
+        run: npm test
+
       - name: Write build-time env file
         # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are safe to expose (RLS
         # is the real access boundary), so they're plain values here rather
