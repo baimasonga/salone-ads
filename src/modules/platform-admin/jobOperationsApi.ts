@@ -1,5 +1,3 @@
-import { supabase } from '../../lib/supabaseClient';
-
 export type BackgroundJobStatus = 'queued' | 'processing' | 'completed' | 'dead_letter';
 
 export interface BackgroundJobSummary {
@@ -25,7 +23,12 @@ export interface BackgroundJobRecord {
   updatedAt: string;
 }
 
+async function getSupabase() {
+  return (await import('../../lib/supabaseClient')).supabase;
+}
+
 export async function fetchBackgroundJobSummary(): Promise<BackgroundJobSummary> {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.rpc('get_background_job_summary');
   if (error) throw error;
   return {
@@ -39,6 +42,7 @@ export async function fetchBackgroundJobSummary(): Promise<BackgroundJobSummary>
 }
 
 export async function fetchBackgroundJobs(status: BackgroundJobStatus | null): Promise<BackgroundJobRecord[]> {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.rpc('admin_list_background_jobs', {
     p_status: status,
     p_limit: 100,
@@ -60,6 +64,7 @@ export async function fetchBackgroundJobs(status: BackgroundJobStatus | null): P
 }
 
 export async function replayBackgroundJob(jobId: string): Promise<boolean> {
+  const supabase = await getSupabase();
   const { data, error } = await supabase.rpc('admin_replay_background_job', { p_job_id: jobId });
   if (error) throw error;
   return data === true;
