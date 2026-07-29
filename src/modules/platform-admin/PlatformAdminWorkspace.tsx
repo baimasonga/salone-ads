@@ -7,11 +7,13 @@ import {
   Mail,
   Megaphone,
   ShieldCheck,
+  ServerCog,
   UserCheck,
   Users,
 } from 'lucide-react';
+import { AdminJobOperationsWorkspace } from './AdminJobOperationsWorkspace';
 
-const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub'] as const;
+const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs'] as const;
 export type PlatformAdminTab = (typeof PLATFORM_ADMIN_TABS)[number];
 
 export function isPlatformAdminWorkspaceTab(tab: string): tab is PlatformAdminTab {
@@ -189,6 +191,10 @@ export function PlatformAdminWorkspace({
     return <PlatformOverview metrics={metrics} onNavigate={onNavigate} />;
   }
 
+  if (activeTab === 'admin-jobs') {
+    return <AdminJobOperationsWorkspace />;
+  }
+
   if (activeTab === 'audience-hub') {
     return (
       <WorkspaceHub
@@ -244,6 +250,12 @@ export function PlatformAdminWorkspace({
           title: 'Revenue & orders',
           description: 'Review advert orders, packages and commercial activity.',
           icon: Landmark,
+        },
+        {
+          id: 'admin-jobs',
+          title: 'Background jobs',
+          description: 'Monitor durable work, investigate failures and retry dead-letter jobs.',
+          icon: ServerCog,
         },
       ]}
     />
