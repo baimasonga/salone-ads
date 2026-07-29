@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 64291)
-Total output lines: 5000
-
 import React, { useState, useEffect, useRef } from 'react';
 import JSZip from 'jszip';
 import { toPng } from 'html-to-image';
@@ -2424,7 +2421,842 @@ export function Workspaces({
           <p className="text-xs text-slate-400">Loading…</p>
         ) : (
           <>
-            <div className=…14291 tokens truncated…Hide share pack' : 'Share pack'}
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-display font-bold text-slate-900 text-sm">Verification Status</h4>
+                {activeOrg.supplierVerifiedUntil && new Date(activeOrg.supplierVerifiedUntil) > new Date() ? (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-emerald-100 text-emerald-800">
+                    Verified until {new Date(activeOrg.supplierVerifiedUntil).toLocaleDateString('en-GB')}
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-slate-100 text-slate-600">Not Verified</span>
+                )}
+              </div>
+              <button onClick={handleSubmitVerification} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">
+                Apply for Supplier Verification
+              </button>
+              {myVerifications.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {myVerifications.map((v) => (
+                    <div key={v.id} className="border border-slate-100 rounded-lg p-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-700">{v.requestType} verification</span>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{v.status.replace('_', ' ')}</span>
+                      </div>
+                      {v.reviewerNote && <p className="text-red-600 mt-1">{v.reviewerNote}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <h4 className="font-display font-bold text-slate-900 text-sm mb-1">Sectors You Serve</h4>
+              <p className="text-xs text-slate-500 mb-3">Drives your "Recommended For You" tender matches in the Pipeline tab.</p>
+              <div className="flex flex-wrap gap-2">
+                {allSectors.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => toggleSupplierSector(s.id)}
+                    className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer ${
+                      supplierSectorIds.includes(s.id) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveSupplierProfile} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+              <h4 className="font-display font-bold text-slate-900 text-sm">Company Details</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Trading Name</label>
+                  <input type="text" value={supplierProfile.tradingName} onChange={(e) => setSupplierProfile({ ...supplierProfile, tradingName: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Registration Number</label>
+                  <input type="text" value={supplierProfile.registrationNumber} onChange={(e) => setSupplierProfile({ ...supplierProfile, registrationNumber: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Tax ID</label>
+                  <input type="text" value={supplierProfile.taxIdentificationNumber} onChange={(e) => setSupplierProfile({ ...supplierProfile, taxIdentificationNumber: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Website</label>
+                  <input type="text" value={supplierProfile.website} onChange={(e) => setSupplierProfile({ ...supplierProfile, website: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Year Established</label>
+                  <input type="number" value={supplierProfile.yearEstablished ?? ''} onChange={(e) => setSupplierProfile({ ...supplierProfile, yearEstablished: e.target.value ? Number(e.target.value) : null })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Employees</label>
+                  <input type="text" placeholder="e.g. 11-50" value={supplierProfile.employeeCount} onChange={(e) => setSupplierProfile({ ...supplierProfile, employeeCount: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Company Description</label>
+                <textarea rows={3} value={supplierProfile.description} onChange={(e) => setSupplierProfile({ ...supplierProfile, description: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Geographic Coverage</label>
+                <input type="text" placeholder="e.g. Western Area, Bo, Kenema" value={supplierProfile.geographicCoverage} onChange={(e) => setSupplierProfile({ ...supplierProfile, geographicCoverage: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Certifications & Licences</label>
+                <input type="text" value={supplierProfile.certifications} onChange={(e) => setSupplierProfile({ ...supplierProfile, certifications: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Major Clients / Past Projects</label>
+                <input type="text" value={supplierProfile.majorClients} onChange={(e) => setSupplierProfile({ ...supplierProfile, majorClients: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <button type="submit" disabled={supplierSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50">
+                {supplierSaving ? 'Saving…' : 'Save Supplier Profile'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ADMIN VERIFICATION REVIEW WORKSPACE (platform admins only)
+  if (activeTab === 'admin-verification') {
+    if (!isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          You do not have platform admin access.
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-emerald-600" /> Verification Requests
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Review supplier and buyer verification applications.</p>
+        </div>
+
+        {verificationFeedback && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{verificationFeedback}</div>
+        )}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {verificationQueueLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : verificationQueue.length === 0 ? (
+            <p className="text-xs text-slate-400">No pending verification requests.</p>
+          ) : (
+            <div className="space-y-4">
+              {verificationQueue.map((v) => (
+                <div key={v.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-slate-800 text-sm">{v.orgName}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">{v.requestType} verification · Submitted {new Date(v.submittedAt).toLocaleDateString('en-GB')}</p>
+                    </div>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{v.status.replace('_', ' ')}</span>
+                  </div>
+                  {v.notes && <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 mt-2">{v.notes}</p>}
+                  <div className="flex items-center gap-4 mt-3">
+                    <button onClick={() => handleApproveVerification(v)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Approve</button>
+                    <button onClick={() => handleRejectVerification(v.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // BID SUPPORT SERVICES WORKSPACE (buyers & suppliers)
+  if (activeTab === 'services') {
+    if (isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          Requesting bid support is subscriber tooling for Tender Publishers/Viewers, not platform admins.
+          Use Service Requests under Platform Admin to fulfill subscriber requests.
+        </div>
+      );
+    }
+    const serviceTypeLabels: Record<ServiceType, string> = {
+      document_retrieval: 'Document Retrieval',
+      tender_clarification: 'Tender Clarification',
+      eligibility_assessment: 'Eligibility Assessment',
+      bid_readiness_review: 'Bid-Readiness Review',
+      proposal_review: 'Proposal Review',
+      company_profile_prep: 'Company Profile Preparation',
+      supplier_registration_assistance: 'Supplier Registration Assistance',
+      featured_placement: 'Featured Placement Request',
+      other: 'Other',
+    };
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Support Services</h3>
+          <p className="text-xs text-slate-500 mt-1">Request paid, human-assisted help — separate from our AI Content Studio, these are performed by our team.</p>
+        </div>
+
+        {serviceRequestFeedback && (
+          <div className={`text-sm p-4 rounded-xl font-semibold ${serviceRequestFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {serviceRequestFeedback}
+          </div>
+        )}
+
+        <form onSubmit={handleCreateServiceRequest} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase">Service Needed</label>
+            <select value={srServiceType} onChange={(e) => setSrServiceType(e.target.value as ServiceType)}
+              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
+              {Object.entries(serviceTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase">Describe What You Need</label>
+            <textarea required rows={3} value={srDescription} onChange={(e) => setSrDescription(e.target.value)}
+              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+          </div>
+          <button type="submit" disabled={srSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
+            {srSubmitting ? 'Submitting…' : 'Submit Request'}
+          </button>
+        </form>
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Requests</h4>
+          {serviceRequestsLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : myServiceRequests.length === 0 ? (
+            <p className="text-xs text-slate-400">No requests yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {myServiceRequests.map((r) => (
+                <div key={r.id} className="border border-slate-100 rounded-xl p-4">
+                  <button onClick={() => toggleExpandRequest(r.id)} className="w-full flex items-center justify-between gap-4 cursor-pointer text-left">
+                    <div>
+                      <span className="font-semibold text-slate-800 text-sm block">{serviceTypeLabels[r.serviceType]}</span>
+                      <span className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleDateString('en-GB')}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {r.quoteAmount !== null && <span className="text-xs font-mono text-slate-600">{r.quoteCurrency} {r.quoteAmount.toLocaleString()}</span>}
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{r.status}</span>
+                    </div>
+                  </button>
+                  {expandedRequestId === r.id && (
+                    <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
+                      {requestActivities.length === 0 ? (
+                        <p className="text-xs text-slate-400">No updates yet.</p>
+                      ) : (
+                        requestActivities.map((a) => (
+                          <p key={a.id} className="text-xs text-slate-600"><span className="font-mono text-slate-400">{new Date(a.createdAt).toLocaleDateString('en-GB')}:</span> {a.note}</p>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ADVERTISER SUBSCRIBER WORKSPACE ("My Adverts")
+  // Deliberately narrow: no directory/event-promotion browsing UI here at
+  // all. This subscriber submits what they want advertised and later sees
+  // a read-only report of what happened -- platform, run count, reach.
+  // The actual design/production work stays admin-only ad-platform tooling.
+  // Keep the retired "campaigns" route as a compatibility redirect. Both
+  // navigation paths now render the same authoritative campaign workflow.
+  if (activeTab === 'campaign-builder' || activeTab === 'campaigns') {
+    return <CampaignBuilderPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
+  }
+  if (activeTab === 'advert-packages' || activeTab === 'admin-advert-revenue') {
+    return <AdvertBillingPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
+  }
+  if (activeTab === 'agency-workspace') {
+    return <AgencyWorkspacePage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
+  }
+  if (activeTab === 'landing-cms') {
+    return <LandingCmsPage />;
+  }
+  if (activeTab === 'content-cms') {
+    return <CmsContentManagerPage isPlatformAdmin={isPlatformAdmin} />;
+  }
+  if (activeTab === 'audience-subscribers') {
+    return <AudienceSubscribersPage />;
+  }
+  if (activeTab === 'audience-messaging') {
+    return <AudienceEmailCampaignsPage />;
+  }
+
+  if (activeTab === 'campaign-performance') {
+    return (
+      <CampaignPerformancePage
+        activeOrg={activeOrg}
+        isPlatformAdmin={isPlatformAdmin}
+        onCreateAdvert={() => setActiveTab(isPlatformAdmin ? 'admin-advertising' : 'advertising')}
+      />
+    );
+  }
+
+  if (activeTab === 'advertising') {
+    const categoryLabels: Record<AdvertisementCategory, string> = {
+      business: 'Business', event: 'Event', goods: 'Goods', service: 'Service',
+    };
+    const statusColor: Record<string, string> = {
+      submitted: 'bg-blue-100 text-blue-800',
+      in_production: 'bg-amber-100 text-amber-800',
+      live: 'bg-emerald-100 text-emerald-800',
+      completed: 'bg-slate-200 text-slate-600',
+      cancelled: 'bg-red-100 text-red-700',
+    };
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg">My Adverts</h3>
+          <p className="text-xs text-slate-500 mt-1">Submit what you'd like advertised — our team designs, builds and runs it on social media. Below is a read-only report of what's happened with each request.</p>
+        </div>
+
+        {advertisementFeedback && (
+          <div className={`text-sm p-4 rounded-xl font-semibold ${advertisementFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {advertisementFeedback}
+          </div>
+        )}
+
+        {advertisementsLoading ? (
+          <p className="text-xs text-slate-400">Loading…</p>
+        ) : !canAdvertise ? (
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-center">
+            <p className="text-sm text-slate-600">Advertising is available on the Business plan and above.</p>
+            <button onClick={() => setActiveTab('billing')} className="btn-geometric mt-4 cursor-pointer">View Plans</button>
+          </div>
+        ) : (
+          <>
+            <form onSubmit={handleSubmitAdvertisement} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">What are you advertising?</label>
+                <select value={adCategory} onChange={(e) => setAdCategory(e.target.value as AdvertisementCategory)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
+                  {Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Subject</label>
+                <input required value={adSubject} onChange={(e) => setAdSubject(e.target.value)} placeholder="e.g. Grand opening of our Freetown showroom"
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Describe what you need advertised</label>
+                <textarea required rows={3} value={adDescription} onChange={(e) => setAdDescription(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                <button type="button" onClick={handlePolishSubCopy} disabled={polishingSub} className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer disabled:opacity-50">
+                  <Sparkles className="h-3.5 w-3.5" /> {polishingSub ? 'Polishing…' : 'Polish my wording with AI'}
+                </button>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Photo (optional)</label>
+                <div className="mt-1 flex items-center gap-2">
+                  <label className="shrink-0 cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-xl px-3 py-2 hover:bg-slate-50">
+                    {adUploading ? 'Uploading…' : adMediaUrl ? 'Change photo' : 'Upload photo'}
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadRequestPhoto(e.target.files?.[0])} />
+                  </label>
+                  {adMediaUrl && (
+                    <>
+                      <img src={adMediaUrl} alt="" className="h-9 w-9 object-cover rounded-lg border border-slate-200" />
+                      <button type="button" onClick={() => setAdMediaUrl('')} className="text-xs text-slate-400 hover:text-red-500 cursor-pointer">Remove</button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <button type="submit" disabled={adSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
+                {adSubmitting ? 'Submitting…' : 'Submit Request'}
+              </button>
+            </form>
+
+            {/* Live creative preview — your advert, designed automatically */}
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-display font-bold text-slate-900 text-sm">Your advert, designed automatically</h4>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    {(['square', 'story', 'landscape', 'banner', 'editorial'] as AdvertFormat[]).map((f) => (
+                      <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {(['dark', 'light'] as AdvertTheme[]).map((t) => (
+                      <button key={t} type="button" onClick={() => setAdvTheme(t)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advTheme === t ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{t}</button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => setAdvWithPhoto((v) => !v)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advWithPhoto ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-500 border-slate-200'}`}>{advWithPhoto ? 'Photo' : 'Text'}</button>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">This is generated from your details as you type. Our team refines and runs it — you can download it too.</p>
+              <div className="bg-slate-50 border border-slate-200 p-3 max-w-md">
+                <CreativeScaler format={advFormat}>
+                  <AdvertCreative
+                    ref={subCreativeRef}
+                    format={advFormat}
+                    theme={advTheme}
+                    withPhoto={advWithPhoto}
+                    businessName={activeOrg.name}
+                    headline={adSubject || 'Your headline goes here'}
+                    body={adDescription}
+                    category={categoryLabels[adCategory]}
+                    mediaUrl={adMediaUrl || null}
+                  />
+                </CreativeScaler>
+              </div>
+              <button type="button" onClick={handleDownloadSubCreative} className="mt-3 border border-emerald-600 text-emerald-700 font-mono text-[11px] font-bold uppercase tracking-widest px-4 py-2.5 hover:bg-emerald-600 hover:text-white transition-colors cursor-pointer">
+                Download my advert (PNG)
+              </button>
+            </div>
+
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Requests</h4>
+              {myAdvertisements.length === 0 ? (
+                <p className="text-xs text-slate-400">No requests yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {myAdvertisements.map((ad) => (
+                    <div key={ad.id} className="border border-slate-100 rounded-xl p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <span className="font-semibold text-slate-800 text-sm block">{ad.subject}</span>
+                          <span className="text-xs text-slate-500">{categoryLabels[ad.category]} · {new Date(ad.createdAt).toLocaleDateString('en-GB')}</span>
+                        </div>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${statusColor[ad.status] ?? 'bg-slate-100 text-slate-600'}`}>{ad.status.replace('_', ' ')}</span>
+                      </div>
+                      {(ad.platform || ad.reachCount !== null || ad.runCount !== null) && (
+                        <div className="mt-3 pt-3 border-t border-slate-50 grid grid-cols-3 gap-3 text-center">
+                          <div>
+                            <span className="text-[9px] text-slate-400 uppercase font-bold block">Platform</span>
+                            <span className="text-xs font-semibold text-slate-700">{ad.platform || '—'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] text-slate-400 uppercase font-bold block">Reach</span>
+                            <span className="text-xs font-semibold text-slate-700">{ad.reachCount !== null ? ad.reachCount.toLocaleString() : '—'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] text-slate-400 uppercase font-bold block">Times Run</span>
+                            <span className="text-xs font-semibold text-slate-700">{ad.runCount !== null ? ad.runCount.toLocaleString() : '—'}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ADMIN ADVERTISING FULFILLMENT QUEUE
+  if (activeTab === 'admin-advertising') {
+    if (!isPlatformAdmin) {
+      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
+    }
+    const categoryLabels: Record<string, string> = { business: 'Business', event: 'Event', goods: 'Goods', service: 'Service' };
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Landmark className="h-5 w-5 text-emerald-600" /> Advertising Requests
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Fulfillment queue for subscriber advert requests — update status and report reach/run data once the advert is live.</p>
+        </div>
+
+        {advertisementFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{advertisementFeedback}</div>}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {advertisementsLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : allAdvertisements.length === 0 ? (
+            <p className="text-xs text-slate-400">No advertising requests yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {allAdvertisements.map((ad) => (
+                <div key={ad.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-start gap-3 min-w-0">
+                      {ad.mediaUrl && (
+                        <a href={ad.mediaUrl} target="_blank" rel="noopener noreferrer" className="shrink-0" title="Attached photo — open full size">
+                          <img src={ad.mediaUrl} alt="" className="h-12 w-12 object-cover rounded-lg border border-slate-200" />
+                        </a>
+                      )}
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-slate-800 text-sm">{ad.subject} — {ad.orgName}</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">{categoryLabels[ad.category]}: {ad.description}</p>
+                      </div>
+                    </div>
+                    <select value={ad.status} onChange={(e) => handleUpdateAdvertisement(ad.id, { status: e.target.value as AdvertisementRequest['status'] })}
+                      className="text-xs border border-slate-200 rounded-lg p-1 bg-white shrink-0">
+                      <option value="submitted">Submitted</option>
+                      <option value="in_production">In Production</option>
+                      <option value="live">Live</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4 mt-3">
+                    <button
+                      onClick={() => loadRequestIntoPublisher(ad)}
+                      className="text-xs font-bold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 hover:bg-emerald-100 cursor-pointer"
+                    >
+                      Load into publisher →
+                    </button>
+                    <button
+                      onClick={() => {
+                        const platform = prompt('Platform(s) the advert ran on:', ad.platform ?? '');
+                        if (platform === null) return;
+                        handleUpdateAdvertisement(ad.id, { platform });
+                      }}
+                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
+                    >
+                      Platform: {ad.platform || 'Set'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const reachStr = prompt('Reach (number of people reached):', ad.reachCount?.toString() ?? '');
+                        if (reachStr === null) return;
+                        handleUpdateAdvertisement(ad.id, { reachCount: Number(reachStr) || 0 });
+                      }}
+                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
+                    >
+                      Reach: {ad.reachCount !== null ? ad.reachCount.toLocaleString() : 'Set'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const runStr = prompt('Number of times the advert was run:', ad.runCount?.toString() ?? '');
+                        if (runStr === null) return;
+                        handleUpdateAdvertisement(ad.id, { runCount: Number(runStr) || 0 });
+                      }}
+                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
+                    >
+                      Times Run: {ad.runCount !== null ? ad.runCount.toLocaleString() : 'Set'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Retained temporarily in source for release comparison; no longer rendered.
+            Campaign creation and controls live only in Campaign Management. */}
+        {false && <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-emerald-600" /> Campaigns
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Group a business's creatives into a campaign with a run window and a reach goal. Adverts assigned to a
+            campaign only show on the site during its dates, and rotate through the marquee and feed. Pause to pull the
+            whole campaign off the site instantly.
+          </p>
+
+          <form onSubmit={handleCreateAdCampaign} className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-2 items-end">
+            <div className="lg:col-span-2">
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Campaign name</label>
+              <input value={campForm.name} onChange={(e) => setCampForm({ ...campForm, name: e.target.value })} placeholder="e.g. Rokel Q3 push" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Business</label>
+              <input value={campForm.businessName} onChange={(e) => setCampForm({ ...campForm, businessName: e.target.value })} placeholder="Business" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Start</label>
+              <input type="date" value={campForm.startDate} onChange={(e) => setCampForm({ ...campForm, startDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">End</label>
+              <input type="date" value={campForm.endDate} onChange={(e) => setCampForm({ ...campForm, endDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Reach goal</label>
+              <input type="number" min={0} value={campForm.reachGoal} onChange={(e) => setCampForm({ ...campForm, reachGoal: e.target.value })} placeholder="e.g. 5000" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <button type="submit" disabled={campSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer disabled:opacity-50 lg:col-span-1">
+              {campSaving ? 'Creating…' : 'Add campaign'}
+            </button>
+          </form>
+
+          {adCampaigns.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {adCampaigns.map((c) => {
+                const reach = campaignReach[c.id] || { adverts: 0, views: 0, clicks: 0 };
+                const now = Date.now();
+                const started = !c.startDate || new Date(c.startDate).getTime() <= now;
+                const ended = c.endDate && new Date(`${c.endDate}T23:59:59`).getTime() < now;
+                const phase = c.status === 'paused' ? 'Paused' : ended ? 'Ended' : !started ? 'Scheduled' : 'Active';
+                const phaseColor = phase === 'Active' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : phase === 'Paused' ? 'text-amber-700 bg-amber-50 border-amber-200' : phase === 'Scheduled' ? 'text-sky-700 bg-sky-50 border-sky-200' : 'text-slate-500 bg-slate-50 border-slate-200';
+                const pct = c.reachGoal ? Math.min(100, Math.round((reach.views / c.reachGoal) * 100)) : null;
+                return (
+                  <div key={c.id} className="border border-slate-100 rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-slate-800 text-sm truncate">{c.name}</h4>
+                          <span className={`font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${phaseColor}`}>{phase}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {c.businessName || '—'} · {c.startDate || 'no start'} → {c.endDate || 'no end'} · {reach.adverts} creative{reach.adverts === 1 ? '' : 's'} · 👁 {reach.views.toLocaleString()} · ↗ {reach.clicks.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => handleToggleAdCampaign(c)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
+                          {c.status === 'active' ? 'Pause' : 'Resume'}
+                        </button>
+                        <button onClick={() => handleDeleteAdCampaign(c.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
+                      </div>
+                    </div>
+                    {pct !== null && (
+                      <div className="mt-2.5">
+                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+                          <span>Reach goal</span><span>{reach.views.toLocaleString()} / {c.reachGoal!.toLocaleString()} views ({pct}%)</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 overflow-hidden">
+                          <div className="h-full bg-emerald-600" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-emerald-600" /> Campaign Management
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Campaign setup, channels, budgets, targeting, approvals, and schedules are managed in one place.
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveTab('campaign-builder')}
+            className="mt-4 inline-flex items-center gap-2 bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
+          >
+            Open Campaign Management <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Publish adverts to the public site */}
+        <div id="advert-publisher" className={`bg-white border rounded-2xl p-6 shadow-xs ${advEditingId ? 'border-emerald-300 ring-1 ring-emerald-200' : advRequestId ? 'border-sky-300 ring-1 ring-sky-200' : 'border-slate-100'}`}>
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Landmark className="h-5 w-5 text-emerald-600" /> {advEditingId ? 'Editing advert' : advRequestId ? 'Publishing a request' : 'Adverts on the site'}
+            {(advEditingId || advRequestId) && (
+              <button type="button" onClick={cancelAdvertEdit} className="ml-auto text-xs font-semibold text-slate-500 hover:underline cursor-pointer">Cancel</button>
+            )}
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Publish an advert so it shows on the public homepage and gets its own detail page. Manohub is the
+            source of truth — paste the social post link so visitors can jump to the campaign; the social post
+            should reference this advert's page back on Manohub.
+          </p>
+
+          {advAnalytics && (
+            <div className="mt-5 border border-[#0F172A] bg-[#0F172A] grid grid-cols-2 lg:grid-cols-4 gap-px">
+              {[
+                { label: 'Total views', value: advAnalytics.viewsTotal, sub: `${advAnalytics.views7d} in 7d · ${advAnalytics.views30d} in 30d` },
+                { label: 'Total clicks', value: advAnalytics.clicksTotal, sub: `${advAnalytics.clicks7d} in 7d · ${advAnalytics.clicks30d} in 30d` },
+                { label: 'Live adverts', value: advAnalytics.liveCount, sub: 'showing on the site' },
+                { label: 'Click-through', value: `${advAnalytics.viewsTotal > 0 ? Math.round((advAnalytics.clicksTotal / advAnalytics.viewsTotal) * 100) : 0}%`, sub: 'clicks ÷ views' },
+              ].map((s, index) => (
+                <div key={s.label} className="relative bg-white p-4 overflow-hidden">
+                  <i className={`absolute inset-x-0 top-0 h-1 ${index === 0 ? 'bg-indigo-600' : index === 1 ? 'bg-emerald-600' : index === 2 ? 'bg-amber-500' : 'bg-fuchsia-600'}`} />
+                  <p className="text-[9px] font-mono font-bold uppercase tracking-[0.16em] text-slate-500">{s.label}</p>
+                  <p className="mt-2 font-display text-3xl font-extrabold tracking-tight text-slate-950">{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</p>
+                  <p className="mt-1 text-[10px] text-slate-500">{s.sub}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 grid lg:grid-cols-2 gap-6 items-start">
+          <form onSubmit={handlePublishAdvert} className="grid grid-cols-1 gap-3">
+            <input value={advForm.title} onChange={(e) => setAdvForm({ ...advForm, title: e.target.value })} placeholder="Advert title" className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <input value={advForm.businessName} onChange={(e) => setAdvForm({ ...advForm, businessName: e.target.value })} placeholder="Business name" className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <select value={advForm.category} onChange={(e) => setAdvForm({ ...advForm, category: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
+              {['business', 'goods', 'service', 'healthcare', 'transportation', 'event', 'hospitality', 'finance', 'education', 'agriculture'].map((c) => (
+                <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+              ))}
+            </select>
+            <select value={advCampaignId} onChange={(e) => setAdvCampaignId(e.target.value)} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
+              <option value="">No campaign — runs immediately, no end date</option>
+              {adCampaigns.filter((c) => c.status === 'active').map((c) => (
+                <option key={c.id} value={c.id}>Campaign: {c.name}{c.startDate || c.endDate ? ` (${c.startDate || '…'} → ${c.endDate || '…'})` : ''}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-2">
+              <label className="shrink-0 cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">
+                {advUploading === 'photo' ? 'Uploading…' : advForm.mediaUrl ? 'Change photo' : 'Upload photo'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadAdvertImage(e.target.files?.[0], 'photo')} />
+              </label>
+              <input value={advForm.mediaUrl} onChange={(e) => setAdvForm({ ...advForm, mediaUrl: e.target.value })} placeholder="…or paste image URL" className="flex-1 min-w-0 border border-slate-200 rounded-lg p-2 text-sm" />
+              {advForm.mediaUrl && <button type="button" onClick={() => setAdvForm({ ...advForm, mediaUrl: '' })} className="shrink-0 text-xs text-slate-400 hover:text-red-500 cursor-pointer">Clear</button>}
+            </div>
+            <input value={advForm.summary} onChange={(e) => setAdvForm({ ...advForm, summary: e.target.value })} placeholder="Short summary (one line)" className="border border-slate-200 rounded-lg p-2 text-sm sm:col-span-2" />
+            <textarea value={advForm.content} onChange={(e) => setAdvForm({ ...advForm, content: e.target.value })} placeholder="Full advert content" rows={3} className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <button type="button" onClick={handlePolishAdvertCopy} disabled={polishingCopy} className="justify-self-start inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer disabled:opacity-50">
+              <Sparkles className="h-3.5 w-3.5" /> {polishingCopy ? 'Polishing…' : 'Polish copy with AI'}
+            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex items-center gap-2 text-xs text-slate-600 border border-slate-200 rounded-lg p-2">
+                Brand colour
+                <input type="color" value={advForm.accentColor} onChange={(e) => setAdvForm({ ...advForm, accentColor: e.target.value })} className="h-6 w-8 cursor-pointer border-0 bg-transparent p-0" />
+              </label>
+              <label className="cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">
+                {advUploading === 'logo' ? 'Uploading…' : advForm.logoUrl ? 'Change logo' : 'Upload logo'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadAdvertImage(e.target.files?.[0], 'logo')} />
+              </label>
+            </div>
+            <select value={advForm.socialPlatform} onChange={(e) => setAdvForm({ ...advForm, socialPlatform: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
+              {['Facebook', 'Instagram', 'WhatsApp', 'TikTok', 'X', 'YouTube', 'LinkedIn'].map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <input value={advForm.socialUrl} onChange={(e) => setAdvForm({ ...advForm, socialUrl: e.target.value })} placeholder="Social post URL (https://…)" className="border border-slate-200 rounded-lg p-2 text-sm" />
+            <button type="submit" disabled={advSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm cursor-pointer disabled:opacity-50 justify-self-start">
+              {advSaving ? (advEditingId ? 'Saving…' : 'Publishing…') : advEditingId ? 'Save changes' : 'Publish advert'}
+            </button>
+          </form>
+
+          {/* Auto-generated creative — updates live as the form is filled */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Auto-generated creative</span>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  {(['square', 'story', 'landscape', 'banner', 'editorial'] as AdvertFormat[]).map((f) => (
+                    <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1">
+                  {(['dark', 'light'] as AdvertTheme[]).map((t) => (
+                    <button key={t} type="button" onClick={() => setAdvTheme(t)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advTheme === t ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{t}</button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => setAdvWithPhoto((v) => !v)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advWithPhoto ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{advWithPhoto ? 'Photo' : 'Text'}</button>
+              </div>
+            </div>
+            <div className="border border-slate-200 bg-slate-50 p-3">
+              <CreativeScaler format={advFormat}>
+                <AdvertCreative
+                  ref={creativeRef}
+                  format={advFormat}
+                  theme={advTheme}
+                  withPhoto={advWithPhoto}
+                  businessName={advForm.businessName || 'Your Business'}
+                  headline={advForm.title || 'Your headline goes here'}
+                  body={advForm.summary || advForm.content}
+                  category={advForm.category}
+                  mediaUrl={advForm.mediaUrl || null}
+                  platform={advForm.socialPlatform}
+                  accentColor={advForm.accentColor}
+                  logoUrl={advForm.logoUrl || null}
+                />
+              </CreativeScaler>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button type="button" onClick={handleDownloadCreative} className="border border-[#0F172A] text-[#0F172A] font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-[#0F172A] hover:text-white transition-colors cursor-pointer">
+                Download PNG
+              </button>
+              <button type="button" onClick={handleSaveCreativeForSocial} disabled={savingCreative} className="border border-emerald-600 text-emerald-700 font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-emerald-600 hover:text-white transition-colors cursor-pointer disabled:opacity-50">
+                {savingCreative ? 'Saving…' : 'Save for social'}
+              </button>
+            </div>
+            <button type="button" onClick={() => setKitExporting(true)} disabled={kitExporting} className="mt-2 w-full border border-slate-300 text-slate-700 font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50">
+              {kitExporting ? 'Building kit…' : 'Download the kit (all 5 sizes · ZIP)'}
+            </button>
+            {/* Persistent off-screen 1200×628 landscape render → the social feed
+                card (og:image), captured on publish regardless of chosen format. */}
+            <div style={{ position: 'fixed', left: -99999, top: 0, opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
+              <AdvertCreative
+                ref={ogRef}
+                format="landscape"
+                theme={advTheme}
+                withPhoto={advWithPhoto}
+                businessName={advForm.businessName || 'Your Business'}
+                headline={advForm.title || 'Your headline goes here'}
+                body={advForm.summary || advForm.content}
+                category={advForm.category}
+                mediaUrl={advForm.mediaUrl || null}
+                platform={advForm.socialPlatform}
+                accentColor={advForm.accentColor}
+                logoUrl={advForm.logoUrl || null}
+              />
+            </div>
+            {/* Off-screen full-res render of every format for the kit ZIP */}
+            {kitExporting && (
+              <div style={{ position: 'fixed', left: -99999, top: 0, opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
+                {KIT_FORMATS.map((f) => (
+                  <div key={f} ref={(el) => { kitRefs.current[f] = el; }}>
+                    <AdvertCreative
+                      format={f}
+                      theme={advTheme}
+                      withPhoto={advWithPhoto}
+                      businessName={advForm.businessName || 'Your Business'}
+                      headline={advForm.title || 'Your headline goes here'}
+                      body={advForm.summary || advForm.content}
+                      category={advForm.category}
+                      mediaUrl={advForm.mediaUrl || null}
+                      platform={advForm.socialPlatform}
+                      accentColor={advForm.accentColor}
+                      logoUrl={advForm.logoUrl || null}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            {advForm.creativeUrl && (
+              <p className="mt-2 text-[11px] text-emerald-700">
+                Creative saved · <a href={advForm.creativeUrl} target="_blank" rel="noopener noreferrer" className="underline">open PNG</a> — attaches on publish.
+              </p>
+            )}
+          </div>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            {publishedAdverts.length === 0 ? (
+              <p className="text-xs text-slate-400">No adverts published yet.</p>
+            ) : (
+              publishedAdverts.map((adv) => (
+                <div key={adv.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-slate-800 text-sm truncate">{adv.title} — {adv.businessName}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {adv.category} · {adv.status}
+                        {' · '}<span title="Detail-page views">👁 {adv.viewCount.toLocaleString()}</span>
+                        {' · '}<span title="'View on social' clicks">↗ {adv.clickCount.toLocaleString()}</span>
+                        {adv.socialUrl && <> · <a href={adv.socialUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">social post</a></>}
+                        {adv.creativeUrl && <> · <a href={adv.creativeUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">creative PNG</a></>}
+                        {' · '}<Link to={`/adverts/${adv.slug}`} target="_blank" className="text-emerald-600 hover:underline">/adverts/{adv.slug}</Link>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button onClick={() => loadAdvertForEdit(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">Edit</button>
+                      <button onClick={() => setSharePackId((id) => (id === adv.id ? null : adv.id))} className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer">
+                        {sharePackId === adv.id ? 'Hide share pack' : 'Share pack'}
                       </button>
                       <button onClick={() => handleToggleAdvertStatus(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
                         {adv.status === 'live' ? 'Archive' : 'Set live'}
@@ -4166,3 +4998,783 @@ export function Workspaces({
   }
 
   // 9. LEADS WORKSPACE (CRM)
+  if (activeTab === 'leads') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+              <h3 className="font-display font-bold text-slate-900 text-lg">Lightweight CRM Pipeline</h3>
+              <p className="text-xs text-slate-500">Track clicks, inquiries, and converted sponsorships securely.</p>
+            </div>
+            <div className="flex gap-3">
+              <input
+                type="text"
+                placeholder="Search lead name..."
+                value={leadSearch}
+                onChange={(e) => setLeadSearch(e.target.value)}
+                className="border border-slate-200 rounded-xl p-2 text-xs bg-slate-50 text-slate-700"
+              />
+              <select
+                value={leadStatusFilter}
+                onChange={(e) => setLeadStatusFilter(e.target.value)}
+                className="border border-slate-200 rounded-xl p-2 text-xs bg-slate-50 text-slate-700"
+              >
+                <option>All</option>
+                <option>New</option>
+                <option>Contacted</option>
+                <option>Qualified</option>
+                <option>Proposal Sent</option>
+                <option>Converted</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setAddingLead((v) => !v)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all cursor-pointer shrink-0"
+              >
+                {addingLead ? 'Cancel' : '+ Add Lead'}
+              </button>
+            </div>
+          </div>
+
+          {leadFeedback && (
+            <div className={`text-sm p-3.5 rounded-xl font-semibold mb-4 ${leadFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+              {leadFeedback}
+            </div>
+          )}
+
+          {addingLead && (
+            <form onSubmit={handleAddLead} className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-6 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Name</label>
+                  <input
+                    type="text" required
+                    value={newLeadName}
+                    onChange={(e) => setNewLeadName(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Email</label>
+                  <input
+                    type="email"
+                    value={newLeadEmail}
+                    onChange={(e) => setNewLeadEmail(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">WhatsApp / Tel</label>
+                  <input
+                    type="text"
+                    value={newLeadWhatsapp}
+                    onChange={(e) => setNewLeadWhatsapp(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Source</label>
+                  <input
+                    type="text"
+                    value={newLeadSource}
+                    onChange={(e) => setNewLeadSource(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase">Est. Value (Le)</label>
+                  <input
+                    type="number" min="0"
+                    value={newLeadValue}
+                    onChange={(e) => setNewLeadValue(e.target.value)}
+                    className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
+                  />
+                </div>
+              </div>
+              <button type="submit" disabled={savingLead} className="bg-[#0F172A] text-white font-semibold px-4 py-2 rounded-lg text-xs cursor-pointer disabled:opacity-50">
+                {savingLead ? 'Saving…' : 'Save Lead'}
+              </button>
+            </form>
+          )}
+
+          <div className="overflow-x-auto border border-slate-100 rounded-xl">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-400 font-mono uppercase border-b border-slate-100">
+                  <th className="p-4 font-bold">Priority</th>
+                  <th className="p-4 font-bold">Name</th>
+                  <th className="p-4 font-bold">Email</th>
+                  <th className="p-4 font-bold">WhatsApp / Tel</th>
+                  <th className="p-4 font-bold">Source Campaign</th>
+                  <th className="p-4 font-bold">Est. Value</th>
+                  <th className="p-4 font-bold">Status Pipeline</th>
+                  <th className="p-4 font-bold">AI Follow-up</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 font-medium text-slate-700">
+                {leads
+                  .filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()))
+                  .filter(l => leadStatusFilter === 'All' || l.status === leadStatusFilter)
+                  .sort((a, b) => computeLeadScore(b) - computeLeadScore(a))
+                  .map((lead) => {
+                    const priority = leadPriorityLabel(computeLeadScore(lead));
+                    const priorityColor =
+                      priority === 'Hot' ? 'bg-red-100 text-red-700' :
+                      priority === 'Warm' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500';
+                    return (
+                      <tr key={lead.id} className="hover:bg-slate-50/40">
+                        <td className="p-4">
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${priorityColor}`}>{priority}</span>
+                        </td>
+                        <td className="p-4 font-bold text-slate-900">{lead.name}</td>
+                        <td className="p-4 font-mono text-slate-500">{lead.email}</td>
+                        <td className="p-4 font-mono text-slate-500">{lead.whatsapp || lead.telephone}</td>
+                        <td className="p-4 text-slate-600">{lead.source}</td>
+                        <td className="p-4 font-mono font-bold text-emerald-600">Le {lead.estimatedValue.toLocaleString()}</td>
+                        <td className="p-4">
+                          <select
+                            value={lead.status}
+                            onChange={(e: any) => updateLeadStatus(lead.id, e.target.value)}
+                            className="border border-slate-200 rounded-lg p-1 bg-white focus:outline-emerald-500"
+                          >
+                            <option>New</option>
+                            <option>Contacted</option>
+                            <option>Qualified</option>
+                            <option>Proposal Sent</option>
+                            <option>Converted</option>
+                            <option>Lost</option>
+                          </select>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={!lead.whatsapp}
+                              onClick={() => handleDraftFollowup(lead, 'whatsapp')}
+                              title={lead.whatsapp ? 'Draft a WhatsApp follow-up' : 'No WhatsApp number on file'}
+                              className="text-emerald-600 hover:text-emerald-700 disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!lead.email}
+                              onClick={() => handleDraftFollowup(lead, 'email')}
+                              title={lead.email ? 'Draft an email follow-up' : 'No email on file'}
+                              className="text-emerald-600 hover:text-emerald-700 disabled:text-slate-300 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              <Mail className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+
+          {followupLeadId && (() => {
+            const lead = leads.find((l) => l.id === followupLeadId);
+            if (!lead) return null;
+            const waDigits = (lead.whatsapp || '').replace(/[^0-9]/g, '');
+            const waLink = waDigits ? `https://wa.me/${waDigits}?text=${encodeURIComponent(followupText)}` : null;
+            const mailLink = lead.email
+              ? `mailto:${lead.email}?subject=${encodeURIComponent(`Following up — ${brandKit.brandName || 'us'}`)}&body=${encodeURIComponent(followupText)}`
+              : null;
+            return (
+              <div className="mt-4 bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-900">
+                    AI-drafted {followupChannel === 'whatsapp' ? 'WhatsApp' : 'email'} follow-up for {lead.name}
+                  </span>
+                  <button type="button" onClick={() => setFollowupLeadId(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                {followupLoading ? (
+                  <p className="text-xs text-slate-500 italic">Drafting…</p>
+                ) : followupError ? (
+                  <p className="text-xs text-red-600">{followupError}</p>
+                ) : (
+                  <>
+                    <textarea
+                      rows={4}
+                      value={followupText}
+                      onChange={(e) => setFollowupText(e.target.value)}
+                      className="w-full border border-emerald-200 rounded-xl p-3 bg-white text-sm focus:outline-emerald-500"
+                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleDraftFollowup(lead, followupChannel)}
+                        className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        Regenerate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText(followupText)}
+                        className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+                      >
+                        Copy
+                      </button>
+                      {followupChannel === 'whatsapp' && waLink && (
+                        <a href={waLink} target="_blank" rel="noopener noreferrer" className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all">
+                          Open in WhatsApp
+                        </a>
+                      )}
+                      {followupChannel === 'email' && mailLink && (
+                        <a href={mailLink} className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl text-xs transition-all">
+                          Open in Email
+                        </a>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Nothing is sent automatically — this opens your own WhatsApp/email client with the message pre-filled for you to review and send.
+                    </p>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+    );
+  }
+
+  // 10. INFLUENCERS WORKSPACE
+  if (activeTab === 'influencers') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg mb-2">Verified Creator Marketplace</h3>
+          <p className="text-xs text-slate-500 mb-6">Partner with trusted local or diaspora creators displaying certified engagement parameters.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {influencerProfiles.map((inf) => (
+              <div key={inf.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex justify-between items-start">
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-display font-bold text-slate-800">{inf.displayName}</h4>
+                    {inf.isVerified && <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Verified</span>}
+                  </div>
+                  <span className="text-xs text-slate-500 block">Location: {inf.location}</span>
+                  <div className="flex gap-2 pt-1">
+                    {inf.categories.map((cat, i) => (
+                      <span key={i} className="bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">{cat}</span>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 pt-3 text-xs border-t border-slate-50 mt-4">
+                    <div>
+                      <span className="text-slate-400 block font-mono">AUDIENCE</span>
+                      <strong className="text-slate-700">{inf.audienceSize}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-mono">ENGAGE</span>
+                      <strong className="text-emerald-600">{inf.engagementRate}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-mono">RATE RANGE</span>
+                      <strong className="text-slate-700 block truncate">{inf.rateRange}</strong>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    const budgetStr = prompt(`Proposed budget for ${inf.displayName} (Leones):`, '0');
+                    if (budgetStr === null) return;
+                    try {
+                      const lead = await createLead(activeOrg.id, {
+                        name: inf.displayName,
+                        source: 'Influencer Marketplace',
+                        district: inf.district,
+                        estimatedValue: Number(budgetStr) || 0,
+                      });
+                      setLeads([lead, ...leads]);
+                      alert(`Real CRM lead created for ${inf.displayName} — see the CRM Leads tab.`);
+                    } catch (err: any) {
+                      alert(err.message || 'Could not create lead.');
+                    }
+                  }}
+                  className="bg-emerald-50 text-emerald-800 text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-colors cursor-pointer shrink-0"
+                >
+                  Invite Partner
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 11. DIRECTORY WORKSPACE
+  if (activeTab === 'directory') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h3 className="font-display font-bold text-slate-900 text-lg">Public Business Discovery Registry</h3>
+              <p className="text-xs text-slate-500">Fostering corporate visibility and local-to-diaspora transactional trust.</p>
+            </div>
+            <button
+              onClick={async () => {
+                const name = prompt('Enter your Business Name:');
+                if (name) {
+                  try {
+                    const newB = await createDirectoryListing(activeOrg.id, name);
+                    setDirectoryProfiles([newB, ...directoryProfiles]);
+                  } catch (err: any) {
+                    alert(err.message || 'Could not add listing.');
+                  }
+                }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-2 cursor-pointer"
+            >
+              <Plus className="h-4 w-4" /> Add Listing
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {directoryProfiles.map((p) => (
+              <div key={p.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-display font-bold text-slate-800">{p.businessName}</h4>
+                      {p.isVerified ? (
+                        <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Verified</span>
+                      ) : (
+                        <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Claimable</span>
+                      )}
+                    </div>
+                    <span className="bg-slate-100 text-slate-600 font-mono text-[10px] px-2 py-0.5 rounded-md">{p.category}</span>
+                  </div>
+                  <p className="text-slate-500 text-xs leading-relaxed mb-4">{p.description}</p>
+                </div>
+
+                <div className="border-t border-slate-50 pt-4 flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-mono">{p.city}, {p.district}</span>
+                  {!p.isVerified && (
+                    <button
+                      onClick={() => handleClaimListing(p.id)}
+                      className="text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer"
+                    >
+                      Claim & Verify Listing
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Claim listing panel */}
+        {claimBusinessId && (
+          <div className="bg-slate-50 border-2 border-emerald-500 rounded-2xl p-6 shadow-md text-left space-y-4">
+            <h4 className="font-display font-bold text-slate-900 text-sm">Upload Corporate Registration / Business Claim Form</h4>
+            {claimFeedback ? (
+              <p className="text-emerald-800 text-xs font-semibold bg-emerald-50 p-3 rounded-lg border border-emerald-100">{claimFeedback}</p>
+            ) : (
+              <form onSubmit={submitClaim} className="space-y-4 text-xs">
+                <p className="text-slate-500">Provide an official copy of your SL business license or tax certificate to earn your verification mark.</p>
+                <div>
+                  <label className="block text-slate-400 font-mono uppercase mb-1">Corporate document</label>
+                  <input
+                    type="file"
+                    required
+                    onChange={(e) => setClaimFile(e.target.files?.[0] ?? null)}
+                    className="w-full border border-slate-200 rounded-lg p-2 bg-white text-slate-700"
+                  />
+                </div>
+                <button type="submit" disabled={isSubmittingClaim} className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-semibold py-2 px-4 rounded-xl cursor-pointer">
+                  {isSubmittingClaim ? 'Uploading…' : 'Submit Verification Documents'}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 12. EVENTS WORKSPACE
+  if (activeTab === 'events') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg mb-4">Homecoming & Festival Promoters</h3>
+          <p className="text-xs text-slate-500 mb-6">Connect ticket sales with direct tracking campaigns to trace ticket buyers directly in the UK/US diaspora communities.</p>
+
+          <div className="space-y-4">
+            {[
+              { title: 'Freetown December Music Fest 2026', date: 'Dec 24, 2026', location: 'National Stadium Complex', scheduledDate: '2026-12-24', buttonLabel: 'Promote Concert' },
+              { title: 'Sierra Leone Diaspora Investment Summit', date: 'Nov 12, 2026', location: 'Radisson Blu, Freetown', scheduledDate: '2026-11-12', buttonLabel: 'Promote Summit' },
+            ].map((ev) => (
+              <div key={ev.title} className="bg-slate-50 p-4 border border-slate-100 rounded-xl flex justify-between items-center text-sm">
+                <div>
+                  <span className="font-bold text-slate-800 block">{ev.title}</span>
+                  <span className="text-xs text-slate-500">Date: {ev.date} · Location: {ev.location}</span>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const newItem = await createContentItem(activeOrg.id, {
+                        title: `Promote: ${ev.title}`,
+                        contentType: 'Social Post',
+                        platform: 'Facebook & WhatsApp',
+                        headline: ev.title,
+                        bodyText: `Join us for ${ev.title} — ${ev.date} at ${ev.location}. Don't miss it!`,
+                        hashtags: ['#Manohub', '#EatSalone'],
+                        scheduledDate: ev.scheduledDate,
+                      });
+                      setContentItems([newItem, ...contentItems]);
+                      alert(`Real draft created in Content Studio for "${ev.title}".`);
+                    } catch (err: any) {
+                      alert(err.message || 'Could not create draft.');
+                    }
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer"
+                >
+                  {ev.buttonLabel}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 13. TOURISM WORKSPACE
+  if (activeTab === 'tourism') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg mb-2">Heritage & Homecoming Tour Excursions</h3>
+          <p className="text-xs text-slate-500 mb-6">Showcase eco-tourism hotspots and ancestral landmarks (e.g., Tiwai Island, Banana Islands) with simple, tracking-redirect call-to-actions.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            {[
+              { label: 'Bunce Island Historical Exploration', body: 'Ancestral roots tours mapping Sierra Leonean heritage directly for African-American and Caribbean diaspora visitors.', defaultUrl: 'https://wa.me/23276000000?text=Bunce%20Island%20tour' },
+              { label: 'Banana Island Snorkeling Retreat', body: 'Eco-friendly water sports, local dining, and beach camping escapes tailored for festive groups.', defaultUrl: 'https://wa.me/23276000000?text=Banana%20Island%20retreat' },
+            ].map((dest) => {
+              const existing = trackingLinks.find((l) => l.label === dest.label);
+              return (
+                <div key={dest.label} className="bg-slate-50 border border-slate-100 p-5 rounded-xl space-y-2">
+                  <span className="font-bold text-slate-800 block">{dest.label}</span>
+                  <p className="text-xs text-slate-500 leading-relaxed">{dest.body}</p>
+                  {existing ? (
+                    <div className="pt-2">
+                      <button
+                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/r/${existing.shortCode}`)}
+                        className="text-emerald-600 font-mono text-xs hover:underline cursor-pointer block truncate"
+                        title="Copy link"
+                      >
+                        {`${window.location.origin}/r/${existing.shortCode}`}
+                      </button>
+                      <span className="text-[10px] text-slate-400 font-mono">{existing.clickCount} clicks</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        const link = await generateNamedTrackingLink(dest.label, dest.defaultUrl);
+                        if (link) setTrackingLinks((prev) => [link, ...prev]);
+                      }}
+                      className="text-emerald-600 font-semibold hover:underline text-xs block cursor-pointer pt-2"
+                    >
+                      Generate Tracking Link
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 14. BRAND KIT WORKSPACE
+  if (activeTab === 'brandkit') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Central Brand Kit</h3>
+          <p className="text-xs text-slate-500">Slogan values and logo palettes feed directly into our AI generation workflows for perfect stylistic brand compliance.</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Primary Slogan / Tagline</label>
+              <input
+                type="text"
+                value={brandKit.tagline}
+                onChange={(e) => setBrandKit({ ...brandKit, tagline: e.target.value })}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white text-sm focus:outline-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Core Slogan / Slogan Goal</label>
+              <input
+                type="text"
+                value={brandKit.mission}
+                onChange={(e) => setBrandKit({ ...brandKit, mission: e.target.value })}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white text-sm focus:outline-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Primary Tone of Voice</label>
+              <input
+                type="text"
+                value={brandKit.toneOfVoice}
+                onChange={(e) => setBrandKit({ ...brandKit, toneOfVoice: e.target.value })}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 focus:bg-white text-sm focus:outline-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Primary Colors Palette</label>
+              <div className="flex gap-4 mt-2">
+                <input
+                  type="color"
+                  value={brandKit.primaryColor}
+                  onChange={(e) => setBrandKit({ ...brandKit, primaryColor: e.target.value })}
+                  className="rounded h-10 w-16 border border-slate-200 cursor-pointer"
+                />
+                <input
+                  type="color"
+                  value={brandKit.secondaryColor}
+                  onChange={(e) => setBrandKit({ ...brandKit, secondaryColor: e.target.value })}
+                  className="rounded h-10 w-16 border border-slate-200 cursor-pointer"
+                />
+                <div className="flex flex-col justify-center">
+                  <span className="text-[10px] text-slate-400 font-mono font-bold block">EMERALD: {brandKit.primaryColor}</span>
+                  <span className="text-[10px] text-slate-400 font-mono font-bold block">AMBER: {brandKit.secondaryColor}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          {brandKitFeedback && (
+            <p className={`text-sm font-semibold ${brandKitFeedback.startsWith('Error') ? 'text-red-600' : 'text-emerald-700'}`}>{brandKitFeedback}</p>
+          )}
+          <button
+            onClick={handleSaveBrandKit}
+            disabled={brandKitSaving}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-6 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {brandKitSaving ? 'Saving…' : 'Save Brand Kit'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // 15. TEAM WORKSPACE
+  if (activeTab === 'team') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Team Roles & Secure Invites</h3>
+          <p className="text-xs text-slate-500">
+            Add existing Manohub users to {activeOrg.name}.
+            {teamLimit !== null && ` Your plan allows up to ${teamLimit} team member${teamLimit === 1 ? '' : 's'}.`}
+          </p>
+
+          {teamFeedback && (
+            <div className={`text-sm p-3.5 rounded-xl font-semibold ${teamFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+              {teamFeedback}
+            </div>
+          )}
+
+          <form onSubmit={handleInviteTeam} className="flex flex-col sm:flex-row gap-4">
+            <input
+              type="email"
+              required
+              placeholder="colleague@example.com (must already have a Manohub account)"
+              value={teamEmail}
+              onChange={(e) => setTeamEmail(e.target.value)}
+              className="flex-1 border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+            />
+            <select
+              value={teamRole}
+              onChange={(e) => setTeamRole(e.target.value as 'admin' | 'member')}
+              className="border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+            >
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+            <button type="submit" disabled={teamInviting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer shrink-0 disabled:opacity-50">
+              {teamInviting ? 'Adding…' : 'Add Member'}
+            </button>
+          </form>
+
+          <div className="border-t border-slate-50 pt-6 space-y-4">
+            <h4 className="font-display font-bold text-slate-800 text-sm">Active Workspace Membership</h4>
+            {teamLoading ? (
+              <p className="text-xs text-slate-400">Loading…</p>
+            ) : (
+              <div className="space-y-3 text-xs">
+                {teamMembers.map((m) => (
+                  <div key={m.userId} className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                    <div>
+                      <span className="font-bold text-slate-800">{m.fullName || m.email}</span>
+                      <span className="text-[10px] text-slate-400 font-mono block">{m.email}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`font-bold px-2.5 py-0.5 rounded-full uppercase text-[10px] ${m.role === 'owner' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>{m.role}</span>
+                      {m.role !== 'owner' && (
+                        <button onClick={() => handleRemoveTeamMember(m.userId)} className="text-red-500 hover:underline cursor-pointer">Remove</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 16. BILLING WORKSPACE
+  if (activeTab === 'billing') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Current Plan</h3>
+          {billingLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : activeSubscription ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-display font-bold text-emerald-700 text-lg">{activeSubscription.planName}</span>
+                {activeSubscription.currentPeriodEnd && (
+                  <p className="text-xs text-slate-500 mt-1">Renews / expires {new Date(activeSubscription.currentPeriodEnd).toLocaleDateString('en-GB')}</p>
+                )}
+              </div>
+              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Active</span>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">You're on the Free plan.</p>
+          )}
+        </div>
+
+        {billingFeedback && (
+          <div className={`text-sm p-3.5 rounded-xl font-semibold ${billingFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {billingFeedback}
+          </div>
+        )}
+
+        {pendingSubscription && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-3">
+            <p className="text-sm text-amber-900">
+              <strong>{pendingSubscription.planName}</strong> upgrade requested — awaiting payment confirmation and admin approval.
+            </p>
+            {pendingSubscription.notes ? (
+              <p className="text-xs text-amber-700 font-mono">Reference on file: {pendingSubscription.notes}</p>
+            ) : (
+              <button onClick={handleSubmitPaymentRef} className="text-xs font-semibold text-amber-700 hover:underline cursor-pointer">
+                Submit bank transfer reference
+              </button>
+            )}
+          </div>
+        )}
+
+        {!pendingSubscription && (
+          <form onSubmit={handleRequestPlan} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+            <h4 className="font-display font-bold text-slate-900 text-sm">Request a Plan Change</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Plan</label>
+                <select value={selectedPlanId} onChange={(e) => setSelectedPlanId(e.target.value)} required
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
+                  <option value="">Select a plan</option>
+                  {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Billing Cycle</label>
+                <select value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as 'monthly' | 'annual')}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
+                  <option value="monthly">Monthly</option>
+                  <option value="annual">Annual</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Payment Reference (optional, bank transfer)</label>
+              <input type="text" placeholder="e.g. SLCB-9812401" value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+            </div>
+            <button type="submit" disabled={requestingPlan} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-6 rounded-xl text-sm cursor-pointer disabled:opacity-50">
+              {requestingPlan ? 'Requesting…' : 'Request Plan Change'}
+            </button>
+            <p className="text-[10px] text-slate-400">Payment is confirmed manually by our finance team — your plan activates once approved, never automatically on submission.</p>
+          </form>
+        )}
+
+        {mySubscriptions.length > 0 && (
+          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+            <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Subscription History</h4>
+            <div className="space-y-2 text-xs">
+              {mySubscriptions.map((s) => (
+                <div key={s.id} className="flex items-center justify-between border-b border-slate-50 pb-2">
+                  <span className="text-slate-700">{s.planName} · {new Date(s.createdAt).toLocaleDateString('en-GB')}</span>
+                  <span className={`font-bold px-2 py-0.5 rounded-full uppercase text-[9px] ${
+                    s.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
+                    s.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
+                  }`}>{s.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 17. ADMIN BOARD (SUPER ADMIN MODERATION)
+  if (activeTab === 'admin') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Platform Moderation Safety Desk</h3>
+          <p className="text-xs text-slate-500">Platform administrator desk enforcing safe corporate listings and monitoring false directory claims.</p>
+
+          <div className="flex gap-4">
+            <button
+              onClick={runSafetyModeration}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer"
+            >
+              Run Directory Safety Scans
+            </button>
+          </div>
+
+          {scannedFlagged && (
+            <div className="bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-xs space-y-2 max-h-56 overflow-y-auto">
+              {safetyLog.map((log: string, i: number) => (
+                <div key={i} className="flex gap-2">
+                  <span className="text-emerald-600">✓</span>
+                  <span>{log}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback / Placeholder for tabs that didn't specify customized views
+  return (
+    <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center text-slate-400">
+      <AlertCircle className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+      <h3 className="font-display font-bold text-slate-600">Workspace Pending Initialization</h3>
+      <p className="text-xs mt-2 max-w-sm mx-auto text-slate-500 leading-relaxed">
+        This workspace ({activeTab}) is cataloged under upcoming milestone schedules.
+      </p>
+    </div>
+  );
+}
