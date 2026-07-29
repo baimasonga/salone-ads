@@ -169,7 +169,6 @@ table td {
 /* Custom header typography adjustments */
 h1, h2, h3, h4 {
   font-family: "Outfit", "Inter", sans-serif !important;
-  color: #0F172A !important;
 }
 
 /* Figures remain easy to compare across every dashboard and public page. */

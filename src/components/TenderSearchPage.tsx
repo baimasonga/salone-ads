@@ -28,13 +28,13 @@ const C = {
   navy: '#0d1b2a',
   ink: '#14202e',
   ink2: '#16222f',
-  green: '#159a6b',
+  green: '#047857',
   border: '#d9dde4',
   border2: '#e6e8ec',
   border3: '#e7e9ed',
-  muted: '#8b95a3',
-  muted2: '#9aa3b0',
-  muted3: '#7a8493',
+  muted: '#526071',
+  muted2: '#526071',
+  muted3: '#526071',
   slate: '#3a4452',
   slate2: '#33404e',
   contentBg: '#f4f6f8',
@@ -42,8 +42,8 @@ const C = {
   iconBorder: '#d5ebdf',
   amber: '#d5852a',
   featBg: '#fbf1cf',
-  featText: '#96741d',
-  deadlineDim: '#a7afbb',
+  featText: '#6b4f00',
+  deadlineDim: '#526071',
 };
 const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 const SANS = "'Hanken Grotesk', system-ui, sans-serif";
@@ -433,7 +433,7 @@ export function TenderSearchPage() {
                         )}
                       </div>
                       <div style={{ fontFamily: SANS, fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em', color: C.ink2, marginBottom: 7 }}>{op.title}</div>
-                      <div style={{ fontFamily: SANS, fontSize: 14, color: '#737d8b' }}>{op.buyerName}</div>
+                      <div style={{ fontFamily: SANS, fontSize: 14, color: C.muted3 }}>{op.buyerName}</div>
                     </div>
                     <div className="mh-card-right" style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, minWidth: 185 }}>
                       {op.isFeatured && (

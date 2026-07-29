@@ -96,7 +96,7 @@ export function PublicSubscriptionSection({ onSubscribed }: { onSubscribed?: () 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-xs font-bold text-slate-600">Name<input value={fullName} onChange={event => setFullName(event.target.value)} placeholder="Your name" className="mt-1 w-full" /></label>
                 <label className="text-xs font-bold text-slate-600">Email<input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" className="mt-1 w-full" /></label>
-                <label className="text-xs font-bold text-slate-600 sm:col-span-2">WhatsApp number <span className="font-normal text-slate-400">(optional)</span><input type="tel" value={phone} onChange={event => setPhone(event.target.value)} placeholder="+232 …" className="mt-1 w-full" /></label>
+                <label className="text-xs font-bold text-slate-600 sm:col-span-2">WhatsApp number <span className="font-normal text-slate-600">(optional)</span><input type="tel" value={phone} onChange={event => setPhone(event.target.value)} placeholder="+232 …" className="mt-1 w-full" /></label>
               </div>
 
               <fieldset className="mt-5">
@@ -107,7 +107,7 @@ export function PublicSubscriptionSection({ onSubscribed }: { onSubscribed?: () 
               </fieldset>
 
               {districts.length > 0 && <fieldset className="mt-5">
-                <legend className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-500"><MapPin className="h-3.5 w-3.5" /> Locations <span className="normal-case tracking-normal text-slate-400">(optional)</span></legend>
+                <legend className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-500"><MapPin className="h-3.5 w-3.5" /> Locations <span className="normal-case tracking-normal text-slate-600">(optional)</span></legend>
                 <div className="mt-2 flex max-h-28 flex-wrap gap-2 overflow-y-auto">
                   {districts.map(district => <button key={district.id} type="button" aria-pressed={locations.includes(district.name)} onClick={() => toggle(district.name, locations, setLocations)} className={`border px-3 py-2 text-xs ${locations.includes(district.name) ? 'border-emerald-700 bg-emerald-50 font-bold text-emerald-800' : 'border-slate-300 text-slate-600'}`}>{district.name}</button>)}
                 </div>
@@ -121,7 +121,7 @@ export function PublicSubscriptionSection({ onSubscribed }: { onSubscribed?: () 
               <label className="mt-5 flex items-start gap-3 text-xs leading-relaxed text-slate-600"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} className="mt-0.5" /><span>I agree that Manohub may contact me with the categories and frequency selected. I can unsubscribe at any time.</span></label>
               {feedback && <p role="alert" className="mt-4 border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">{feedback}</p>}
               <button type="submit" disabled={saving} className="mt-5 inline-flex w-full items-center justify-center gap-2 bg-emerald-600 px-5 py-3.5 font-mono text-xs font-bold uppercase tracking-widest text-white disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />} Subscribe to updates</button>
-              <p className="mt-3 text-center text-[10px] text-slate-400">Consent source and date are securely recorded for every subscription.</p>
+              <p className="mt-3 text-center text-[10px] text-slate-600">Consent source and date are securely recorded for every subscription.</p>
             </>
           )}
         </form>

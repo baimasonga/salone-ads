@@ -262,7 +262,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
               setCheckEmail(false);
               onSwitchMode(mode === 'signin' ? 'signup' : 'signin');
             }}
-            className="font-mono font-bold uppercase text-xs text-[#10B981] hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0F172A]"
+            className="font-mono font-bold uppercase text-xs text-[#047857] hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0F172A]"
           >
             {mode === 'signin' ? 'start free 14-day trial' : 'sign in to your portal'}
           </button>

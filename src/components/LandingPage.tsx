@@ -46,7 +46,7 @@ function formatValue(op: Pick<OpportunityListItem, 'estimatedValue' | 'currencyC
 // coloured by urgency (red imminent, amber soon, emerald otherwise).
 function deadlineLabel(iso: string): { text: string; cls: string } {
   const d = daysLeft(iso);
-  if (d < 0) return { text: 'Closed', cls: 'text-slate-400' };
+  if (d < 0) return { text: 'Closed', cls: 'text-slate-600' };
   if (d === 0) return { text: 'Closes today', cls: 'text-red-600' };
   if (d <= 3) return { text: `${d} day${d === 1 ? '' : 's'} left`, cls: 'text-red-600' };
   if (d <= 7) return { text: `${d} days left`, cls: 'text-amber-600' };
@@ -231,7 +231,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
               <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white"></div>
             </div>
             <span className="font-display font-black tracking-widest text-base sm:text-xl uppercase text-[#0F172A] truncate">
-              Mano<span className="text-[#10B981]">hub</span>
+              Mano<span className="text-[#047857]">hub</span>
             </span>
           </div>
 
@@ -325,6 +325,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
               </div>
               <div className="hidden sm:block w-px bg-slate-200" />
               <select
+                aria-label="Filter tenders by sector"
                 value={heroSector}
                 onChange={(e) => setHeroSector(e.target.value)}
                 className="!border-0 !border-t sm:!border-t-0 !border-slate-200 !bg-white text-sm font-semibold text-slate-600 px-3 py-3 sm:max-w-[170px] cursor-pointer focus:outline-none"
@@ -376,7 +377,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                   })()}
                 </span>
                 <div className="min-w-0">
-                  <div className="font-mono text-[11px] text-slate-400">{heroTender ? (heroTender.opportunityType || heroTender.sector || 'Tender') : EXAMPLE_TENDER.ref}</div>
+                  <div className="font-mono text-[11px] text-slate-600">{heroTender ? (heroTender.opportunityType || heroTender.sector || 'Tender') : EXAMPLE_TENDER.ref}</div>
                   <div className="font-bold text-[15px] leading-snug mt-0.5">{heroTender ? heroTender.title : EXAMPLE_TENDER.title}</div>
                   <div className="text-xs text-slate-500 mt-0.5 truncate">{heroTender ? heroTender.buyerName : EXAMPLE_TENDER.buyer}</div>
                 </div>
@@ -384,11 +385,11 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
               <div className="h-px bg-slate-200 my-4" />
               <div className="flex items-end justify-between">
                 <div>
-                  <div className="font-mono text-[9px] text-slate-400 uppercase tracking-widest">Est. Value</div>
+                  <div className="font-mono text-[9px] text-slate-600 uppercase tracking-widest">Est. Value</div>
                   <div className="font-mono font-semibold text-sm mt-0.5">{heroTender ? formatValue(heroTender) : EXAMPLE_TENDER.value}</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono text-[9px] text-slate-400 uppercase tracking-widest">Closes</div>
+                  <div className="font-mono text-[9px] text-slate-600 uppercase tracking-widest">Closes</div>
                   <div className={`font-mono font-semibold text-sm mt-0.5 ${heroTender ? deadlineLabel(heroTender.submissionDeadline).cls : EXAMPLE_TENDER.deadlineCls}`}>
                     {heroTender ? deadlineLabel(heroTender.submissionDeadline).text : EXAMPLE_TENDER.deadlineText}
                   </div>
@@ -412,7 +413,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
       {buyers.length > 0 && (
         <section className="bg-white border-b border-slate-200 px-6">
           <div className="max-w-7xl mx-auto py-5 flex items-center gap-6 flex-wrap">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400 whitespace-nowrap">Notices from</span>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-slate-600 whitespace-nowrap">Notices from</span>
             {buyers.map((b) => (
               <span key={b} className="font-semibold text-sm text-slate-600 whitespace-nowrap">{b}</span>
             ))}
@@ -437,7 +438,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
           <div className="mx-auto max-w-7xl">
             <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <p className="font-mono text-[10px] font-bold uppercase tracking-[.2em] text-orange-600">Discover on Manohub</p>
+                <p className="font-mono text-[10px] font-bold uppercase tracking-[.2em] text-orange-800">Discover on Manohub</p>
                 <h2 className="mt-2 font-display text-2xl font-extrabold text-slate-950 sm:text-3xl">Stories, offers and market updates</h2>
               </div>
               <span className="border border-[#0F172A] px-3 py-1.5 font-mono text-[9px] font-bold uppercase tracking-widest">{editorialBlocks.length} featured</span>
@@ -454,7 +455,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                   <div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-mono text-[10px] font-bold uppercase tracking-[.18em]" style={{ color: block.accentColor }}>{block.eyebrow || 'Featured'}</span>
-                      <span className="font-display text-4xl font-black text-slate-950/10">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="font-display text-4xl font-black text-slate-700">{String(index + 1).padStart(2, '0')}</span>
                     </div>
                     <h3 className="mt-5 font-display text-2xl font-extrabold leading-tight text-slate-950">{block.title}</h3>
                     <p className="mt-3 text-sm leading-relaxed text-slate-700">{block.body}</p>
@@ -477,7 +478,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
         <div className="max-w-7xl mx-auto">
           <div className="flex items-end justify-between gap-4 mb-6">
             <div>
-              <span className="text-emerald-600 font-bold tracking-widest text-xs uppercase font-mono">Explore the market</span>
+              <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">Explore the market</span>
               <h2 className="mt-2 font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">Live opportunities, updated daily</h2>
             </div>
             <Link to="/tenders" className="hidden sm:flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-widest text-[#0F172A] hover:text-emerald-600 transition-colors whitespace-nowrap">
@@ -495,7 +496,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                     <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{sectors.length || 0}</span>
                   </div>
                   {sectors.length === 0 ? (
-                    <p className="px-4 py-8 text-xs text-slate-400 text-center">Loading sectors…</p>
+                    <p className="px-4 py-8 text-xs text-slate-600 text-center">Loading sectors…</p>
                   ) : (
                     <div>
                       {sectors.map((sector) => {
@@ -508,7 +509,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                           >
                             <Icon className="h-4 w-4 text-emerald-600 shrink-0" />
                             <span className="flex-1 text-sm font-medium text-slate-800 group-hover:text-emerald-700 transition-colors min-w-0 truncate">{sector.name}</span>
-                            <span className="font-mono text-xs text-slate-400 shrink-0">{latest.filter((op) => op.sector === sector.name).length}</span>
+                            <span className="font-mono text-xs text-slate-600 shrink-0">{latest.filter((op) => op.sector === sector.name).length}</span>
                           </Link>
                         );
                       })}
@@ -542,7 +543,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
 
               {/* How it works (per the Live Opportunities reference) */}
               <div className="mt-4">
-                <div className="text-center font-mono text-xs font-bold uppercase tracking-widest text-emerald-600 mb-4">How it works</div>
+                <div className="text-center font-mono text-xs font-bold uppercase tracking-widest text-emerald-700 mb-4">How it works</div>
                 <div className="bg-white border border-[#0F172A] grid sm:grid-cols-3">
                   {[
                     { n: '1', title: 'Browse by sector', body: `Filter live opportunities across ${sectors.length || 12} industries.` },
@@ -564,7 +565,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
             <aside id="sectors" className="lg:col-span-3 bg-white border border-slate-200">
               <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
                 <span className="font-display font-bold text-sm text-slate-900">Sectors</span>
-                <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5">{sectors.length || 0}</span>
+                <span className="font-mono text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5">{sectors.length || 0}</span>
               </div>
               <div>
                 {sectors.map((sector) => {
@@ -580,11 +581,11 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                         <Icon className="h-3.5 w-3.5 text-emerald-700" />
                       </span>
                       <span className="flex-1 text-xs font-medium text-slate-700 group-hover:text-emerald-700 transition-colors min-w-0 truncate">{sector.name}</span>
-                      <span className="font-mono text-[11px] text-slate-400 shrink-0">{count}</span>
+                      <span className="font-mono text-[11px] text-slate-600 shrink-0">{count}</span>
                     </Link>
                   );
                 })}
-                {sectors.length === 0 && <p className="px-4 py-6 text-xs text-slate-400 text-center">Loading sectors…</p>}
+                {sectors.length === 0 && <p className="px-4 py-6 text-xs text-slate-600 text-center">Loading sectors…</p>}
               </div>
             </aside>
 
@@ -616,7 +617,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                             <Icon className="h-5 w-5 text-emerald-700" />
                           </span>
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap font-mono text-[11px] text-slate-400">
+                            <div className="flex items-center gap-2 flex-wrap font-mono text-[11px] text-slate-600">
                               <span>{op.opportunityType || 'Tender'}</span>
                               {op.sector && <><span className="text-slate-300">·</span><span className="text-slate-500">{op.sector}</span></>}
                             </div>
@@ -643,7 +644,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                 <span className="font-display font-bold text-sm text-slate-900">Closing soon</span>
               </div>
               {closing.length === 0 ? (
-                <p className="px-4 py-6 text-xs text-slate-400 text-center">Nothing closing soon yet.</p>
+                <p className="px-4 py-6 text-xs text-slate-600 text-center">Nothing closing soon yet.</p>
               ) : (
                 closing.map((op) => {
                   const dl = deadlineLabel(op.submissionDeadline);
@@ -675,7 +676,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
       <section id="how" className="px-6 py-14 bg-white border-b border-slate-100">
         <div className="max-w-7xl mx-auto">
           <div className="text-center">
-            <span className="text-emerald-600 font-bold tracking-widest text-xs uppercase font-mono">How it works</span>
+            <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">How it works</span>
             <h2 className="mt-2 font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">From first search to awarded bid</h2>
           </div>
           <div className="mt-10 grid sm:grid-cols-3 gap-5">
@@ -687,7 +688,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                     <span className="h-11 w-11 border border-[#0F172A] bg-white flex items-center justify-center">
                       <Icon className="h-5 w-5 text-emerald-700" />
                     </span>
-                    <span className="font-mono text-2xl font-bold text-slate-200">{step.num}</span>
+                    <span className="font-mono text-2xl font-bold text-slate-500">{step.num}</span>
                   </div>
                   <h3 className="mt-5 font-display font-bold text-lg text-slate-900">{step.title}</h3>
                   <p className="mt-2 text-sm text-slate-600 leading-relaxed">{step.body}</p>
@@ -703,7 +704,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
       <section id="audience" className="py-14 bg-slate-50 border-b border-slate-100 px-6">
         <div className="max-w-7xl mx-auto flex flex-col gap-8">
           <div className="max-w-2xl mx-auto flex flex-col items-center gap-2 text-center">
-            <span className="text-emerald-600 font-bold tracking-widest text-xs uppercase font-mono">Who We Serve</span>
+            <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">Who We Serve</span>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
               Built for buyers, suppliers, and advertisers
             </h2>
@@ -726,7 +727,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                     <div className="h-11 w-11 border border-[#0F172A] bg-slate-50 flex items-center justify-center">
                       <Icon className="h-5 w-5 text-emerald-700" />
                     </div>
-                    <span className="font-mono text-[10px] text-slate-400 font-bold">{card.num}</span>
+                    <span className="font-mono text-[10px] text-slate-600 font-bold">{card.num}</span>
                   </div>
                   <h3 className="font-display font-bold text-lg text-slate-900">{card.title}</h3>
                   <p className="text-slate-600 text-sm leading-relaxed">{card.body}</p>
@@ -748,7 +749,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
         ` }} />
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
           <div className="max-w-2xl flex flex-col gap-2">
-            <span className="font-bold tracking-widest text-xs uppercase font-mono" style={{color:advertContent?.accentColor||'#059669'}}>{advertContent?.eyebrow||'More than tenders'}</span>
+            <span className="font-bold tracking-widest text-xs uppercase font-mono" style={{color:advertContent?.accentColor||'#047857'}}>{advertContent?.eyebrow||'More than tenders'}</span>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
               {advertContent?.title||'Advertise your business across the region'}
             </h2>
@@ -778,7 +779,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                     <div className="p-4">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-[9px] uppercase tracking-widest text-emerald-700">{ad.category}</span>
-                        <span className="font-mono text-[9px] uppercase tracking-widest text-slate-400">Sponsored</span>
+                        <span className="font-mono text-[9px] uppercase tracking-widest text-slate-600">Sponsored</span>
                       </div>
                       <h3 className="font-display font-bold text-sm text-slate-900 mt-2 leading-snug truncate group-hover:text-emerald-700 transition-colors">{ad.title}</h3>
                       <p className="text-xs text-slate-500 mt-0.5 truncate">{ad.businessName}</p>
@@ -793,7 +794,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                         <span className="w-11 h-11 border border-[#0F172A] bg-emerald-50 flex items-center justify-center">
                           <Icon className="h-5 w-5 text-emerald-700" />
                         </span>
-                        <span className="font-mono text-[9px] uppercase tracking-widest text-slate-400">Category</span>
+                        <span className="font-mono text-[9px] uppercase tracking-widest text-slate-600">Category</span>
                       </div>
                       <h3 className="font-display font-bold text-base text-slate-900 mt-4">{cat.name}</h3>
                       <p className="text-xs text-slate-500 mt-1 leading-relaxed">{cat.desc}</p>
@@ -816,7 +817,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
       <section id="pricing" className="py-14 bg-slate-50 border-b border-slate-100 px-6">
         <div className="max-w-7xl mx-auto flex flex-col gap-8">
           <div className="max-w-2xl flex flex-col gap-2">
-            <span className="text-emerald-600 font-bold tracking-widest text-xs uppercase font-mono">Simple &amp; Adaptable Plans</span>
+            <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">Simple &amp; Adaptable Plans</span>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
               A tier for every side of a tender
             </h2>
@@ -872,8 +873,8 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
             </div>
 
             {/* Business (Recommended) */}
-            <div className="border-2 border-emerald-600 bg-white p-6 flex flex-col justify-between text-left relative">
-              <div className="absolute top-0 right-0 -translate-y-1/2 bg-emerald-600 text-white text-[9px] font-mono font-bold uppercase tracking-widest px-2.5 py-1">
+            <div className="border-2 border-emerald-700 bg-white p-6 flex flex-col justify-between text-left relative">
+              <div className="absolute top-0 right-0 -translate-y-1/2 bg-emerald-700 text-white text-[9px] font-mono font-bold uppercase tracking-widest px-2.5 py-1">
                 Recommended
               </div>
               <div>
@@ -925,7 +926,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
       <section className="py-14 bg-white border-b border-slate-100 px-6">
         <div className="max-w-4xl mx-auto flex flex-col gap-8">
           <div className="flex flex-col gap-2">
-            <span className="text-emerald-600 font-bold tracking-widest text-xs uppercase font-mono">Questions</span>
+            <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">Questions</span>
             <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
               Frequently asked
             </h2>
@@ -1017,10 +1018,10 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
         </div>
 
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 pt-6">
-          <p className="text-xs text-slate-500 text-center md:text-left">
+          <p className="text-xs text-slate-300 text-center md:text-left">
             © 2026 Manohub. Built for the Mano River region's local communities.
           </p>
-          <p className="text-xs text-slate-500">Connecting the region to the globe.</p>
+          <p className="text-xs text-slate-300">Connecting the region to the globe.</p>
         </div>
       </footer>
     </div>
