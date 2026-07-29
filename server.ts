@@ -94,6 +94,64 @@ const redirectRateLimiter = rateLimit({
 
 const MAX_PROMPT_LENGTH = 2000;
 const MAX_FIELD_LENGTH = 300;
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
+
+type RequestWithContext = express.Request & {
+  requestId?: string;
+  requestStartedAt?: number;
+  userId?: string;
+};
+
+function structuredLog(
+  level: 'info' | 'warn' | 'error',
+  event: string,
+  fields: Record<string, unknown> = {},
+): void {
+  console[level](JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level,
+    event,
+    ...fields,
+  }));
+}
+
+function correlationToken(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return createHash('sha256').update(value).digest('hex').slice(0, 16);
+}
+
+function requestObservability(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  const context = req as RequestWithContext;
+  const suppliedRequestId = req.get('x-request-id')?.trim();
+  const requestId = suppliedRequestId && REQUEST_ID_PATTERN.test(suppliedRequestId)
+    ? suppliedRequestId
+    : randomUUID();
+
+  context.requestId = requestId;
+  context.requestStartedAt = Date.now();
+  res.locals.requestId = requestId;
+  res.setHeader('x-request-id', requestId);
+
+  res.on('finish', () => {
+    const durationMs = Date.now() - (context.requestStartedAt ?? Date.now());
+    const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+    structuredLog(level, 'http.request.completed', {
+      request_id: requestId,
+      method: req.method,
+      path: req.originalUrl.split('?')[0],
+      status_code: res.statusCode,
+      duration_ms: durationMs,
+      user_correlation: correlationToken(context.userId),
+      user_agent: req.get('user-agent')?.slice(0, 160),
+    });
+  });
+
+  next();
+}
 
 // Escape a string for safe insertion into an HTML attribute / text node.
 function htmlEscape(s: string): string {
@@ -367,6 +425,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  app.disable('x-powered-by');
+  app.use(requestObservability);
+
   // This route must receive the untouched request bytes: parsing or
   // re-serialising the body before verification invalidates the signature.
   app.post("/api/webhooks/resend", express.raw({ type: "application/json", limit: "250kb" }), async (req, res) => {
@@ -463,6 +524,7 @@ async function startServer() {
       environment: process.env.NODE_ENV || "development",
       version: "1.0.0",
       measurementProtection: "visitor-dedupe-v1",
+      requestId: res.locals.requestId,
     });
   });
 
@@ -997,7 +1059,10 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[OK] Server listening on http://0.0.0.0:${PORT} in ${process.env.NODE_ENV || "development"} mode`);
+    structuredLog('info', 'server.started', {
+      port: PORT,
+      environment: process.env.NODE_ENV || 'development',
+    });
   });
 }
 
@@ -1239,7 +1304,10 @@ function getMockContentPlan(campaignName: string, startDate: string, endDate: st
   ];
 }
 
-startServer().catch(err => {
-  console.error("[FATAL] Server startup failure:", err);
+startServer().catch((error) => {
+  structuredLog('error', 'server.startup.failed', {
+    error_name: error instanceof Error ? error.name : 'UnknownError',
+    error_message: error instanceof Error ? error.message : 'Unknown startup failure',
+  });
   process.exit(1);
 });
