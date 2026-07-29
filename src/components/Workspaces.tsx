@@ -12,6 +12,7 @@ import { AudienceSubscribersPage } from './AudienceSubscribersPage';
 import { AudienceEmailCampaignsPage } from './AudienceEmailCampaignsPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
 import { NotificationCentre } from '../modules/notifications/NotificationCentre';
+import { AdminSubscriptionLifecycleWorkspace } from '../modules/subscriptions/AdminSubscriptionLifecycleWorkspace';
 import {
   isPlatformAdminWorkspaceTab,
   PlatformAdminWorkspace,
@@ -3296,49 +3297,12 @@ export function Workspaces({
     );
   }
 
-  // ADMIN SUBSCRIPTION REQUESTS WORKSPACE
+  // ADMIN SUBSCRIPTION LIFECYCLE WORKSPACE
   if (activeTab === 'admin-subscriptions') {
     if (!isPlatformAdmin) {
       return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
     }
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-emerald-600" /> Subscription Requests
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Confirm bank transfer payment before activating a plan.</p>
-        </div>
-
-        {subscriptionsFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{subscriptionsFeedback}</div>}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {subscriptionsLoading ? (
-            <p className="text-xs text-slate-400">Loading…</p>
-          ) : pendingSubscriptions.length === 0 ? (
-            <p className="text-xs text-slate-400">No pending subscription requests.</p>
-          ) : (
-            <div className="space-y-4">
-              {pendingSubscriptions.map((s) => (
-                <div key={s.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold text-slate-800 text-sm">{s.orgName}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{s.planName} · {s.billingCycle} · Requested {new Date(s.createdAt).toLocaleDateString('en-GB')}</p>
-                    </div>
-                  </div>
-                  {s.notes && <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 mt-2 font-mono">Payment ref: {s.notes}</p>}
-                  <div className="flex items-center gap-4 mt-3">
-                    <button onClick={() => handleActivateSubscription(s)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Activate</button>
-                    <button onClick={() => handleDeclineSubscription(s)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Decline</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+    return <AdminSubscriptionLifecycleWorkspace />;
   }
 
   // ADMIN SERVICE REQUESTS WORKSPACE
