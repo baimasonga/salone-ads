@@ -8,7 +8,7 @@ test.describe('public critical journeys', () => {
     await expect(browse).toBeVisible();
     await browse.click();
     await expect(page).toHaveURL(/\/tenders/);
-    await expect(page.getByPlaceholder(/search tenders/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/search by keyword/i)).toBeVisible();
   });
 
   test('visitor can move between account creation and sign in', async ({ page }) => {
@@ -24,7 +24,7 @@ test.describe('public critical journeys', () => {
   test('deep links load their intended public workspace', async ({ page }) => {
     await page.goto('/tenders?country=Sierra%20Leone');
     await expect(page).toHaveURL(/country=Sierra%20Leone/);
-    await expect(page.getByPlaceholder(/search tenders/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/search by keyword/i)).toBeVisible();
     await expect(page.locator('body')).not.toContainText('Missing VITE_SUPABASE');
   });
 });
