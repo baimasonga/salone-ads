@@ -13,6 +13,7 @@ import { AudienceEmailCampaignsPage } from './AudienceEmailCampaignsPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
 import { NotificationCentre } from '../modules/notifications/NotificationCentre';
 import { AdminSubscriptionLifecycleWorkspace } from '../modules/subscriptions/AdminSubscriptionLifecycleWorkspace';
+import { QuotaUsagePanel } from '../modules/subscriptions/QuotaUsagePanel';
 import {
   isPlatformAdminWorkspaceTab,
   PlatformAdminWorkspace,
@@ -5606,6 +5607,7 @@ export function Workspaces({
   if (activeTab === 'billing') {
     return (
       <div className="space-y-8 text-left">
+        <QuotaUsagePanel organizationId={activeOrg.id} />
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
           <h3 className="font-display font-bold text-slate-900 text-lg">Current Plan</h3>
           {billingLoading ? (
