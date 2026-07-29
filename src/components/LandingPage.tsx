@@ -219,6 +219,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
 
   return (
     <div className="bg-[#F8FAFC] font-sans text-[#0F172A] min-h-screen">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       {previewBlockId && <div role="status" className={`sticky top-0 z-[60] flex flex-wrap items-center justify-center gap-3 border-b-2 border-[#0F172A] px-4 py-2 text-center font-mono text-[10px] font-bold uppercase tracking-widest ${previewError ? 'bg-red-100 text-red-800' : 'bg-[#F4D35E] text-[#0F172A]'}`}>
         <Eye className="h-3.5 w-3.5" />{previewError || 'Secure CMS preview · Draft changes are visible only to platform administrators'}
       </div>}
@@ -286,6 +287,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
         )}
       </header>
 
+      <main id="main-content" tabIndex={-1}>
       {/* ============================ HERO ============================ */}
       <section className="relative bg-[#0F172A] text-white overflow-hidden border-b-2 border-[#0F172A]" style={{ background: `linear-gradient(125deg, ${heroContent?.surfaceColor || '#0F172A'} 0%, #0F172A 62%, #172554 100%)` }}>
         {heroContent?.mediaUrl && <img src={heroContent.mediaUrl} alt="" className="pointer-events-none absolute inset-y-0 right-0 h-full w-1/2 object-cover opacity-15" />}
@@ -970,6 +972,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
           </div>
         </div>
       </section>
+      </main>
 
       {/* ============================ FOOTER ============================ */}
       <footer className="bg-[#0F172A] text-slate-400 pt-14 pb-8 px-6 border-t border-white/10">

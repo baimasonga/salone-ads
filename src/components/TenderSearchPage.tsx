@@ -270,6 +270,7 @@ export function TenderSearchPage() {
 
   return (
     <div className="mh-tenders" style={{ background: C.navy, minHeight: '100vh', fontFamily: SANS }}>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <style dangerouslySetInnerHTML={{ __html: SCOPED_CSS }} />
       <div style={{ maxWidth: 1280, margin: '0 auto', background: C.navy, padding: '9px 10px 11px' }}>
         <div style={{ background: '#ffffff', overflow: 'hidden' }}>
@@ -282,8 +283,8 @@ export function TenderSearchPage() {
             </Link>
             <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
               <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 5, overflow: 'hidden', fontFamily: MONO, fontSize: 11, fontWeight: 600, letterSpacing: '0.05em' }}>
-                <button onClick={() => setLang('en')} style={{ padding: '5px 9px', background: lang === 'en' ? C.navy : '#fff', color: lang === 'en' ? '#fff' : C.muted, border: 'none', cursor: 'pointer', fontFamily: MONO, fontWeight: 600 }}>EN</button>
-                <button onClick={() => setLang('fr')} style={{ padding: '5px 9px', background: lang === 'fr' ? C.navy : '#fff', color: lang === 'fr' ? '#fff' : C.muted, border: 'none', borderLeft: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: MONO, fontWeight: 600 }}>FR</button>
+                <button aria-pressed={lang === 'en'} aria-label="Use English" onClick={() => setLang('en')} style={{ padding: '5px 9px', background: lang === 'en' ? C.navy : '#fff', color: lang === 'en' ? '#fff' : C.muted, border: 'none', cursor: 'pointer', fontFamily: MONO, fontWeight: 600 }}>EN</button>
+                <button aria-pressed={lang === 'fr'} aria-label="Utiliser le français" onClick={() => setLang('fr')} style={{ padding: '5px 9px', background: lang === 'fr' ? C.navy : '#fff', color: lang === 'fr' ? '#fff' : C.muted, border: 'none', borderLeft: `1px solid ${C.border}`, cursor: 'pointer', fontFamily: MONO, fontWeight: 600 }}>FR</button>
               </div>
               <Link to="/" style={{ fontFamily: MONO, fontSize: 12.5, fontWeight: 600, letterSpacing: '0.08em' }}>
                 <span style={{ color: C.navy }}>SIGN IN /</span> <span style={{ color: C.green }}>GET STARTED</span>
@@ -291,6 +292,7 @@ export function TenderSearchPage() {
             </div>
           </div>
 
+          <main id="main-content" tabIndex={-1}>
           {/* HEADER */}
           <div style={{ background: '#fff', borderBottom: `1px solid ${C.border2}`, padding: '38px 78px 26px' }} className="mh-pad">
             <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 600, letterSpacing: '0.16em', color: C.green, marginBottom: 14 }}>LIVE TENDERS</div>
@@ -300,6 +302,7 @@ export function TenderSearchPage() {
               <div style={{ flex: '1 1 240px', display: 'flex', alignItems: 'center', gap: 10, height: 46, padding: '0 14px', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6 }}>
                 <Search size={16} strokeWidth={2} style={{ flex: 'none', color: C.muted2 }} />
                 <input
+                  aria-label={t('searchPlaceholder')}
                   type="text"
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
@@ -307,19 +310,19 @@ export function TenderSearchPage() {
                   style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontFamily: SANS, fontSize: 14.5, color: C.ink2, minWidth: 0 }}
                 />
               </div>
-              <select value={sectorId} onChange={(e) => updateFilter('sector', e.target.value)} style={{ ...selectBase, width: 170 }}>
+              <select aria-label={t('allSectors')} value={sectorId} onChange={(e) => updateFilter('sector', e.target.value)} style={{ ...selectBase, width: 170 }}>
                 <option value="">{t('allSectors')}</option>
                 {sectors.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
-              <select value={countryId} onChange={(e) => updateFilter('country', e.target.value)} style={{ ...selectBase, width: 150 }}>
+              <select aria-label={t('allCountries')} value={countryId} onChange={(e) => updateFilter('country', e.target.value)} style={{ ...selectBase, width: 150 }}>
                 <option value="">{t('allCountries')}</option>
                 {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <select value={districtId} onChange={(e) => updateFilter('district', e.target.value)} style={{ ...selectBase, width: 145 }}>
+              <select aria-label={t('allDistricts')} value={districtId} onChange={(e) => updateFilter('district', e.target.value)} style={{ ...selectBase, width: 145 }}>
                 <option value="">{t('allDistricts')}</option>
                 {districts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
-              <select value={typeId} onChange={(e) => updateFilter('type', e.target.value)} style={{ ...selectBase, width: 165 }}>
+              <select aria-label={t('allNoticeTypes')} value={typeId} onChange={(e) => updateFilter('type', e.target.value)} style={{ ...selectBase, width: 165 }}>
                 <option value="">{t('allNoticeTypes')}</option>
                 {types.map((tp) => <option key={tp.id} value={tp.id}>{tp.name}</option>)}
               </select>
@@ -336,6 +339,7 @@ export function TenderSearchPage() {
                   return (
                     <button
                       key={chip.key}
+                      aria-pressed={active}
                       onClick={() => setStatusFilter(chip.key)}
                       style={{ padding: '7px 16px', background: active ? C.navy : '#fff', color: active ? '#fff' : C.slate2, border: `1px solid ${active ? C.navy : C.border}`, borderRadius: 5, fontFamily: MONO, fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', whiteSpace: 'nowrap', cursor: 'pointer' }}
                     >
@@ -384,7 +388,7 @@ export function TenderSearchPage() {
               )}
 
               {!loading && error && (
-                <div style={{ background: '#fdeaea', border: '1px solid #f4c9c9', color: '#b42a2f', fontSize: 14, padding: 16, borderRadius: 6 }}>{error}</div>
+                <div role="alert" style={{ background: '#fdeaea', border: '1px solid #f4c9c9', color: '#b42a2f', fontSize: 14, padding: 16, borderRadius: 6 }}>{error}</div>
               )}
 
               {!loading && !error && filtered.length === 0 && (
@@ -451,6 +455,7 @@ export function TenderSearchPage() {
 
             </div>
           </div>
+          </main>
 
         </div>
       </div>

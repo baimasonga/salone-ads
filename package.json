@@ -16,6 +16,7 @@
     "validate:migrations": "node scripts/validate-migrations.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:a11y": "playwright test --config playwright.accessibility.config.ts",
     "test:performance": "node scripts/run-performance-gate.mjs",
     "test:rls": "node scripts/verify-rls-security.mjs",
     "test:watch": "vitest"
@@ -39,6 +40,7 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
     "@cloudflare/containers": "^0.3.7",
     "@cloudflare/workers-types": "^5.20260721.1",
     "@playwright/test": "1.62.0",

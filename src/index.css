@@ -190,3 +190,34 @@ table,
 .bg-indigo-500 { background-color: #6366F1 !important; }
 .bg-purple-500 { background-color: #A855F7 !important; }
 
+/* Keyboard users can bypass repeated navigation and always retain a visible focus target. */
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 1000;
+  transform: translateY(-180%);
+  background: #ffffff;
+  color: #0f172a;
+  border: 2px solid #0f172a;
+  padding: 0.75rem 1rem;
+  font-weight: 800;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid #f4d35e !important;
+  outline-offset: 3px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
