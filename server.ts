@@ -630,7 +630,7 @@ async function startServer() {
       status: "healthy",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      environment: process.env.NODE_ENV || "development",
+      environment: process.env.MANOHUB_ENVIRONMENT || process.env.NODE_ENV || "development",
       version: "1.0.0",
       measurementProtection: "visitor-dedupe-v1",
       requestId: res.locals.requestId,

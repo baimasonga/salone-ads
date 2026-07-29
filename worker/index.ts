@@ -7,6 +7,7 @@ import { Container, getContainer } from '@cloudflare/containers';
 
 interface Env {
   MANOHUB_CONTAINER: DurableObjectNamespace<ManohubContainer>;
+  MANOHUB_ENVIRONMENT?: string;
   GEMINI_API_KEY?: string;
   APP_URL?: string;
   VITE_SUPABASE_URL: string;
@@ -35,6 +36,7 @@ export class ManohubContainer extends Container<Env> {
     // secrets, never hardcoded.
     this.envVars = {
       NODE_ENV: 'production',
+      MANOHUB_ENVIRONMENT: env.MANOHUB_ENVIRONMENT ?? 'production',
       GEMINI_API_KEY: env.GEMINI_API_KEY ?? '',
       APP_URL: env.APP_URL ?? '',
       // These are public client configuration values (RLS remains the access

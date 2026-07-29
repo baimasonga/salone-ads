@@ -1,6 +1,6 @@
 name: Deploy to Cloudflare Containers
 
-# Single-branch production release workflow.
+# One main branch, with validation and staging promotion gates.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Validate the release without deploying to production'
+        description: 'Validate the release without deploying'
         type: boolean
         default: true
 
@@ -18,140 +18,164 @@ permissions:
   contents: read
 
 concurrency:
-  group: deploy-containers-production
+  group: deploy-containers-release
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Validate and deploy production
+  validate:
+    name: Validate release candidate
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    environment: production
-
+    timeout-minutes: 20
+    outputs:
+      staging_enabled: ${{ steps.staging.outputs.enabled }}
+      release_version: ${{ steps.release.outputs.version }}
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
+          cache: npm
+      - run: npm ci
       - name: Validate application
         run: |
           npm run lint
           npm run lint:worker
           npm test
           npm run build
-
-      - name: Validate migration ordering
-        shell: bash
+      - name: Validate and checksum migrations
+        run: node scripts/validate-migrations.mjs > migration-manifest.json
+      - name: Validate production Cloudflare release
+        run: npx wrangler deploy --config wrangler.containers.toml --dry-run
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Detect staging configuration
+        id: staging
+        env:
+          STAGING_URL: ${{ vars.MANOHUB_STAGING_URL }}
+          STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
         run: |
-          migration_dir='migrations/manohub-new-project'
-          bootstrap_migrations=(
-            'EXPORT_from_old_project.sql'
-            'full_setup.sql'
-          )
-          mapfile -t all_migrations < <(find "$migration_dir" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
-          migrations=()
-          for migration in "${all_migrations[@]}"; do
-            test -s "$migration_dir/$migration" || {
-              echo "::error file=$migration_dir/$migration::Migration file is empty."
-              exit 1
-            }
-            if [[ "$migration" == 'EXPORT_from_old_project.sql' || "$migration" == 'full_setup.sql' ]]; then
-              continue
-            fi
-            if [[ ! "$migration" =~ ^[0-9]+_[A-Za-z0-9_.-]+\.sql$ ]]; then
-              echo "::error file=$migration_dir/$migration::Incremental migrations must start with a numeric prefix followed by an underscore and a safe SQL filename."
-              exit 1
-            fi
-            migrations+=("$migration")
-          done
-
-          for migration in "${bootstrap_migrations[@]}"; do
-            [[ " ${all_migrations[*]} " == *" $migration "* ]] || {
-              echo "::error file=$migration_dir/$migration::Required bootstrap migration is missing."
-              exit 1
-            }
-          done
-          if [ "${#migrations[@]}" -eq 0 ]; then
-            echo "::error::No numbered Manohub migrations were found."
-            exit 1
+          if [ -n "$STAGING_URL" ] && [ -n "$STAGING_SUPABASE_URL" ] && [ -n "$STAGING_SUPABASE_ANON_KEY" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Staging is not configured; production will use the validated legacy promotion path."
           fi
-          duplicates=$(printf '%s\n' "${migrations[@]}" | sed -E 's/^([0-9]+).*/\1/' | sort | uniq -d)
-          if [ -n "$duplicates" ]; then
-            echo "::error::Duplicate migration sequence numbers: $duplicates"
-            exit 1
-          fi
-          for migration in "${migrations[@]}"; do
-            echo "Ordered migration: $migration"
-          done
-          echo "Validated ${#bootstrap_migrations[@]} bootstrap and ${#migrations[@]} ordered migration files."
+      - name: Resolve release version
+        id: release
+        run: echo "version=manohub-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Upload migration manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-manifest-${{ steps.release.outputs.version }}
+          path: migration-manifest.json
+          retention-days: 90
 
-      - name: Write build-time environment
+  staging:
+    name: Deploy and verify staging
+    needs: validate
+    if: ${{ needs.validate.outputs.staging_enabled == 'true' && (github.event_name == 'push' || !inputs.dry_run) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Write staging build environment
+        env:
+          STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\n' "$STAGING_SUPABASE_URL" "$STAGING_SUPABASE_ANON_KEY" > .env
+          sed -i "s|STAGING_SUPABASE_URL|$STAGING_SUPABASE_URL|g; s|STAGING_SUPABASE_ANON_KEY|$STAGING_SUPABASE_ANON_KEY|g" wrangler.staging.toml
+      - name: Validate staging release
+        run: npx wrangler deploy --config wrangler.staging.toml --dry-run
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Deploy staging container
+        run: npx wrangler deploy --config wrangler.staging.toml --containers-rollout=immediate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Verify staging health
+        env:
+          STAGING_URL: ${{ vars.MANOHUB_STAGING_URL }}
+        run: |
+          response=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 "${STAGING_URL%/}/api/health")
+          node -e 'const h=JSON.parse(process.argv[1]);if(h.status!=="healthy"||h.environment!=="staging")process.exit(1)' "$response"
+
+  production:
+    name: Promote and verify production
+    needs: [validate, staging]
+    if: ${{ always() && needs.validate.result == 'success' && (needs.staging.result == 'success' || needs.staging.result == 'skipped') && (github.event_name == 'push' || !inputs.dry_run) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Write production build environment
         run: |
           cat > .env <<'EOF'
           VITE_SUPABASE_URL=https://rffjehmbrycztiekcyho.supabase.co
           VITE_SUPABASE_ANON_KEY=sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
           EOF
-
-      - name: Validate Cloudflare release
-        run: npx wrangler deploy --config wrangler.containers.toml --dry-run
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
       - name: Deploy production container
-        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
       - name: Set optional Gemini secret
-        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         run: |
           if [ -n "$GEMINI_API_KEY" ]; then
             printf '%s' "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY --config wrangler.containers.toml
-          else
-            echo "GEMINI_API_KEY is not configured; AI fallback behavior remains active."
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
       - name: Verify production health
-        if: ${{ (github.event_name == 'push' || !inputs.dry_run) && vars.MANOHUB_PRODUCTION_URL != '' }}
+        if: ${{ vars.MANOHUB_PRODUCTION_URL != '' }}
         env:
           PRODUCTION_URL: ${{ vars.MANOHUB_PRODUCTION_URL }}
         run: |
           response=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 "${PRODUCTION_URL%/}/api/health")
-          node -e '
-            const health = JSON.parse(process.argv[1]);
-            if (health.status !== "healthy" || health.environment !== "production") {
-              console.error("Production health check failed:", health);
-              process.exit(1);
-            }
-            console.log("Production healthy:", health.version, health.measurementProtection);
-          ' "$response"
-
-      - name: Report missing smoke-check URL
-        if: ${{ (github.event_name == 'push' || !inputs.dry_run) && vars.MANOHUB_PRODUCTION_URL == '' }}
+          node -e 'const h=JSON.parse(process.argv[1]);if(h.status!=="healthy"||h.environment!=="production")process.exit(1)' "$response"
+      - name: Report missing production smoke URL
+        if: ${{ vars.MANOHUB_PRODUCTION_URL == '' }}
+        run: echo "::warning::Set MANOHUB_PRODUCTION_URL to make the production health gate mandatory."
+      - name: Resolve rollback commit
+        id: rollback
+        run: echo "commit=$(git rev-parse HEAD^)" >> "$GITHUB_OUTPUT"
+      - name: Create release and rollback manifest
+        env:
+          RELEASE_VERSION: ${{ needs.validate.outputs.release_version }}
+          STAGING_ENABLED: ${{ needs.validate.outputs.staging_enabled }}
+          ROLLBACK_COMMIT: ${{ steps.rollback.outputs.commit }}
         run: |
-          echo "::warning::Set MANOHUB_PRODUCTION_URL as a repository variable to enable the live health check."
-          echo "### Post-deployment smoke check" >> "$GITHUB_STEP_SUMMARY"
-          echo "Not run: MANOHUB_PRODUCTION_URL is not configured." >> "$GITHUB_STEP_SUMMARY"
-
+          node -e 'const fs=require("fs");fs.writeFileSync("release-manifest.json",JSON.stringify({release_version:process.env.RELEASE_VERSION,commit:process.env.GITHUB_SHA,rollback_commit:process.env.ROLLBACK_COMMIT,staging_verified:process.env.STAGING_ENABLED==="true",deployed_at:new Date().toISOString(),workflow_run:`https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`},null,2))'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ needs.validate.outputs.release_version }}
+          path: release-manifest.json
+          retention-days: 365
       - name: Release summary
-        if: always()
         run: |
-          echo "### Manohub production release" >> "$GITHUB_STEP_SUMMARY"
+          echo "### ${{ needs.validate.outputs.release_version }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Gates: lint, worker typecheck, tests, production build, migration ordering and Wrangler dry run" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Deployment requested: \`${{ github.event_name == 'push' || !inputs.dry_run }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Staging verified: \`${{ needs.validate.outputs.staging_enabled }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Rollback commit: \`${{ steps.rollback.outputs.commit }}\`" >> "$GITHUB_STEP_SUMMARY"

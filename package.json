@@ -13,6 +13,7 @@
     "clean": "rm -rf dist server.cjs",
     "lint": "tsc --noEmit",
     "lint:worker": "tsc --noEmit -p worker/tsconfig.json",
+    "validate:migrations": "node scripts/validate-migrations.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
