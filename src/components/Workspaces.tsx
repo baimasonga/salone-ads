@@ -14,6 +14,7 @@ import { CampaignPerformancePage } from './CampaignPerformancePage';
 import { NotificationCentre } from '../modules/notifications/NotificationCentre';
 import { AdminSubscriptionLifecycleWorkspace } from '../modules/subscriptions/AdminSubscriptionLifecycleWorkspace';
 import { QuotaUsagePanel } from '../modules/subscriptions/QuotaUsagePanel';
+import { FinanceLedgerWorkspace } from '../modules/finance/FinanceLedgerWorkspace';
 import {
   isPlatformAdminWorkspaceTab,
   PlatformAdminWorkspace,
@@ -2207,6 +2208,10 @@ export function Workspaces({
   if (activeTab === 'notifications') {
     return <NotificationCentre activeOrgId={activeOrg.id} onNavigate={setActiveTab} />;
   }
+  if (activeTab === 'admin-finance' && isPlatformAdmin) {
+    return <FinanceLedgerWorkspace />;
+  }
+
 
   if (isPlatformAdmin && isPlatformAdminWorkspaceTab(activeTab)) {
     return (

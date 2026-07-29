@@ -70,6 +70,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         items: [
           { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
           { id: 'admin-audit-log', label: 'Audit Log', icon: ClipboardList },
+          { id: 'admin-finance', label: 'Finance Ledger', icon: CreditCard },
           { id: 'admin', label: 'Settings & Access', icon: Settings },
         ],
       },
