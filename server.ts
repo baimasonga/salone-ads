@@ -347,6 +347,115 @@ async function dispatchAudienceCampaign(campaignId: string, force = false): Prom
   return { sent, failed, remaining };
 }
 
+type BackgroundJob = {
+  id: string;
+  job_type: string;
+  payload: Record<string, unknown>;
+  attempts: number;
+  max_attempts: number;
+};
+
+async function processAudienceEmailJobs(): Promise<{
+  enqueued: number;
+  recovered: number;
+  claimed: number;
+  completed: number;
+  deferred: number;
+  failed: number;
+}> {
+  if (!supabaseServiceClient) throw new Error("Audience email worker requires SUPABASE_SERVICE_ROLE_KEY.");
+
+  const workerId = `audience-email:${process.pid}:${randomUUID()}`;
+  const { data: enqueued, error: enqueueError } = await supabaseServiceClient
+    .rpc("enqueue_due_audience_email_jobs", { p_limit: 20 });
+  if (enqueueError) throw enqueueError;
+
+  const { data: recovered, error: recoverError } = await supabaseServiceClient
+    .rpc("recover_stalled_background_jobs_for_worker", { p_timeout_minutes: 15 });
+  if (recoverError) throw recoverError;
+
+  const { data: jobs, error: claimError } = await supabaseServiceClient
+    .rpc("claim_background_jobs_for_worker", {
+      p_worker_id: workerId,
+      p_job_types: ["audience.email.dispatch"],
+      p_limit: 5,
+    });
+  if (claimError) throw claimError;
+
+  let completed = 0;
+  let deferred = 0;
+  let failed = 0;
+  for (const job of (jobs ?? []) as BackgroundJob[]) {
+    const campaignId = job.payload?.campaign_id;
+    try {
+      if (typeof campaignId !== "string" || !/^[0-9a-f-]{36}$/i.test(campaignId)) {
+        throw new Error("Audience email job has an invalid campaign_id.");
+      }
+
+      const result = await dispatchAudienceCampaign(campaignId);
+      if (result.remaining > 0) {
+        const { data: didDefer, error: deferError } = await supabaseServiceClient
+          .rpc("defer_background_job_for_worker", {
+            p_job_id: job.id,
+            p_worker_id: workerId,
+            p_delay_seconds: 5,
+          });
+        if (deferError || !didDefer) throw deferError ?? new Error("Worker no longer owns the job.");
+        deferred += 1;
+      } else {
+        const { data: didComplete, error: completeError } = await supabaseServiceClient
+          .rpc("complete_background_job_for_worker", {
+            p_job_id: job.id,
+            p_worker_id: workerId,
+          });
+        if (completeError || !didComplete) throw completeError ?? new Error("Worker no longer owns the job.");
+        completed += 1;
+      }
+
+      structuredLog("info", "audience_email.job.processed", {
+        job_id: job.id,
+        campaign_id: campaignId,
+        attempt: job.attempts,
+        sent: result.sent,
+        failed: result.failed,
+        remaining: result.remaining,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Audience email job failed.";
+      const { data: nextStatus, error: failError } = await supabaseServiceClient
+        .rpc("fail_background_job_for_worker", {
+          p_job_id: job.id,
+          p_worker_id: workerId,
+          p_error: message,
+        });
+      if (failError) {
+        structuredLog("error", "audience_email.job.fail_transition_failed", {
+          job_id: job.id,
+          campaign_id: typeof campaignId === "string" ? campaignId : null,
+          error_message: failError.message,
+        });
+      }
+      failed += 1;
+      structuredLog("error", "audience_email.job.failed", {
+        job_id: job.id,
+        campaign_id: typeof campaignId === "string" ? campaignId : null,
+        attempt: job.attempts,
+        next_status: nextStatus ?? "unknown",
+        error_message: message,
+      });
+    }
+  }
+
+  return {
+    enqueued: Number(enqueued ?? 0),
+    recovered: Number(recovered ?? 0),
+    claimed: jobs?.length ?? 0,
+    completed,
+    deferred,
+    failed,
+  };
+}
+
 // Inject Open Graph + Twitter Card meta into the base index.html so a shared
 // advert link unfurls as a rich visual ad card in social feeds (WhatsApp,
 // Facebook, X, LinkedIn, Telegram). Crawlers don't run JS, so this has to be
@@ -951,25 +1060,16 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
       res.status(403).json({ error: { message: "Dispatch authorization failed." } });
       return;
     }
-    const { data: dueCampaigns, error } = await supabaseServiceClient.from("audience_email_campaigns")
-      .select("id")
-      .in("status", ["queued", "scheduled", "processing"])
-      .or(`scheduled_at.is.null,scheduled_at.lte.${new Date().toISOString()}`)
-      .order("scheduled_at", { ascending: true, nullsFirst: true })
-      .limit(10);
-    if (error) {
-      res.status(500).json({ error: { message: error.message } });
-      return;
+    try {
+      res.json(await processAudienceEmailJobs());
+    } catch (error) {
+      structuredLog("error", "audience_email.worker.failed", {
+        error_message: error instanceof Error ? error.message : "Audience email worker failed.",
+      });
+      res.status(503).json({
+        error: { message: error instanceof Error ? error.message : "Audience email worker failed." },
+      });
     }
-    const results = [];
-    for (const campaign of dueCampaigns ?? []) {
-      try {
-        results.push({ id: campaign.id, ...(await dispatchAudienceCampaign(campaign.id)) });
-      } catch (dispatchError) {
-        results.push({ id: campaign.id, error: dispatchError instanceof Error ? dispatchError.message : "Dispatch failed" });
-      }
-    }
-    res.json({ processed: results });
   });
 
   // API requests must always receive a JSON error contract. Without this
