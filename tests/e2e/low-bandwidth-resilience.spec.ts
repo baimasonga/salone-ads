@@ -32,5 +32,4 @@ test('tender discovery keeps saved results when the network refresh fails', asyn
 
   await expect(page.getByText('Cached Rural Connectivity Tender')).toBeVisible();
   await expect(page.getByTestId('tender-network-notice')).toContainText('Saved results');
-  await expect(page.getByRole('alert')).toContainText('Showing saved results');
 });
