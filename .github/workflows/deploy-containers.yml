@@ -62,8 +62,11 @@ jobs:
             exit 1
           fi
           for migration in "${migrations[@]}"; do
-            if [[ ! "$migration" =~ ^[0-9]+_[a-z0-9_]+\.sql$ ]]; then
-              echo "::error file=migrations/manohub-new-project/$migration::Use NN_snake_case.sql migration names."
+            # Historical migrations include both snake_case and legacy
+            # punctuation. Require only a numeric ordering prefix and a safe
+            # portable filename; do not force-renaming already-applied SQL.
+            if [[ ! "$migration" =~ ^[0-9]+_[A-Za-z0-9_.-]+\.sql$ ]]; then
+              echo "::error file=migrations/manohub-new-project/$migration::Migration names must start with a numeric prefix followed by an underscore and a safe SQL filename."
               exit 1
             fi
             test -s "migrations/manohub-new-project/$migration" || {
