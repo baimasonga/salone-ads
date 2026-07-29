@@ -69,4 +69,4 @@ export default {
   },
 };
 
-// Deployment marker: roll out privacy-safe public measurement protection.
+// Deployment marker: roll out durable audience-email job processing.
