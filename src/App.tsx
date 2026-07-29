@@ -412,8 +412,10 @@ function DashboardShell({
         /* best effort */
       }
     }
-    if (notification.linkUrl) {
-      window.open(notification.linkUrl, '_blank');
+    if (notification.workspaceTarget) {
+      setActiveTab(notification.workspaceTarget);
+    } else if (notification.linkUrl) {
+      window.location.assign(notification.linkUrl);
     }
     setNotifOpen(false);
   };
@@ -547,7 +549,18 @@ function DashboardShell({
               {notifOpen && (
                 <div className="absolute right-0 mt-2 w-80 bg-white border border-[#0F172A] shadow-lg z-40 max-h-96 overflow-y-auto">
                   <div className="p-3 border-b border-slate-100">
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">Notifications</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">Notifications</span>
+                      <button
+                        onClick={() => {
+                          setActiveTab('notifications');
+                          setNotifOpen(false);
+                        }}
+                        className="text-[9px] font-mono font-bold uppercase text-emerald-700"
+                      >
+                        View all
+                      </button>
+                    </div>
                   </div>
                   {notifications.length === 0 ? (
                     <p className="text-xs text-slate-400 p-4 text-center">No notifications yet.</p>

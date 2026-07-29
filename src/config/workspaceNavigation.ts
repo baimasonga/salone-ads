@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   Award,
   BarChart2,
+  Bell,
   BookOpen,
   Compass,
   ClipboardList,
@@ -33,7 +34,13 @@ export interface WorkspaceNavigationGroup {
 export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavigationGroup[] {
   if (hasWorkspaceCapability(context, 'platform:administer')) {
     return [
-      { group: 'Workspace', items: [{ id: 'overview', label: 'Overview', icon: BarChart2 }] },
+      {
+        group: 'Workspace',
+        items: [
+          { id: 'overview', label: 'Overview', icon: BarChart2 },
+          { id: 'notifications', label: 'Notifications', icon: Bell },
+        ],
+      },
       {
         group: 'Publishing',
         items: [
@@ -70,7 +77,13 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
   }
 
   const groups: WorkspaceNavigationGroup[] = [
-    { group: 'Workspace', items: [{ id: 'overview', label: 'Overview', icon: BarChart2 }] },
+    {
+      group: 'Workspace',
+      items: [
+        { id: 'overview', label: 'Overview', icon: BarChart2 },
+        { id: 'notifications', label: 'Notifications', icon: Bell },
+      ],
+    },
   ];
 
   if (hasWorkspaceCapability(context, 'content:manage')) {
