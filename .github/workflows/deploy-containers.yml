@@ -44,6 +44,18 @@ jobs:
           npm run lint:worker
           npm test
           npm run build
+      - name: Verify runtime RLS boundaries
+        run: npm run test:rls
+        env:
+          SUPABASE_URL: https://rffjehmbrycztiekcyho.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
+      - name: Install browser test runtime
+        run: npx playwright install --with-deps chromium
+      - name: Verify critical user journeys
+        run: npm run test:e2e
+        env:
+          VITE_SUPABASE_URL: https://rffjehmbrycztiekcyho.supabase.co
+          VITE_SUPABASE_ANON_KEY: sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
       - name: Validate and checksum migrations
         run: node scripts/validate-migrations.mjs > migration-manifest.json
       - name: Validate production Cloudflare release
