@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   ArrowRight,
   BookOpen,
+  Building2,
   CreditCard,
   Landmark,
   Mail,
@@ -12,8 +13,9 @@ import {
   Users,
 } from 'lucide-react';
 import { AdminJobOperationsWorkspace } from './AdminJobOperationsWorkspace';
+import { AdminOrganizationLifecycleWorkspace } from './AdminOrganizationLifecycleWorkspace';
 
-const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs'] as const;
+const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations'] as const;
 export type PlatformAdminTab = (typeof PLATFORM_ADMIN_TABS)[number];
 
 export function isPlatformAdminWorkspaceTab(tab: string): tab is PlatformAdminTab {
@@ -194,6 +196,9 @@ export function PlatformAdminWorkspace({
   if (activeTab === 'admin-jobs') {
     return <AdminJobOperationsWorkspace />;
   }
+  if (activeTab === 'admin-organizations') {
+    return <AdminOrganizationLifecycleWorkspace />;
+  }
 
   if (activeTab === 'audience-hub') {
     return (
@@ -252,6 +257,12 @@ export function PlatformAdminWorkspace({
           icon: Landmark,
         },
         {
+          id: 'admin-organizations',
+          title: 'Organizations & recovery',
+          description: 'Suspend access, review recovery requests and reactivate customer organizations.',
+          icon: Building2,
+        },
+        {
           id: 'admin-jobs',
           title: 'Background jobs',
           description: 'Monitor durable work, investigate failures and retry dead-letter jobs.',
@@ -261,4 +272,3 @@ export function PlatformAdminWorkspace({
     />
   );
 }
-
