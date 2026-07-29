@@ -44,6 +44,16 @@ jobs:
           npm run lint:worker
           npm test
           npm run build
+      - name: Enforce low-bandwidth budget
+        run: npm run test:low-bandwidth
+      - name: Upload low-bandwidth report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: low-bandwidth-report-${{ github.run_id }}
+          path: low-bandwidth-report.json
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Run local load and performance gate
         run: |
           npm start > /tmp/manohub-performance-server.log 2>&1 &

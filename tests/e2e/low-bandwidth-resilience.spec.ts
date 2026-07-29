@@ -1,0 +1,36 @@
+import { expect, test } from '@playwright/test';
+
+test('tender discovery keeps saved results when the network refresh fails', async ({ page }) => {
+  const cachedTender = {
+    id: 'cached-tender-1',
+    slug: 'cached-rural-connectivity',
+    title: 'Cached Rural Connectivity Tender',
+    buyerName: 'Manohub Test Buyer',
+    submissionDeadline: '2099-12-31T23:59:00.000Z',
+    estimatedValue: 125000,
+    currencyCode: 'SLE',
+    isFeatured: false,
+    sector: 'Telecommunications & ICT',
+    district: 'Bo',
+    country: 'Sierra Leone',
+    opportunityType: 'Request for Proposal',
+    statusCode: 'published',
+    statusLabel: 'Published',
+    reviewNote: null,
+    viewCount: 0,
+  };
+
+  await page.addInitScript((tender) => {
+    localStorage.setItem(
+      'manohub:resilience:v1:tender-search:{}',
+      JSON.stringify({ savedAt: Date.now(), value: [tender] }),
+    );
+  }, cachedTender);
+  await page.route('**/rest/v1/opportunities**', (route) => route.abort('internetdisconnected'));
+
+  await page.goto('/tenders');
+
+  await expect(page.getByText('Cached Rural Connectivity Tender')).toBeVisible();
+  await expect(page.getByTestId('tender-network-notice')).toContainText('Saved results');
+  await expect(page.getByRole('alert')).toContainText('Showing saved results');
+});

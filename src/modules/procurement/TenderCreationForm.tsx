@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { FileSearch, FileUp, Paperclip, Sparkle, Trash2 } from 'lucide-react';
 import {
   MAX_DOCUMENT_SIZE_BYTES,
@@ -14,6 +14,11 @@ import {
   tenderSubmissionFeedback,
   type TenderSubmissionResult,
 } from './tenderSubmission';
+import {
+  readResilienceCache,
+  removeResilienceCache,
+  writeResilienceCache,
+} from '../../lib/networkResilience';
 
 interface TenderCreationFormProps {
   organizationId: string;
@@ -37,6 +42,23 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+interface TenderDraft {
+  title: string;
+  summary: string;
+  description: string;
+  typeId: string;
+  sectorId: string;
+  value: string;
+  currencyCode: string;
+  deadline: string;
+  contact: string;
+  countryId: string;
+  districtId: string;
+  documentsArePublic: boolean;
+}
+
+const TENDER_DRAFT_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+
 export function TenderCreationForm({
   organizationId,
   organizationName,
@@ -52,20 +74,85 @@ export function TenderCreationForm({
   onCreated,
   onFeedback,
 }: TenderCreationFormProps) {
-  const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
-  const [description, setDescription] = useState('');
-  const [typeId, setTypeId] = useState('');
-  const [sectorId, setSectorId] = useState('');
-  const [value, setValue] = useState('');
-  const [currencyCode, setCurrencyCode] = useState('');
-  const [deadline, setDeadline] = useState('');
-  const [contact, setContact] = useState('');
+  const draftScope = `tender-draft:${organizationId}`;
+  const savedDraft = useMemo(
+    () => readResilienceCache<TenderDraft>(draftScope, TENDER_DRAFT_MAX_AGE),
+    [draftScope],
+  );
+  const [title, setTitle] = useState(savedDraft?.value.title ?? '');
+  const [summary, setSummary] = useState(savedDraft?.value.summary ?? '');
+  const [description, setDescription] = useState(savedDraft?.value.description ?? '');
+  const [typeId, setTypeId] = useState(savedDraft?.value.typeId ?? '');
+  const [sectorId, setSectorId] = useState(savedDraft?.value.sectorId ?? '');
+  const [value, setValue] = useState(savedDraft?.value.value ?? '');
+  const [currencyCode, setCurrencyCode] = useState(savedDraft?.value.currencyCode ?? '');
+  const [deadline, setDeadline] = useState(savedDraft?.value.deadline ?? '');
+  const [contact, setContact] = useState(savedDraft?.value.contact ?? '');
   const [documents, setDocuments] = useState<File[]>([]);
-  const [documentsArePublic, setDocumentsArePublic] = useState(true);
+  const [documentsArePublic, setDocumentsArePublic] = useState(savedDraft?.value.documentsArePublic ?? true);
   const [documentError, setDocumentError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [suggestingSector, setSuggestingSector] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(savedDraft?.savedAt ?? null);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (savedDraft?.value.countryId && savedDraft.value.countryId !== countryId) {
+      onCountryChange(savedDraft.value.countryId);
+    }
+    if (savedDraft?.value.districtId && savedDraft.value.districtId !== districtId) {
+      onDistrictChange(savedDraft.value.districtId);
+    }
+  }, [countryId, districtId, onCountryChange, onDistrictChange, savedDraft]);
+
+  useEffect(() => {
+    const hasDraftContent = Boolean(title || summary || description || deadline || contact || value);
+    if (!hasDraftContent) return;
+    const timer = window.setTimeout(() => {
+      const savedAt = Date.now();
+      writeResilienceCache<TenderDraft>(draftScope, {
+        title,
+        summary,
+        description,
+        typeId,
+        sectorId,
+        value,
+        currencyCode,
+        deadline,
+        contact,
+        countryId,
+        districtId,
+        documentsArePublic,
+      }, window.localStorage, savedAt);
+      setDraftSavedAt(savedAt);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [
+    contact,
+    countryId,
+    currencyCode,
+    deadline,
+    description,
+    districtId,
+    documentsArePublic,
+    draftScope,
+    sectorId,
+    summary,
+    title,
+    typeId,
+    value,
+  ]);
 
   const reportFeedback = (message: string, duration = 5000) => {
     onFeedback(message);
@@ -117,6 +204,11 @@ export function TenderCreationForm({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting) return;
+    if (!isOnline) {
+      reportFeedback('Error: You are offline. Your tender draft is saved on this device; reconnect and publish when the connection returns.');
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -155,6 +247,8 @@ export function TenderCreationForm({
       setContact('');
       setDocuments([]);
       setDocumentError('');
+      removeResilienceCache(draftScope);
+      setDraftSavedAt(null);
       reportFeedback(tenderSubmissionFeedback(result.failedDocumentCount));
     } catch (error) {
       reportFeedback(`Error: ${error instanceof Error ? error.message : 'Could not submit tender.'}`);
@@ -179,6 +273,15 @@ export function TenderCreationForm({
         </div>
       </div>
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {!isOnline ? (
+          <div role="status" className="border border-amber-500 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+            You are offline. This draft will remain on this device, but publishing and document uploads are paused.
+          </div>
+        ) : draftSavedAt ? (
+          <div role="status" className="border border-emerald-700 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
+            Draft saved on this device at {new Date(draftSavedAt).toLocaleTimeString()}. Attachments must be selected again after reopening.
+          </div>
+        ) : null}
         <div>
           <label htmlFor="tender-title" className="block text-xs font-bold text-slate-500 uppercase">Tender Title</label>
           <input
@@ -379,10 +482,10 @@ export function TenderCreationForm({
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !isOnline}
           className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 shadow-sm shadow-emerald-600/20"
         >
-          {submitting ? 'Publishing…' : 'Publish Tender'}
+          {submitting ? 'Publishing…' : !isOnline ? 'Reconnect to Publish' : 'Publish Tender'}
         </button>
       </form>
     </div>

@@ -32,6 +32,9 @@ jobs:
     - name: Build Production Server and Frontend
       run: npm run build
 
+    - name: Enforce Low-Bandwidth Budget
+      run: npm run test:low-bandwidth
+
     - name: Run Local Load and Performance Gate
       run: |
         npm start > /tmp/manohub-performance-server.log 2>&1 &
@@ -85,6 +88,15 @@ jobs:
       with:
         name: performance-report-${{ github.run_id }}
         path: performance-report.json
+        if-no-files-found: ignore
+        retention-days: 30
+
+    - name: Upload Low-Bandwidth Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: low-bandwidth-report-${{ github.run_id }}
+        path: low-bandwidth-report.json
         if-no-files-found: ignore
         retention-days: 30
 

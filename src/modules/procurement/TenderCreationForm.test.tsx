@@ -53,11 +53,50 @@ function renderForm(overrides: {
 
 describe('TenderCreationForm', () => {
   beforeEach(() => {
+    window.localStorage.clear();
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
     vi.mocked(submitTenderWithDocuments).mockResolvedValue({
       opportunity,
       uploadedDocuments: [],
       failedDocumentCount: 0,
     });
+  });
+
+  it('restores a locally saved tender draft', () => {
+    window.localStorage.setItem(
+      'manohub:resilience:v1:tender-draft:org-1',
+      JSON.stringify({
+        savedAt: Date.now(),
+        value: {
+          title: 'Restored road works',
+          summary: 'A saved draft summary',
+          description: '',
+          typeId: '',
+          sectorId: '',
+          value: '',
+          currencyCode: '',
+          deadline: '2026-10-30T12:00',
+          contact: '',
+          countryId: 'sl',
+          districtId: '',
+          documentsArePublic: true,
+        },
+      }),
+    );
+
+    renderForm();
+
+    expect(screen.getByLabelText('Tender Title')).toHaveValue('Restored road works');
+    expect(screen.getByText(/Draft saved on this device/)).toBeInTheDocument();
+  });
+
+  it('prevents publishing while offline without discarding the form', () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    renderForm();
+
+    expect(screen.getByText(/This draft will remain on this device/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reconnect to Publish' })).toBeDisabled();
+    expect(submitTenderWithDocuments).not.toHaveBeenCalled();
   });
 
   it('rejects oversized documents while keeping the form usable', async () => {

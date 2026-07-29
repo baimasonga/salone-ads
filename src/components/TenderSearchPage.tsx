@@ -22,6 +22,11 @@ import {
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../lib/i18n';
+import {
+  readResilienceCache,
+  withNetworkRetry,
+  writeResilienceCache,
+} from '../lib/networkResilience';
 
 // ── Exact palette from the MANOHUB Tenders design (Gradient kit) ──
 const C = {
@@ -87,6 +92,17 @@ function sectorIcon(name: string | null) {
 }
 
 type StatusFilter = 'all' | 'open' | 'closing' | 'featured';
+const TAXONOMY_CACHE_SCOPE = 'tender-taxonomy';
+const TAXONOMY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
+const SEARCH_CACHE_MAX_AGE = 6 * 60 * 60 * 1000;
+
+interface TenderTaxonomyCache {
+  sectors: TaxonomyOption[];
+  countries: TaxonomyOption[];
+  districts: TaxonomyOption[];
+  currencies: CurrencyOption[];
+  types: TaxonomyOption[];
+}
 
 // Scoped style overrides — re-establish the Gradient look (fonts, rounded
 // corners, focus ring) for THIS page only, beating the app-wide "geometric"
@@ -152,6 +168,10 @@ export function TenderSearchPage() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [savingSearch, setSavingSearch] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [usingCachedResults, setUsingCachedResults] = useState(false);
+  const [cachedAt, setCachedAt] = useState<number | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const { lang, setLang, t } = useLanguage();
 
   const sectorId = searchParams.get('sector') || '';
@@ -160,13 +180,32 @@ export function TenderSearchPage() {
   const typeId = searchParams.get('type') || '';
 
   useEffect(() => {
-    Promise.all([fetchSectors(), fetchDistricts(), fetchCountries(), fetchCurrencies(), fetchOpportunityTypes()])
+    const cached = readResilienceCache<TenderTaxonomyCache>(TAXONOMY_CACHE_SCOPE, TAXONOMY_CACHE_MAX_AGE);
+    if (cached) {
+      setSectors(cached.value.sectors);
+      setDistricts(cached.value.districts);
+      setCountries(cached.value.countries);
+      setCurrencies(cached.value.currencies);
+      setTypes(cached.value.types);
+    }
+
+    withNetworkRetry(
+      () => Promise.all([fetchSectors(), fetchDistricts(), fetchCountries(), fetchCurrencies(), fetchOpportunityTypes()]),
+      { attempts: 2 },
+    )
       .then(([s, d, c, cur, tp]) => {
         setSectors(s);
         setDistricts(d);
         setCountries(c);
         setCurrencies(cur);
         setTypes(tp);
+        writeResilienceCache<TenderTaxonomyCache>(TAXONOMY_CACHE_SCOPE, {
+          sectors: s,
+          districts: d,
+          countries: c,
+          currencies: cur,
+          types: tp,
+        });
       })
       .catch(() => {});
     supabase.auth.getSession().then(({ data }) => {
@@ -176,8 +215,25 @@ export function TenderSearchPage() {
   }, []);
 
   useEffect(() => {
-    fetchDistricts(countryId || undefined).then(setDistricts).catch(() => {});
-  }, [countryId]);
+    if (!isOnline) return;
+    withNetworkRetry(() => fetchDistricts(countryId || undefined), { attempts: 2 })
+      .then(setDistricts)
+      .catch(() => {});
+  }, [countryId, isOnline]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setRefreshVersion((version) => version + 1);
+    };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const applySavedSearch = (s: SavedSearch) => {
     const next = new URLSearchParams();
@@ -214,19 +270,43 @@ export function TenderSearchPage() {
   };
 
   useEffect(() => {
-    setLoading(true);
-    setError('');
-    searchOpportunities({
+    const filters = {
       keyword: searchParams.get('q') || undefined,
       sectorId: sectorId || undefined,
       countryId: countryId || undefined,
       districtId: districtId || undefined,
       opportunityTypeId: typeId || undefined,
-    })
-      .then(setResults)
-      .catch((err: any) => setError(err.message || 'Could not load tenders.'))
+    };
+    const cacheScope = `tender-search:${JSON.stringify(filters)}`;
+    const cached = readResilienceCache<OpportunityListItem[]>(cacheScope, SEARCH_CACHE_MAX_AGE);
+    if (cached) {
+      setResults(cached.value);
+      setUsingCachedResults(true);
+      setCachedAt(cached.savedAt);
+    }
+
+    setLoading(!cached);
+    setError('');
+    if (!isOnline) {
+      setError(cached ? 'You are offline. Showing the most recently saved tender results.' : 'You are offline and no saved tender results are available for these filters.');
+      setLoading(false);
+      return;
+    }
+
+    withNetworkRetry(() => searchOpportunities(filters), { attempts: 2 })
+      .then((nextResults) => {
+        setResults(nextResults);
+        setUsingCachedResults(false);
+        setCachedAt(Date.now());
+        writeResilienceCache(cacheScope, nextResults);
+      })
+      .catch((err: any) => {
+        setError(cached
+          ? 'The latest tenders could not be refreshed. Showing saved results.'
+          : err.message || 'Could not load tenders.');
+      })
       .finally(() => setLoading(false));
-  }, [searchParams, sectorId, countryId, districtId, typeId]);
+  }, [searchParams, sectorId, countryId, districtId, typeId, isOnline, refreshVersion]);
 
   const updateFilter = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -381,6 +461,28 @@ export function TenderSearchPage() {
             <div style={GRAIN_BG} />
             <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
+              {(usingCachedResults || !isOnline) && (
+                <div
+                  data-testid="tender-network-notice"
+                  role="status"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', background: '#fff7d6', border: '1px solid #d7b84d', color: '#5f4a00', fontSize: 13, padding: '11px 14px', borderRadius: 6 }}
+                >
+                  <span>
+                    {!isOnline ? 'Offline mode' : 'Saved results'}
+                    {cachedAt ? ` · last updated ${new Date(cachedAt).toLocaleString()}` : ''}
+                  </span>
+                  {isOnline && (
+                    <button
+                      type="button"
+                      onClick={() => setRefreshVersion((version) => version + 1)}
+                      style={{ border: `1px solid ${C.navy}`, background: '#fff', color: C.navy, padding: '5px 10px', fontFamily: MONO, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      RETRY
+                    </button>
+                  )}
+                </div>
+              )}
+
               {loading && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: C.muted, fontSize: 14, padding: '48px 0' }}>
                   <Loader2 size={20} className="animate-spin" /> {t('loadingTenders')}
@@ -388,10 +490,10 @@ export function TenderSearchPage() {
               )}
 
               {!loading && error && (
-                <div role="alert" style={{ background: '#fdeaea', border: '1px solid #f4c9c9', color: '#b42a2f', fontSize: 14, padding: 16, borderRadius: 6 }}>{error}</div>
+                <div role="alert" style={{ background: results.length > 0 ? '#fff7d6' : '#fdeaea', border: `1px solid ${results.length > 0 ? '#d7b84d' : '#f4c9c9'}`, color: results.length > 0 ? '#5f4a00' : '#b42a2f', fontSize: 14, padding: 16, borderRadius: 6 }}>{error}</div>
               )}
 
-              {!loading && !error && filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '64px 24px', border: `1px dashed ${C.border}`, borderRadius: 8, background: '#fff' }}>
                   <div style={{ width: 56, height: 56, margin: '0 auto', borderRadius: 8, background: C.contentBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted }}>
                     <FileSearch size={26} />
@@ -408,7 +510,7 @@ export function TenderSearchPage() {
                 </div>
               )}
 
-              {!loading && !error && filtered.map((op) => {
+              {!loading && filtered.map((op) => {
                 const Icon = sectorIcon(op.sector);
                 const dl = deadlineParts(op.submissionDeadline);
                 return (
