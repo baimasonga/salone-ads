@@ -16,6 +16,7 @@ import {
   fetchBackgroundJobSummary,
   replayBackgroundJob,
 } from './jobOperationsApi';
+import { BusinessEventOutboxPanel } from './BusinessEventOutboxPanel';
 
 const FILTERS: Array<{ value: BackgroundJobStatus | null; label: string }> = [
   { value: null, label: 'All jobs' },
@@ -213,6 +214,7 @@ export function AdminJobOperationsWorkspace() {
           </div>
         )}
       </section>
+      <BusinessEventOutboxPanel />
     </div>
   );
 }
