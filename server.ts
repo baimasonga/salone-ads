@@ -972,6 +972,70 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
     res.json({ processed: results });
   });
 
+  // API requests must always receive a JSON error contract. Without this
+  // boundary, unknown /api paths fall through to the SPA and return HTML.
+  app.use('/api', (req, res) => {
+    res.status(404).json({
+      error: {
+        code: 'API_ROUTE_NOT_FOUND',
+        message: 'The requested API endpoint does not exist.',
+        requestId: res.locals.requestId,
+      },
+    });
+  });
+
+  // Central error boundary for synchronous failures and errors forwarded with
+  // next(error). Expected client errors may expose their message; unexpected
+  // failures receive a stable generic response while details stay in logs.
+  app.use((
+    error: unknown,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    if (res.headersSent) {
+      next(error);
+      return;
+    }
+
+    const operationalError = error as {
+      status?: number;
+      statusCode?: number;
+      code?: string;
+      message?: string;
+      expose?: boolean;
+      name?: string;
+    };
+    const requestedStatus = operationalError.statusCode ?? operationalError.status ?? 500;
+    const statusCode = requestedStatus >= 400 && requestedStatus <= 599 ? requestedStatus : 500;
+    const requestId = res.locals.requestId || (req as RequestWithContext).requestId;
+    const safeCode = typeof operationalError.code === 'string'
+      && /^[A-Z][A-Z0-9_]{2,63}$/.test(operationalError.code)
+      ? operationalError.code
+      : statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_FAILED';
+    const exposeMessage = statusCode < 500 || operationalError.expose === true;
+
+    structuredLog(statusCode >= 500 ? 'error' : 'warn', 'http.request.failed', {
+      request_id: requestId,
+      method: req.method,
+      path: req.originalUrl.split('?')[0],
+      status_code: statusCode,
+      error_code: safeCode,
+      error_name: operationalError.name || 'Error',
+      error_message: operationalError.message || 'Unknown request failure',
+    });
+
+    res.status(statusCode).json({
+      error: {
+        code: safeCode,
+        message: exposeMessage
+          ? operationalError.message || 'The request could not be completed.'
+          : 'An unexpected server error occurred.',
+        requestId,
+      },
+    });
+  });
+
   // Vite Middleware Setup
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -1303,6 +1367,21 @@ function getMockContentPlan(campaignName: string, startDate: string, endDate: st
     },
   ];
 }
+
+process.on('unhandledRejection', (reason) => {
+  structuredLog('error', 'process.unhandled_rejection', {
+    error_name: reason instanceof Error ? reason.name : 'UnhandledRejection',
+    error_message: reason instanceof Error ? reason.message : String(reason).slice(0, 500),
+  });
+});
+
+process.on('uncaughtExceptionMonitor', (error, origin) => {
+  structuredLog('error', 'process.uncaught_exception', {
+    error_name: error.name,
+    error_message: error.message,
+    origin,
+  });
+});
 
 startServer().catch((error) => {
   structuredLog('error', 'server.startup.failed', {
