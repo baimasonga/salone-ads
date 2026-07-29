@@ -44,6 +44,28 @@ jobs:
           npm run lint:worker
           npm test
           npm run build
+      - name: Run local load and performance gate
+        run: |
+          npm start > /tmp/manohub-performance-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && break
+            if [ "$attempt" -eq 30 ]; then
+              cat /tmp/manohub-performance-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          npm run test:performance
+      - name: Upload performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report-${{ github.run_id }}
+          path: performance-report.json
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Verify runtime RLS boundaries
         run: npm run test:rls
         env:
@@ -147,7 +169,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY=sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
           EOF
       - name: Deploy production container
-        run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate
+        run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate | tee wrangler-production-deploy.log
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -160,16 +182,40 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Verify production health
-        if: ${{ vars.MANOHUB_PRODUCTION_URL != '' }}
+      - name: Resolve production URL
+        id: production-url
         env:
-          PRODUCTION_URL: ${{ vars.MANOHUB_PRODUCTION_URL }}
+          CONFIGURED_URL: ${{ vars.MANOHUB_PRODUCTION_URL }}
+        run: |
+          resolved_url="$CONFIGURED_URL"
+          if [ -z "$resolved_url" ]; then
+            resolved_url=$(grep -Eo 'https://[^[:space:]]+\.workers\.dev' wrangler-production-deploy.log | tail -n 1 || true)
+          fi
+          if [ -z "$resolved_url" ]; then
+            echo "::error::Could not resolve the production URL from MANOHUB_PRODUCTION_URL or Wrangler output."
+            exit 1
+          fi
+          echo "url=${resolved_url%/}" >> "$GITHUB_OUTPUT"
+      - name: Verify production health
+        env:
+          PRODUCTION_URL: ${{ steps.production-url.outputs.url }}
         run: |
           response=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 "${PRODUCTION_URL%/}/api/health")
           node -e 'const h=JSON.parse(process.argv[1]);if(h.status!=="healthy"||h.environment!=="production")process.exit(1)' "$response"
-      - name: Report missing production smoke URL
-        if: ${{ vars.MANOHUB_PRODUCTION_URL == '' }}
-        run: echo "::warning::Set MANOHUB_PRODUCTION_URL to make the production health gate mandatory."
+      - name: Verify production performance
+        env:
+          PERFORMANCE_TARGET_URL: ${{ steps.production-url.outputs.url }}
+          PERFORMANCE_PROFILE: production
+          PERFORMANCE_REPORT_PATH: performance-report-production.json
+        run: npm run test:performance
+      - name: Upload production performance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-performance-${{ needs.validate.outputs.release_version }}
+          path: performance-report-production.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Resolve rollback commit
         id: rollback
         run: echo "commit=$(git rev-parse HEAD^)" >> "$GITHUB_OUTPUT"

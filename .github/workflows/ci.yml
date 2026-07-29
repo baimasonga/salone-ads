@@ -32,6 +32,21 @@ jobs:
     - name: Build Production Server and Frontend
       run: npm run build
 
+    - name: Run Local Load and Performance Gate
+      run: |
+        npm start > /tmp/manohub-performance-server.log 2>&1 &
+        server_pid=$!
+        trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+        for attempt in {1..30}; do
+          curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null && break
+          if [ "$attempt" -eq 30 ]; then
+            cat /tmp/manohub-performance-server.log
+            exit 1
+          fi
+          sleep 1
+        done
+        npm run test:performance
+
     - name: Verify Runtime RLS Boundaries
       run: npm run test:rls
       env:
@@ -57,3 +72,12 @@ jobs:
           test-results/
         if-no-files-found: ignore
         retention-days: 14
+
+    - name: Upload Performance Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-report-${{ github.run_id }}
+        path: performance-report.json
+        if-no-files-found: ignore
+        retention-days: 30

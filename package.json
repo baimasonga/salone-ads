@@ -16,6 +16,7 @@
     "validate:migrations": "node scripts/validate-migrations.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:performance": "node scripts/run-performance-gate.mjs",
     "test:rls": "node scripts/verify-rls-security.mjs",
     "test:watch": "vitest"
   },
