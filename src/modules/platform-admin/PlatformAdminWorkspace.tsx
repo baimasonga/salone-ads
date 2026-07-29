@@ -9,13 +9,15 @@ import {
   Megaphone,
   ShieldCheck,
   ServerCog,
+  LifeBuoy,
   UserCheck,
   Users,
 } from 'lucide-react';
 import { AdminJobOperationsWorkspace } from './AdminJobOperationsWorkspace';
 import { AdminOrganizationLifecycleWorkspace } from './AdminOrganizationLifecycleWorkspace';
+import { AdminResilienceWorkspace } from './AdminResilienceWorkspace';
 
-const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations'] as const;
+const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience'] as const;
 export type PlatformAdminTab = (typeof PLATFORM_ADMIN_TABS)[number];
 
 export function isPlatformAdminWorkspaceTab(tab: string): tab is PlatformAdminTab {
@@ -199,6 +201,9 @@ export function PlatformAdminWorkspace({
   if (activeTab === 'admin-organizations') {
     return <AdminOrganizationLifecycleWorkspace />;
   }
+  if (activeTab === 'admin-resilience') {
+    return <AdminResilienceWorkspace />;
+  }
 
   if (activeTab === 'audience-hub') {
     return (
@@ -267,6 +272,12 @@ export function PlatformAdminWorkspace({
           title: 'Background jobs',
           description: 'Monitor durable work, investigate failures and retry dead-letter jobs.',
           icon: ServerCog,
+        },
+        {
+          id: 'admin-resilience',
+          title: 'Reliability & recovery',
+          description: 'Command incidents, track recovery objectives and record tested restore evidence.',
+          icon: LifeBuoy,
         },
       ]}
     />
