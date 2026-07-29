@@ -51,9 +51,36 @@ jobs:
       - name: Validate migration ordering
         shell: bash
         run: |
-          mapfile -t migrations < <(find migrations/manohub-new-project -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
+          migration_dir='migrations/manohub-new-project'
+          bootstrap_migrations=(
+            'EXPORT_from_old_project.sql'
+            'full_setup.sql'
+          )
+          mapfile -t all_migrations < <(find "$migration_dir" -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)
+          migrations=()
+          for migration in "${all_migrations[@]}"; do
+            test -s "$migration_dir/$migration" || {
+              echo "::error file=$migration_dir/$migration::Migration file is empty."
+              exit 1
+            }
+            if [[ "$migration" == 'EXPORT_from_old_project.sql' || "$migration" == 'full_setup.sql' ]]; then
+              continue
+            fi
+            if [[ ! "$migration" =~ ^[0-9]+_[A-Za-z0-9_.-]+\.sql$ ]]; then
+              echo "::error file=$migration_dir/$migration::Incremental migrations must start with a numeric prefix followed by an underscore and a safe SQL filename."
+              exit 1
+            fi
+            migrations+=("$migration")
+          done
+
+          for migration in "${bootstrap_migrations[@]}"; do
+            [[ " ${all_migrations[*]} " == *" $migration "* ]] || {
+              echo "::error file=$migration_dir/$migration::Required bootstrap migration is missing."
+              exit 1
+            }
+          done
           if [ "${#migrations[@]}" -eq 0 ]; then
-            echo "::error::No Manohub migrations were found."
+            echo "::error::No numbered Manohub migrations were found."
             exit 1
           fi
           duplicates=$(printf '%s\n' "${migrations[@]}" | sed -E 's/^([0-9]+).*/\1/' | sort | uniq -d)
@@ -62,19 +89,9 @@ jobs:
             exit 1
           fi
           for migration in "${migrations[@]}"; do
-            # Historical migrations include both snake_case and legacy
-            # punctuation. Require only a numeric ordering prefix and a safe
-            # portable filename; do not force-renaming already-applied SQL.
-            if [[ ! "$migration" =~ ^[0-9]+_[A-Za-z0-9_.-]+\.sql$ ]]; then
-              echo "::error file=migrations/manohub-new-project/$migration::Migration names must start with a numeric prefix followed by an underscore and a safe SQL filename."
-              exit 1
-            fi
-            test -s "migrations/manohub-new-project/$migration" || {
-              echo "::error file=migrations/manohub-new-project/$migration::Migration file is empty."
-              exit 1
-            }
+            echo "Ordered migration: $migration"
           done
-          echo "Validated ${#migrations[@]} ordered migration files."
+          echo "Validated ${#bootstrap_migrations[@]} bootstrap and ${#migrations[@]} ordered migration files."
 
       - name: Write build-time environment
         run: |
