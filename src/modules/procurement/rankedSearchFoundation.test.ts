@@ -36,4 +36,10 @@ describe('ranked procurement search foundation', () => {
     expect(migration).toContain('revoke all on public.procurement_search_events from public, anon, authenticated');
     expect(migration).toContain('admin_get_procurement_search_insights');
   });
+
+  it('returns an accurate total count with each ranked result', () => {
+    expect(migration).toContain('count(*) over() as total_count');
+    expect(api).toContain('totalCount: row.total_count');
+    expect(page).toContain('results[0]?.totalCount ?? results.length');
+  });
 });
