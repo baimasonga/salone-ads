@@ -30,6 +30,7 @@ import { useTenderWorkspace } from '../modules/procurement/useTenderWorkspace';
 import { TenderCreationForm } from '../modules/procurement/TenderCreationForm';
 import { TenderManagementPanel } from '../modules/procurement/TenderManagementPanel';
 import { AdminTenderReviewWorkspace } from '../modules/procurement/AdminTenderReviewWorkspace';
+import { OpportunityIngestionWorkspace } from '../modules/procurement/OpportunityIngestionWorkspace';
 import { AdminAuditLogWorkspace } from '../modules/platform-admin/AdminAuditLogWorkspace';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
@@ -171,6 +172,7 @@ interface WorkspacesProps {
   activeOrg: Organization;
   currentUserId: string;
   isPlatformAdmin: boolean;
+  isPlatformResearcher: boolean;
   campaigns: Campaign[];
   setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>;
   contentItems: ContentItem[];
@@ -192,6 +194,7 @@ export function Workspaces({
   activeOrg,
   currentUserId,
   isPlatformAdmin,
+  isPlatformResearcher,
   campaigns,
   setCampaigns,
   contentItems,
@@ -2228,6 +2231,12 @@ export function Workspaces({
 
   if (activeTab === 'notifications') {
     return <NotificationCentre activeOrgId={activeOrg.id} onNavigate={setActiveTab} />;
+  }
+  if (activeTab === 'opportunity-ingestion') {
+    if (!isPlatformAdmin && !isPlatformResearcher) {
+      return <div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Researcher access is required.</div>;
+    }
+    return <OpportunityIngestionWorkspace isPlatformAdmin={isPlatformAdmin} />;
   }
   if (activeTab === 'admin-finance' && isPlatformAdmin) {
     return <FinanceLedgerWorkspace />;

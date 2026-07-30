@@ -95,6 +95,7 @@ function MainApp() {
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [isPlatformResearcher, setIsPlatformResearcher] = useState(false);
   const [canAdvertise, setCanAdvertise] = useState(false);
   const [cmsRole, setCmsRole] = useState<CmsTeamRole | null>(null);
 
@@ -114,6 +115,7 @@ function MainApp() {
       setDirectoryProfiles([]);
       setInfluencerProfiles([]);
       setIsPlatformAdmin(false);
+      setIsPlatformResearcher(false);
       setCanAdvertise(false);
       setCmsRole(null);
       setWorkspaceLoading(false);
@@ -151,6 +153,7 @@ function MainApp() {
       setDirectoryProfiles(directory);
       setInfluencerProfiles(influencers);
       setIsPlatformAdmin(platformRole === 'admin');
+      setIsPlatformResearcher(platformRole === 'researcher');
       setCanAdvertise(advertisingEntitled);
       setCmsRole(editorialRole);
       setView('dashboard');
@@ -246,6 +249,7 @@ function MainApp() {
 
   const navGroups = buildWorkspaceNavigation({
     isPlatformAdmin,
+    isPlatformResearcher,
     cmsRole,
     features: canAdvertise ? ADVERTISING_FEATURES : NO_FEATURES,
     organizationType: activeOrg.type,
@@ -270,6 +274,7 @@ function MainApp() {
         activeOrg={activeOrg}
         currentUserId={session.user.id}
         isPlatformAdmin={isPlatformAdmin}
+        isPlatformResearcher={isPlatformResearcher}
         campaigns={campaigns}
         setCampaigns={setCampaigns}
         contentItems={contentItems}

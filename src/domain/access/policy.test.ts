@@ -54,4 +54,15 @@ describe('workspace access policy', () => {
     expect(hasWorkspaceCapability(administrator, 'procurement:use')).toBe(false);
     expect(hasWorkspaceCapability(administrator, 'organization:manage')).toBe(false);
   });
+
+  it('limits researchers to procurement operations', () => {
+    const researcher: AccessContext = {
+      ...subscriber,
+      isPlatformResearcher: true,
+    };
+    expect(hasWorkspaceCapability(researcher, 'procurement:use')).toBe(true);
+    expect(hasWorkspaceCapability(researcher, 'platform:administer')).toBe(false);
+    expect(hasWorkspaceCapability(researcher, 'organization:manage')).toBe(false);
+    expect(hasWorkspaceCapability(researcher, 'advertising:manage')).toBe(false);
+  });
 });

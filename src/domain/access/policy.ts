@@ -10,6 +10,7 @@ export type WorkspaceCapability =
 
 export interface AccessContext {
   isPlatformAdmin: boolean;
+  isPlatformResearcher?: boolean;
   cmsRole: CmsRole;
   features: ReadonlySet<string>;
   organizationType: string;
@@ -21,6 +22,10 @@ export function hasWorkspaceCapability(
 ): boolean {
   if (context.isPlatformAdmin) {
     return capability !== 'procurement:use' && capability !== 'organization:manage';
+  }
+
+  if (context.isPlatformResearcher) {
+    return capability === 'procurement:use';
   }
 
   switch (capability) {
@@ -37,4 +42,3 @@ export function hasWorkspaceCapability(
       return true;
   }
 }
-

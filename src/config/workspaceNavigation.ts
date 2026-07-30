@@ -13,6 +13,7 @@ import {
   Mail,
   Settings,
   Shield,
+  ScanSearch,
   Sparkles,
   UserCheck,
   UserPlus,
@@ -62,6 +63,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
       {
         group: 'Operations',
         items: [
+          { id: 'opportunity-ingestion', label: 'Opportunity Ingestion', icon: ScanSearch },
           { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
           { id: 'operations-hub', label: 'Customer Requests', icon: UserCheck },
         ],
@@ -74,6 +76,19 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
           { id: 'admin-finance', label: 'Finance Ledger', icon: CreditCard },
           { id: 'admin-resilience', label: 'Reliability & Recovery', icon: LifeBuoy },
           { id: 'admin', label: 'Settings & Access', icon: Settings },
+        ],
+      },
+    ];
+  }
+
+  if (context.isPlatformResearcher) {
+    return [
+      {
+        group: 'Research',
+        items: [
+          { id: 'overview', label: 'Overview', icon: BarChart2 },
+          { id: 'opportunity-ingestion', label: 'Opportunity Ingestion', icon: ScanSearch },
+          { id: 'notifications', label: 'Notifications', icon: Bell },
         ],
       },
     ];
