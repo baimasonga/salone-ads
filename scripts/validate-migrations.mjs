@@ -7,7 +7,7 @@ const directory = resolve(process.cwd(), 'migrations/manohub-new-project');
 // so they must be validated and checksummed alongside the numbered sequence.
 const supabaseDirectory = resolve(process.cwd(), 'supabase/migrations');
 
-const bootstrap = new Set(['EXPORT_from_old_project.sql', 'full_setup.sql']);
+const bootstrap = new Set(['EXPORT_from_old_project.sql', 'full_setup.sql', 'remove_demo_seed.sql']);
 const files = readdirSync(directory).filter(name => name.endsWith('.sql')).sort();
 for (const required of bootstrap) {
   if (!files.includes(required)) throw new Error(`Required bootstrap migration is missing: ${required}`);
