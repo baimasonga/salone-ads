@@ -11,6 +11,7 @@ describe('opportunity source monitoring foundation', () => {
   it('keeps source checks restricted to research staff', () => {
     expect(migration).toContain('alter table public.opportunity_source_checks enable row level security');
     expect(migration).toContain('revoke all on public.opportunity_source_checks from anon');
+    expect(migration).toContain('grant select, insert on public.opportunity_source_checks to authenticated');
     expect(migration).toContain('public.is_opportunity_researcher()');
   });
 
