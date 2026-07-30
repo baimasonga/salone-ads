@@ -7,7 +7,7 @@ import {
   Mail, MessageCircle, Bookmark, Clock, Coins, Store, ShoppingBag, Ticket,
   Eye,
 } from 'lucide-react';
-import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchLiveAdverts, fetchLandingContent, fetchLandingContentPreview, fetchLandingAdvertPlacements, LandingAdvertPlacement, LandingContentBlock, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
+import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchOpportunityTypes, fetchLiveAdverts, fetchLandingContent, fetchLandingContentPreview, fetchLandingAdvertPlacements, LandingAdvertPlacement, LandingContentBlock, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
 import { trackAdvertEvent } from '../lib/advertAnalytics';
 import { PublicSubscriptionSection } from './PublicSubscriptionSection';
 import { supabase } from '../lib/supabaseClient';
@@ -86,6 +86,17 @@ const ADVERT_CATEGORIES = [
   { name: 'Construction', desc: 'Builders, materials & trades', icon: HardHat },
 ];
 
+const POPULAR_SECTOR_STYLES = [
+  { border: 'border-t-emerald-500', surface: 'bg-emerald-50', icon: 'bg-emerald-100 text-emerald-700', line: 'border-emerald-300' },
+  { border: 'border-t-blue-500', surface: 'bg-blue-50', icon: 'bg-blue-100 text-blue-700', line: 'border-blue-300' },
+  { border: 'border-t-rose-500', surface: 'bg-rose-50', icon: 'bg-rose-100 text-rose-700', line: 'border-rose-300' },
+  { border: 'border-t-amber-500', surface: 'bg-amber-50', icon: 'bg-amber-100 text-amber-700', line: 'border-amber-300' },
+  { border: 'border-t-violet-500', surface: 'bg-violet-50', icon: 'bg-violet-100 text-violet-700', line: 'border-violet-300' },
+  { border: 'border-t-cyan-500', surface: 'bg-cyan-50', icon: 'bg-cyan-100 text-cyan-700', line: 'border-cyan-300' },
+] as const;
+
+type HeroSearchKind = 'tenders' | 'contract_awards' | 'procurement_plans' | 'adverts';
+
 const HOW_IT_WORKS = [
   { num: '01', icon: Search, title: 'Search, free', body: 'Browse every published tender by sector, district, or keyword — no account needed to look.' },
   { num: '02', icon: KeyRound, title: 'Subscribe for full access', body: 'Unlock complete procurement notices, documents, unlimited alerts, and the AI assistant.' },
@@ -119,10 +130,13 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
   const [loadingLatest, setLoadingLatest] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [heroSearchKind, setHeroSearchKind] = useState<HeroSearchKind>('tenders');
   const [heroSector, setHeroSector] = useState('');
+  const [heroCountry, setHeroCountry] = useState('');
   const [sectors, setSectors] = useState<TaxonomyOption[]>([]);
+  const [countries, setCountries] = useState<TaxonomyOption[]>([]);
+  const [opportunityTypes, setOpportunityTypes] = useState<TaxonomyOption[]>([]);
   const [districtCount, setDistrictCount] = useState(0);
-  const [countryCount, setCountryCount] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [liveAdverts, setLiveAdverts] = useState<Advert[]>([]);
   const [landingContent, setLandingContent] = useState<Record<string, LandingContentBlock>>({});
@@ -165,11 +179,12 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
       const pool=eligible.flatMap(row=>Array.from({length:row.weight},()=>row));
       setSpotlight(pool[Math.floor(Math.random()*pool.length)]||eligible[0]);
     }).catch(()=>{});
-    Promise.all([fetchSectors(), fetchDistricts(), fetchCountries()])
-      .then(([s, d, c]) => {
+    Promise.all([fetchSectors(), fetchDistricts(), fetchCountries(), fetchOpportunityTypes()])
+      .then(([s, d, c, types]) => {
         setSectors(s);
         setDistrictCount(d.length);
-        setCountryCount(c.length);
+        setCountries(c);
+        setOpportunityTypes(types);
       })
       .catch(() => {});
   }, [previewBlockId]);
@@ -181,9 +196,19 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
 
   const handleHeroSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (heroSearchKind === 'adverts') {
+      navigate('/adverts');
+      return;
+    }
     const params = new URLSearchParams();
     if (searchKeyword) params.set('q', searchKeyword);
     if (heroSector) params.set('sector', heroSector);
+    if (heroCountry) params.set('country', heroCountry);
+    if (heroSearchKind !== 'tenders') {
+      const typeNeedle = heroSearchKind === 'contract_awards' ? 'contract award' : 'procurement plan';
+      const matchingType = opportunityTypes.find((type) => type.name.toLowerCase().includes(typeNeedle));
+      if (matchingType) params.set('type', matchingType.id);
+    }
     const qs = params.toString();
     navigate(qs ? `/tenders?${qs}` : '/tenders');
   };
@@ -195,7 +220,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
     .sort((a, b) => daysLeft(a.submissionDeadline) - daysLeft(b.submissionDeadline))
     .slice(0, 4);
   const heroTender = latest[0] || null;
-  const popularSectors = sectors.slice(0, 4);
+  const popularSectors = sectors.slice(0, 8);
   const heroContent = landingContent.hero;
   const advertContent = landingContent.advert_marketplace;
   const editorialBlocks = Object.values(landingContent)
@@ -203,10 +228,10 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
   const navLinks = [
-    { href: '#explorer', label: 'Live Tenders' },
+    { href: '#explorer', label: 'Find Opportunities' },
+    { href: '/adverts', label: 'Business Adverts' },
     { href: '/insights', label: 'Insights' },
-    { href: '#how', label: 'How It Works' },
-    { href: '#advertise', label: 'Advertise' },
+    { href: '#audience', label: 'For Buyers' },
     { href: '#pricing', label: 'Pricing' },
   ];
 
@@ -214,7 +239,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
     { num: totalOpen || latest.length || '—', label: 'Live Tenders' },
     { num: sectors.length || '—', label: 'Sectors' },
     { num: districtCount || '—', label: 'Districts' },
-    { num: countryCount || '—', label: 'Countries' },
+    { num: countries.length || '—', label: 'Countries' },
   ];
 
   return (
@@ -305,59 +330,78 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
               </span>
             </div>
             <h1 className="mt-5 font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.4rem] leading-[1.05] tracking-tight !text-white">
-              {heroContent?.title || <>Every public tender in <span className="text-[#10B981]">one place</span> — search, bid, win.</>}
+              {heroContent?.title || <>Every public tender and <span className="text-[#10B981]">trusted business advert</span> in one place.</>}
             </h1>
             <p className="mt-5 text-base sm:text-lg text-slate-300 leading-relaxed max-w-xl">
-              {heroContent?.body || <>Manohub brings live procurement notices, instant alerts, and a private bid pipeline together — whether you're bidding, publishing, or promoting your business across the Mano River region.</>}
+              {heroContent?.body || <>Discover opportunities, promote businesses and reach buyers across Sierra Leone, Liberia and the wider Mano River region.</>}
             </p>
 
-            {/* Inline search */}
-            <form onSubmit={handleHeroSearch} className="mt-7 bg-white border border-[#0F172A] flex flex-col sm:flex-row items-stretch">
-              <div className="flex items-center gap-2 flex-1 px-3">
-                <Search className="h-4 w-4 text-slate-400 shrink-0" />
-                <input
-                  type="text"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  placeholder="Search tenders, buyers, or reference…"
-                  className="flex-1 !border-0 !bg-transparent py-3 text-sm text-[#0F172A] placeholder:text-slate-400 focus:outline-none"
-                />
-              </div>
-              <div className="hidden sm:block w-px bg-slate-200" />
-              <select
-                aria-label="Filter tenders by sector"
-                value={heroSector}
-                onChange={(e) => setHeroSector(e.target.value)}
-                className="!border-0 !border-t sm:!border-t-0 !border-slate-200 !bg-white text-sm font-semibold text-slate-600 px-3 py-3 sm:max-w-[170px] cursor-pointer focus:outline-none"
-              >
-                <option value="">All sectors</option>
-                {sectors.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+            {/* Unified opportunity and advert search */}
+            <form onSubmit={handleHeroSearch} className="mt-7 border-2 border-white bg-white p-3 text-[#0F172A]">
+              <div className="mb-3 flex flex-wrap gap-1">
+                {([
+                  ['tenders', 'Tenders'],
+                  ['contract_awards', 'Contract Awards'],
+                  ['procurement_plans', 'Procurement Plans'],
+                  ['adverts', 'Adverts'],
+                ] as const).map(([kind, label]) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    aria-pressed={heroSearchKind === kind}
+                    onClick={() => setHeroSearchKind(kind)}
+                    className={`px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                      heroSearchKind === kind ? 'bg-[#0F172A] text-white' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
                 ))}
-              </select>
-              <button
-                type="submit"
-                className="bg-[#0F172A] text-white px-6 py-3 flex items-center justify-center gap-2 font-mono text-xs font-bold uppercase tracking-widest hover:bg-emerald-700 transition-colors shrink-0"
-              >
-                Search <ArrowRight className="h-4 w-4" />
-              </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.35fr)_minmax(130px,.7fr)_minmax(130px,.7fr)_auto]">
+                <label className="flex min-w-0 items-center gap-2 border border-slate-300 px-3">
+                  <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                  <span className="sr-only">Search keywords</span>
+                  <input
+                    type="text"
+                    value={searchKeyword}
+                    onChange={(e) => setSearchKeyword(e.target.value)}
+                    placeholder={heroSearchKind === 'adverts' ? 'Search business adverts…' : 'What are you looking for?'}
+                    className="min-w-0 flex-1 !border-0 !bg-transparent py-3 text-sm text-[#0F172A] placeholder:text-slate-400 focus:outline-none"
+                  />
+                </label>
+                <select
+                  value={heroCountry}
+                  onChange={(e) => setHeroCountry(e.target.value)}
+                  disabled={heroSearchKind === 'adverts'}
+                  aria-label="Filter by country"
+                  className="border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-600 focus:outline-none disabled:bg-slate-100"
+                >
+                  <option value="">All countries</option>
+                  {countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
+                </select>
+                <select
+                  value={heroSector}
+                  onChange={(e) => setHeroSector(e.target.value)}
+                  disabled={heroSearchKind === 'adverts'}
+                  aria-label="Filter by sector"
+                  className="border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-600 focus:outline-none disabled:bg-slate-100"
+                >
+                  <option value="">All sectors</option>
+                  {sectors.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}
+                </select>
+                <button type="submit" className="flex shrink-0 items-center justify-center gap-2 bg-[#0F172A] px-5 py-3 font-mono text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-emerald-700">
+                  Search <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
             </form>
 
-            {/* Popular chips */}
-            {popularSectors.length > 0 && (
-              <div className="mt-4 flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">Popular</span>
-                {popularSectors.map((s) => (
-                  <Link
-                    key={s.id}
-                    to={`/tenders?sector=${s.id}`}
-                    className="px-3 py-1.5 border border-white/20 bg-white/5 text-slate-200 text-xs font-medium hover:bg-white/15 hover:border-white/40 transition-colors"
-                  >
-                    {s.name}
-                  </Link>
-                ))}
-              </div>
-            )}
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-300">
+              <span className="text-slate-500">Quick access</span>
+              <a href="#popular-sectors" className="hover:text-emerald-400">Browse sectors</a>
+              <a href="#tenders-feed" className="hover:text-emerald-400">Closing soon</a>
+              <button type="button" onClick={onGetStarted} className="hover:text-emerald-400">Create alert</button>
+            </div>
           </div>
 
           {/* Right column — matched tender card + stats */}
@@ -397,15 +441,18 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              {stats.map((s) => (
-                <div key={s.label} className="border border-white/15 bg-white/5 px-4 py-3">
-                  <div className="font-display font-black text-2xl text-white">{s.num}</div>
-                  <div className="font-mono text-[10px] uppercase tracking-widest text-slate-400 mt-0.5">{s.label}</div>
-                </div>
-              ))}
-            </div>
           </div>
+        </div>
+      </section>
+
+      <section aria-label="Verified platform statistics" className="border-b-2 border-[#0F172A] bg-white px-6">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat, index) => (
+            <div key={stat.label} className={`px-5 py-6 ${index % 2 === 0 ? 'border-r border-[#0F172A]' : ''} ${index < 2 ? 'border-b lg:border-b-0' : ''} ${index > 0 ? 'lg:border-l lg:border-[#0F172A]' : ''}`}>
+              <div className="font-display text-2xl font-black text-[#0F172A]">{stat.num}</div>
+              <div className="mt-1 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-500">{stat.label}</div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -420,6 +467,50 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
           </div>
         </section>
       )}
+
+      <section id="popular-sectors" className="border-b-2 border-[#0F172A] bg-white px-6 py-14">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[.2em] text-slate-500">Browse by market</p>
+              <h2 className="mt-2 font-display text-2xl font-extrabold tracking-tight text-[#0F172A] sm:text-3xl">Popular sectors</h2>
+            </div>
+            <Link to="/tenders" className="font-mono text-xs font-bold uppercase tracking-widest text-blue-600 transition-colors hover:text-emerald-700">
+              View all sectors <ArrowRight className="ml-1 inline h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {popularSectors.length > 0 ? (
+            <div className="grid gap-0 border-2 border-[#0F172A] sm:grid-cols-2 lg:grid-cols-4">
+              {popularSectors.map((sector, index) => {
+                const Icon = sectorIcon(sector.name);
+                const style = POPULAR_SECTOR_STYLES[index % POPULAR_SECTOR_STYLES.length];
+                const liveCount = latest.filter((opportunity) => opportunity.sector === sector.name).length;
+                return (
+                  <Link
+                    key={sector.id}
+                    to={`/tenders?sector=${sector.id}`}
+                    className={`${style.surface} ${style.border} group min-h-40 border-t-4 p-5 transition-transform hover:-translate-y-0.5 sm:[&:nth-child(odd)]:border-r sm:[&:nth-child(-n+6)]:border-b lg:[&:not(:nth-child(4n))]:border-r lg:[&:nth-child(-n+4)]:border-b lg:[&:nth-child(n+5)]:border-b-0 border-[#0F172A]`}
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <span className={`flex h-10 w-10 items-center justify-center ${style.icon}`}>
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="flex h-10 min-w-10 items-center justify-center bg-white/80 px-2 font-mono text-sm font-bold text-[#0F172A]">{liveCount}</span>
+                    </div>
+                    <div className={`mt-7 border-t-2 pt-4 ${style.line}`}>
+                      <h3 className="font-display text-base font-bold text-[#0F172A] transition-colors group-hover:text-emerald-800">{sector.name}</h3>
+                      <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500">Live opportunities</p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="border-2 border-dashed border-slate-300 px-6 py-12 text-center text-sm text-slate-500">Sector directory is loading.</div>
+          )}
+        </div>
+      </section>
 
       {spotlight && (
         <section aria-label="Sponsored spotlight" className="border-b-2 border-[#0F172A] bg-[#F4D35E] px-6 py-10">
