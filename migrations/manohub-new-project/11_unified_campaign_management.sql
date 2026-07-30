@@ -1,6 +1,12 @@
 -- Enhancement 2: one campaign identity for Manohub and social-media delivery.
 -- Historical social campaign rows are preserved in ad_campaigns before the
 -- retired campaigns table is removed.
+--
+-- Wrapped in a transaction: this migration drops foreign keys, moves rows,
+-- then re-adds them. Without a transaction a mid-file failure leaves
+-- content_items/tracking_links with no campaign foreign key at all.
+
+begin;
 
 alter table public.ad_campaigns
   add column if not exists channels text[] not null default array['manohub']::text[],
@@ -208,8 +214,10 @@ $function$;
 revoke all on function public.run_campaign_health_sweep() from public, anon, authenticated;
 grant execute on function public.run_campaign_health_sweep() to authenticated, service_role;
 
-drop table public.campaigns;
+drop table if exists public.campaigns;
 
 revoke all on table public.ad_campaigns from anon;
 grant select, insert, update, delete on table public.ad_campaigns to authenticated;
 grant all on table public.ad_campaigns to service_role;
+
+commit;

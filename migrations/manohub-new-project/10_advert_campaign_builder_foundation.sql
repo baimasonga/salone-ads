@@ -1,5 +1,10 @@
 -- Enhancement 2, phase 1: advertiser campaign model, permissions, and wizard.
 -- Existing live campaigns remain valid; new self-service campaigns begin as drafts.
+--
+-- Wrapped in a transaction so a partial failure cannot leave the campaign
+-- schema half-migrated.
+
+begin;
 
 alter table public.ad_campaigns
   add column if not exists description text not null default '',
@@ -117,3 +122,5 @@ create policy ad_campaigns_org_delete_drafts
     and (select public.org_has_feature(org_id, 'business_advertising'))
     and status in ('draft', 'rejected')
   );
+
+commit;
