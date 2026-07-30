@@ -500,7 +500,7 @@ export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingP
                     </div>
                     <div className={`mt-7 border-t-2 pt-4 ${style.line}`}>
                       <h3 className="font-display text-base font-bold text-[#0F172A] transition-colors group-hover:text-emerald-800">{sector.name}</h3>
-                      <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500">Live opportunities</p>
+                      <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-widest text-slate-700">Live opportunities</p>
                     </div>
                   </Link>
                 );
