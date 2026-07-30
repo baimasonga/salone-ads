@@ -22,11 +22,11 @@ test('tender discovery keeps saved results when the network refresh fails', asyn
 
   await page.addInitScript((tender) => {
     localStorage.setItem(
-      'manohub:resilience:v1:tender-search:{}',
+      'manohub:resilience:v1:tender-search:{"status":"all","sort":"relevance"}',
       JSON.stringify({ savedAt: Date.now(), value: [tender] }),
     );
   }, cachedTender);
-  await page.route('**/rest/v1/opportunities**', (route) => route.abort('internetdisconnected'));
+  await page.route('**/rest/v1/rpc/search_public_opportunities**', (route) => route.abort('internetdisconnected'));
 
   await page.goto('/tenders');
 
