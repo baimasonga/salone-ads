@@ -14,6 +14,7 @@ describe('procurement search and alert matching foundation', () => {
     expect(migration).toContain('ss.district_id = new.district_id');
     expect(migration).toContain('ss.opportunity_type_id = new.opportunity_type_id');
     expect(migration).toContain('strpos(');
+    expect(migration).toContain('new.submission_deadline > now()');
   });
 
   it('records durable matches before creating immediate notifications', () => {
