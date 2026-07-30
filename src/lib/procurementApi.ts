@@ -28,6 +28,9 @@ export interface OpportunityListItem {
   statusLabel: string;
   reviewNote: string | null;
   viewCount: number;
+  relevanceScore?: number;
+  totalCount?: number;
+  searchEventId?: string | null;
 }
 
 export interface OpportunityDetail extends OpportunityListItem {
@@ -91,6 +94,9 @@ function mapListItem(row: any): OpportunityListItem {
     statusLabel: row.opportunity_statuses?.label ?? 'Published',
     reviewNote: row.review_note ?? null,
     viewCount: row.view_count ?? 0,
+    relevanceScore: row.relevance_score !== undefined ? Number(row.relevance_score) : undefined,
+    totalCount: row.total_count !== undefined ? Number(row.total_count) : undefined,
+    searchEventId: row.search_event_id ?? null,
   };
 }
 
@@ -100,23 +106,23 @@ export interface OpportunitySearchFilters {
   countryId?: string;
   districtId?: string;
   opportunityTypeId?: string;
+  status?: 'all' | 'open' | 'closing' | 'featured';
+  sort?: 'relevance' | 'deadline' | 'newest';
 }
 
 export async function searchOpportunities(filters: OpportunitySearchFilters): Promise<OpportunityListItem[]> {
-  let query = supabase
-    .from('opportunities')
-    .select(LIST_SELECT)
-    .order('is_featured', { ascending: false })
-    .order('submission_deadline', { ascending: true })
-    .limit(50);
-
-  if (filters.keyword) query = query.ilike('title', `%${filters.keyword}%`);
-  if (filters.sectorId) query = query.eq('sector_id', filters.sectorId);
-  if (filters.countryId) query = query.eq('country_id', filters.countryId);
-  if (filters.districtId) query = query.eq('district_id', filters.districtId);
-  if (filters.opportunityTypeId) query = query.eq('opportunity_type_id', filters.opportunityTypeId);
-
-  const { data, error } = await query;
+  const visitorHash = isLikelyAutomatedBrowser() ? null : await getPublicVisitorTokenHash();
+  const { data, error } = await supabase.rpc('search_public_opportunities', {
+    p_query: filters.keyword?.trim() || null,
+    p_sector_id: filters.sectorId || null,
+    p_country_id: filters.countryId || null,
+    p_district_id: filters.districtId || null,
+    p_opportunity_type_id: filters.opportunityTypeId || null,
+    p_status_filter: filters.status ?? 'all',
+    p_sort: filters.sort ?? 'relevance',
+    p_visitor_hash: visitorHash,
+    p_limit: 50,
+  });
   if (error) throw error;
   return (data ?? []).map(mapListItem);
 }

@@ -92,6 +92,7 @@ function sectorIcon(name: string | null) {
 }
 
 type StatusFilter = 'all' | 'open' | 'closing' | 'featured';
+type SortMode = 'relevance' | 'deadline' | 'newest';
 const TAXONOMY_CACHE_SCOPE = 'tender-taxonomy';
 const TAXONOMY_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
 const SEARCH_CACHE_MAX_AGE = 6 * 60 * 60 * 1000;
@@ -164,6 +165,7 @@ export function TenderSearchPage() {
   const [types, setTypes] = useState<TaxonomyOption[]>([]);
   const [results, setResults] = useState<OpportunityListItem[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('relevance');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isAuthed, setIsAuthed] = useState(false);
@@ -291,6 +293,8 @@ export function TenderSearchPage() {
       countryId: countryId || undefined,
       districtId: districtId || undefined,
       opportunityTypeId: typeId || undefined,
+      status: statusFilter,
+      sort: sortMode,
     };
     const cacheScope = `tender-search:${JSON.stringify(filters)}`;
     const cached = readResilienceCache<OpportunityListItem[]>(cacheScope, SEARCH_CACHE_MAX_AGE);
@@ -321,7 +325,7 @@ export function TenderSearchPage() {
           : err.message || 'Could not load tenders.');
       })
       .finally(() => setLoading(false));
-  }, [searchParams, sectorId, countryId, districtId, typeId, isOnline, refreshVersion]);
+  }, [searchParams, sectorId, countryId, districtId, typeId, statusFilter, sortMode, isOnline, refreshVersion]);
 
   const updateFilter = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -344,12 +348,7 @@ export function TenderSearchPage() {
 
   const hasActiveFilters = !!(keyword || sectorId || countryId || districtId || typeId) || statusFilter !== 'all';
 
-  const filtered = results.filter((op) => {
-    if (statusFilter === 'closing') { const d = daysLeft(op.submissionDeadline); return d >= 0 && d <= 7; }
-    if (statusFilter === 'open') return daysLeft(op.submissionDeadline) >= 0;
-    if (statusFilter === 'featured') return op.isFeatured;
-    return true;
-  });
+  const resultCount = results[0]?.totalCount ?? results.length;
 
   const statusChips: { key: StatusFilter; label: string }[] = [
     { key: 'all', label: 'ALL' },
@@ -444,6 +443,11 @@ export function TenderSearchPage() {
                 })}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                <select aria-label="Sort tender results" value={sortMode} onChange={(event) => setSortMode(event.target.value as SortMode)} style={{ ...selectBase, width: 145, height: 36 }}>
+                  <option value="relevance">Most relevant</option>
+                  <option value="deadline">Closing first</option>
+                  <option value="newest">Newest first</option>
+                </select>
                 {hasActiveFilters && (
                   <button onClick={clearFilters} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', fontFamily: SANS, fontSize: 13, fontWeight: 600, color: C.muted3, cursor: 'pointer' }}>
                     <X size={14} /> Clear filters
@@ -454,7 +458,7 @@ export function TenderSearchPage() {
                     <BookmarkPlus size={14} /> {t('saveSearch')}
                   </button>
                 )}
-                <div style={{ fontFamily: MONO, fontSize: 13, color: C.muted }}>{filtered.length} results</div>
+                <div style={{ fontFamily: MONO, fontSize: 13, color: C.muted }}>{resultCount} results</div>
               </div>
             </div>
 
@@ -524,7 +528,7 @@ export function TenderSearchPage() {
                 <div role="alert" style={{ background: results.length > 0 ? '#fff7d6' : '#fdeaea', border: `1px solid ${results.length > 0 ? '#d7b84d' : '#f4c9c9'}`, color: results.length > 0 ? '#5f4a00' : '#b42a2f', fontSize: 14, padding: 16, borderRadius: 6 }}>{error}</div>
               )}
 
-              {!loading && filtered.length === 0 && (
+              {!loading && results.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '64px 24px', border: `1px dashed ${C.border}`, borderRadius: 8, background: '#fff' }}>
                   <div style={{ width: 56, height: 56, margin: '0 auto', borderRadius: 8, background: C.contentBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted }}>
                     <FileSearch size={26} />
@@ -541,7 +545,7 @@ export function TenderSearchPage() {
                 </div>
               )}
 
-              {!loading && filtered.map((op) => {
+              {!loading && results.map((op) => {
                 const Icon = sectorIcon(op.sector);
                 const dl = deadlineParts(op.submissionDeadline);
                 return (
