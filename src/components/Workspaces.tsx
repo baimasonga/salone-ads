@@ -2343,7 +2343,9 @@ export function Workspaces({
               <div className="flex flex-wrap gap-2">
                 {viewerSavedSearches.map((s) => (
                   <span key={s.id} className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-200 text-xs px-3 py-1.5 rounded-lg">
-                    {s.name}
+                    <span>{s.name}</span>
+                    <span className="font-mono text-[9px] uppercase text-emerald-700">{s.frequency}</span>
+                    {!s.isActive && <span className="font-mono text-[9px] uppercase text-amber-700">Paused</span>}
                     <button onClick={() => handleDeleteViewerSavedSearch(s.id)} className="text-slate-400 hover:text-red-600 cursor-pointer">
                       <X className="h-3 w-3" />
                     </button>

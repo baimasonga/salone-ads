@@ -128,6 +128,7 @@ const SCOPED_CSS = `
 @media (max-width: 820px) {
   .mh-tenders .mh-pad { padding-left: 20px !important; padding-right: 20px !important; }
   .mh-tenders .mh-searchrow { flex-wrap: wrap !important; }
+  .mh-tenders .mh-save-alert { grid-template-columns: 1fr !important; }
   .mh-tenders .mh-searchrow > * { flex: 1 1 140px !important; width: auto !important; }
   .mh-tenders .mh-card { flex-wrap: wrap !important; }
   .mh-tenders .mh-card-right { align-items: flex-start !important; min-width: 0 !important; }
@@ -168,6 +169,9 @@ export function TenderSearchPage() {
   const [isAuthed, setIsAuthed] = useState(false);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [savingSearch, setSavingSearch] = useState(false);
+  const [showSaveSearch, setShowSaveSearch] = useState(false);
+  const [savedSearchName, setSavedSearchName] = useState('');
+  const [savedSearchFrequency, setSavedSearchFrequency] = useState<SavedSearch['frequency']>('immediate');
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [usingCachedResults, setUsingCachedResults] = useState(false);
   const [cachedAt, setCachedAt] = useState<number | null>(null);
@@ -239,6 +243,7 @@ export function TenderSearchPage() {
     const next = new URLSearchParams();
     if (s.keyword) next.set('q', s.keyword);
     if (s.sectorId) next.set('sector', s.sectorId);
+    if (s.countryId) next.set('country', s.countryId);
     if (s.districtId) next.set('district', s.districtId);
     if (s.opportunityTypeId) next.set('type', s.opportunityTypeId);
     setSearchParams(next);
@@ -246,12 +251,22 @@ export function TenderSearchPage() {
   };
 
   const handleSaveSearch = async () => {
-    const name = prompt('Name this saved search (e.g. "Health tenders in Bo"):');
+    const name = savedSearchName.trim();
     if (!name) return;
     setSavingSearch(true);
     try {
-      const created = await createSavedSearch({ name, keyword: keyword || null, sectorId: sectorId || null, districtId: districtId || null, opportunityTypeId: typeId || null });
+      const created = await createSavedSearch({
+        name,
+        keyword: keyword || null,
+        sectorId: sectorId || null,
+        countryId: countryId || null,
+        districtId: districtId || null,
+        opportunityTypeId: typeId || null,
+        frequency: savedSearchFrequency,
+      });
       setSavedSearches([created, ...savedSearches]);
+      setSavedSearchName('');
+      setShowSaveSearch(false);
     } catch {
       /* non-critical */
     } finally {
@@ -435,7 +450,7 @@ export function TenderSearchPage() {
                   </button>
                 )}
                 {isAuthed && (
-                  <button onClick={handleSaveSearch} disabled={savingSearch} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', fontFamily: SANS, fontSize: 13, fontWeight: 600, color: C.green, cursor: 'pointer', opacity: savingSearch ? 0.5 : 1 }}>
+                  <button onClick={() => setShowSaveSearch((current) => !current)} disabled={savingSearch} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', fontFamily: SANS, fontSize: 13, fontWeight: 600, color: C.green, cursor: 'pointer', opacity: savingSearch ? 0.5 : 1 }}>
                     <BookmarkPlus size={14} /> {t('saveSearch')}
                   </button>
                 )}
@@ -443,11 +458,27 @@ export function TenderSearchPage() {
               </div>
             </div>
 
+            {showSaveSearch && (
+              <div className="mh-save-alert" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1fr) minmax(150px,220px) auto', gap: 10, alignItems: 'end', marginTop: 14, padding: 14, background: '#eefaf5', border: `1px solid ${C.green}` }}>
+                <label style={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, color: C.slate2 }}>
+                  Alert name
+                  <input autoFocus value={savedSearchName} onChange={(event) => setSavedSearchName(event.target.value)} placeholder='e.g. Health tenders in Bo' style={{ display: 'block', width: '100%', marginTop: 5, padding: '9px 10px' }} />
+                </label>
+                <label style={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, color: C.slate2 }}>
+                  Notification frequency
+                  <select value={savedSearchFrequency} onChange={(event) => setSavedSearchFrequency(event.target.value as SavedSearch['frequency'])} style={{ display: 'block', width: '100%', marginTop: 5, padding: '9px 10px' }}>
+                    <option value="immediate">Immediate</option><option value="daily">Daily digest</option><option value="weekly">Weekly digest</option>
+                  </select>
+                </label>
+                <button onClick={() => void handleSaveSearch()} disabled={savingSearch || !savedSearchName.trim()} style={{ border: 0, background: C.green, color: '#fff', padding: '10px 16px', fontFamily: MONO, fontSize: 11, fontWeight: 700, cursor: 'pointer', opacity: savingSearch || !savedSearchName.trim() ? 0.5 : 1 }}>{savingSearch ? 'Saving…' : 'Create alert'}</button>
+              </div>
+            )}
+
             {savedSearches.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
                 {savedSearches.map((s) => (
                   <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.contentBg, border: `1px solid ${C.border}`, borderRadius: 5, padding: '5px 10px', fontSize: 12.5 }}>
-                    <button onClick={() => applySavedSearch(s)} style={{ background: 'none', border: 'none', color: C.slate2, cursor: 'pointer', fontFamily: SANS, fontSize: 12.5 }}>{s.name}</button>
+                    <button onClick={() => applySavedSearch(s)} style={{ background: 'none', border: 'none', color: C.slate2, cursor: 'pointer', fontFamily: SANS, fontSize: 12.5 }}>{s.name} · {s.frequency}</button>
                     <button onClick={() => handleDeleteSavedSearch(s.id)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', display: 'inline-flex' }}><X size={12} /></button>
                   </span>
                 ))}
