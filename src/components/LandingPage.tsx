@@ -61,8 +61,8 @@ const CONCEPT_CSS = `
     --mh-ink:#0f172a;
     --mh-paper:#ffffff;
     --mh-soft:#f8fafc;
-    --mh-muted:#64748b;
-    --mh-green:#00a240;
+    --mh-muted:#5b6777;
+    --mh-green:#007a33;
     --mh-blue:#339cff;
     --mh-orange:#f3883b;
     --mh-yellow:#f4d35e;
@@ -93,7 +93,7 @@ const CONCEPT_CSS = `
   .mh-input::placeholder{color:#94a3b8}
   .mh-input:focus,.mh-select:focus{border-color:var(--mh-blue);box-shadow:inset 0 0 0 1px var(--mh-blue)}
   .mh-select{appearance:auto;padding-right:30px}
-  .mh-badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;color:#1677d2;background:#e5f2ff;font-size:12px;font-weight:700}
+  .mh-badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;color:#0b5fad;background:#e5f2ff;font-size:12px;font-weight:700}
   .mh-topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-block:18px;border-bottom:2px solid var(--mh-ink)}
   .mh-brand{display:flex;align-items:center;gap:10px;color:var(--mh-ink);font-size:18px;font-weight:900;letter-spacing:.08em}
   .mh-brand-mark{display:grid;width:34px;height:34px;place-items:center;background:var(--mh-ink);color:#fff}
@@ -123,7 +123,7 @@ const CONCEPT_CSS = `
   .mh-feature-title{margin:18px 0 8px;font-size:24px;line-height:1.25;font-weight:800}
   .mh-feature-foot{margin-top:18px;padding-top:14px;border-top:1px solid #e2e8f0}
   .mh-feature-foot small{display:inline-block;margin-bottom:4px}
-  .mh-deadline{color:#008a3a}
+  .mh-deadline{color:#00732f}
   .mh-metrics{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:2px solid var(--mh-ink)}
   .mh-metric{padding:22px 20px;border-right:1px solid var(--mh-ink)}
   .mh-metric:last-child{border-right:0}
