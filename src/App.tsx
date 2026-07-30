@@ -24,11 +24,10 @@ import {
 import { fetchMyNotifications, markNotificationRead, AppNotification, hasFeature } from './lib/procurementApi';
 import { CmsTeamRole, fetchCmsCurrentRole } from './lib/cmsApi';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
-import { clearAllResilienceCaches } from './lib/networkResilience';
 import { buildWorkspaceNavigation } from './config/workspaceNavigation';
 import type { WorkspaceNavigationGroup } from './config/workspaceNavigation';
 
-type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'dashboard';
+type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'forgot-password' | 'update-password' | 'dashboard';
 const NO_FEATURES = new Set<string>();
 const ADVERTISING_FEATURES = new Set(['business_advertising']);
 
@@ -165,8 +164,13 @@ function MainApp() {
 
   // --- AUTH SESSION BOOTSTRAP ---
   useEffect(() => {
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
+      if (event === 'PASSWORD_RECOVERY') {
+        setWorkspaceLoading(false);
+        setView('update-password');
+        return;
+      }
       loadWorkspace(nextSession);
     });
     return () => subscription.subscription.unsubscribe();
@@ -179,9 +183,6 @@ function MainApp() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    // Unsubmitted drafts and cached results must not survive into the next
-    // person's session on a shared device.
-    clearAllResilienceCaches();
     setActiveTab('overview');
   };
 
@@ -202,7 +203,7 @@ function MainApp() {
     );
   }
 
-  if (view === 'signin' || view === 'signup' || view === 'onboarding') {
+  if (view === 'signin' || view === 'signup' || view === 'onboarding' || view === 'forgot-password' || view === 'update-password') {
     return (
       <AuthScreens
         mode={view === 'onboarding' ? 'onboarding' : view === 'signin' ? 'signin' : 'signup'}
@@ -212,9 +213,7 @@ function MainApp() {
     );
   }
 
-  // The dashboard view is only ever set from loadWorkspace with a live
-  // session, so this also narrows `session` for the workspace props below.
-  if (workspaceLoading || !session || !activeOrg || !brandKit) {
+  if (workspaceLoading || !activeOrg || !brandKit) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center gap-4 border-4 md:border-8 border-[#0F172A]">
         {workspaceError ? (
@@ -264,7 +263,6 @@ function MainApp() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         activeOrg={activeOrg}
-        currentUserId={session.user.id}
         isPlatformAdmin={isPlatformAdmin}
         campaigns={campaigns}
         setCampaigns={setCampaigns}
@@ -419,10 +417,8 @@ function DashboardShell({
         /* best effort */
       }
     }
-    if (notification.workspaceTarget) {
-      setActiveTab(notification.workspaceTarget);
-    } else if (notification.linkUrl) {
-      window.location.assign(notification.linkUrl);
+    if (notification.linkUrl) {
+      window.open(notification.linkUrl, '_blank');
     }
     setNotifOpen(false);
   };
@@ -556,18 +552,7 @@ function DashboardShell({
               {notifOpen && (
                 <div className="absolute right-0 mt-2 w-80 bg-white border border-[#0F172A] shadow-lg z-40 max-h-96 overflow-y-auto">
                   <div className="p-3 border-b border-slate-100">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">Notifications</span>
-                      <button
-                        onClick={() => {
-                          setActiveTab('notifications');
-                          setNotifOpen(false);
-                        }}
-                        className="text-[9px] font-mono font-bold uppercase text-emerald-700"
-                      >
-                        View all
-                      </button>
-                    </div>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400">Notifications</span>
                   </div>
                   {notifications.length === 0 ? (
                     <p className="text-xs text-slate-400 p-4 text-center">No notifications yet.</p>
