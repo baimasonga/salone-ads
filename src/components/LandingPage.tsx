@@ -467,7 +467,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
         <section className="mh-shell mh-section" id="mh-opportunities">
           <div className="mh-section-head">
             <div><span className="mh-mono mh-small mh-muted">Opportunity centre</span><h2>Live procurement activity</h2></div>
-            <a href="/tenders">Browse all opportunities →</a>
+            <a href="/tenders" aria-label="Browse live tenders">Browse all opportunities →</a>
           </div>
           <div className="mh-op-tabs" role="group" aria-label="Opportunity feed">
             {FEED_TABS.map(([kind, label]) => (
