@@ -679,6 +679,16 @@ export interface PlatformResearcher {
   platformRole: 'researcher' | 'admin';
 }
 
+export interface OpportunitySourcingTaskEvent {
+  id: string;
+  taskId: string;
+  eventType: 'created' | 'assigned' | 'status_changed' | 'evidence_updated' | 'completed';
+  previousStatus: string | null;
+  nextStatus: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface CreateOpportunitySourceInput {
   name: string;
   baseUrl?: string;
@@ -764,6 +774,24 @@ export async function fetchOpportunitySourcingTasks(): Promise<OpportunitySourci
     .order('created_at', { ascending: false });
   if (error) throw error;
   return (data ?? []).map(mapSourcingTask);
+}
+
+export async function fetchOpportunitySourcingTaskEvents(): Promise<OpportunitySourcingTaskEvent[]> {
+  const { data, error } = await supabase
+    .from('opportunity_sourcing_task_events')
+    .select('id,task_id,event_type,previous_status,next_status,details,created_at')
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    taskId: row.task_id,
+    eventType: row.event_type,
+    previousStatus: row.previous_status,
+    nextStatus: row.next_status,
+    details: row.details && typeof row.details === 'object' ? row.details : {},
+    createdAt: row.created_at,
+  }));
 }
 
 export async function fetchPlatformResearchers(): Promise<PlatformResearcher[]> {

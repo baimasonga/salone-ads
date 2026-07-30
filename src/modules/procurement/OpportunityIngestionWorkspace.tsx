@@ -8,6 +8,8 @@ import {
   ExternalLink,
   FilePlus2,
   Globe2,
+  History,
+  Link2,
   LoaderCircle,
   Plus,
   Radar,
@@ -19,6 +21,7 @@ import {
   createOpportunityIngestionItem,
   createOpportunitySource,
   fetchOpportunityIngestionItems,
+  fetchOpportunitySourcingTaskEvents,
   fetchOpportunitySourcingTasks,
   fetchOpportunitySources,
   fetchPlatformResearchers,
@@ -29,6 +32,7 @@ import {
   type OpportunityIngestionItem,
   type OpportunitySource,
   type OpportunitySourcingTask,
+  type OpportunitySourcingTaskEvent,
   type PlatformResearcher,
 } from '../../lib/procurementApi';
 import { extractOpportunityFromText } from './opportunityExtraction';
@@ -45,8 +49,14 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
   const [sources, setSources] = useState<OpportunitySource[]>([]);
   const [items, setItems] = useState<OpportunityIngestionItem[]>([]);
   const [tasks, setTasks] = useState<OpportunitySourcingTask[]>([]);
+  const [taskEvents, setTaskEvents] = useState<OpportunitySourcingTaskEvent[]>([]);
   const [researchers, setResearchers] = useState<PlatformResearcher[]>([]);
   const [selectedTask, setSelectedTask] = useState('');
+  const [taskFilter, setTaskFilter] = useState<'active' | 'overdue' | 'completed' | 'all'>('active');
+  const [taskQuery, setTaskQuery] = useState('');
+  const [expandedHistory, setExpandedHistory] = useState('');
+  const [taskNotes, setTaskNotes] = useState<Record<string, string>>({});
+  const [taskEvidence, setTaskEvidence] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -70,15 +80,18 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
     setLoading(true);
     setFeedback('');
     try {
-      const [sourceRows, itemRows, taskRows, researcherRows] = await Promise.all([
+      const [sourceRows, itemRows, taskRows, eventRows, researcherRows] = await Promise.all([
         fetchOpportunitySources(),
         fetchOpportunityIngestionItems(),
         fetchOpportunitySourcingTasks(),
+        fetchOpportunitySourcingTaskEvents(),
         isPlatformAdmin ? fetchPlatformResearchers() : Promise.resolve([]),
       ]);
       setSources(sourceRows);
       setItems(itemRows);
       setTasks(taskRows);
+      setTaskEvents(eventRows);
+      setTaskNotes(Object.fromEntries(taskRows.map((task) => [task.id, task.notes ?? ''])));
       setResearchers(researcherRows);
     } catch (error) {
       setFeedback(`Error: ${message(error, 'Could not load the ingestion workspace.')}`);
@@ -97,6 +110,28 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
     promoted: items.filter((item) => item.status === 'promoted').length,
     flagged: items.filter((item) => item.qualityScore < 75 || item.duplicateOpportunityId).length,
   }), [items]);
+
+  const taskCounts = useMemo(() => {
+    const now = Date.now();
+    return {
+      active: tasks.filter((task) => !['completed', 'cancelled'].includes(task.status)).length,
+      overdue: tasks.filter((task) => task.dueAt && new Date(task.dueAt).getTime() < now && !['completed', 'cancelled'].includes(task.status)).length,
+      completed: tasks.filter((task) => task.status === 'completed').length,
+    };
+  }, [tasks]);
+
+  const visibleTasks = useMemo(() => {
+    const now = Date.now();
+    const query = taskQuery.trim().toLowerCase();
+    return tasks.filter((task) => {
+      const overdue = Boolean(task.dueAt && new Date(task.dueAt).getTime() < now && !['completed', 'cancelled'].includes(task.status));
+      const matchesFilter = taskFilter === 'all'
+        || (taskFilter === 'active' && !['completed', 'cancelled'].includes(task.status))
+        || (taskFilter === 'overdue' && overdue)
+        || (taskFilter === 'completed' && task.status === 'completed');
+      return matchesFilter && (!query || task.searchTerm.toLowerCase().includes(query));
+    });
+  }, [taskFilter, taskQuery, tasks]);
 
   const addSource = async (event: FormEvent) => {
     event.preventDefault();
@@ -196,6 +231,34 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
       setFeedback('Task linked to the capture form below. Add the verified notice and source evidence.');
     } catch (error) {
       setFeedback(`Error: ${message(error, 'Could not start sourcing task.')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const saveTaskProgress = async (task: OpportunitySourcingTask) => {
+    const evidence = taskEvidence[task.id]?.trim();
+    if (evidence && !/^https?:\/\//i.test(evidence)) {
+      setFeedback('Error: Evidence must be a complete http:// or https:// URL.');
+      return;
+    }
+    setBusy(`task-${task.id}`);
+    setFeedback('');
+    try {
+      const sourceLinks = evidence && !task.sourceLinks.includes(evidence)
+        ? [...task.sourceLinks, evidence]
+        : task.sourceLinks;
+      await updateOpportunitySourcingTask({
+        taskId: task.id,
+        status: task.status === 'assigned' ? 'in_progress' : task.status as 'in_progress' | 'candidate_found' | 'cancelled',
+        notes: taskNotes[task.id],
+        sourceLinks,
+      });
+      setTaskEvidence((current) => ({ ...current, [task.id]: '' }));
+      await load();
+      setFeedback('Task progress and source evidence saved.');
+    } catch (error) {
+      setFeedback(`Error: ${message(error, 'Could not save task progress.')}`);
     } finally {
       setBusy('');
     }
@@ -309,20 +372,41 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
               <h3 className="font-display text-lg font-extrabold">Search-gap sourcing tasks</h3>
             </div>
           </div>
-          <span className="font-mono text-[10px] font-bold uppercase text-slate-600">{tasks.filter((task) => !['completed', 'cancelled'].includes(task.status)).length} active</span>
+          <span className="font-mono text-[10px] font-bold uppercase text-slate-600">{taskCounts.active} active · {taskCounts.overdue} overdue</span>
+        </div>
+        <div className="grid gap-3 border-b-2 border-slate-950 p-4 md:grid-cols-[1fr_auto]">
+          <input value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} className="border-2 border-slate-300 px-3 py-2 text-xs" placeholder="Filter tasks by search term…" />
+          <div className="flex flex-wrap gap-1">
+            {([
+              ['active', `Active ${taskCounts.active}`],
+              ['overdue', `Overdue ${taskCounts.overdue}`],
+              ['completed', `Completed ${taskCounts.completed}`],
+              ['all', `All ${tasks.length}`],
+            ] as const).map(([value, label]) => (
+              <button key={value} type="button" aria-pressed={taskFilter === value} onClick={() => setTaskFilter(value)} className={`border-2 border-slate-950 px-3 py-2 font-mono text-[8px] font-bold uppercase ${taskFilter === value ? 'bg-slate-950 text-white' : 'bg-white text-slate-950'}`}>{label}</button>
+            ))}
+          </div>
         </div>
         {tasks.length === 0 ? (
-          <p className="p-6 text-sm text-slate-500">{isPlatformAdmin ? 'Create a task from Content gaps in Platform Analytics.' : 'No sourcing tasks are assigned to you.'}</p>
+          <div className="p-6">
+            <p className="text-sm font-bold text-slate-800">{isPlatformAdmin ? 'No search demand gaps have become tasks yet.' : 'No sourcing tasks are assigned to you.'}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{isPlatformAdmin ? 'When visitors search and receive no results, create a task from Platform Analytics → Content gaps. Real demand—not demonstration data—will appear here.' : 'An administrator can assign a demand-led research task to your account.'}</p>
+          </div>
+        ) : visibleTasks.length === 0 ? (
+          <p className="p-6 text-sm text-slate-500">No sourcing tasks match this filter.</p>
         ) : (
           <div className="grid gap-px bg-slate-300 md:grid-cols-2">
-            {tasks.map((task) => (
+            {visibleTasks.map((task) => {
+              const overdue = Boolean(task.dueAt && new Date(task.dueAt).getTime() < Date.now() && !['completed', 'cancelled'].includes(task.status));
+              const events = taskEvents.filter((event) => event.taskId === task.id);
+              return (
               <article key={task.id} className="bg-white p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-mono text-[9px] font-bold uppercase text-violet-700">{task.demandCount} searches · {task.priority} priority</p>
                     <h4 className="mt-1 font-display text-base font-extrabold">{task.searchTerm}</h4>
                   </div>
-                  <span className="border border-slate-950 bg-slate-50 px-2 py-1 font-mono text-[8px] font-bold uppercase">{task.status.replace('_', ' ')}</span>
+                  <span className={`border border-slate-950 px-2 py-1 font-mono text-[8px] font-bold uppercase ${overdue ? 'bg-red-100 text-red-800' : 'bg-slate-50'}`}>{overdue ? 'Overdue' : task.status.replace('_', ' ')}</span>
                 </div>
                 <p className="mt-3 text-xs text-slate-600">
                   {task.dueAt ? `Due ${new Date(task.dueAt).toLocaleDateString()}` : 'No due date'} · Latest demand {new Date(task.latestSearchAt).toLocaleDateString()}
@@ -346,8 +430,25 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
                     </button>
                   )}
                 </div>
+                {task.assignedTo && !['completed', 'cancelled'].includes(task.status) && (
+                  <div className="mt-4 space-y-2 border-t border-slate-200 pt-4">
+                    <textarea rows={2} value={taskNotes[task.id] ?? ''} onChange={(event) => setTaskNotes((current) => ({ ...current, [task.id]: event.target.value }))} className="w-full border border-slate-300 p-2 text-xs" placeholder="Research notes and next action…" />
+                    <div className="flex gap-2">
+                      <div className="relative min-w-0 flex-1"><Link2 className="absolute left-2 top-2.5 h-3.5 w-3.5 text-slate-400" /><input type="url" value={taskEvidence[task.id] ?? ''} onChange={(event) => setTaskEvidence((current) => ({ ...current, [task.id]: event.target.value }))} className="w-full border border-slate-300 py-2 pl-7 pr-2 text-xs" placeholder="Add evidence URL…" /></div>
+                      <button type="button" disabled={busy === `task-${task.id}`} onClick={() => void saveTaskProgress(task)} className="border border-slate-950 px-3 py-2 font-mono text-[8px] font-bold uppercase">Save</button>
+                    </div>
+                  </div>
+                )}
+                <button type="button" onClick={() => setExpandedHistory(expandedHistory === task.id ? '' : task.id)} className="mt-4 inline-flex items-center gap-1 font-mono text-[8px] font-bold uppercase text-violet-800"><History className="h-3.5 w-3.5" /> History ({events.length})</button>
+                {expandedHistory === task.id && (
+                  <ol className="mt-2 border-l-2 border-violet-200 pl-3">
+                    {events.length === 0 ? <li className="text-[10px] text-slate-400">History begins with the next task update.</li> : events.slice(0, 8).map((event) => (
+                      <li key={event.id} className="mb-2 text-[10px] text-slate-600"><strong className="uppercase text-slate-900">{event.eventType.replace('_', ' ')}</strong> · {new Date(event.createdAt).toLocaleString()}{event.previousStatus && event.nextStatus && event.previousStatus !== event.nextStatus ? ` · ${event.previousStatus} → ${event.nextStatus}` : ''}</li>
+                    ))}
+                  </ol>
+                )}
               </article>
-            ))}
+            )})}
           </div>
         )}
       </section>
