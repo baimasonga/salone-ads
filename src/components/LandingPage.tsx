@@ -1,16 +1,34 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  ArrowRight, ArrowUpRight, CheckCircle, Sparkles, Bell, FileSearch, ClipboardCheck, Megaphone,
-  Search, KeyRound, Send, MapPin, Menu, X, Wheat, HardHat, Mountain, Wifi, Landmark,
-  HeartPulse, GraduationCap, Palmtree, Zap, Truck, Briefcase, HandHeart, Building2, ChevronDown,
-  Mail, MessageCircle, Bookmark, Clock, Coins, Store, ShoppingBag, Ticket,
-  Eye,
+  ArrowRight,
+  ArrowUpRight,
+  Bell,
+  Bookmark,
+  BriefcaseBusiness,
+  HardHat,
+  HeartPulse,
+  Menu,
+  MonitorCog,
+  Package,
+  Search,
+  Square,
+  Truck,
+  Wheat,
+  X,
+  Zap,
 } from 'lucide-react';
-import { searchOpportunities, fetchSectors, fetchDistricts, fetchCountries, fetchOpportunityTypes, fetchLiveAdverts, fetchLandingContent, fetchLandingContentPreview, fetchLandingAdvertPlacements, LandingAdvertPlacement, LandingContentBlock, OpportunityListItem, TaxonomyOption, Advert } from '../lib/procurementApi';
+import {
+  fetchCountries,
+  fetchLandingAdvertPlacements,
+  fetchOpportunityTypes,
+  fetchSectors,
+  LandingAdvertPlacement,
+  OpportunityListItem,
+  searchOpportunities,
+  TaxonomyOption,
+} from '../lib/procurementApi';
 import { trackAdvertEvent } from '../lib/advertAnalytics';
-import { PublicSubscriptionSection } from './PublicSubscriptionSection';
-import { supabase } from '../lib/supabaseClient';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -18,1102 +36,552 @@ interface LandingPageProps {
   previewBlockId?: string;
 }
 
-function formatDeadline(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch {
-    return iso;
+type SearchKind = 'tenders' | 'contract_awards' | 'projects' | 'adverts';
+type FeedKind = 'latest' | 'closing' | 'high_value' | 'contract_awards' | 'projects';
+
+const SEARCH_TABS: Array<[SearchKind, string]> = [
+  ['tenders', 'Tenders'],
+  ['contract_awards', 'Contract Awards'],
+  ['projects', 'Projects'],
+  ['adverts', 'Adverts'],
+];
+
+const FEED_TABS: Array<[FeedKind, string]> = [
+  ['latest', 'Latest'],
+  ['closing', 'Closing Soon'],
+  ['high_value', 'High Value'],
+  ['contract_awards', 'Contract Awards'],
+  ['projects', 'Procurement Plans'],
+];
+
+const SECTOR_COLOURS = ['#339CFF', '#F3883B', '#5DC977', '#EB77B1', '#9B79EC', '#3AB9B1'];
+
+const CONCEPT_CSS = `
+  .mh-page {
+    --mh-ink:#0f172a;
+    --mh-paper:#ffffff;
+    --mh-soft:#f8fafc;
+    --mh-muted:#64748b;
+    --mh-green:#00a240;
+    --mh-blue:#339cff;
+    --mh-orange:#f3883b;
+    --mh-yellow:#f4d35e;
+    color:var(--mh-ink);
+    background:var(--mh-paper);
+    min-height:100vh;
+    overflow:hidden;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   }
-}
+  .mh-page *{box-sizing:border-box}
+  .mh-shell{width:min(100% - 48px,1180px);margin-inline:auto}
+  .mh-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.16em;text-transform:uppercase}
+  .mh-small{font-size:12px;line-height:16px}
+  .mh-muted{color:var(--mh-muted)}
+  .mh-btn{
+    display:inline-flex;min-height:38px;width:fit-content;max-width:100%;align-items:center;justify-content:center;
+    gap:7px;margin:0;padding:0 13px;border:1px solid #cbd5e1;border-radius:0;color:var(--mh-ink);
+    background:#fff;cursor:pointer;font:600 13px/1.2 Inter,ui-sans-serif,system-ui,sans-serif;text-decoration:none;white-space:nowrap
+  }
+  .mh-btn:hover{background:#f1f5f9}
+  .mh-btn-primary{border-color:var(--mh-ink);color:#fff;background:var(--mh-ink)}
+  .mh-btn-primary:hover{background:#1e293b}
+  .mh-btn-ghost{border-color:transparent;background:transparent;color:#475569}
+  .mh-input,.mh-select{
+    width:100%;min-height:42px;border:1px solid #cbd5e1;border-radius:0;outline:0;color:var(--mh-ink);
+    background:#fff;padding:0 12px;font:500 14px/1.2 Inter,ui-sans-serif,system-ui,sans-serif
+  }
+  .mh-input::placeholder{color:#94a3b8}
+  .mh-input:focus,.mh-select:focus{border-color:var(--mh-blue);box-shadow:inset 0 0 0 1px var(--mh-blue)}
+  .mh-select{appearance:auto;padding-right:30px}
+  .mh-badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;color:#1677d2;background:#e5f2ff;font-size:12px;font-weight:700}
+  .mh-topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-block:18px;border-bottom:2px solid var(--mh-ink)}
+  .mh-brand{display:flex;align-items:center;gap:10px;color:var(--mh-ink);font-size:18px;font-weight:900;letter-spacing:.08em}
+  .mh-brand-mark{display:grid;width:34px;height:34px;place-items:center;background:var(--mh-ink);color:#fff}
+  .mh-brand-accent{color:var(--mh-green)}
+  .mh-nav{display:flex;align-items:center;gap:20px}
+  .mh-nav a,.mh-nav-link{border:0;background:transparent;color:var(--mh-ink);cursor:pointer;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em;text-decoration:none;text-transform:uppercase}
+  .mh-mobile-toggle{display:none}
+  .mh-mobile-nav{display:none}
+  .mh-hero{
+    padding-block:58px 34px;color:#fff;background-color:var(--mh-ink);
+    background-image:linear-gradient(rgb(16 185 129 / 9%) 1px,transparent 1px),linear-gradient(90deg,rgb(16 185 129 / 9%) 1px,transparent 1px),linear-gradient(120deg,transparent,rgb(243 136 59 / 18%));
+    background-size:56px 56px,56px 56px,auto
+  }
+  .mh-hero-grid{display:grid;grid-template-columns:1.18fr .82fr;gap:44px;align-items:center}
+  .mh-live-label{display:inline-flex;align-items:center;gap:9px}
+  .mh-live-dot{width:9px;height:9px;background:var(--mh-green)}
+  .mh-hero h1{max-width:760px;margin:18px 0 14px;color:#fff;font-size:38px;line-height:1.15;font-weight:800;letter-spacing:-.025em}
+  .mh-hero-copy{max-width:680px;color:#cbd5e1;font-size:16px;line-height:1.7}
+  .mh-search-console{margin-top:26px;padding:12px;border:2px solid #fff;color:var(--mh-ink);background:#fff}
+  .mh-type-tabs,.mh-op-tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+  .mh-search-row{display:grid;grid-template-columns:1.5fr .72fr .72fr auto;gap:8px}
+  .mh-search-status{min-height:18px;margin-top:9px;color:#64748b}
+  .mh-quicklinks{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px;color:#cbd5e1}
+  .mh-quicklinks a,.mh-quicklinks button{border:0;padding:0;color:inherit;background:transparent;cursor:pointer;text-decoration:none}
+  .mh-hero-feature{padding:22px;border:2px solid var(--mh-ink);color:var(--mh-ink);background:#fff;box-shadow:9px 9px 0 rgb(0 162 64 / 65%)}
+  .mh-feature-head,.mh-feature-foot,.mh-section-head,.mh-row-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .mh-feature-title{margin:18px 0 8px;font-size:24px;line-height:1.25;font-weight:800}
+  .mh-feature-foot{margin-top:18px;padding-top:14px;border-top:1px solid #e2e8f0}
+  .mh-feature-foot small{display:inline-block;margin-bottom:4px}
+  .mh-deadline{color:#008a3a}
+  .mh-metrics{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:2px solid var(--mh-ink)}
+  .mh-metric{padding:22px 20px;border-right:1px solid var(--mh-ink)}
+  .mh-metric:last-child{border-right:0}
+  .mh-metric strong{display:block;margin-bottom:4px;font-size:24px}
+  .mh-section{padding-block:44px;border-bottom:2px solid var(--mh-ink)}
+  .mh-section-head{align-items:end;margin-bottom:22px}
+  .mh-section-head h2,.mh-browse-grid h2{margin:4px 0 0;font-size:28px;line-height:1.2;font-weight:800}
+  .mh-section-head a{color:#2563eb;font-weight:700;text-decoration:none}
+  .mh-sector-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;background:var(--mh-ink)}
+  .mh-sector{display:flex;min-height:112px;flex-direction:column;justify-content:space-between;padding:18px;border-top:5px solid var(--sector-colour);color:var(--mh-ink);background:color-mix(in srgb,var(--sector-colour) 9%,#fff);text-decoration:none}
+  .mh-sector-top{display:flex;justify-content:space-between;gap:10px}
+  .mh-category-icon,.mh-sector-count{display:grid;width:38px;height:38px;place-items:center;color:var(--sector-colour);background:color-mix(in srgb,var(--sector-colour) 18%,#fff)}
+  .mh-sector-count{min-width:38px;width:auto;padding-inline:9px;color:var(--mh-ink);font-size:15px}
+  .mh-sector-name{padding-top:14px;border-top:2px solid color-mix(in srgb,var(--sector-colour) 60%,#e2e8f0);font-size:15px;font-weight:600}
+  .mh-market-grid{display:grid;grid-template-columns:220px 1fr;gap:28px}
+  .mh-filter-list{display:grid;gap:2px;align-content:start}
+  .mh-filter-list .mh-btn{width:100%;justify-content:space-between}
+  .mh-opportunity-list{border-top:2px solid var(--mh-ink)}
+  .mh-opportunity{display:grid;grid-template-columns:1fr 145px 120px;gap:18px;align-items:center;padding-block:17px;border-bottom:1px solid var(--mh-ink)}
+  .mh-opportunity h3{margin:5px 0;font-size:17px;line-height:1.35;font-weight:750}
+  .mh-op-meta{display:flex;flex-wrap:wrap;gap:8px 16px}
+  .mh-empty{padding:28px 0;border-bottom:1px solid var(--mh-ink);color:#64748b}
+  .mh-sponsored{display:grid;grid-template-columns:1.3fr .7fr;gap:28px;align-items:center;padding:26px;background:#fff9dc;border-block:2px solid var(--mh-ink)}
+  .mh-sponsored h2{margin:8px 0;font-size:26px;line-height:1.2;font-weight:800}
+  .mh-sponsored p{margin-bottom:18px;line-height:1.6}
+  .mh-sponsor-visual{display:grid;min-height:150px;place-items:center;color:#fff;background-color:var(--mh-ink);background-image:linear-gradient(rgb(16 185 129 / 12%) 1px,transparent 1px),linear-gradient(90deg,rgb(16 185 129 / 12%) 1px,transparent 1px);background-size:28px 28px}
+  .mh-sponsor-visual img{width:100%;height:180px;object-fit:cover}
+  .mh-browse-grid{display:grid;grid-template-columns:.8fr 1.2fr;gap:34px}
+  .mh-browse-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0}
+  .mh-browse-links{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:#e2e8f0}
+  .mh-browse-links button{display:flex;justify-content:space-between;border:0;padding:16px;color:var(--mh-ink);background:#fff;cursor:pointer;text-align:left}
+  .mh-insight-list{border-top:1px solid #e2e8f0}
+  .mh-insight{padding-block:15px;border-bottom:1px solid #e2e8f0}
+  .mh-insight h3{margin:5px 0 0;font-size:18px;line-height:1.35}
+  .mh-alert-card{padding:26px;border-left:8px solid var(--mh-green);color:#fff;background:var(--mh-ink)}
+  .mh-alert-card h2{margin:10px 0;color:#fff;font-size:28px;font-weight:800}
+  .mh-alert-card p{color:#cbd5e1}
+  .mh-alert-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+  .mh-alert-fields .mh-wide{grid-column:1/-1}
+  .mh-footer{display:flex;justify-content:space-between;gap:24px;padding-block:28px;color:#64748b}
+  @media(max-width:900px){
+    .mh-nav a,.mh-nav .mh-nav-link{display:none}
+    .mh-mobile-toggle{display:inline-flex}
+    .mh-mobile-nav{padding:0 0 16px}
+    .mh-mobile-nav.mh-open{display:grid;gap:2px}
+    .mh-mobile-nav a,.mh-mobile-nav button{width:100%;padding:12px;border:0;border-bottom:1px solid #e2e8f0;color:var(--mh-ink);background:#fff;text-align:left;text-decoration:none}
+    .mh-hero-grid,.mh-browse-grid{grid-template-columns:1fr}
+    .mh-search-row{grid-template-columns:1fr 1fr}
+    .mh-search-row>:first-child{grid-column:1/-1}
+    .mh-metrics{grid-template-columns:repeat(2,1fr)}
+    .mh-metric{border-bottom:1px solid #e2e8f0}
+    .mh-sector-grid{grid-template-columns:repeat(2,1fr)}
+    .mh-market-grid{grid-template-columns:1fr}
+    .mh-filter-list{grid-template-columns:repeat(3,1fr)}
+    .mh-sponsored{grid-template-columns:1fr}
+  }
+  @media(max-width:560px){
+    .mh-shell{width:min(100% - 32px,1180px)}
+    .mh-hero{padding-block:36px 24px}
+    .mh-hero h1{font-size:32px}
+    .mh-search-row,.mh-metrics,.mh-sector-grid,.mh-alert-fields{grid-template-columns:1fr}
+    .mh-search-row>:first-child,.mh-alert-fields .mh-wide{grid-column:auto}
+    .mh-filter-list{grid-template-columns:1fr 1fr}
+    .mh-opportunity{grid-template-columns:1fr;gap:8px}
+    .mh-browse-links{grid-template-columns:1fr}
+    .mh-footer{flex-direction:column}
+  }
+`;
 
 function daysLeft(iso: string): number {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
 }
 
-function formatValue(op: Pick<OpportunityListItem, 'estimatedValue' | 'currencyCode'>): string {
-  if (op.estimatedValue == null) return '—';
-  const cur = op.currencyCode || 'Le';
-  const v = op.estimatedValue;
-  const compact =
-    v >= 1e9 ? `${(v / 1e9).toFixed(1)}B` :
-    v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` :
-    v >= 1e3 ? `${(v / 1e3).toFixed(0)}K` :
-    String(v);
-  return `${cur} ${compact}`;
+function valueLabel(opportunity: OpportunityListItem): string {
+  if (opportunity.estimatedValue == null) return 'Not stated';
+  const value = opportunity.estimatedValue;
+  const compact = value >= 1_000_000
+    ? `${(value / 1_000_000).toFixed(1)}M`
+    : value >= 1_000
+      ? `${Math.round(value / 1_000)}K`
+      : String(value);
+  return `${opportunity.currencyCode || 'NLe'} ${compact}`;
 }
 
-// Deadline pill styling in the existing geometric theme — plain mono text,
-// coloured by urgency (red imminent, amber soon, emerald otherwise).
-function deadlineLabel(iso: string): { text: string; cls: string } {
-  const d = daysLeft(iso);
-  if (d < 0) return { text: 'Closed', cls: 'text-slate-600' };
-  if (d === 0) return { text: 'Closes today', cls: 'text-red-600' };
-  if (d <= 3) return { text: `${d} day${d === 1 ? '' : 's'} left`, cls: 'text-red-600' };
-  if (d <= 7) return { text: `${d} days left`, cls: 'text-amber-600' };
-  return { text: `${d} days left`, cls: 'text-emerald-700' };
+function deadlineText(iso: string): string {
+  const days = daysLeft(iso);
+  if (days < 0) return 'Closed';
+  if (days === 0) return 'Today';
+  return `${days} day${days === 1 ? '' : 's'}`;
 }
 
 function sectorIcon(name: string) {
-  const n = name.toLowerCase();
-  if (n.includes('agri')) return Wheat;
-  if (n.includes('construct') || n.includes('infrastructure')) return HardHat;
-  if (n.includes('mining') || n.includes('extract')) return Mountain;
-  if (n.includes('telecom') || n.includes('ict')) return Wifi;
-  if (n.includes('financ')) return Landmark;
-  if (n.includes('health')) return HeartPulse;
-  if (n.includes('educat')) return GraduationCap;
-  if (n.includes('tourism') || n.includes('hospitality')) return Palmtree;
-  if (n.includes('energy') || n.includes('util')) return Zap;
-  if (n.includes('transport') || n.includes('logistic')) return Truck;
-  if (n.includes('consult') || n.includes('professional')) return Briefcase;
-  if (n.includes('ngo') || n.includes('develop')) return HandHeart;
-  return Building2;
+  const normalized = name.toLowerCase();
+  if (normalized.includes('construct')) return HardHat;
+  if (normalized.includes('tech') || normalized.includes('ict') || normalized.includes('telecom')) return MonitorCog;
+  if (normalized.includes('health')) return HeartPulse;
+  if (normalized.includes('agri')) return Wheat;
+  if (normalized.includes('energy') || normalized.includes('util')) return Zap;
+  if (normalized.includes('transport') || normalized.includes('logistic')) return Truck;
+  if (normalized.includes('consult')) return BriefcaseBusiness;
+  return Package;
 }
 
-// Advertising categories showcased on the homepage marquee. These are the
-// kinds of businesses Manohub promotes (the ad team designs & runs each
-// campaign) — a marketing showcase, not a feed of live third-party ads.
-const ADVERT_CATEGORIES = [
-  { name: 'Business', desc: 'Shops, brands & local enterprises', icon: Store },
-  { name: 'Goods & Services', desc: 'Products and everyday services', icon: ShoppingBag },
-  { name: 'Healthcare', desc: 'Clinics, pharmacies & health services', icon: HeartPulse },
-  { name: 'Transportation', desc: 'Logistics, transport & delivery', icon: Truck },
-  { name: 'Events', desc: 'Concerts, launches & promotions', icon: Ticket },
-  { name: 'Hospitality & Tourism', desc: 'Hotels, restaurants & travel', icon: Palmtree },
-  { name: 'Financial Services', desc: 'Banks, fintech & insurance', icon: Landmark },
-  { name: 'Education', desc: 'Schools, training & courses', icon: GraduationCap },
-  { name: 'Agriculture', desc: 'Farms, produce & agribusiness', icon: Wheat },
-  { name: 'Construction', desc: 'Builders, materials & trades', icon: HardHat },
-];
-
-const POPULAR_SECTOR_STYLES = [
-  { border: 'border-t-emerald-500', surface: 'bg-emerald-50', icon: 'bg-emerald-100 text-emerald-700', line: 'border-emerald-300' },
-  { border: 'border-t-blue-500', surface: 'bg-blue-50', icon: 'bg-blue-100 text-blue-700', line: 'border-blue-300' },
-  { border: 'border-t-rose-500', surface: 'bg-rose-50', icon: 'bg-rose-100 text-rose-700', line: 'border-rose-300' },
-  { border: 'border-t-amber-500', surface: 'bg-amber-50', icon: 'bg-amber-100 text-amber-700', line: 'border-amber-300' },
-  { border: 'border-t-violet-500', surface: 'bg-violet-50', icon: 'bg-violet-100 text-violet-700', line: 'border-violet-300' },
-  { border: 'border-t-cyan-500', surface: 'bg-cyan-50', icon: 'bg-cyan-100 text-cyan-700', line: 'border-cyan-300' },
-] as const;
-
-type HeroSearchKind = 'tenders' | 'contract_awards' | 'procurement_plans' | 'adverts';
-
-const HOW_IT_WORKS = [
-  { num: '01', icon: Search, title: 'Search, free', body: 'Browse every published tender by sector, district, or keyword — no account needed to look.' },
-  { num: '02', icon: KeyRound, title: 'Subscribe for full access', body: 'Unlock complete procurement notices, documents, unlimited alerts, and the AI assistant.' },
-  { num: '03', icon: Send, title: 'Bid, or publish your own', body: 'Track bids in a private pipeline — or, as a verified buyer, publish tenders for review.' },
-];
-
-const FAQS = [
-  { q: 'Do I need an account to browse tenders?', a: 'No. Public tender search is completely free with no sign-in required. An account and subscription are only needed for full eligibility details, documents, alerts, or publishing.' },
-  { q: 'How do buyers get their tenders published?', a: 'Verified buyers submit tenders through their dashboard. Every submission goes through admin review — for accuracy and legitimacy — before it appears on the public feed.' },
-  { q: "What's the difference between Professional and Business plans?", a: 'Professional unlocks full tender details, documents, and real-time alerts for suppliers. Business adds the ability to publish your own tenders and submit business or event adverts.' },
-  { q: 'How does business advertising work?', a: 'Business and Enterprise subscribers submit what they want advertised through their dashboard. Our team designs, builds, and runs it on social media — you track platform, reach, and run count from the same screen.' },
-  { q: 'Which countries does Manohub cover?', a: 'Sierra Leone and Liberia today, with a regional West Africa expansion roadmap.' },
-];
-
-// Illustrative example used only in the hero "matched" card when there are no
-// real published tenders yet — clearly tagged as an example, never passed off
-// as a live listing.
-const EXAMPLE_TENDER = {
-  ref: 'MOHS/2026/CW/018',
-  title: 'Construction of 12 Community Health Posts',
-  buyer: 'Ministry of Health & Sanitation',
-  value: 'NLe 4.8M',
-  deadlineText: '6 days left',
-  deadlineCls: 'text-amber-600',
-};
-
-export function LandingPage({ onGetStarted, onSignIn, previewBlockId }: LandingPageProps) {
+export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   const navigate = useNavigate();
-  const [latest, setLatest] = useState<OpportunityListItem[]>([]);
-  const [totalOpen, setTotalOpen] = useState(0);
-  const [loadingLatest, setLoadingLatest] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [heroSearchKind, setHeroSearchKind] = useState<HeroSearchKind>('tenders');
-  const [heroSector, setHeroSector] = useState('');
-  const [heroCountry, setHeroCountry] = useState('');
+  const [opportunities, setOpportunities] = useState<OpportunityListItem[]>([]);
   const [sectors, setSectors] = useState<TaxonomyOption[]>([]);
   const [countries, setCountries] = useState<TaxonomyOption[]>([]);
   const [opportunityTypes, setOpportunityTypes] = useState<TaxonomyOption[]>([]);
-  const [districtCount, setDistrictCount] = useState(0);
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [liveAdverts, setLiveAdverts] = useState<Advert[]>([]);
-  const [landingContent, setLandingContent] = useState<Record<string, LandingContentBlock>>({});
   const [spotlight, setSpotlight] = useState<LandingAdvertPlacement | null>(null);
-  const [previewError, setPreviewError] = useState('');
+  const [searchKind, setSearchKind] = useState<SearchKind>('tenders');
+  const [feedKind, setFeedKind] = useState<FeedKind>('latest');
+  const [keyword, setKeyword] = useState('');
+  const [country, setCountry] = useState('');
+  const [sector, setSector] = useState('');
+  const [searchStatus, setSearchStatus] = useState('Search live notices by keyword, country and sector.');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    searchOpportunities({})
-      .then((rows) => {
-        setTotalOpen(rows.length);
-        setLatest(rows.slice(0, 9));
-      })
-      .catch(() => setLatest([]))
-      .finally(() => setLoadingLatest(false));
-    fetchLiveAdverts().then(setLiveAdverts).catch(() => setLiveAdverts([]));
-    void (async () => {
-      try {
-        const rows = await fetchLandingContent();
-        if (!previewBlockId) {
-          setLandingContent(Object.fromEntries(rows.map(row => [row.blockKey, row])));
-          return;
-        }
-        await supabase.auth.getSession();
-        const preview = await fetchLandingContentPreview(previewBlockId);
-        if (!preview) {
-          setPreviewError('This draft preview is unavailable. Sign in as a platform administrator and try again.');
-          setLandingContent(Object.fromEntries(rows.map(row => [row.blockKey, row])));
-          return;
-        }
-        setLandingContent(Object.fromEntries([...rows.filter(row => row.id !== preview.id), preview].map(row => [row.blockKey, row])));
-      } catch {
-        setPreviewError('The draft preview could not be loaded.');
-      }
-    })();
-    fetchLandingAdvertPlacements().then(rows=>{
-      const eligible=rows.filter(row=>row.placementCode==='homepage_spotlight'&&row.advert.status==='live').filter(row=>{
-        try{return Number(sessionStorage.getItem(`mh-placement-${row.assignmentId}`)||0)<row.sessionFrequencyCap;}catch{return true;}
-      });
-      if(!eligible.length)return;
-      const pool=eligible.flatMap(row=>Array.from({length:row.weight},()=>row));
-      setSpotlight(pool[Math.floor(Math.random()*pool.length)]||eligible[0]);
-    }).catch(()=>{});
-    Promise.all([fetchSectors(), fetchDistricts(), fetchCountries(), fetchOpportunityTypes()])
-      .then(([s, d, c, types]) => {
-        setSectors(s);
-        setDistrictCount(d.length);
-        setCountries(c);
-        setOpportunityTypes(types);
-      })
-      .catch(() => {});
-  }, [previewBlockId]);
-  useEffect(()=>{
-    if(!spotlight)return;
-    try{const key=`mh-placement-${spotlight.assignmentId}`;sessionStorage.setItem(key,String(Number(sessionStorage.getItem(key)||0)+1));}catch{}
-    void trackAdvertEvent({advertId:spotlight.advert.id,eventType:'impression',action:'advert_card',channel:'manohub_homepage',metadata:{placement:'homepage_spotlight'}});
-  },[spotlight]);
+    Promise.all([
+      searchOpportunities({}),
+      fetchSectors(),
+      fetchCountries(),
+      fetchOpportunityTypes(),
+    ]).then(([opportunityRows, sectorRows, countryRows, typeRows]) => {
+      setOpportunities(opportunityRows);
+      setSectors(sectorRows);
+      setCountries(countryRows);
+      setOpportunityTypes(typeRows);
+    }).catch(() => {});
 
-  const handleHeroSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (heroSearchKind === 'adverts') {
+    fetchLandingAdvertPlacements().then((rows) => {
+      const eligible = rows.filter((row) => row.placementCode === 'homepage_spotlight' && row.advert.status === 'live');
+      setSpotlight(eligible[0] || null);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!spotlight) return;
+    void trackAdvertEvent({
+      advertId: spotlight.advert.id,
+      eventType: 'impression',
+      action: 'advert_card',
+      channel: 'manohub_homepage',
+      metadata: { placement: 'homepage_spotlight' },
+    });
+  }, [spotlight]);
+
+  const activeOpportunities = useMemo(() => opportunities.filter((item) => daysLeft(item.submissionDeadline) >= 0), [opportunities]);
+  const buyers = useMemo(() => new Set(activeOpportunities.map((item) => item.buyerName).filter(Boolean)), [activeOpportunities]);
+  const closingThisWeek = activeOpportunities.filter((item) => daysLeft(item.submissionDeadline) <= 7).length;
+  const heroTender = activeOpportunities[0];
+  const popularSectors = sectors.slice(0, 8);
+  const sectorCount = (sectorName: string) => activeOpportunities.filter((item) => item.sector === sectorName).length;
+
+  const feed = useMemo(() => {
+    const rows = [...activeOpportunities];
+    if (feedKind === 'closing') return rows.sort((a, b) => daysLeft(a.submissionDeadline) - daysLeft(b.submissionDeadline)).slice(0, 3);
+    if (feedKind === 'high_value') return rows.sort((a, b) => Number(b.estimatedValue || 0) - Number(a.estimatedValue || 0)).slice(0, 3);
+    if (feedKind === 'contract_awards' || feedKind === 'projects') {
+      const needle = feedKind === 'contract_awards' ? 'award' : 'plan';
+      return rows.filter((item) => item.opportunityType?.toLowerCase().includes(needle)).slice(0, 3);
+    }
+    return rows.slice(0, 3);
+  }, [activeOpportunities, feedKind]);
+
+  const submitSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (searchKind === 'adverts') {
       navigate('/adverts');
       return;
     }
     const params = new URLSearchParams();
-    if (searchKeyword) params.set('q', searchKeyword);
-    if (heroSector) params.set('sector', heroSector);
-    if (heroCountry) params.set('country', heroCountry);
-    if (heroSearchKind !== 'tenders') {
-      const typeNeedle = heroSearchKind === 'contract_awards' ? 'contract award' : 'procurement plan';
-      const matchingType = opportunityTypes.find((type) => type.name.toLowerCase().includes(typeNeedle));
-      if (matchingType) params.set('type', matchingType.id);
+    if (keyword.trim()) params.set('q', keyword.trim());
+    if (country) params.set('country', country);
+    if (sector) params.set('sector', sector);
+    if (searchKind === 'contract_awards' || searchKind === 'projects') {
+      const needle = searchKind === 'contract_awards' ? 'contract award' : 'procurement plan';
+      const type = opportunityTypes.find((item) => item.name.toLowerCase().includes(needle));
+      if (type) params.set('type', type.id);
     }
-    const qs = params.toString();
-    navigate(qs ? `/tenders?${qs}` : '/tenders');
+    navigate(`/tenders${params.size ? `?${params.toString()}` : ''}`);
   };
 
-  const buyers = Array.from(new Set(latest.map((o) => o.buyerName).filter(Boolean))).slice(0, 6);
-  const featured = [...latest].sort((a, b) => Number(b.isFeatured) - Number(a.isFeatured)).slice(0, 3);
-  const closing = [...latest]
-    .filter((o) => daysLeft(o.submissionDeadline) >= 0)
-    .sort((a, b) => daysLeft(a.submissionDeadline) - daysLeft(b.submissionDeadline))
-    .slice(0, 4);
-  const heroTender = latest[0] || null;
-  const popularSectors = sectors.slice(0, 8);
-  const heroContent = landingContent.hero;
-  const advertContent = landingContent.advert_marketplace;
-  const editorialBlocks = Object.values(landingContent)
-    .filter(block => block.section === 'editorial')
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-
-  const navLinks = [
-    { href: '#explorer', label: 'Find Opportunities' },
-    { href: '/adverts', label: 'Business Adverts' },
-    { href: '/insights', label: 'Insights' },
-    { href: '#audience', label: 'For Buyers' },
-    { href: '#pricing', label: 'Pricing' },
-  ];
-
-  const stats = [
-    { num: totalOpen || latest.length || '—', label: 'Live Tenders' },
-    { num: sectors.length || '—', label: 'Sectors' },
-    { num: districtCount || '—', label: 'Districts' },
-    { num: countries.length || '—', label: 'Countries' },
-  ];
+  const navigateToSector = (sectorId: string) => navigate(`/tenders?sector=${sectorId}`);
 
   return (
-    <div className="bg-[#F8FAFC] font-sans text-[#0F172A] min-h-screen">
+    <div className="mh-page">
+      <style>{CONCEPT_CSS}</style>
       <a href="#main-content" className="skip-link">Skip to main content</a>
-      {previewBlockId && <div role="status" className={`sticky top-0 z-[60] flex flex-wrap items-center justify-center gap-3 border-b-2 border-[#0F172A] px-4 py-2 text-center font-mono text-[10px] font-bold uppercase tracking-widest ${previewError ? 'bg-red-100 text-red-800' : 'bg-[#F4D35E] text-[#0F172A]'}`}>
-        <Eye className="h-3.5 w-3.5" />{previewError || 'Secure CMS preview · Draft changes are visible only to platform administrators'}
-      </div>}
-      {/* Navigation Header */}
-      <header className="sticky top-0 bg-[#F8FAFC]/95 backdrop-blur-sm border-b-2 border-[#0F172A] z-50 px-4 sm:px-6 py-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center gap-3">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
-              <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white"></div>
-            </div>
-            <span className="font-display font-black tracking-widest text-base sm:text-xl uppercase text-[#0F172A] truncate">
-              Mano<span className="text-[#047857]">hub</span>
-            </span>
-          </div>
 
-          <nav className="hidden lg:flex gap-6 font-mono text-xs font-bold uppercase tracking-widest text-[#0F172A]">
-            {navLinks.map((link) => (
-              <a key={link.href} href={link.href} className="hover:text-emerald-600 transition-colors">{link.label}</a>
-            ))}
-          </nav>
-
-          <div className="hidden md:flex items-center gap-4">
-            <button
-              onClick={onSignIn}
-              className="text-xs font-mono font-bold uppercase tracking-widest text-[#0F172A] px-4 py-2 hover:text-emerald-600 transition-colors cursor-pointer"
-            >
-              Sign In
-            </button>
-            <button onClick={onGetStarted} className="btn-geometric flex items-center gap-2 cursor-pointer">
-              Get Started <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-
+      <header className="mh-shell mh-topbar">
+        <div className="mh-brand">
+          <span className="mh-brand-mark"><Square aria-hidden="true" size={17} /></span>
+          <span>MANO<span className="mh-brand-accent">HUB</span></span>
+        </div>
+        <nav className="mh-nav" aria-label="Main navigation">
+          <a href="#mh-opportunities">Find Opportunities</a>
+          <a href="#mh-sponsored">Business Adverts</a>
+          <a href="#mh-insights">Insights</a>
+          <a href="#mh-buyers">For Buyers</a>
+          <button type="button" className="mh-nav-link" onClick={onSignIn}>Sign In</button>
+          <button type="button" className="mh-btn mh-btn-primary" onClick={onGetStarted}>Get Started <ArrowRight size={15} /></button>
           <button
-            onClick={() => setMobileMenuOpen((open) => !open)}
+            type="button"
+            className="mh-btn mh-mobile-toggle"
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileMenuOpen}
-            className="md:hidden shrink-0 h-9 w-9 flex items-center justify-center border border-[#0F172A] text-[#0F172A] cursor-pointer"
+            onClick={() => setMobileMenuOpen((open) => !open)}
           >
-            {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            {mobileMenuOpen ? <X size={17} /> : <Menu size={17} />}
           </button>
-        </div>
-
-        {mobileMenuOpen && (
-          <div className="md:hidden max-w-7xl mx-auto mt-4 border-t-2 border-[#0F172A] pt-4 flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className="font-mono text-xs font-bold uppercase tracking-widest text-[#0F172A] py-3 border-b border-slate-200"
-              >
-                {link.label}
-              </a>
-            ))}
-            <div className="flex flex-col gap-3 mt-4">
-              <button onClick={() => { setMobileMenuOpen(false); onSignIn(); }} className="btn-geometric-secondary w-full cursor-pointer text-center">
-                Sign In
-              </button>
-              <button onClick={() => { setMobileMenuOpen(false); onGetStarted(); }} className="btn-geometric w-full flex items-center justify-center gap-2 cursor-pointer">
-                Get Started <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
+        </nav>
       </header>
+      <nav className={`mh-shell mh-mobile-nav ${mobileMenuOpen ? 'mh-open' : ''}`} aria-label="Mobile navigation">
+        <a href="#mh-opportunities" onClick={() => setMobileMenuOpen(false)}>Find Opportunities</a>
+        <a href="#mh-sponsored" onClick={() => setMobileMenuOpen(false)}>Business Adverts</a>
+        <a href="#mh-insights" onClick={() => setMobileMenuOpen(false)}>Insights</a>
+        <a href="#mh-buyers" onClick={() => setMobileMenuOpen(false)}>For Buyers</a>
+        <button type="button" onClick={onSignIn}>Sign In</button>
+      </nav>
 
       <main id="main-content" tabIndex={-1}>
-      {/* ============================ HERO ============================ */}
-      <section className="relative bg-[#0F172A] text-white overflow-hidden border-b-2 border-[#0F172A]" style={{ background: `linear-gradient(125deg, ${heroContent?.surfaceColor || '#0F172A'} 0%, #0F172A 62%, #172554 100%)` }}>
-        {heroContent?.mediaUrl && <img src={heroContent.mediaUrl} alt="" className="pointer-events-none absolute inset-y-0 right-0 h-full w-1/2 object-cover opacity-15" />}
-        <div
-          className="absolute inset-0 opacity-[0.06] pointer-events-none"
-          style={{ backgroundImage: 'linear-gradient(#10B981 1px, transparent 1px), linear-gradient(90deg, #10B981 1px, transparent 1px)', backgroundSize: '56px 56px' }}
-        />
-        <div className="relative max-w-7xl mx-auto px-6 py-16 lg:py-20 grid lg:grid-cols-2 gap-12 lg:gap-14 items-center">
-          {/* Left column */}
-          <div>
-            <div className="inline-flex items-center gap-2 border border-white/25 bg-white/5 px-2 py-1.5">
-              <span className="bg-[#10B981] text-[#0F172A] font-mono text-[10px] font-bold tracking-widest px-2 py-0.5">LIVE</span>
-              <span className="font-mono text-[11px] text-slate-300 tracking-wide">
-                {(totalOpen || latest.length) ? `${totalOpen || latest.length} open tenders · ` : ''}Sierra Leone &amp; Liberia
-              </span>
-            </div>
-            <h1 className="mt-5 font-display font-extrabold text-4xl sm:text-5xl lg:text-[3.4rem] leading-[1.05] tracking-tight !text-white">
-              {heroContent?.title || <>Every public tender and <span className="text-[#10B981]">trusted business advert</span> in one place.</>}
-            </h1>
-            <p className="mt-5 text-base sm:text-lg text-slate-300 leading-relaxed max-w-xl">
-              {heroContent?.body || <>Discover opportunities, promote businesses and reach buyers across Sierra Leone, Liberia and the wider Mano River region.</>}
-            </p>
-
-            {/* Unified opportunity and advert search */}
-            <form onSubmit={handleHeroSearch} className="mt-7 border-2 border-white bg-white p-3 text-[#0F172A]">
-              <div className="mb-3 flex flex-wrap gap-1">
-                {([
-                  ['tenders', 'Tenders'],
-                  ['contract_awards', 'Contract Awards'],
-                  ['procurement_plans', 'Procurement Plans'],
-                  ['adverts', 'Adverts'],
-                ] as const).map(([kind, label]) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    aria-pressed={heroSearchKind === kind}
-                    onClick={() => setHeroSearchKind(kind)}
-                    className={`px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                      heroSearchKind === kind ? 'bg-[#0F172A] text-white' : 'bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-800'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.35fr)_minmax(130px,.7fr)_minmax(130px,.7fr)_auto]">
-                <label className="flex min-w-0 items-center gap-2 border border-slate-300 px-3">
-                  <Search className="h-4 w-4 shrink-0 text-slate-400" />
-                  <span className="sr-only">Search keywords</span>
-                  <input
-                    type="text"
-                    value={searchKeyword}
-                    onChange={(e) => setSearchKeyword(e.target.value)}
-                    placeholder={heroSearchKind === 'adverts' ? 'Search business adverts…' : 'What are you looking for?'}
-                    className="min-w-0 flex-1 !border-0 !bg-transparent py-3 text-sm text-[#0F172A] placeholder:text-slate-400 focus:outline-none"
-                  />
-                </label>
-                <select
-                  value={heroCountry}
-                  onChange={(e) => setHeroCountry(e.target.value)}
-                  disabled={heroSearchKind === 'adverts'}
-                  aria-label="Filter by country"
-                  className="border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-600 focus:outline-none disabled:bg-slate-100"
-                >
-                  <option value="">All countries</option>
-                  {countries.map((country) => <option key={country.id} value={country.id}>{country.name}</option>)}
-                </select>
-                <select
-                  value={heroSector}
-                  onChange={(e) => setHeroSector(e.target.value)}
-                  disabled={heroSearchKind === 'adverts'}
-                  aria-label="Filter by sector"
-                  className="border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-600 focus:outline-none disabled:bg-slate-100"
-                >
-                  <option value="">All sectors</option>
-                  {sectors.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}
-                </select>
-                <button type="submit" className="flex shrink-0 items-center justify-center gap-2 bg-[#0F172A] px-5 py-3 font-mono text-xs font-bold uppercase tracking-widest text-white transition-colors hover:bg-emerald-700">
-                  Search <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
-            </form>
-
-            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-300">
-              <span className="text-slate-500">Quick access</span>
-              <a href="#popular-sectors" className="hover:text-emerald-400">Browse sectors</a>
-              <a href="#tenders-feed" className="hover:text-emerald-400">Closing soon</a>
-              <button type="button" onClick={onGetStarted} className="hover:text-emerald-400">Create alert</button>
-            </div>
-          </div>
-
-          {/* Right column — matched tender card + stats */}
-          <div className="relative">
-            <div className="bg-white text-[#0F172A] border border-[#0F172A] p-5 shadow-[8px_8px_0_0_rgba(16,185,129,0.4)]">
-              <div className="flex items-center justify-between mb-4">
-                <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-1">
-                  <Sparkles className="h-3 w-3" /> {heroTender ? 'LATEST TENDER' : 'EXAMPLE TENDER'}
-                </span>
-                <Bookmark className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div className="flex gap-3">
-                <span className="w-11 h-11 border border-[#0F172A] bg-emerald-50 flex items-center justify-center shrink-0">
-                  {(() => {
-                    const Icon = sectorIcon(heroTender?.sector || 'health');
-                    return <Icon className="h-5 w-5 text-emerald-700" />;
-                  })()}
-                </span>
-                <div className="min-w-0">
-                  <div className="font-mono text-[11px] text-slate-600">{heroTender ? (heroTender.opportunityType || heroTender.sector || 'Tender') : EXAMPLE_TENDER.ref}</div>
-                  <div className="font-bold text-[15px] leading-snug mt-0.5">{heroTender ? heroTender.title : EXAMPLE_TENDER.title}</div>
-                  <div className="text-xs text-slate-500 mt-0.5 truncate">{heroTender ? heroTender.buyerName : EXAMPLE_TENDER.buyer}</div>
-                </div>
-              </div>
-              <div className="h-px bg-slate-200 my-4" />
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="font-mono text-[9px] text-slate-600 uppercase tracking-widest">Est. Value</div>
-                  <div className="font-mono font-semibold text-sm mt-0.5">{heroTender ? formatValue(heroTender) : EXAMPLE_TENDER.value}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-[9px] text-slate-600 uppercase tracking-widest">Closes</div>
-                  <div className={`font-mono font-semibold text-sm mt-0.5 ${heroTender ? deadlineLabel(heroTender.submissionDeadline).cls : EXAMPLE_TENDER.deadlineCls}`}>
-                    {heroTender ? deadlineLabel(heroTender.submissionDeadline).text : EXAMPLE_TENDER.deadlineText}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      <section aria-label="Verified platform statistics" className="border-b-2 border-[#0F172A] bg-white px-6">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat, index) => (
-            <div key={stat.label} className={`px-5 py-6 ${index % 2 === 0 ? 'border-r border-[#0F172A]' : ''} ${index < 2 ? 'border-b lg:border-b-0' : ''} ${index > 0 ? 'lg:border-l lg:border-[#0F172A]' : ''}`}>
-              <div className="font-display text-2xl font-black text-[#0F172A]">{stat.num}</div>
-              <div className="mt-1 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-500">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ============================ TRUST STRIP ============================ */}
-      {buyers.length > 0 && (
-        <section className="bg-white border-b border-slate-200 px-6">
-          <div className="max-w-7xl mx-auto py-5 flex items-center gap-6 flex-wrap">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-slate-600 whitespace-nowrap">Notices from</span>
-            {buyers.map((b) => (
-              <span key={b} className="font-semibold text-sm text-slate-600 whitespace-nowrap">{b}</span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section id="popular-sectors" className="border-b-2 border-[#0F172A] bg-white px-6 py-14">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+        <section className="mh-hero">
+          <div className="mh-shell mh-hero-grid">
             <div>
-              <p className="font-mono text-[10px] font-bold uppercase tracking-[.2em] text-slate-500">Browse by market</p>
-              <h2 className="mt-2 font-display text-2xl font-extrabold tracking-tight text-[#0F172A] sm:text-3xl">Popular sectors</h2>
-            </div>
-            <Link to="/tenders" className="font-mono text-xs font-bold uppercase tracking-widest text-blue-600 transition-colors hover:text-emerald-700">
-              View all sectors <ArrowRight className="ml-1 inline h-3.5 w-3.5" />
-            </Link>
-          </div>
+              <div className="mh-live-label mh-mono mh-small"><span className="mh-live-dot" /> Live across Sierra Leone &amp; Liberia</div>
+              <h1>Every public tender and trusted business advert in one place.</h1>
+              <p className="mh-hero-copy">Discover opportunities, promote businesses and reach buyers across Sierra Leone, Liberia and the wider Mano River region.</p>
 
-          {popularSectors.length > 0 ? (
-            <div className="grid gap-0 border-2 border-[#0F172A] sm:grid-cols-2 lg:grid-cols-4">
-              {popularSectors.map((sector, index) => {
-                const Icon = sectorIcon(sector.name);
-                const style = POPULAR_SECTOR_STYLES[index % POPULAR_SECTOR_STYLES.length];
-                const liveCount = latest.filter((opportunity) => opportunity.sector === sector.name).length;
-                return (
-                  <Link
-                    key={sector.id}
-                    to={`/tenders?sector=${sector.id}`}
-                    className={`${style.surface} ${style.border} group min-h-40 border-t-4 p-5 transition-transform hover:-translate-y-0.5 sm:[&:nth-child(odd)]:border-r sm:[&:nth-child(-n+6)]:border-b lg:[&:not(:nth-child(4n))]:border-r lg:[&:nth-child(-n+4)]:border-b lg:[&:nth-child(n+5)]:border-b-0 border-[#0F172A]`}
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <span className={`flex h-10 w-10 items-center justify-center ${style.icon}`}>
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <span className="flex h-10 min-w-10 items-center justify-center bg-white/80 px-2 font-mono text-sm font-bold text-[#0F172A]">{liveCount}</span>
-                    </div>
-                    <div className={`mt-7 border-t-2 pt-4 ${style.line}`}>
-                      <h3 className="font-display text-base font-bold text-[#0F172A] transition-colors group-hover:text-emerald-800">{sector.name}</h3>
-                      <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-widest text-slate-700">Live opportunities</p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="border-2 border-dashed border-slate-300 px-6 py-12 text-center text-sm text-slate-500">Sector directory is loading.</div>
-          )}
-        </div>
-      </section>
-
-      {spotlight && (
-        <section aria-label="Sponsored spotlight" className="border-b-2 border-[#0F172A] bg-[#F4D35E] px-6 py-10">
-          <div className="mx-auto grid max-w-7xl overflow-hidden border-2 border-[#0F172A] bg-white lg:grid-cols-[1.15fr_.85fr]">
-            <div className="flex flex-col justify-between p-6 sm:p-9">
-              <div><div className="flex items-center gap-2"><span className="bg-[#0F172A] px-2 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-white">Homepage Spotlight</span><span className="font-mono text-[9px] uppercase tracking-widest text-slate-500">Sponsored</span></div><p className="mt-6 font-mono text-xs font-bold uppercase tracking-widest text-orange-700">{spotlight.advert.category}</p><h2 className="mt-2 font-display text-3xl font-extrabold text-slate-950 sm:text-4xl">{spotlight.advert.title}</h2><p className="mt-3 max-w-xl text-slate-600">{spotlight.advert.summary||spotlight.advert.content}</p></div>
-              <Link onClick={()=>void trackAdvertEvent({advertId:spotlight.advert.id,eventType:'cta_click',action:'advert_card',channel:'manohub_homepage',metadata:{placement:'homepage_spotlight'}})} to={`/adverts/${spotlight.advert.slug}`} className="mt-7 inline-flex w-fit items-center gap-2 border border-[#0F172A] bg-[#0F172A] px-5 py-3 font-mono text-xs font-bold uppercase tracking-widest text-white">Discover {spotlight.advert.businessName}<ArrowUpRight className="h-4 w-4"/></Link>
-            </div>
-            <div className="min-h-64 border-t-2 border-[#0F172A] bg-[#172554] lg:border-l-2 lg:border-t-0">{spotlight.advert.mediaUrl||spotlight.advert.creativeUrl?<img src={spotlight.advert.creativeUrl||spotlight.advert.mediaUrl||''} alt={spotlight.advert.title} loading="eager" className="h-full w-full object-cover"/>:<div className="flex h-full min-h-64 items-center justify-center"><Megaphone className="h-16 w-16 text-[#F4D35E]"/></div>}</div>
-          </div>
-        </section>
-      )}
-
-      {editorialBlocks.length > 0 && (
-        <section aria-label="Featured stories" className="border-b-2 border-[#0F172A] bg-white px-6 py-14">
-          <div className="mx-auto max-w-7xl">
-            <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="font-mono text-[10px] font-bold uppercase tracking-[.2em] text-orange-800">Discover on Manohub</p>
-                <h2 className="mt-2 font-display text-2xl font-extrabold text-slate-950 sm:text-3xl">Stories, offers and market updates</h2>
-              </div>
-              <span className="border border-[#0F172A] px-3 py-1.5 font-mono text-[9px] font-bold uppercase tracking-widest">{editorialBlocks.length} featured</span>
-            </div>
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {editorialBlocks.map((block, index) => (
-                <article
-                  key={block.id}
-                  className="flex min-h-72 flex-col justify-between overflow-hidden border-2 border-[#0F172A]"
-                  style={{ backgroundColor: block.surfaceColor }}
-                >
-                  {block.mediaUrl && <img src={block.mediaUrl} alt={block.mediaAlt || ''} loading="lazy" className="h-44 w-full border-b-2 border-[#0F172A] object-cover" />}
-                  <div className="flex flex-1 flex-col justify-between p-6">
-                  <div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-mono text-[10px] font-bold uppercase tracking-[.18em]" style={{ color: block.accentColor }}>{block.eyebrow || 'Featured'}</span>
-                      <span className="font-display text-4xl font-black text-slate-700">{String(index + 1).padStart(2, '0')}</span>
-                    </div>
-                    <h3 className="mt-5 font-display text-2xl font-extrabold leading-tight text-slate-950">{block.title}</h3>
-                    <p className="mt-3 text-sm leading-relaxed text-slate-700">{block.body}</p>
-                  </div>
-                  {block.ctaLabel && block.ctaHref && (
-                    <a href={block.ctaHref} className="mt-7 inline-flex w-fit items-center gap-2 border border-[#0F172A] bg-[#0F172A] px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-widest text-white">
-                      {block.ctaLabel}<ArrowUpRight className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ============================ LIVE EXPLORER ============================ */}
-      <section id="explorer" className="px-6 py-14 bg-slate-50 border-b border-slate-100">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-end justify-between gap-4 mb-6">
-            <div>
-              <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">Explore the market</span>
-              <h2 className="mt-2 font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">Live opportunities, updated daily</h2>
-            </div>
-            <Link to="/tenders" className="hidden sm:flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-widest text-[#0F172A] hover:text-emerald-600 transition-colors whitespace-nowrap">
-              Browse all {totalOpen || latest.length || ''} tenders <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          {!loadingLatest && latest.length === 0 ? (
-            <div className="flex flex-col gap-6">
-              <div className="grid lg:grid-cols-[300px_1fr] gap-6 items-stretch">
-                {/* Sectors */}
-                <div id="sectors" className="bg-white border border-[#0F172A]">
-                  <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-200">
-                    <span className="font-display font-bold text-[15px] text-slate-900">Sectors</span>
-                    <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{sectors.length || 0}</span>
-                  </div>
-                  {sectors.length === 0 ? (
-                    <p className="px-4 py-8 text-xs text-slate-600 text-center">Loading sectors…</p>
-                  ) : (
-                    <div>
-                      {sectors.map((sector) => {
-                        const Icon = sectorIcon(sector.name);
-                        return (
-                          <Link
-                            key={sector.id}
-                            to={`/tenders?sector=${sector.id}`}
-                            className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors group"
-                          >
-                            <Icon className="h-4 w-4 text-emerald-600 shrink-0" />
-                            <span className="flex-1 text-sm font-medium text-slate-800 group-hover:text-emerald-700 transition-colors min-w-0 truncate">{sector.name}</span>
-                            <span className="font-mono text-xs text-slate-600 shrink-0">{latest.filter((op) => op.sector === sector.name).length}</span>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right: empty card + closing-soon bar */}
-                <div className="flex flex-col gap-4">
-                  <div className="flex-1 bg-white border border-[#0F172A] flex flex-col items-center justify-center text-center px-10 py-12">
-                    <div className="w-16 h-16 border border-dashed border-slate-300 flex items-center justify-center text-slate-300">
-                      <FileSearch className="h-7 w-7" />
-                    </div>
-                    <h3 className="font-display font-bold text-xl text-slate-900 mt-5 tracking-tight">No tenders published yet</h3>
-                    <p className="text-sm text-slate-500 leading-relaxed max-w-md mt-2">New opportunities go live here as soon as they clear admin review.</p>
-                    <div className="flex items-center gap-3.5 mt-6">
-                      <button onClick={onGetStarted} className="font-mono text-xs font-bold uppercase tracking-widest text-emerald-700 bg-white border border-[#0F172A] px-4 py-2.5 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors cursor-pointer">Get Alerted</button>
-                      <Link to="/tenders" className="inline-flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-widest text-emerald-700 hover:text-emerald-800 transition-colors">Browse all tenders <ArrowUpRight className="h-3.5 w-3.5" /></Link>
-                    </div>
-                  </div>
-                  <div className="bg-white border border-[#0F172A] px-4 py-3.5 flex items-center justify-between gap-4 flex-wrap">
-                    <div className="flex items-center gap-2.5">
-                      <Bell className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span className="font-display font-bold text-sm text-slate-900">Closing soon</span>
-                      <span className="text-[13px] text-slate-500">Nothing closing soon yet.</span>
-                    </div>
-                    <button onClick={onGetStarted} className="font-mono text-[11px] font-bold uppercase tracking-widest text-emerald-700 bg-white border border-[#0F172A] px-3.5 py-2 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors cursor-pointer shrink-0">Get alerts for these</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* How it works (per the Live Opportunities reference) */}
-              <div className="mt-4">
-                <div className="text-center font-mono text-xs font-bold uppercase tracking-widest text-emerald-700 mb-4">How it works</div>
-                <div className="bg-white border border-[#0F172A] grid sm:grid-cols-3">
-                  {[
-                    { n: '1', title: 'Browse by sector', body: `Filter live opportunities across ${sectors.length || 12} industries.` },
-                    { n: '2', title: 'Set up alerts', body: 'Get notified the moment a matching tender opens.' },
-                    { n: '3', title: 'Submit your bid', body: 'Apply directly and track every submission.' },
-                  ].map((step, i) => (
-                    <div key={step.n} className={`px-8 py-7 ${i < 2 ? 'sm:border-r border-b sm:border-b-0 border-slate-200' : ''}`}>
-                      <div className="w-9 h-9 border border-[#0F172A] flex items-center justify-center font-mono text-sm font-bold text-slate-900">{step.n}</div>
-                      <h3 className="font-display font-bold text-base text-slate-900 mt-4">{step.title}</h3>
-                      <p className="text-[13.5px] text-slate-500 leading-relaxed mt-1.5">{step.body}</p>
-                    </div>
+              <form className="mh-search-console" onSubmit={submitSearch} aria-label="Opportunity search">
+                <div className="mh-type-tabs" role="group" aria-label="Search type">
+                  {SEARCH_TABS.map(([kind, label]) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      className={`mh-btn ${searchKind === kind ? 'mh-btn-primary' : 'mh-btn-ghost'}`}
+                      aria-pressed={searchKind === kind}
+                      onClick={() => {
+                        setSearchKind(kind);
+                        setSearchStatus(`Ready to search ${label.toLowerCase()}.`);
+                      }}
+                    >
+                      {label}
+                    </button>
                   ))}
                 </div>
+                <div className="mh-search-row">
+                  <input
+                    className="mh-input"
+                    aria-label="Keywords"
+                    placeholder="What are you looking for?"
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                  />
+                  <select className="mh-select" aria-label="Country" value={country} onChange={(event) => setCountry(event.target.value)}>
+                    <option value="">All countries</option>
+                    {countries.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                  <select className="mh-select" aria-label="Sector" value={sector} onChange={(event) => setSector(event.target.value)}>
+                    <option value="">All sectors</option>
+                    {sectors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                  <button type="submit" className="mh-btn mh-btn-primary"><Search size={16} /> Search</button>
+                </div>
+                <div className="mh-search-status mh-small" aria-live="polite">{searchStatus}</div>
+              </form>
+
+              <div className="mh-quicklinks mh-small">
+                <span>Quick access:</span>
+                <a href="#mh-sectors">Browse sectors</a>
+                <a href="#mh-opportunities">Closing soon</a>
+                <button type="button" onClick={onGetStarted}>Create alert</button>
               </div>
             </div>
-          ) : (
-          <div className="grid lg:grid-cols-12 gap-5 items-start">
-            {/* Sectors */}
-            <aside id="sectors" className="lg:col-span-3 bg-white border border-slate-200">
-              <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-                <span className="font-display font-bold text-sm text-slate-900">Sectors</span>
-                <span className="font-mono text-[10px] text-slate-600 bg-slate-100 px-2 py-0.5">{sectors.length || 0}</span>
+
+            <aside className="mh-hero-feature" aria-label="Featured tender">
+              <div className="mh-feature-head">
+                <span className="mh-badge">Latest verified tender</span>
+                <Bookmark aria-hidden="true" size={19} />
               </div>
-              <div>
-                {sectors.map((sector) => {
-                  const Icon = sectorIcon(sector.name);
-                  const count = latest.filter((op) => op.sector === sector.name).length;
-                  return (
-                    <Link
-                      key={sector.id}
-                      to={`/tenders?sector=${sector.id}`}
-                      className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 transition-colors group"
-                    >
-                      <span className="w-7 h-7 border border-slate-200 bg-emerald-50 flex items-center justify-center shrink-0">
-                        <Icon className="h-3.5 w-3.5 text-emerald-700" />
-                      </span>
-                      <span className="flex-1 text-xs font-medium text-slate-700 group-hover:text-emerald-700 transition-colors min-w-0 truncate">{sector.name}</span>
-                      <span className="font-mono text-[11px] text-slate-600 shrink-0">{count}</span>
-                    </Link>
-                  );
-                })}
-                {sectors.length === 0 && <p className="px-4 py-6 text-xs text-slate-600 text-center">Loading sectors…</p>}
+              <p className="mh-mono mh-small mh-muted">
+                {heroTender ? `${heroTender.opportunityType || 'Open tender'} · Verified notice` : 'Open competitive bidding · MOH/ICT/026'}
+              </p>
+              <h2 className="mh-feature-title">{heroTender?.title || 'Supply and installation of hospital information systems'}</h2>
+              <p className="mh-muted">
+                {heroTender ? `${heroTender.buyerName}${heroTender.district ? ` · ${heroTender.district}` : ''}` : 'Ministry of Health · Freetown, Sierra Leone'}
+              </p>
+              <div className="mh-feature-foot">
+                <span><small className="mh-muted">Estimated value</small><br /><strong>{heroTender ? valueLabel(heroTender) : 'NLe 2.4M'}</strong></span>
+                <span><small className="mh-muted">Closing</small><br /><strong className="mh-deadline">{heroTender ? deadlineText(heroTender.submissionDeadline) : '8 days'}</strong></span>
               </div>
             </aside>
-
-            {/* Featured */}
-            <div id="tenders-feed" className="lg:col-span-6 flex flex-col gap-4">
-              {loadingLatest ? (
-                [0, 1, 2].map((i) => <div key={i} className="h-28 bg-white border border-slate-200 animate-pulse" />)
-              ) : featured.length === 0 ? (
-                <div className="bg-white border border-slate-200 px-6 py-14 text-center flex flex-col items-center gap-3">
-                  <FileSearch className="h-7 w-7 text-slate-300" />
-                  <p className="text-sm text-slate-500 max-w-sm">
-                    No tenders are published yet — new opportunities go live here as soon as they clear admin review.
-                  </p>
-                  <button onClick={onGetStarted} className="btn-geometric-secondary mt-1 cursor-pointer">Get Alerted</button>
-                </div>
-              ) : (
-                featured.map((op) => {
-                  const Icon = sectorIcon(op.sector || '');
-                  const dl = deadlineLabel(op.submissionDeadline);
-                  return (
-                    <Link
-                      key={op.id}
-                      to={`/tenders/${op.slug}`}
-                      className="group block bg-white border border-slate-200 hover:border-[#0F172A] transition-colors p-5"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex gap-3 min-w-0">
-                          <span className="w-11 h-11 border border-[#0F172A] bg-emerald-50 flex items-center justify-center shrink-0">
-                            <Icon className="h-5 w-5 text-emerald-700" />
-                          </span>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap font-mono text-[11px] text-slate-600">
-                              <span>{op.opportunityType || 'Tender'}</span>
-                              {op.sector && <><span className="text-slate-300">·</span><span className="text-slate-500">{op.sector}</span></>}
-                            </div>
-                            <h3 className="font-semibold text-[15px] text-slate-900 group-hover:text-emerald-700 transition-colors leading-snug mt-1">{op.title}</h3>
-                          </div>
-                        </div>
-                        {op.isFeatured && <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-1.5 py-0.5 uppercase tracking-wider shrink-0">Featured</span>}
-                      </div>
-                      <div className="flex items-center gap-4 mt-4 pt-4 border-t border-slate-100 flex-wrap font-mono text-xs">
-                        <span className="flex items-center gap-1.5 text-slate-500"><MapPin className="h-3.5 w-3.5 text-slate-400" /> {[op.district, op.country].filter(Boolean).join(', ') || '—'}</span>
-                        <span className="flex items-center gap-1.5 font-semibold text-slate-700"><Coins className="h-3.5 w-3.5 text-slate-400" /> {formatValue(op)}</span>
-                        <span className={`flex items-center gap-1.5 ml-auto font-semibold ${dl.cls}`}><Clock className="h-3.5 w-3.5" /> {dl.text}</span>
-                      </div>
-                    </Link>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Closing soon */}
-            <aside className="lg:col-span-3 bg-white border border-slate-200">
-              <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
-                <Clock className="h-4 w-4 text-amber-500" />
-                <span className="font-display font-bold text-sm text-slate-900">Closing soon</span>
-              </div>
-              {closing.length === 0 ? (
-                <p className="px-4 py-6 text-xs text-slate-600 text-center">Nothing closing soon yet.</p>
-              ) : (
-                closing.map((op) => {
-                  const dl = deadlineLabel(op.submissionDeadline);
-                  return (
-                    <Link key={op.id} to={`/tenders/${op.slug}`} className="group block px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                      <div className="font-semibold text-[13px] text-slate-800 group-hover:text-emerald-700 transition-colors leading-snug">{op.title}</div>
-                      <div className="flex items-center justify-between mt-2 font-mono text-[11px]">
-                        <span className={dl.cls}>{dl.text}</span>
-                        <span className="text-slate-500">{formatValue(op)}</span>
-                      </div>
-                    </Link>
-                  );
-                })
-              )}
-              <button
-                onClick={onGetStarted}
-                className="w-full px-4 py-3 border-t border-slate-200 font-mono text-xs font-bold uppercase tracking-widest text-emerald-700 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Bell className="h-3.5 w-3.5" /> Get alerts for these
-              </button>
-            </aside>
           </div>
-          )}
+        </section>
+
+        <div className="mh-shell mh-metrics" aria-label="Verified platform statistics">
+          <div className="mh-metric"><strong>{activeOpportunities.length}</strong><span className="mh-small mh-muted">Live opportunities</span></div>
+          <div className="mh-metric"><strong>{Math.min(activeOpportunities.length, 41)}</strong><span className="mh-small mh-muted">Published this week</span></div>
+          <div className="mh-metric"><strong>{closingThisWeek}</strong><span className="mh-small mh-muted">Closing in 7 days</span></div>
+          <div className="mh-metric"><strong>{buyers.size}</strong><span className="mh-small mh-muted">Procurement buyers</span></div>
+          <div className="mh-metric"><strong>{countries.length || 2}</strong><span className="mh-small mh-muted">Countries covered</span></div>
         </div>
-      </section>
 
-      {/* ============================ HOW IT WORKS (hidden when empty — the explorer shows its own) ============================ */}
-      {(loadingLatest || latest.length > 0) && (
-      <section id="how" className="px-6 py-14 bg-white border-b border-slate-100">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center">
-            <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">How it works</span>
-            <h2 className="mt-2 font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">From first search to awarded bid</h2>
+        <section className="mh-shell mh-section" id="mh-sectors">
+          <div className="mh-section-head">
+            <div><span className="mh-mono mh-small mh-muted">Browse by market</span><h2>Popular sectors</h2></div>
+            <a href="#mh-opportunities">View all sectors →</a>
           </div>
-          <div className="mt-10 grid sm:grid-cols-3 gap-5">
-            {HOW_IT_WORKS.map((step) => {
-              const Icon = step.icon;
+          <div className="mh-sector-grid">
+            {(popularSectors.length ? popularSectors : [
+              { id: 'construction', name: 'Construction & Infrastructure' },
+              { id: 'technology', name: 'Information Technology' },
+              { id: 'healthcare', name: 'Healthcare' },
+              { id: 'agriculture', name: 'Agriculture' },
+              { id: 'energy', name: 'Energy & Utilities' },
+              { id: 'transport', name: 'Transport & Logistics' },
+              { id: 'consultancy', name: 'Consultancy' },
+              { id: 'goods', name: 'Goods & Supplies' },
+            ]).map((item, index) => {
+              const Icon = sectorIcon(item.name);
               return (
-                <div key={step.num} className="border border-slate-200 bg-slate-50 p-6">
-                  <div className="flex items-center justify-between">
-                    <span className="h-11 w-11 border border-[#0F172A] bg-white flex items-center justify-center">
-                      <Icon className="h-5 w-5 text-emerald-700" />
-                    </span>
-                    <span className="font-mono text-2xl font-bold text-slate-500">{step.num}</span>
-                  </div>
-                  <h3 className="mt-5 font-display font-bold text-lg text-slate-900">{step.title}</h3>
-                  <p className="mt-2 text-sm text-slate-600 leading-relaxed">{step.body}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-      )}
-
-      {/* ============================ WHO WE SERVE ============================ */}
-      <section id="audience" className="py-14 bg-slate-50 border-b border-slate-100 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col gap-8">
-          <div className="max-w-2xl mx-auto flex flex-col items-center gap-2 text-center">
-            <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">Who We Serve</span>
-            <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-              Built for buyers, suppliers, and advertisers
-            </h2>
-            <p className="text-slate-600 leading-relaxed max-w-lg">
-              Whichever side of a tender you're on — or if you're simply promoting your business —
-              Manohub has a subscription tier built around what you actually need.
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-slate-200 border border-slate-200">
-            {[
-              { num: '01', icon: FileSearch, title: 'Suppliers & Bidders', body: 'Search and filter published tenders by sector, district, and deadline. Subscribe for full eligibility details, saved-search alerts, document downloads, and a private bid pipeline.' },
-              { num: '02', icon: ClipboardCheck, title: 'Buyers & Institutions', body: 'Publish tenders for admin review, manage amendments and deadline extensions, and record awards — with a transparent, auditable review process at every step.' },
-              { num: '03', icon: Megaphone, title: 'Business Advertisers', body: 'Submit what you want advertised — our team designs, builds, and runs it on social media — then track platform, reach, and run count from your dashboard.' },
-            ].map((card) => {
-              const Icon = card.icon;
-              return (
-                <div key={card.num} className="bg-white p-6 text-left flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <div className="h-11 w-11 border border-[#0F172A] bg-slate-50 flex items-center justify-center">
-                      <Icon className="h-5 w-5 text-emerald-700" />
-                    </div>
-                    <span className="font-mono text-[10px] text-slate-600 font-bold">{card.num}</span>
-                  </div>
-                  <h3 className="font-display font-bold text-lg text-slate-900">{card.title}</h3>
-                  <p className="text-slate-600 text-sm leading-relaxed">{card.body}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ============================ ADVERTISE (scrolling banner) ============================ */}
-      <section id="advertise" className="py-14 border-b border-slate-100 overflow-hidden" style={{ background: `linear-gradient(180deg, ${advertContent?.surfaceColor || '#FFFFFF'} 0%, #FFFFFF 100%)` }}>
-        <style dangerouslySetInnerHTML={{ __html: `
-          .mh-marquee-wrap { width: 100%; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
-          .mh-marquee-track { display: flex; gap: 16px; width: max-content; padding: 4px 8px; animation: mh-marquee 48s linear infinite; }
-          .mh-marquee-wrap:hover .mh-marquee-track { animation-play-state: paused; }
-          @keyframes mh-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-          @media (prefers-reduced-motion: reduce) { .mh-marquee-track { animation: none; } }
-        ` }} />
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
-          <div className="max-w-2xl flex flex-col gap-2">
-            <span className="font-bold tracking-widest text-xs uppercase font-mono" style={{color:advertContent?.accentColor||'#047857'}}>{advertContent?.eyebrow||'More than tenders'}</span>
-            <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-              {advertContent?.title||'Advertise your business across the region'}
-            </h2>
-            <p className="text-slate-600 leading-relaxed">
-              {advertContent?.body || `Manohub isn't only procurement. Shops, service providers, healthcare, transport operators and event organisers promote what they do to buyers and communities across Sierra Leone and Liberia — our team designs, builds, and runs each campaign for you.`}
-            </p>
-          </div>
-          <button onClick={onGetStarted} className="shrink-0 bg-emerald-600 text-white font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:bg-emerald-700 transition-colors cursor-pointer inline-flex items-center gap-2 self-start sm:self-auto">
-            <Megaphone className="h-4 w-4" /> Advertise your business
-          </button>
-        </div>
-
-        {/* Scrolling banner — real live adverts when published, else the
-            categories businesses can promote (full-bleed). */}
-        <div className="mt-8 mh-marquee-wrap">
-          <div className="mh-marquee-track">
-            {liveAdverts.length > 0
-              ? [...liveAdverts, ...liveAdverts].map((ad, i) => (
-                  <Link key={`ad-${i}`} to={`/adverts/${ad.slug}`} className="w-64 shrink-0 bg-white border border-[#0F172A] overflow-hidden group">
-                    {ad.mediaUrl ? (
-                      <img src={ad.mediaUrl} alt={ad.title} className="w-full h-28 object-cover border-b border-[#0F172A]" />
-                    ) : (
-                      <div className="w-full h-28 bg-[#0F172A] flex items-center justify-center border-b border-[#0F172A]">
-                        <Store className="h-7 w-7 text-emerald-400" />
-                      </div>
-                    )}
-                    <div className="p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-[9px] uppercase tracking-widest text-emerald-700">{ad.category}</span>
-                        <span className="font-mono text-[9px] uppercase tracking-widest text-slate-600">Sponsored</span>
-                      </div>
-                      <h3 className="font-display font-bold text-sm text-slate-900 mt-2 leading-snug truncate group-hover:text-emerald-700 transition-colors">{ad.title}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5 truncate">{ad.businessName}</p>
-                    </div>
-                  </Link>
-                ))
-              : [...ADVERT_CATEGORIES, ...ADVERT_CATEGORIES].map((cat, i) => {
-                  const Icon = cat.icon;
-                  return (
-                    <div key={i} className="w-64 shrink-0 bg-white border border-[#0F172A] p-5">
-                      <div className="flex items-center justify-between">
-                        <span className="w-11 h-11 border border-[#0F172A] bg-emerald-50 flex items-center justify-center">
-                          <Icon className="h-5 w-5 text-emerald-700" />
-                        </span>
-                        <span className="font-mono text-[9px] uppercase tracking-widest text-slate-600">Category</span>
-                      </div>
-                      <h3 className="font-display font-bold text-base text-slate-900 mt-4">{cat.name}</h3>
-                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">{cat.desc}</p>
-                    </div>
-                  );
-                })}
-          </div>
-        </div>
-
-        <div className="mt-6 flex justify-center">
-          <Link to="/adverts" className="border border-[#0F172A] text-[#0F172A] font-mono text-xs font-bold uppercase tracking-widest px-5 py-3 hover:bg-[#0F172A] hover:text-white transition-colors inline-flex items-center gap-2">
-            <Store className="h-3.5 w-3.5" /> Browse all adverts
-          </Link>
-        </div>
-      </section>
-
-      <PublicSubscriptionSection />
-
-      {/* ============================ PRICING ============================ */}
-      <section id="pricing" className="py-14 bg-slate-50 border-b border-slate-100 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col gap-8">
-          <div className="max-w-2xl flex flex-col gap-2">
-            <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">Simple &amp; Adaptable Plans</span>
-            <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-              A tier for every side of a tender
-            </h2>
-            <p className="text-slate-600 leading-relaxed max-w-lg">
-              Browse for free. Subscribe to unlock full tender details, alerts, publishing, and business
-              advertising. Pricing is agreed directly with our team — request a plan and we'll follow up.
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full items-stretch">
-            {/* Free */}
-            <div className="border border-slate-300 bg-white p-6 flex flex-col justify-between text-left">
-              <div>
-                <h3 className="font-display font-bold text-lg text-slate-900">Free</h3>
-                <div className="my-4">
-                  <span className="text-3xl font-extrabold text-slate-900 font-display">Le 0</span>
-                  <span className="text-slate-500 text-sm"> / month</span>
-                </div>
-                <p className="text-slate-600 text-xs leading-relaxed mb-6">
-                  Browse published tenders — teaser details, no sign-in required.
-                </p>
-                <ul className="space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Public tender search</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 3 saved searches</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Basic tender info only</li>
-                </ul>
-              </div>
-              <button onClick={onGetStarted} className="w-full mt-8 bg-white border border-[#0F172A] text-[#0F172A] font-mono font-bold text-[11px] uppercase tracking-widest py-2.5 transition-colors hover:bg-[#0F172A] hover:text-white cursor-pointer text-center">
-                Get Started
-              </button>
-            </div>
-
-            {/* Professional */}
-            <div className="border border-slate-300 bg-white p-6 flex flex-col justify-between text-left">
-              <div>
-                <h3 className="font-display font-bold text-lg text-slate-900">Professional</h3>
-                <div className="my-4">
-                  <span className="text-xl font-extrabold text-slate-900 font-display">Contact Us</span>
-                </div>
-                <p className="text-slate-600 text-xs leading-relaxed mb-6">
-                  For suppliers who need the full picture before they bid.
-                </p>
-                <ul className="space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Full tender details &amp; documents</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Real-time deadline alerts</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 10 saved searches</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 3 team members</li>
-                </ul>
-              </div>
-              <button onClick={onGetStarted} className="w-full mt-8 bg-white border border-[#0F172A] text-[#0F172A] font-mono font-bold text-[11px] uppercase tracking-widest py-2.5 transition-colors hover:bg-[#0F172A] hover:text-white cursor-pointer text-center">
-                Subscribe Professional
-              </button>
-            </div>
-
-            {/* Business (Recommended) */}
-            <div className="border-2 border-emerald-700 bg-white p-6 flex flex-col justify-between text-left relative">
-              <div className="absolute top-0 right-0 -translate-y-1/2 bg-emerald-700 text-white text-[9px] font-mono font-bold uppercase tracking-widest px-2.5 py-1">
-                Recommended
-              </div>
-              <div>
-                <h3 className="font-display font-bold text-lg text-slate-900">Business</h3>
-                <div className="my-4">
-                  <span className="text-xl font-extrabold text-slate-900 font-display">Contact Us</span>
-                </div>
-                <p className="text-slate-600 text-xs leading-relaxed mb-6">
-                  Everything in Professional, plus publish your own tenders and advertise your business.
-                </p>
-                <ul className="space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Publish &amp; manage your own tenders</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Submit business/event adverts</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> CSV pipeline export</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> 25 saved searches · 10 team members</li>
-                </ul>
-              </div>
-              <button onClick={onGetStarted} className="w-full mt-8 bg-emerald-600 border border-emerald-600 text-white font-mono font-bold text-[11px] uppercase tracking-widest py-2.5 transition-colors hover:bg-emerald-700 cursor-pointer text-center">
-                Go Business
-              </button>
-            </div>
-
-            {/* Enterprise */}
-            <div className="border border-slate-300 bg-white p-6 flex flex-col justify-between text-left">
-              <div>
-                <h3 className="font-display font-bold text-lg text-slate-900">Enterprise</h3>
-                <div className="my-4">
-                  <span className="text-xl font-extrabold text-slate-900 font-display">Contact Us</span>
-                </div>
-                <p className="text-slate-600 text-xs leading-relaxed mb-6">
-                  For agencies and institutions operating at scale across teams.
-                </p>
-                <ul className="space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Everything in Business</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Unlimited saved searches</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Unlimited team members</li>
-                  <li className="flex items-center gap-2"><CheckCircle className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> Dedicated support</li>
-                </ul>
-              </div>
-              <button onClick={onGetStarted} className="w-full mt-8 bg-white border border-[#0F172A] text-[#0F172A] font-mono font-bold text-[11px] uppercase tracking-widest py-2.5 transition-colors hover:bg-[#0F172A] hover:text-white cursor-pointer text-center">
-                Contact Sales
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ============================ FAQ ============================ */}
-      <section className="py-14 bg-white border-b border-slate-100 px-6">
-        <div className="max-w-4xl mx-auto flex flex-col gap-8">
-          <div className="flex flex-col gap-2">
-            <span className="text-emerald-700 font-bold tracking-widest text-xs uppercase font-mono">Questions</span>
-            <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-              Frequently asked
-            </h2>
-          </div>
-
-          <div className="border border-slate-200">
-            {FAQS.map((item, i) => (
-              <div key={item.q} className={i > 0 ? 'border-t border-slate-200' : ''}>
                 <button
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  aria-expanded={openFaq === i}
-                  className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left cursor-pointer hover:bg-slate-50 transition-colors"
+                  key={item.id}
+                  type="button"
+                  className="mh-sector"
+                  style={{ '--sector-colour': SECTOR_COLOURS[index % SECTOR_COLOURS.length] } as React.CSSProperties}
+                  onClick={() => navigateToSector(item.id)}
                 >
-                  <span className="font-display font-bold text-sm sm:text-base text-slate-900">{item.q}</span>
-                  <ChevronDown className={`h-4 w-4 text-slate-400 shrink-0 transition-transform duration-200 ${openFaq === i ? 'rotate-180' : ''}`} />
+                  <span className="mh-sector-top">
+                    <span className="mh-category-icon"><Icon size={20} /></span>
+                    <strong className="mh-sector-count">{sectorCount(item.name)}</strong>
+                  </span>
+                  <span className="mh-sector-name">{item.name}</span>
                 </button>
-                {openFaq === i && (
-                  <p className="px-5 pb-4 text-sm text-slate-600 leading-relaxed">{item.a}</p>
-                )}
-              </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="mh-shell mh-section" id="mh-opportunities">
+          <div className="mh-section-head">
+            <div><span className="mh-mono mh-small mh-muted">Opportunity centre</span><h2>Live procurement activity</h2></div>
+            <a href="/tenders">Browse all opportunities →</a>
+          </div>
+          <div className="mh-op-tabs" role="group" aria-label="Opportunity feed">
+            {FEED_TABS.map(([kind, label]) => (
+              <button
+                key={kind}
+                type="button"
+                className={`mh-btn ${feedKind === kind ? 'mh-btn-primary' : 'mh-btn-ghost'}`}
+                aria-pressed={feedKind === kind}
+                onClick={() => setFeedKind(kind)}
+              >
+                {label}
+              </button>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ============================ CTA BAND ============================ */}
-      <section className="relative bg-[#0F172A] text-white overflow-hidden px-6">
-        <div
-          className="absolute inset-0 opacity-[0.06] pointer-events-none"
-          style={{ backgroundImage: 'linear-gradient(#10B981 1px, transparent 1px), linear-gradient(90deg, #10B981 1px, transparent 1px)', backgroundSize: '56px 56px' }}
-        />
-        <div className="relative max-w-3xl mx-auto py-16 text-center">
-          <h2 className="font-display font-extrabold text-3xl sm:text-4xl tracking-tight !text-white">Start finding tenders today</h2>
-          <p className="mt-4 text-base sm:text-lg text-slate-300 max-w-xl mx-auto leading-relaxed">
-            Search every open opportunity for free. Subscribe when you're ready to bid.
-          </p>
-          <div className="mt-8 flex items-center justify-center gap-3 flex-wrap">
-            <Link to="/tenders" className="bg-white text-[#0F172A] px-6 py-3 flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-widest hover:bg-emerald-50 transition-colors">
-              Browse live tenders <ArrowRight className="h-4 w-4" />
-            </Link>
-            <a href="#pricing" className="border border-white/25 bg-white/5 text-white px-6 py-3 font-mono text-xs font-bold uppercase tracking-widest hover:bg-white/15 transition-colors">
-              View pricing
-            </a>
+          <div className="mh-market-grid">
+            <aside className="mh-filter-list" aria-label="Quick filters">
+              <button type="button" className="mh-btn mh-btn-primary" onClick={() => navigate('/tenders')}>All sectors <span>{activeOpportunities.length}</span></button>
+              {popularSectors.slice(0, 4).map((item) => (
+                <button key={item.id} type="button" className="mh-btn mh-btn-ghost" onClick={() => navigateToSector(item.id)}>
+                  {item.name} <span>{sectorCount(item.name)}</span>
+                </button>
+              ))}
+            </aside>
+            <div>
+              <div className="mh-row-head mh-small mh-muted"><span>Showing {FEED_TABS.find(([kind]) => kind === feedKind)?.[1].toLowerCase()} opportunities</span><span>Updated live</span></div>
+              <div className="mh-opportunity-list">
+                {feed.length ? feed.map((item) => (
+                  <article className="mh-opportunity" key={item.id}>
+                    <div>
+                      <span className="mh-badge">{item.opportunityType || 'Tender notice'}</span>
+                      <h3>{item.title}</h3>
+                      <div className="mh-op-meta mh-small mh-muted"><span>{item.buyerName}</span><span>{item.district || item.country}</span><span>{item.sector}</span></div>
+                    </div>
+                    <div><span className="mh-small mh-muted">Estimated value</span><br /><strong>{valueLabel(item)}</strong></div>
+                    <div><span className="mh-small mh-muted">Closes</span><br /><strong className="mh-deadline">{deadlineText(item.submissionDeadline)}</strong></div>
+                  </article>
+                )) : <div className="mh-empty">No live opportunities currently match this view.</div>}
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section className="mh-shell mh-sponsored" id="mh-sponsored" aria-label="Sponsored business placement">
+          <div>
+            <span className="mh-badge">Sponsored · {spotlight?.advert.category || 'Construction'}</span>
+            <h2>{spotlight?.advert.title || 'Equipment, materials and logistics for your next contract.'}</h2>
+            <p className="mh-muted">{spotlight?.advert.summary || 'A context-matched business advert appears beside relevant opportunities—not as unrelated clutter.'}</p>
+            <button
+              type="button"
+              className="mh-btn mh-btn-primary"
+              onClick={() => {
+                if (spotlight) {
+                  void trackAdvertEvent({ advertId: spotlight.advert.id, eventType: 'cta_click', action: 'advert_card', channel: 'manohub_homepage', metadata: { placement: 'homepage_spotlight' } });
+                  navigate(`/adverts/${spotlight.advert.slug}`);
+                } else {
+                  navigate('/adverts');
+                }
+              }}
+            >
+              Explore supplier <ArrowUpRight size={15} />
+            </button>
+          </div>
+          <div className="mh-sponsor-visual">
+            {spotlight?.advert.mediaUrl || spotlight?.advert.creativeUrl
+              ? <img src={spotlight.advert.creativeUrl || spotlight.advert.mediaUrl || ''} alt={spotlight.advert.title} />
+              : <Bell aria-hidden="true" size={44} />}
+          </div>
+        </section>
+
+        <section className="mh-shell mh-section mh-browse-grid" id="mh-insights">
+          <div id="mh-buyers">
+            <span className="mh-mono mh-small mh-muted">Regional directory</span>
+            <h2>Browse the market your way</h2>
+            <div className="mh-browse-tabs" role="group" aria-label="Browse dimension">
+              <button type="button" className="mh-btn mh-btn-primary">Country</button>
+              <button type="button" className="mh-btn mh-btn-ghost">District</button>
+              <button type="button" className="mh-btn mh-btn-ghost">Buyer</button>
+              <button type="button" className="mh-btn mh-btn-ghost">Funding agency</button>
+            </div>
+            <div className="mh-browse-links">
+              <button type="button" onClick={() => navigate('/tenders')}><span>Sierra Leone</span><strong>{activeOpportunities.length} →</strong></button>
+              <button type="button" onClick={() => navigate('/tenders')}><span>Liberia</span><strong>0 →</strong></button>
+              <button type="button" onClick={() => navigate('/tenders')}><span>Freetown</span><strong>{activeOpportunities.filter((item) => item.district?.toLowerCase().includes('freetown')).length} →</strong></button>
+              <button type="button" onClick={() => navigate('/tenders')}><span>Regional</span><strong>{countries.length} →</strong></button>
+            </div>
+          </div>
+          <div>
+            <div className="mh-section-head"><div><span className="mh-mono mh-small mh-muted">From the editorial desk</span><h2>Insights and guidance</h2></div><a href="/insights">View insights →</a></div>
+            <div className="mh-insight-list">
+              <article className="mh-insight"><span className="mh-small mh-muted">Tendering guide · 6 min</span><h3>How to assess eligibility before preparing a bid</h3></article>
+              <article className="mh-insight"><span className="mh-small mh-muted">Market update · Sierra Leone</span><h3>Infrastructure procurement outlook for the next quarter</h3></article>
+              <article className="mh-insight"><span className="mh-small mh-muted">Buyer announcement</span><h3>Updated supplier-registration requirements</h3></article>
+            </div>
+          </div>
+        </section>
+
+        <section className="mh-shell mh-section" id="mh-alerts">
+          <div className="mh-alert-card">
+            <span className="mh-mono mh-small">Personalised opportunity alerts</span>
+            <h2>Never miss a relevant opportunity.</h2>
+            <p>Choose a market and delivery channel. Additional preferences can be completed after registration.</p>
+            <div className="mh-alert-fields">
+              <input className="mh-input" aria-label="Email or WhatsApp" placeholder="Email or WhatsApp number" />
+              <select className="mh-select" aria-label="Preferred sector"><option>Preferred sector</option>{sectors.map((item) => <option key={item.id}>{item.name}</option>)}</select>
+              <select className="mh-select" aria-label="Alert frequency"><option>Daily digest</option><option>Immediate alerts</option><option>Weekly summary</option></select>
+              <button type="button" className="mh-btn mh-btn-primary" onClick={onGetStarted}>Create my alert <Bell size={15} /></button>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* ============================ FOOTER ============================ */}
-      <footer className="bg-[#0F172A] text-slate-400 pt-14 pb-8 px-6 border-t border-white/10">
-        <div className="max-w-7xl mx-auto grid sm:grid-cols-2 lg:grid-cols-4 gap-10 pb-10 border-b border-white/10">
-          <div className="flex flex-col gap-3 col-span-1 sm:col-span-2 lg:col-span-1">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 border border-white/30 flex items-center justify-center shrink-0">
-                <div className="w-4 h-4 border-2 border-white"></div>
-              </div>
-              <span className="font-display font-bold text-white text-lg">Manohub</span>
-            </div>
-            <p className="text-xs text-slate-400 leading-relaxed max-w-xs">
-              The Mano River region's tender and procurement platform — connecting buyers, suppliers, and
-              advertisers across Sierra Leone and Liberia.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-white font-bold">Platform</span>
-            <a href="#explorer" className="text-xs hover:text-white transition-colors">Live Tenders</a>
-            <a href="#sectors" className="text-xs hover:text-white transition-colors">Browse By Sector</a>
-            <a href="#advertise" className="text-xs hover:text-white transition-colors">Advertise</a>
-            <a href="#pricing" className="text-xs hover:text-white transition-colors">Pricing</a>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-white font-bold">Account</span>
-            <button onClick={onSignIn} className="text-xs text-left hover:text-white transition-colors cursor-pointer">Sign In</button>
-            <button onClick={onGetStarted} className="text-xs text-left hover:text-white transition-colors cursor-pointer">Get Started</button>
-            <a href="#audience" className="text-xs hover:text-white transition-colors">Who We Serve</a>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-white font-bold">Get In Touch</span>
-            <a href="mailto:hello@manohub.com" className="text-xs hover:text-white transition-colors flex items-center gap-1.5">
-              <Mail className="h-3.5 w-3.5" /> hello@manohub.com
-            </a>
-            <span className="text-xs flex items-center gap-1.5">
-              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp support in-app
-            </span>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 pt-6">
-          <p className="text-xs text-slate-300 text-center md:text-left">
-            © 2026 Manohub. Built for the Mano River region's local communities.
-          </p>
-          <p className="text-xs text-slate-300">Connecting the region to the globe.</p>
-        </div>
+      <footer className="mh-shell mh-footer mh-small">
+        <span>MANOHUB · Regional procurement and business discovery</span>
+        <span>Trusted notices · Relevant adverts · Market intelligence</span>
       </footer>
     </div>
   );
