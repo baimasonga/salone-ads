@@ -315,7 +315,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
               setCheckEmail(false);
               onSwitchMode(mode === 'signin' ? 'signup' : 'signin');
             }}
-            className="font-mono font-bold uppercase text-xs text-[#10B981] hover:underline cursor-pointer focus:outline-hidden"
+            className="font-mono font-bold uppercase text-xs text-[#047857] hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0F172A]"
           >
             {mode === 'signin' ? 'start free 14-day trial' : 'sign in to your portal'}
           </button>
@@ -401,17 +401,20 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
           ) : (
             <>
               {authError && (
-                <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl">{authError}</div>
+                <div role="alert" className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl">{authError}</div>
               )}
               <form className="space-y-6 text-left" onSubmit={handleAuthSubmit}>
                 {mode === 'signup' && (
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700">Full Name</label>
+                    <label htmlFor="auth-full-name" className="block text-sm font-semibold text-slate-700">Full Name</label>
                     <div className="mt-1 relative rounded-md shadow-xs">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <User className="h-4 w-4 text-slate-400" />
                       </div>
                       <input
+                        id="auth-full-name"
+                        name="fullName"
+                        autoComplete="name"
                         type="text"
                         required
                         placeholder="Alhassan Kamara"
@@ -424,12 +427,15 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                 )}
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700">Email Address</label>
+                  <label htmlFor="auth-email" className="block text-sm font-semibold text-slate-700">Email Address</label>
                   <div className="mt-1 relative rounded-md shadow-xs">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Mail className="h-4 w-4 text-slate-400" />
                     </div>
                     <input
+                      id="auth-email"
+                      name="email"
+                      autoComplete="email"
                       type="email"
                       required
                       placeholder="name@salonemail.com"
@@ -441,12 +447,15 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700">Password</label>
+                  <label htmlFor="auth-password" className="block text-sm font-semibold text-slate-700">Password</label>
                   <div className="mt-1 relative rounded-md shadow-xs">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Lock className="h-4 w-4 text-slate-400" />
                     </div>
                     <input
+                      id="auth-password"
+                      name="password"
+                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                       type="password"
                       required
                       minLength={6}
