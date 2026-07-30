@@ -6,6 +6,10 @@ describe('authentication routing', () => {
     expect(getAuthScreenMode('update-password')).toBe('update-password');
   });
 
+  it('preserves the forgot-password request screen mode', () => {
+    expect(getAuthScreenMode('forgot-password')).toBe('forgot-password');
+  });
+
   it('opens the password recovery screen from its callback URL', () => {
     expect(getInitialView('?auth=update-password')).toBe('update-password');
   });
