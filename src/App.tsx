@@ -27,8 +27,9 @@ import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, Socia
 import { clearAllResilienceCaches } from './lib/networkResilience';
 import { buildWorkspaceNavigation } from './config/workspaceNavigation';
 import type { WorkspaceNavigationGroup } from './config/workspaceNavigation';
+import { getAuthScreenMode, getInitialView } from './lib/authRouting';
+import type { AppView } from './lib/authRouting';
 
-type ViewState = 'landing' | 'signin' | 'signup' | 'onboarding' | 'forgot-password' | 'update-password' | 'dashboard';
 const NO_FEATURES = new Set<string>();
 const ADVERTISING_FEATURES = new Set(['business_advertising']);
 
@@ -79,10 +80,7 @@ export default function App() {
 
 function MainApp() {
   const [session, setSession] = useState<Session | null>(null);
-  const [view, setView] = useState<ViewState>(() => {
-    const requestedAuthView = new URLSearchParams(window.location.search).get('auth');
-    return requestedAuthView === 'signin' ? 'signin' : requestedAuthView === 'signup' ? 'signup' : 'landing';
-  });
+  const [view, setView] = useState<AppView>(() => getInitialView(window.location.search));
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState('');
 
@@ -207,10 +205,11 @@ function MainApp() {
     );
   }
 
-  if (view === 'signin' || view === 'signup' || view === 'onboarding' || view === 'forgot-password' || view === 'update-password') {
+  const authScreenMode = getAuthScreenMode(view);
+  if (authScreenMode) {
     return (
       <AuthScreens
-        mode={view === 'onboarding' ? 'onboarding' : view === 'signin' ? 'signin' : 'signup'}
+        mode={authScreenMode}
         onSwitchMode={(mode) => setView(mode)}
         onSuccess={handleOnboardingComplete}
       />

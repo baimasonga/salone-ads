@@ -79,7 +79,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
     setSubmitting(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin,
+        redirectTo: new URL('/?auth=update-password', window.location.origin).toString(),
       });
       if (error) throw error;
       // Keep the response intentionally neutral so the form does not reveal
