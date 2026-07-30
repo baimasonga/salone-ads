@@ -1,5 +1,7 @@
 -- Idempotent lifecycle automation using the existing state machines,
 -- notification centre, audit log, outbox and pg_cron scheduler.
+begin;
+
 create unique index if not exists notifications_automation_key_idx
   on public.notifications(user_id,(metadata->>'automation_key'))
   where metadata ? 'automation_key';
@@ -19,6 +21,7 @@ create table if not exists public.lifecycle_automation_runs (
 alter table public.lifecycle_automation_runs enable row level security;
 revoke all on public.lifecycle_automation_runs from public,anon,authenticated;
 grant select on public.lifecycle_automation_runs to authenticated;
+drop policy if exists lifecycle_automation_runs_admin_read on public.lifecycle_automation_runs;
 create policy lifecycle_automation_runs_admin_read on public.lifecycle_automation_runs
   for select to authenticated using(public.is_platform_admin());
 
@@ -186,3 +189,5 @@ begin
  if v_job is not null then perform cron.unschedule(v_job); end if;
  perform cron.schedule('manohub-lifecycle-automation','15 * * * *','select private.run_lifecycle_automation();');
 end; $$;
+
+commit;

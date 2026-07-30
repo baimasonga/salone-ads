@@ -12,6 +12,11 @@ import { AudienceSubscribersPage } from './AudienceSubscribersPage';
 import { AudienceEmailCampaignsPage } from './AudienceEmailCampaignsPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
 import { NotificationCentre } from '../modules/notifications/NotificationCentre';
+import {
+  campaignStatusOptions,
+  campaignTransitionRequiresReason,
+  canTransitionCampaign,
+} from '../domain/workflows/campaignStatus';
 import { AdminSubscriptionLifecycleWorkspace } from '../modules/subscriptions/AdminSubscriptionLifecycleWorkspace';
 import { QuotaUsagePanel } from '../modules/subscriptions/QuotaUsagePanel';
 import { FinanceLedgerWorkspace } from '../modules/finance/FinanceLedgerWorkspace';
@@ -164,6 +169,7 @@ interface WorkspacesProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   activeOrg: Organization;
+  currentUserId: string;
   isPlatformAdmin: boolean;
   campaigns: Campaign[];
   setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>;
@@ -184,6 +190,7 @@ export function Workspaces({
   activeTab,
   setActiveTab,
   activeOrg,
+  currentUserId,
   isPlatformAdmin,
   campaigns,
   setCampaigns,
@@ -257,11 +264,25 @@ export function Workspaces({
 
   const handleChangeCampaignStatus = async (camp: Campaign, status: Campaign['status']) => {
     if (status === camp.status) return;
+    if (!canTransitionCampaign(camp.status, status)) {
+      setCampFeedback(`Error: a campaign cannot move from ${camp.status} to ${status}.`);
+      setTimeout(() => setCampFeedback(''), 4000);
+      return;
+    }
+
+    // The state machine refuses these transitions without a recorded reason.
+    let rejectionReason: string | undefined;
+    if (campaignTransitionRequiresReason(camp.status, status)) {
+      const entered = window.prompt(`Why is "${camp.name}" moving to ${status}?`)?.trim();
+      if (!entered) return;
+      rejectionReason = entered;
+    }
+
     setCampStatusUpdatingId(camp.id);
     const previous = campaigns;
     setCampaigns(campaigns.map((c) => (c.id === camp.id ? { ...c, status } : c)));
     try {
-      const updated = await updateCampaign(camp.id, { status });
+      const updated = await updateCampaign(camp.id, { status }, { rejectionReason });
       setCampaigns((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
       if (editingCampaignId === camp.id) setNewCampStatus(status);
     } catch (err: any) {
@@ -2339,6 +2360,7 @@ export function Workspaces({
           <>
             <TenderCreationForm
               organizationId={activeOrg.id}
+              currentUserId={currentUserId}
               organizationName={activeOrg.name}
               sectors={tenderSectors}
               countries={tenderCountries}
@@ -3732,19 +3754,18 @@ export function Workspaces({
                   <div>
                     <div className="flex justify-between items-start gap-2 mb-3">
                       <h4 className="font-display font-bold text-slate-900 leading-tight">{camp.name}</h4>
+                      {/* Only the transitions the campaign state machine accepts
+                          are offered; anything else is rejected by the database. */}
                       <select
                         value={camp.status}
-                        disabled={campStatusUpdatingId === camp.id}
+                        aria-label={`Status for ${camp.name}`}
+                        disabled={campStatusUpdatingId === camp.id || campaignStatusOptions(camp.status).length === 1}
                         onChange={(e: any) => handleChangeCampaignStatus(camp, e.target.value)}
-                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border-0 cursor-pointer shrink-0 disabled:opacity-50 ${statusColor[camp.status]}`}
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border-0 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${statusColor[camp.status]}`}
                       >
-                        <option>Draft</option>
-                        <option>Planning</option>
-                        <option>Approved</option>
-                        <option>Scheduled</option>
-                        <option>Active</option>
-                        <option>Completed</option>
-                        <option>Failed</option>
+                        {campaignStatusOptions(camp.status).map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
                       </select>
                     </div>
                     <p className="text-slate-500 text-xs leading-relaxed mb-4">{camp.description}</p>

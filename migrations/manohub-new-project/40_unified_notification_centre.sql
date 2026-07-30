@@ -1,3 +1,5 @@
+begin;
+
 alter table public.notifications
   add column if not exists priority text not null default 'normal',
   add column if not exists action_label text,
@@ -7,6 +9,7 @@ alter table public.notifications drop constraint if exists notifications_status_
 alter table public.notifications add constraint notifications_status_check
   check (status in ('pending', 'sent', 'failed', 'read', 'archived'));
 
+alter table public.notifications drop constraint if exists notifications_priority_check;
 alter table public.notifications add constraint notifications_priority_check
   check (priority in ('low', 'normal', 'high', 'urgent'));
 
@@ -98,11 +101,13 @@ grant select on public.notifications to authenticated;
 
 drop policy if exists "Users can mark their own notifications read" on public.notifications;
 drop policy if exists "Users can view their own notifications" on public.notifications;
+drop policy if exists notifications_owner_read on public.notifications;
 create policy notifications_owner_read on public.notifications
   for select to authenticated
   using (user_id = (select auth.uid()));
 
 drop policy if exists "Users manage their own notification preferences" on public.notification_preferences;
+drop policy if exists notification_preferences_owner_manage on public.notification_preferences;
 create policy notification_preferences_owner_manage on public.notification_preferences
   for all to authenticated
   using (
@@ -113,3 +118,5 @@ create policy notification_preferences_owner_manage on public.notification_prefe
     user_id = (select auth.uid())
     and (public.is_org_member(org_id) or public.is_platform_admin())
   );
+
+commit;

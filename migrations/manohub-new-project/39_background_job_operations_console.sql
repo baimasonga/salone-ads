@@ -1,3 +1,5 @@
+begin;
+
 create or replace function public.admin_list_background_jobs(
   p_status text default null,
   p_limit integer default 50
@@ -60,3 +62,5 @@ $$;
 
 revoke all on function public.admin_list_background_jobs(text, integer) from public, anon;
 grant execute on function public.admin_list_background_jobs(text, integer) to authenticated;
+
+commit;

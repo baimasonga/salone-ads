@@ -1,4 +1,6 @@
 -- Central workflow transition catalogue, enforcement, and immutable history.
+begin;
+
 create table if not exists public.workflow_transition_rules (
   domain text not null,
   from_status text not null,
@@ -31,10 +33,13 @@ alter table public.workflow_transition_rules enable row level security;
 alter table public.workflow_transition_history enable row level security;
 revoke all on public.workflow_transition_rules,public.workflow_transition_history from public,anon,authenticated;
 grant select on public.workflow_transition_rules,public.workflow_transition_history to authenticated;
+drop policy if exists workflow_rules_admin_read on public.workflow_transition_rules;
 create policy workflow_rules_admin_read on public.workflow_transition_rules
   for select to authenticated using(public.is_platform_admin());
+drop policy if exists workflow_history_admin_read on public.workflow_transition_history;
 create policy workflow_history_admin_read on public.workflow_transition_history
   for select to authenticated using(public.is_platform_admin());
+drop policy if exists workflow_history_org_read on public.workflow_transition_history;
 create policy workflow_history_org_read on public.workflow_transition_history
   for select to authenticated using(org_id is not null and public.is_org_member(org_id));
 
@@ -190,3 +195,5 @@ language plpgsql stable security definer set search_path='' as $$ begin
 end; $$;
 revoke all on function public.admin_list_workflow_transitions(text,integer) from public,anon;
 grant execute on function public.admin_list_workflow_transitions(text,integer) to authenticated;
+
+commit;

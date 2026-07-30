@@ -36,16 +36,64 @@ export function readResilienceCache<T>(
   }
 }
 
+// Scopes derived from user input (a search filter combination, for example)
+// would otherwise mint an unbounded number of keys that are never reclaimed,
+// silently exhausting the storage quota. Keep only the newest entries.
+const MAX_CACHE_ENTRIES = 40;
+
+type EvictableStorage = Pick<Storage, 'setItem'> & Partial<Pick<Storage, 'getItem' | 'removeItem' | 'key' | 'length'>>;
+
+function cacheKeys(storage: EvictableStorage): string[] {
+  if (typeof storage.key !== 'function' || typeof storage.length !== 'number') return [];
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key && key.startsWith(CACHE_PREFIX)) keys.push(key);
+  }
+  return keys;
+}
+
+function evictOldestEntries(storage: EvictableStorage, keep: number): void {
+  if (typeof storage.getItem !== 'function' || typeof storage.removeItem !== 'function') return;
+  const entries = cacheKeys(storage).map((key) => {
+    let savedAt = 0;
+    try {
+      savedAt = Number(JSON.parse(storage.getItem!(key) ?? '{}').savedAt) || 0;
+    } catch {
+      savedAt = 0; // unparseable entries are evicted first
+    }
+    return { key, savedAt };
+  });
+  if (entries.length <= keep) return;
+  entries.sort((a, b) => a.savedAt - b.savedAt);
+  for (const entry of entries.slice(0, entries.length - keep)) {
+    try {
+      storage.removeItem!(entry.key);
+    } catch {
+      // Best effort.
+    }
+  }
+}
+
 export function writeResilienceCache<T>(
   scope: string,
   value: T,
-  storage: Pick<Storage, 'setItem'> = window.localStorage,
+  storage: EvictableStorage = window.localStorage,
   now = Date.now(),
 ): void {
+  const payload = JSON.stringify({ savedAt: now, value });
   try {
-    storage.setItem(resilienceCacheKey(scope), JSON.stringify({ savedAt: now, value }));
+    evictOldestEntries(storage, MAX_CACHE_ENTRIES - 1);
+    storage.setItem(resilienceCacheKey(scope), payload);
   } catch {
-    // Storage can be unavailable or full. Network operations must remain usable.
+    // Quota exhausted or storage unavailable. Drop everything we own and make
+    // one more attempt so caching recovers instead of silently staying broken.
+    try {
+      evictOldestEntries(storage, 0);
+      storage.setItem(resilienceCacheKey(scope), payload);
+    } catch {
+      // Storage is genuinely unusable. Network operations must remain usable.
+    }
   }
 }
 
@@ -60,10 +108,30 @@ export function removeResilienceCache(
   }
 }
 
+const TRANSIENT_MESSAGE = /network|fetch|timeout|timed out|connection|offline|load failed/i;
+
+/**
+ * Drop every cached value this module owns. Call on sign-out so unsubmitted
+ * drafts and cached results do not leak to the next person using the browser,
+ * which matters on the shared and public devices this product targets.
+ */
+export function clearAllResilienceCaches(
+  storage: EvictableStorage = window.localStorage,
+): void {
+  try {
+    evictOldestEntries(storage, 0);
+  } catch {
+    // Best effort.
+  }
+}
+
 export function isTransientNetworkError(error: unknown): boolean {
-  if (error instanceof TypeError) return true;
   const message = error instanceof Error ? error.message : String(error);
-  return /network|fetch|timeout|timed out|connection|offline|load failed/i.test(message);
+  // A failed fetch surfaces as a TypeError, but so does an ordinary
+  // programming mistake. Only treat it as transient when the message also
+  // looks like a network failure, otherwise real bugs get retried and
+  // reported to the user as connectivity problems.
+  return TRANSIENT_MESSAGE.test(message);
 }
 
 export async function withNetworkRetry<T>(

@@ -60,10 +60,13 @@ alter table public.restore_exercises enable row level security;
 revoke all on public.platform_incidents, public.platform_incident_events, public.restore_exercises from public, anon, authenticated;
 grant select on public.platform_incidents, public.platform_incident_events, public.restore_exercises to authenticated;
 
+drop policy if exists platform_incidents_admin_read on public.platform_incidents;
 create policy platform_incidents_admin_read on public.platform_incidents
   for select to authenticated using ((select public.is_platform_admin()));
+drop policy if exists platform_incident_events_admin_read on public.platform_incident_events;
 create policy platform_incident_events_admin_read on public.platform_incident_events
   for select to authenticated using ((select public.is_platform_admin()));
+drop policy if exists restore_exercises_admin_read on public.restore_exercises;
 create policy restore_exercises_admin_read on public.restore_exercises
   for select to authenticated using ((select public.is_platform_admin()));
 

@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { requireSupabaseTestEnv } from './tests/supabaseTestEnv';
+
+const { url: supabaseUrl, anonKey: supabaseAnonKey } = requireSupabaseTestEnv();
+
 export default defineConfig({
   testDir: './tests/accessibility',
   fullyParallel: true,
@@ -23,8 +27,8 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       ...process.env,
-      VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL ?? 'https://rffjehmbrycztiekcyho.supabase.co',
-      VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk',
+      VITE_SUPABASE_URL: supabaseUrl,
+      VITE_SUPABASE_ANON_KEY: supabaseAnonKey,
     },
   },
 });

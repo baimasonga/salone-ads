@@ -6,3 +6,11 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Release-gate output
+low-bandwidth-report.json
+performance-report.json
+migration-manifest.json
+playwright-report/
+accessibility-report/
+test-results/

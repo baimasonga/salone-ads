@@ -34,6 +34,7 @@ function renderForm(overrides: {
   render(
     <TenderCreationForm
       organizationId="org-1"
+      currentUserId="user-1"
       organizationName="Health Agency"
       sectors={[{ id: 'health', name: 'Health' }]}
       countries={[{ id: 'sl', name: 'Sierra Leone' }]}
@@ -64,7 +65,8 @@ describe('TenderCreationForm', () => {
 
   it('restores a locally saved tender draft', () => {
     window.localStorage.setItem(
-      'manohub:resilience:v1:tender-draft:org-1',
+      // Drafts are scoped per user as well as per organization.
+      'manohub:resilience:v1:tender-draft:user-1:org-1',
       JSON.stringify({
         savedAt: Date.now(),
         value: {

@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL ?? 'https://rffjehmbrycztiekcyho.supabase.co';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk';
+import { requireSupabaseTestEnv } from './tests/supabaseTestEnv';
+
+const { url: supabaseUrl, anonKey: supabaseAnonKey } = requireSupabaseTestEnv();
 
 export default defineConfig({
   testDir: './tests/e2e',

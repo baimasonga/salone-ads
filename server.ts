@@ -153,6 +153,59 @@ function requestObservability(
   next();
 }
 
+// Central error boundary for synchronous failures and errors forwarded with
+// next(error). Expected client errors may expose their message; unexpected
+// failures receive a stable generic response while details stay in logs.
+// Registered last in startServer so it covers every preceding route.
+function requestErrorBoundary(
+  error: unknown,
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): void {
+  if (res.headersSent) {
+    next(error);
+    return;
+  }
+
+  const operationalError = (error ?? {}) as {
+    status?: number;
+    statusCode?: number;
+    code?: string;
+    message?: string;
+    expose?: boolean;
+    name?: string;
+  };
+  const requestedStatus = operationalError.statusCode ?? operationalError.status ?? 500;
+  const statusCode = requestedStatus >= 400 && requestedStatus <= 599 ? requestedStatus : 500;
+  const requestId = res.locals.requestId || (req as RequestWithContext).requestId;
+  const safeCode = typeof operationalError.code === 'string'
+    && /^[A-Z][A-Z0-9_]{2,63}$/.test(operationalError.code)
+    ? operationalError.code
+    : statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_FAILED';
+  const exposeMessage = statusCode < 500 || operationalError.expose === true;
+
+  structuredLog(statusCode >= 500 ? 'error' : 'warn', 'http.request.failed', {
+    request_id: requestId,
+    method: req.method,
+    path: req.originalUrl.split('?')[0],
+    status_code: statusCode,
+    error_code: safeCode,
+    error_name: operationalError.name || 'Error',
+    error_message: operationalError.message || 'Unknown request failure',
+  });
+
+  res.status(statusCode).json({
+    error: {
+      code: safeCode,
+      message: exposeMessage
+        ? operationalError.message || 'The request could not be completed.'
+        : 'An unexpected server error occurred.',
+      requestId,
+    },
+  });
+}
+
 // Escape a string for safe insertion into an HTML attribute / text node.
 function htmlEscape(s: string): string {
   return String(s || "")
@@ -1084,58 +1137,6 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
     });
   });
 
-  // Central error boundary for synchronous failures and errors forwarded with
-  // next(error). Expected client errors may expose their message; unexpected
-  // failures receive a stable generic response while details stay in logs.
-  app.use((
-    error: unknown,
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction,
-  ) => {
-    if (res.headersSent) {
-      next(error);
-      return;
-    }
-
-    const operationalError = error as {
-      status?: number;
-      statusCode?: number;
-      code?: string;
-      message?: string;
-      expose?: boolean;
-      name?: string;
-    };
-    const requestedStatus = operationalError.statusCode ?? operationalError.status ?? 500;
-    const statusCode = requestedStatus >= 400 && requestedStatus <= 599 ? requestedStatus : 500;
-    const requestId = res.locals.requestId || (req as RequestWithContext).requestId;
-    const safeCode = typeof operationalError.code === 'string'
-      && /^[A-Z][A-Z0-9_]{2,63}$/.test(operationalError.code)
-      ? operationalError.code
-      : statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_FAILED';
-    const exposeMessage = statusCode < 500 || operationalError.expose === true;
-
-    structuredLog(statusCode >= 500 ? 'error' : 'warn', 'http.request.failed', {
-      request_id: requestId,
-      method: req.method,
-      path: req.originalUrl.split('?')[0],
-      status_code: statusCode,
-      error_code: safeCode,
-      error_name: operationalError.name || 'Error',
-      error_message: operationalError.message || 'Unknown request failure',
-    });
-
-    res.status(statusCode).json({
-      error: {
-        code: safeCode,
-        message: exposeMessage
-          ? operationalError.message || 'The request could not be completed.'
-          : 'An unexpected server error occurred.',
-        requestId,
-      },
-    });
-  });
-
   // Vite Middleware Setup
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -1221,6 +1222,11 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  // Express only routes an error to a handler registered after the middleware
+  // that threw, so the boundary has to come last — after the API routes, the
+  // Vite middleware and the SPA fallback.
+  app.use(requestErrorBoundary);
 
   app.listen(PORT, "0.0.0.0", () => {
     structuredLog('info', 'server.started', {

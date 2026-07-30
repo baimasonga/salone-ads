@@ -76,23 +76,44 @@ jobs:
           path: performance-report.json
           if-no-files-found: ignore
           retention-days: 30
+      # Pre-deploy gates run against the CI/staging project. Driving real
+      # browser journeys through production before promoting to it is unsafe,
+      # and it couples every release to production availability.
+      - name: Resolve pre-deploy database target
+        id: dbgate
+        env:
+          CI_SUPABASE_URL: ${{ vars.CI_SUPABASE_URL || vars.STAGING_SUPABASE_URL }}
+          CI_SUPABASE_ANON_KEY: ${{ vars.CI_SUPABASE_ANON_KEY || vars.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$CI_SUPABASE_URL" ] && [ -n "$CI_SUPABASE_ANON_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Pre-deploy database gates skipped::Set CI_SUPABASE_URL and CI_SUPABASE_ANON_KEY (or the STAGING_* equivalents) to run the RLS, journey and accessibility gates before promotion."
+          fi
       - name: Verify runtime RLS boundaries
+        if: steps.dbgate.outputs.configured == 'true'
         run: npm run test:rls
         env:
-          SUPABASE_URL: https://rffjehmbrycztiekcyho.supabase.co
-          SUPABASE_ANON_KEY: sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
+          SUPABASE_URL: ${{ vars.CI_SUPABASE_URL || vars.STAGING_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.CI_SUPABASE_ANON_KEY || vars.STAGING_SUPABASE_ANON_KEY }}
+          RLS_PROBE_EMAIL: ${{ vars.RLS_PROBE_EMAIL }}
+          RLS_PROBE_PASSWORD: ${{ secrets.RLS_PROBE_PASSWORD }}
       - name: Install browser test runtime
+        if: steps.dbgate.outputs.configured == 'true'
         run: npx playwright install --with-deps chromium
       - name: Verify critical user journeys
+        if: steps.dbgate.outputs.configured == 'true'
         run: npm run test:e2e
         env:
-          VITE_SUPABASE_URL: https://rffjehmbrycztiekcyho.supabase.co
-          VITE_SUPABASE_ANON_KEY: sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
+          VITE_SUPABASE_URL: ${{ vars.CI_SUPABASE_URL || vars.STAGING_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.CI_SUPABASE_ANON_KEY || vars.STAGING_SUPABASE_ANON_KEY }}
       - name: Verify public accessibility
+        if: steps.dbgate.outputs.configured == 'true'
         run: npm run test:a11y
         env:
-          VITE_SUPABASE_URL: https://rffjehmbrycztiekcyho.supabase.co
-          VITE_SUPABASE_ANON_KEY: sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
+          VITE_SUPABASE_URL: ${{ vars.CI_SUPABASE_URL || vars.STAGING_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.CI_SUPABASE_ANON_KEY || vars.STAGING_SUPABASE_ANON_KEY }}
       - name: Validate and checksum migrations
         run: node scripts/validate-migrations.mjs > migration-manifest.json
       - name: Validate production Cloudflare release

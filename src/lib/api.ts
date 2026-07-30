@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { campaignStatusFromDb, campaignStatusToDb } from '../domain/workflows/campaignStatus';
 import {
   Organization,
   BrandKit,
@@ -64,22 +65,13 @@ function mapBrandKit(row: any): BrandKit {
 }
 
 function mapCampaign(row: any): Campaign {
-  const statusMap: Record<string, Campaign['status']> = {
-    draft: 'Draft',
-    submitted: 'Planning',
-    approved: 'Approved',
-    active: 'Active',
-    paused: 'Scheduled',
-    completed: 'Completed',
-    rejected: 'Failed',
-  };
   const locations: string[] = row.location_targets ?? [];
   return {
     id: row.id,
     name: row.name,
     description: row.description ?? '',
     objective: row.objective ?? '',
-    status: statusMap[row.status] ?? 'Draft',
+    status: campaignStatusFromDb(row.status),
     totalBudget: Number(row.total_budget) || 0,
     startDate: row.start_date ?? '',
     endDate: row.end_date ?? '',
@@ -192,15 +184,7 @@ function normalizeCampaignObjective(objective: string): 'awareness' | 'traffic' 
 }
 
 function normalizeCampaignStatus(status: Campaign['status']): string {
-  return {
-    Draft: 'draft',
-    Planning: 'submitted',
-    Approved: 'approved',
-    Scheduled: 'approved',
-    Active: 'active',
-    Completed: 'completed',
-    Failed: 'rejected',
-  }[status];
+  return campaignStatusToDb(status);
 }
 
 // --- fetchers ---
@@ -386,9 +370,13 @@ export async function createCampaign(
 
 export async function updateCampaign(
   id: string,
-  patch: Partial<Pick<Campaign, 'name' | 'description' | 'objective' | 'status' | 'totalBudget' | 'startDate' | 'endDate' | 'channels' | 'district' | 'diasporaMarket'>>
+  patch: Partial<Pick<Campaign, 'name' | 'description' | 'objective' | 'status' | 'totalBudget' | 'startDate' | 'endDate' | 'channels' | 'district' | 'diasporaMarket'>>,
+  // The campaign state machine requires a recorded reason before it will
+  // accept a rejection, and reads it from ad_campaigns.rejection_reason.
+  options: { rejectionReason?: string } = {}
 ): Promise<Campaign> {
   const dbPatch: Record<string, unknown> = {};
+  if (options.rejectionReason !== undefined) dbPatch.rejection_reason = options.rejectionReason;
   if (patch.name !== undefined) dbPatch.name = patch.name;
   if (patch.description !== undefined) dbPatch.description = patch.description;
   if (patch.objective !== undefined) dbPatch.objective = normalizeCampaignObjective(patch.objective);

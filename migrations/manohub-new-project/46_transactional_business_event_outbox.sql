@@ -1,4 +1,6 @@
 -- Transactional business-event outbox integrated with the durable job queue.
+begin;
+
 create table if not exists public.business_events (
   id uuid primary key default gen_random_uuid(),
   event_type text not null check(event_type ~ '^[A-Z][A-Za-z0-9]{2,79}$'),
@@ -28,7 +30,9 @@ create index if not exists business_events_admin_idx on public.business_events(s
 alter table public.business_events enable row level security; alter table public.business_event_attempts enable row level security;
 revoke all on public.business_events,public.business_event_attempts from public,anon,authenticated;
 grant select on public.business_events,public.business_event_attempts to authenticated;
+drop policy if exists business_events_admin_read on public.business_events;
 create policy business_events_admin_read on public.business_events for select to authenticated using(public.is_platform_admin());
+drop policy if exists business_event_attempts_admin_read on public.business_event_attempts;
 create policy business_event_attempts_admin_read on public.business_event_attempts for select to authenticated using(public.is_platform_admin());
 
 create or replace function private.emit_business_event(p_event_type text,p_aggregate_type text,p_aggregate_id text,p_org_id uuid,p_payload jsonb,p_idempotency_key text,p_correlation_id uuid default gen_random_uuid(),p_causation_id uuid default null)
@@ -104,3 +108,5 @@ create or replace function public.admin_replay_business_event(p_event_id uuid) r
  update public.business_events set status='pending',attempts=0,available_at=now(),locked_at=null,locked_by=null,last_error=null,updated_at=now() where id=p_event_id and status in ('failed','dead_letter'); get diagnostics n=row_count;
  if n=1 then perform private.enqueue_background_job('business_event.dispatch',jsonb_build_object('event_id',p_event_id),'replay:'||p_event_id::text||':'||extract(epoch from now())::bigint,now(),5,10::smallint); end if; return n=1; end; $$;
 revoke all on function public.admin_replay_business_event(uuid) from public,anon; grant execute on function public.admin_replay_business_event(uuid) to authenticated;
+
+commit;

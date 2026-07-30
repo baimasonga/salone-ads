@@ -1,4 +1,6 @@
 -- Organization lifecycle, recoverable closure, ownership transfer and support recovery.
+begin;
+
 alter table public.organizations
   add column if not exists status text not null default 'active',
   add column if not exists status_reason text,
@@ -10,6 +12,7 @@ alter table public.organizations
 alter table public.organizations drop constraint if exists organizations_status_check;
 alter table public.organizations add constraint organizations_status_check
   check(status in ('active','suspended','recovery_pending','closed'));
+alter table public.organizations drop constraint if exists organizations_status_reason_check;
 alter table public.organizations add constraint organizations_status_reason_check
   check(status_reason is null or length(status_reason)<=1000);
 create index if not exists organizations_lifecycle_idx on public.organizations(status,updated_at desc);
@@ -49,12 +52,16 @@ alter table public.organization_lifecycle_events enable row level security;
 alter table public.organization_recovery_requests enable row level security;
 revoke all on public.organization_lifecycle_events,public.organization_recovery_requests from public,anon,authenticated;
 grant select on public.organization_lifecycle_events,public.organization_recovery_requests to authenticated;
+drop policy if exists organization_lifecycle_admin_read on public.organization_lifecycle_events;
 create policy organization_lifecycle_admin_read on public.organization_lifecycle_events
   for select to authenticated using(public.is_platform_admin());
+drop policy if exists organization_lifecycle_member_read on public.organization_lifecycle_events;
 create policy organization_lifecycle_member_read on public.organization_lifecycle_events
   for select to authenticated using(public.is_org_member(org_id));
+drop policy if exists organization_recovery_admin_read on public.organization_recovery_requests;
 create policy organization_recovery_admin_read on public.organization_recovery_requests
   for select to authenticated using(public.is_platform_admin());
+drop policy if exists organization_recovery_owner_read on public.organization_recovery_requests;
 create policy organization_recovery_owner_read on public.organization_recovery_requests
   for select to authenticated using(exists(
     select 1 from public.organization_members m where m.org_id=organization_recovery_requests.org_id
@@ -267,3 +274,5 @@ language plpgsql stable security definer set search_path='' as $$ begin
 end; $$;
 revoke all on function public.admin_list_organizations(text,text,integer) from public,anon;
 grant execute on function public.admin_list_organizations(text,text,integer) to authenticated;
+
+commit;

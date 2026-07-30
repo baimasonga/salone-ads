@@ -207,9 +207,14 @@ table,
   transform: translateY(0);
 }
 
+/* WCAG 2.2 SC 1.4.11 needs at least 3:1 against adjacent colours. The former
+   #f4d35e ring measured about 1.4:1 on the white surfaces used throughout the
+   product. #0F172A reaches roughly 16.7:1 on white, and the paired white
+   outer ring keeps the indicator visible on dark and emerald backgrounds. */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 3px solid #f4d35e !important;
-  outline-offset: 3px !important;
+  outline: 3px solid #0f172a !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 6px #ffffff, 0 0 0 8px #0f172a !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

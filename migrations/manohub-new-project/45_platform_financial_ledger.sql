@@ -1,4 +1,6 @@
 -- Unified append-only ledger for subscriptions, advertising and managed services.
+begin;
+
 create table if not exists public.commercial_invoices (
   id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id) on delete restrict,
   invoice_number text not null unique, source_type text not null check(source_type in ('subscription','advertising','managed_service','manual')),
@@ -43,13 +45,19 @@ alter table public.commercial_payments enable row level security; alter table pu
 alter table public.commercial_ledger_entries enable row level security;
 revoke all on public.commercial_invoices,public.commercial_invoice_lines,public.commercial_payments,public.commercial_payment_allocations,public.commercial_ledger_entries from public,anon,authenticated;
 grant select on public.commercial_invoices,public.commercial_invoice_lines,public.commercial_payments,public.commercial_payment_allocations,public.commercial_ledger_entries to authenticated;
+drop policy if exists commercial_invoices_read on public.commercial_invoices;
 create policy commercial_invoices_read on public.commercial_invoices for select to authenticated using(public.is_platform_admin() or public.is_org_member(org_id));
+drop policy if exists commercial_payments_read on public.commercial_payments;
 create policy commercial_payments_read on public.commercial_payments for select to authenticated using(public.is_platform_admin() or public.is_org_member(org_id));
+drop policy if exists commercial_ledger_read on public.commercial_ledger_entries;
 create policy commercial_ledger_read on public.commercial_ledger_entries for select to authenticated using(public.is_platform_admin() or public.is_org_member(org_id));
+drop policy if exists commercial_lines_read on public.commercial_invoice_lines;
 create policy commercial_lines_read on public.commercial_invoice_lines for select to authenticated using(exists(select 1 from public.commercial_invoices i where i.id=invoice_id and (public.is_platform_admin() or public.is_org_member(i.org_id))));
+drop policy if exists commercial_allocations_read on public.commercial_payment_allocations;
 create policy commercial_allocations_read on public.commercial_payment_allocations for select to authenticated using(exists(select 1 from public.commercial_invoices i where i.id=invoice_id and (public.is_platform_admin() or public.is_org_member(i.org_id))));
 create or replace function private.prevent_commercial_ledger_mutation() returns trigger language plpgsql security definer set search_path='' as $$ begin raise exception 'Commercial ledger entries are immutable'; end; $$;
 revoke all on function private.prevent_commercial_ledger_mutation() from public,anon,authenticated;
+drop trigger if exists commercial_ledger_immutable on public.commercial_ledger_entries;
 create trigger commercial_ledger_immutable before update or delete on public.commercial_ledger_entries for each row execute function private.prevent_commercial_ledger_mutation();
 create or replace function public.record_commercial_payment(p_invoice_id uuid,p_reference text,p_method text,p_amount numeric)
 returns uuid language plpgsql security definer set search_path='' as $$ declare v_i public.commercial_invoices; v_payment uuid; v_paid numeric; begin
@@ -63,3 +71,4 @@ returns uuid language plpgsql security definer set search_path='' as $$ declare 
  return v_payment; end; $$;
 revoke all on function public.record_commercial_payment(uuid,text,text,numeric) from public,anon; grant execute on function public.record_commercial_payment(uuid,text,text,numeric) to authenticated;
 
+commit;

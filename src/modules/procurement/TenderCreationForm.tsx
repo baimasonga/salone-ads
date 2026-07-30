@@ -22,6 +22,7 @@ import {
 
 interface TenderCreationFormProps {
   organizationId: string;
+  currentUserId: string;
   organizationName: string;
   sectors: TaxonomyOption[];
   countries: TaxonomyOption[];
@@ -61,6 +62,7 @@ const TENDER_DRAFT_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 
 export function TenderCreationForm({
   organizationId,
+  currentUserId,
   organizationName,
   sectors,
   countries,
@@ -74,7 +76,9 @@ export function TenderCreationForm({
   onCreated,
   onFeedback,
 }: TenderCreationFormProps) {
-  const draftScope = `tender-draft:${organizationId}`;
+  // Scoped per user as well as per organization: a shared or public device
+  // must not surface one person's unsubmitted tender to the next.
+  const draftScope = `tender-draft:${currentUserId}:${organizationId}`;
   const savedDraft = useMemo(
     () => readResilienceCache<TenderDraft>(draftScope, TENDER_DRAFT_MAX_AGE),
     [draftScope],

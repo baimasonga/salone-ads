@@ -24,6 +24,7 @@ import {
 import { fetchMyNotifications, markNotificationRead, AppNotification, hasFeature } from './lib/procurementApi';
 import { CmsTeamRole, fetchCmsCurrentRole } from './lib/cmsApi';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
+import { clearAllResilienceCaches } from './lib/networkResilience';
 import { buildWorkspaceNavigation } from './config/workspaceNavigation';
 import type { WorkspaceNavigationGroup } from './config/workspaceNavigation';
 
@@ -178,6 +179,9 @@ function MainApp() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    // Unsubmitted drafts and cached results must not survive into the next
+    // person's session on a shared device.
+    clearAllResilienceCaches();
     setActiveTab('overview');
   };
 
@@ -208,7 +212,9 @@ function MainApp() {
     );
   }
 
-  if (workspaceLoading || !activeOrg || !brandKit) {
+  // The dashboard view is only ever set from loadWorkspace with a live
+  // session, so this also narrows `session` for the workspace props below.
+  if (workspaceLoading || !session || !activeOrg || !brandKit) {
     return (
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center gap-4 border-4 md:border-8 border-[#0F172A]">
         {workspaceError ? (
@@ -258,6 +264,7 @@ function MainApp() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         activeOrg={activeOrg}
+        currentUserId={session.user.id}
         isPlatformAdmin={isPlatformAdmin}
         campaigns={campaigns}
         setCampaigns={setCampaigns}

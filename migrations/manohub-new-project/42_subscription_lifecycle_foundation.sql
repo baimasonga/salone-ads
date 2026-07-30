@@ -1,5 +1,7 @@
 -- Formal organization subscription lifecycle, immutable history and guarded transitions.
 
+begin;
+
 alter table public.subscriptions
   add column if not exists trial_ends_at date,
   add column if not exists grace_ends_at date,
@@ -14,8 +16,10 @@ alter table public.subscriptions
 alter table public.subscriptions drop constraint if exists subscriptions_status_check;
 alter table public.subscriptions add constraint subscriptions_status_check
   check (status in ('pending', 'trialing', 'active', 'past_due', 'grace_period', 'suspended', 'cancelled', 'expired'));
+alter table public.subscriptions drop constraint if exists subscriptions_billing_contact_email_check;
 alter table public.subscriptions add constraint subscriptions_billing_contact_email_check
   check (billing_contact_email is null or length(billing_contact_email) <= 254);
+alter table public.subscriptions drop constraint if exists subscriptions_suspension_reason_check;
 alter table public.subscriptions add constraint subscriptions_suspension_reason_check
   check (suspension_reason is null or length(suspension_reason) <= 1000);
 
@@ -47,8 +51,10 @@ alter table public.subscription_events enable row level security;
 revoke insert, update, delete, truncate on public.subscription_events from anon, authenticated;
 grant select on public.subscription_events to authenticated;
 
+drop policy if exists subscription_events_admin_read on public.subscription_events;
 create policy subscription_events_admin_read on public.subscription_events
   for select to authenticated using ((select public.is_platform_admin()));
+drop policy if exists subscription_events_org_read on public.subscription_events;
 create policy subscription_events_org_read on public.subscription_events
   for select to authenticated using ((select public.is_org_member(org_id)));
 
@@ -178,3 +184,4 @@ revoke update on public.subscriptions from authenticated;
 grant select, insert on public.subscriptions to authenticated;
 grant update (notes, billing_contact_name, billing_contact_email) on public.subscriptions to authenticated;
 
+commit;

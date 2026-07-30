@@ -1,5 +1,7 @@
 -- Central plan quotas, organization overrides and metered usage.
 
+begin;
+
 create table if not exists public.organization_quota_overrides (
   org_id uuid not null references public.organizations(id) on delete cascade,
   feature_key text not null,
@@ -43,12 +45,16 @@ alter table public.organization_usage_events enable row level security;
 revoke all on public.organization_quota_overrides, public.organization_usage_meters, public.organization_usage_events from public, anon, authenticated;
 grant select on public.organization_quota_overrides, public.organization_usage_meters to authenticated;
 
+drop policy if exists quota_overrides_admin_all on public.organization_quota_overrides;
 create policy quota_overrides_admin_all on public.organization_quota_overrides
   for all to authenticated using ((select public.is_platform_admin())) with check ((select public.is_platform_admin()));
+drop policy if exists quota_overrides_org_read on public.organization_quota_overrides;
 create policy quota_overrides_org_read on public.organization_quota_overrides
   for select to authenticated using ((select public.is_org_member(org_id)));
+drop policy if exists usage_meters_admin_read on public.organization_usage_meters;
 create policy usage_meters_admin_read on public.organization_usage_meters
   for select to authenticated using ((select public.is_platform_admin()));
+drop policy if exists usage_meters_org_read on public.organization_usage_meters;
 create policy usage_meters_org_read on public.organization_usage_meters
   for select to authenticated using ((select public.is_org_member(org_id)));
 
@@ -147,3 +153,5 @@ end;
 $$;
 revoke all on function public.set_org_quota_override(uuid,text,integer,text,timestamptz) from public, anon;
 grant execute on function public.set_org_quota_override(uuid,text,integer,text,timestamptz) to authenticated;
+
+commit;
