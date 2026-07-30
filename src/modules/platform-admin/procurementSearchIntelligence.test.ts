@@ -30,5 +30,6 @@ describe('procurement search intelligence', () => {
     expect(workspace).toContain('Content gaps to address');
     expect(workspace).toContain('Demand by sector');
     expect(workspace).toContain('Demand by location');
+    expect(workspace).toContain('anonymous or signed-in visitors');
   });
 });
