@@ -9,7 +9,9 @@ import {
   Globe2,
   LoaderCircle,
   Plus,
+  Radar,
   ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import {
   createOpportunityIngestionItem,
@@ -17,10 +19,12 @@ import {
   fetchOpportunityIngestionItems,
   fetchOpportunitySources,
   promoteOpportunityIngestionItem,
+  recordOpportunitySourceCheck,
   submitOpportunityIngestionItem,
   type OpportunityIngestionItem,
   type OpportunitySource,
 } from '../../lib/procurementApi';
+import { extractOpportunityFromText } from './opportunityExtraction';
 
 interface OpportunityIngestionWorkspaceProps {
   isPlatformAdmin: boolean;
@@ -46,6 +50,11 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
   const [buyerName, setBuyerName] = useState('');
   const [summary, setSummary] = useState('');
   const [deadline, setDeadline] = useState('');
+  const [rawText, setRawText] = useState('');
+  const [externalReference, setExternalReference] = useState('');
+  const [extractionConfidence, setExtractionConfidence] = useState<number | null>(null);
+  const [extractedFields, setExtractedFields] = useState<string[]>([]);
+  const [checkStatuses, setCheckStatuses] = useState<Record<string, 'success' | 'no_change' | 'blocked' | 'error'>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +117,11 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
         title,
         buyerName,
         summary,
+        externalReference,
+        rawText,
+        extractionMethod: extractionConfidence == null ? 'manual' : 'assisted_text',
+        extractionConfidence: extractionConfidence ?? undefined,
+        extractedFields,
         submissionDeadline: deadline ? new Date(deadline).toISOString() : undefined,
       });
       setItems((current) => [item, ...current]);
@@ -116,9 +130,45 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
       setSummary('');
       setDeadline('');
       setItemUrl('');
+      setRawText('');
+      setExternalReference('');
+      setExtractionConfidence(null);
+      setExtractedFields([]);
       setFeedback('Opportunity draft captured. Review its quality checks before submission.');
     } catch (error) {
       setFeedback(`Error: ${message(error, 'Could not capture opportunity.')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const extractDraft = () => {
+    const result = extractOpportunityFromText(rawText);
+    setTitle(result.title);
+    setBuyerName(result.buyerName);
+    setDeadline(result.submissionDeadline);
+    setItemUrl(result.sourceUrl);
+    setExternalReference(result.externalReference);
+    setSummary(result.summary);
+    setExtractionConfidence(result.confidence);
+    setExtractedFields(result.detectedFields);
+    setFeedback(result.detectedFields.length > 0
+      ? `Assisted extraction found ${result.detectedFields.length} fields at ${result.confidence}% confidence. Review every field before capture.`
+      : 'Error: No labelled procurement fields were detected. Enter the notice details manually.');
+  };
+
+  const recordCheck = async (source: OpportunitySource) => {
+    setBusy(`check-${source.id}`);
+    setFeedback('');
+    try {
+      await recordOpportunitySourceCheck({
+        sourceId: source.id,
+        status: checkStatuses[source.id] ?? 'no_change',
+      });
+      await load();
+      setFeedback(`Monitoring check recorded for ${source.name}.`);
+    } catch (error) {
+      setFeedback(`Error: ${message(error, 'Could not record source check.')}`);
     } finally {
       setBusy('');
     }
@@ -211,16 +261,68 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
             <FilePlus2 className="h-5 w-5 text-emerald-600" />
             <div><p className="font-mono text-[9px] font-bold uppercase text-emerald-700">Research queue</p><h3 className="font-display text-lg font-extrabold">Capture opportunity</h3></div>
           </div>
+          <div className="mt-5 border-2 border-violet-300 bg-violet-50 p-4">
+            <div className="flex items-start gap-3">
+              <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-violet-700" />
+              <div>
+                <p className="font-mono text-[9px] font-bold uppercase tracking-widest text-violet-700">Assisted extraction</p>
+                <p className="mt-1 text-xs leading-5 text-violet-950">Paste notice text with labelled fields such as Tender Title, Procuring Entity and Submission Deadline. Extraction runs locally and never publishes.</p>
+              </div>
+            </div>
+            <textarea value={rawText} onChange={(event) => {
+              setRawText(event.target.value);
+              setExtractionConfidence(null);
+              setExtractedFields([]);
+            }} rows={5} className="mt-3 w-full border-2 border-violet-300 bg-white p-3 text-xs" placeholder="Paste the source notice text here…" />
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button type="button" disabled={!rawText.trim()} onClick={extractDraft} className="inline-flex items-center gap-2 bg-violet-700 px-4 py-2 font-mono text-[9px] font-bold uppercase text-white disabled:opacity-40"><Sparkles className="h-4 w-4" />Extract fields</button>
+              {extractionConfidence != null && <span className="font-mono text-[9px] font-bold uppercase text-violet-900">{extractionConfidence}% confidence · {extractedFields.length} fields</span>}
+            </div>
+          </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-bold text-slate-600">Registered source<select value={selectedSource} onChange={(e) => setSelectedSource(e.target.value)} className="mt-1 w-full border-2 border-slate-300 p-3 font-normal"><option value="">Manual / direct URL</option>{sources.filter((source) => source.status === 'active').map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}</select></label>
             <label className="text-xs font-bold text-slate-600">Notice URL<input type="url" value={itemUrl} onChange={(e) => setItemUrl(e.target.value)} className="mt-1 w-full border-2 border-slate-300 p-3 font-normal" placeholder="https://…" /></label>
             <label className="text-xs font-bold text-slate-600 sm:col-span-2">Tender title<input required value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 w-full border-2 border-slate-300 p-3 font-normal" /></label>
             <label className="text-xs font-bold text-slate-600">Buyer name<input required value={buyerName} onChange={(e) => setBuyerName(e.target.value)} className="mt-1 w-full border-2 border-slate-300 p-3 font-normal" /></label>
             <label className="text-xs font-bold text-slate-600">Submission deadline<input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="mt-1 w-full border-2 border-slate-300 p-3 font-normal" /></label>
+            <label className="text-xs font-bold text-slate-600 sm:col-span-2">Tender reference<input value={externalReference} onChange={(e) => setExternalReference(e.target.value)} className="mt-1 w-full border-2 border-slate-300 p-3 font-normal" /></label>
             <label className="text-xs font-bold text-slate-600 sm:col-span-2">Summary<textarea rows={3} value={summary} onChange={(e) => setSummary(e.target.value)} className="mt-1 w-full border-2 border-slate-300 p-3 font-normal" /></label>
           </div>
           <button disabled={busy === 'item'} className="mt-4 inline-flex items-center gap-2 bg-emerald-600 px-4 py-3 font-mono text-[10px] font-bold uppercase text-white disabled:opacity-50"><Database className="h-4 w-4" />{busy === 'item' ? 'Capturing…' : 'Capture draft'}</button>
         </form>
+      </section>
+
+      <section className="border-2 border-slate-950 bg-white">
+        <div className="border-b-2 border-slate-950 p-5">
+          <div className="flex items-center gap-3">
+            <Radar className="h-5 w-5 text-sky-600" />
+            <div><p className="font-mono text-[9px] font-bold uppercase tracking-widest text-sky-700">Human-supervised monitoring</p><h3 className="font-display text-xl font-extrabold">Source check schedule</h3></div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Open each source, inspect it, then record the outcome. ManoHub does not claim a source was checked until a researcher confirms it.</p>
+        </div>
+        {sources.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">Add a monitoring source to begin.</p> : (
+          <div className="grid gap-px bg-slate-300 md:grid-cols-2">
+            {sources.map((source) => {
+              const due = !source.nextCheckAt || new Date(source.nextCheckAt).getTime() <= Date.now();
+              return (
+                <article key={source.id} className="bg-white p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><h4 className="font-display font-extrabold">{source.name}</h4><p className="mt-1 font-mono text-[8px] font-bold uppercase text-slate-500">{source.trustLevel} · {source.sourceKind}</p></div>
+                    <span className={`border px-2 py-1 font-mono text-[8px] font-bold uppercase ${due ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-emerald-500 bg-emerald-50 text-emerald-800'}`}>{due ? 'Check due' : 'Scheduled'}</span>
+                  </div>
+                  <p className="mt-3 text-xs text-slate-500">Last result: {source.lastCheckStatus?.replace('_', ' ') ?? 'Never checked'}{source.consecutiveFailures > 0 ? ` · ${source.consecutiveFailures} consecutive issue(s)` : ''}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {source.baseUrl && <a href={source.baseUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 border-2 border-slate-950 px-3 py-2 font-mono text-[9px] font-bold uppercase">Open source <ExternalLink className="h-3 w-3" /></a>}
+                    <select aria-label={`Check result for ${source.name}`} value={checkStatuses[source.id] ?? 'no_change'} onChange={(event) => setCheckStatuses((current) => ({ ...current, [source.id]: event.target.value as 'success' | 'no_change' | 'blocked' | 'error' }))} className="border-2 border-slate-950 px-2 text-xs">
+                      <option value="no_change">No change</option><option value="success">New notices found</option><option value="blocked">Source blocked</option><option value="error">Source error</option>
+                    </select>
+                    <button type="button" disabled={busy === `check-${source.id}`} onClick={() => void recordCheck(source)} className="bg-sky-600 px-3 py-2 font-mono text-[9px] font-bold uppercase text-white disabled:opacity-40">{busy === `check-${source.id}` ? 'Recording…' : 'Record check'}</button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className="border-2 border-slate-950 bg-white">
@@ -240,6 +342,7 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-display font-extrabold">{item.title || 'Untitled opportunity'}</h4>
                       <span className="border border-slate-300 px-2 py-0.5 font-mono text-[8px] font-bold uppercase">{item.status.replaceAll('_', ' ')}</span>
+                      {item.extractionMethod === 'assisted_text' && <span className="border border-violet-300 bg-violet-50 px-2 py-0.5 font-mono text-[8px] font-bold uppercase text-violet-800">Assisted · {item.extractionConfidence ?? 0}%</span>}
                     </div>
                     <p className="mt-1 text-xs text-slate-500">{item.buyerName || 'Buyer missing'} · {item.sourceName || 'Direct research'}</p>
                     {item.sourceUrl && <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-violet-700 hover:underline">Open source <ExternalLink className="h-3 w-3" /></a>}
