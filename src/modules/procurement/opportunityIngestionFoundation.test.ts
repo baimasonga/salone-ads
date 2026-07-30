@@ -13,6 +13,7 @@ describe('opportunity ingestion foundation', () => {
     expect(migration).toContain('alter table public.opportunity_sources enable row level security');
     expect(migration).toContain('alter table public.opportunity_ingestion_items enable row level security');
     expect(migration).toContain('opportunity_ingestion_admin_delete');
+    expect(migration).toContain('revoke all on function public.promote_opportunity_ingestion_item(uuid) from public, anon');
   });
 
   it('enforces quality and duplicate controls in the database', () => {
