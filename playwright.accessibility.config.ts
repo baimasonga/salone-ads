@@ -1,8 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-import { requireSupabaseTestEnv } from './tests/supabaseTestEnv';
+import { resolveSupabaseTestEnv } from './tests/supabaseTestEnv';
 
-const { url: supabaseUrl, anonKey: supabaseAnonKey } = requireSupabaseTestEnv();
+const { url: supabaseUrl, anonKey: supabaseAnonKey } = resolveSupabaseTestEnv();
 
 export default defineConfig({
   testDir: './tests/accessibility',

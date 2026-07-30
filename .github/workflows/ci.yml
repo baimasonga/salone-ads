@@ -10,13 +10,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Database-backed gates run against a dedicated CI/staging Supabase project.
-    # Configure CI_SUPABASE_URL + CI_SUPABASE_ANON_KEY (or the STAGING_*
-    # equivalents) as repository variables. They are deliberately not defaulted
-    # to production: these gates drive real browser journeys.
+    # The database-backed gates are read-only: they browse public pages, run
+    # axe scans and assert that privileged endpoints deny access. They target
+    # the live project by default so the gate never silently degrades. Set the
+    # CI_SUPABASE_URL / CI_SUPABASE_ANON_KEY repository variables (or the
+    # STAGING_* equivalents) to point them at a dedicated project instead.
     env:
-      CI_SUPABASE_URL: ${{ vars.CI_SUPABASE_URL || vars.STAGING_SUPABASE_URL }}
-      CI_SUPABASE_ANON_KEY: ${{ vars.CI_SUPABASE_ANON_KEY || vars.STAGING_SUPABASE_ANON_KEY }}
+      CI_SUPABASE_URL: ${{ vars.CI_SUPABASE_URL || vars.STAGING_SUPABASE_URL || 'https://rffjehmbrycztiekcyho.supabase.co' }}
+      CI_SUPABASE_ANON_KEY: ${{ vars.CI_SUPABASE_ANON_KEY || vars.STAGING_SUPABASE_ANON_KEY || 'sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk' }}
 
     steps:
     - name: Checkout Repository
@@ -64,18 +65,7 @@ jobs:
         done
         npm run test:performance
 
-    - name: Check Database Gate Configuration
-      id: dbgate
-      run: |
-        if [ -n "$CI_SUPABASE_URL" ] && [ -n "$CI_SUPABASE_ANON_KEY" ]; then
-          echo "configured=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "configured=false" >> "$GITHUB_OUTPUT"
-          echo "::warning title=Database gates skipped::Set the CI_SUPABASE_URL and CI_SUPABASE_ANON_KEY repository variables to a CI/staging Supabase project to enable the RLS, journey and accessibility gates."
-        fi
-
     - name: Verify Runtime RLS Boundaries
-      if: steps.dbgate.outputs.configured == 'true'
       run: npm run test:rls
       env:
         SUPABASE_URL: ${{ env.CI_SUPABASE_URL }}
@@ -84,18 +74,15 @@ jobs:
         RLS_PROBE_PASSWORD: ${{ secrets.RLS_PROBE_PASSWORD }}
 
     - name: Install Browser Test Runtime
-      if: steps.dbgate.outputs.configured == 'true'
       run: npx playwright install --with-deps chromium
 
     - name: Run Critical Journey Tests
-      if: steps.dbgate.outputs.configured == 'true'
       run: npm run test:e2e
       env:
         VITE_SUPABASE_URL: ${{ env.CI_SUPABASE_URL }}
         VITE_SUPABASE_ANON_KEY: ${{ env.CI_SUPABASE_ANON_KEY }}
 
     - name: Run Accessibility Audit
-      if: steps.dbgate.outputs.configured == 'true'
       run: npm run test:a11y
       env:
         VITE_SUPABASE_URL: ${{ env.CI_SUPABASE_URL }}
