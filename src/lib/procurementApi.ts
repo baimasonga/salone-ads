@@ -2420,14 +2420,21 @@ export async function createAdvertOrder(input: {
   if (error) throw error;
 }
 
-export async function confirmAdvertOrder(orderId: string): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
-  const now = new Date().toISOString();
-  const { error } = await supabase.from('advert_orders').update({
-    status: 'paid', paid_at: now, verified_by: user?.id ?? null,
-    receipt_number: `RCT-${new Date().getFullYear()}-${orderId.slice(0, 8).toUpperCase()}`, updated_at: now,
-  }).eq('id', orderId).in('status', ['payment_review', 'pending_payment']);
+// Confirm payment on an advert order. Goes through confirm_advert_order (see
+// migration 53) rather than updating the row directly, because a confirmation
+// has to do five things atomically: mark the order paid with a server-issued
+// receipt number, issue a commercial_invoice, write its line, and post both the
+// invoice debit and the payment credit to the ledger. The previous direct
+// UPDATE did only the first of those — and generated the receipt number in the
+// browser — so advertising revenue never reached the financial ledger.
+// Returns the id of the issued invoice.
+export async function confirmAdvertOrder(orderId: string, paymentReference?: string): Promise<string> {
+  const { data, error } = await supabase.rpc('confirm_advert_order', {
+    p_order_id: orderId,
+    p_payment_reference: paymentReference?.trim() || null,
+  });
   if (error) throw error;
+  return data as string;
 }
 
 // ───────────────────────── Agency workspace ─────────────────────────

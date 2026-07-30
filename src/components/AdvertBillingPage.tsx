@@ -54,7 +54,7 @@ export function AdvertBillingPage({ activeOrg, isPlatformAdmin }: { activeOrg: O
   };
 
   const confirm = async (orderId: string) => {
-    try { await confirmAdvertOrder(orderId); await load(); setFeedback('Payment confirmed and receipt issued.'); }
+    try { await confirmAdvertOrder(orderId); await load(); setFeedback('Payment confirmed: receipt issued and posted to the ledger.'); }
     catch (error) { setFeedback(error instanceof Error ? error.message : 'Payment could not be confirmed.'); }
   };
 
