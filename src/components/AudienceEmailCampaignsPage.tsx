@@ -7,9 +7,11 @@ import {
   dispatchAudienceEmailCampaign,
   fetchAudienceEmailCampaigns,
   fetchPublicAudienceSubscribers,
+  fetchTenderAlertDeliverySummary,
   PublicAudienceSubscriber,
   queueAudienceEmailCampaign,
   sendAudienceEmailTest,
+  TenderAlertDeliverySummary,
 } from '../lib/procurementApi';
 
 const INTERESTS = ['Tenders', 'Jobs', 'Business offers', 'Events', 'Training', 'Products & services'];
@@ -18,6 +20,7 @@ const FREQUENCIES = ['urgent', 'daily', 'weekly'];
 export function AudienceEmailCampaignsPage() {
   const [campaigns, setCampaigns] = useState<AudienceEmailCampaign[]>([]);
   const [subscribers, setSubscribers] = useState<PublicAudienceSubscriber[]>([]);
+  const [tenderAlerts, setTenderAlerts] = useState<TenderAlertDeliverySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -34,12 +37,14 @@ export function AudienceEmailCampaignsPage() {
   const [testEmail, setTestEmail] = useState('');
 
   const load = useCallback(async () => {
-    const [campaignRows, subscriberRows] = await Promise.all([
+    const [campaignRows, subscriberRows, alertSummary] = await Promise.all([
       fetchAudienceEmailCampaigns(),
       fetchPublicAudienceSubscribers(),
+      fetchTenderAlertDeliverySummary(),
     ]);
     setCampaigns(campaignRows);
     setSubscribers(subscriberRows);
+    setTenderAlerts(alertSummary);
   }, []);
 
   useEffect(() => {
@@ -165,6 +170,22 @@ export function AudienceEmailCampaignsPage() {
         { label: 'Unique opens', value: totals.opened, accent: 'border-violet-500 bg-violet-50 text-violet-800' },
         { label: 'Unique clicks', value: totals.clicked, accent: 'border-amber-500 bg-amber-50 text-amber-800' },
       ].map(metric => <div key={metric.label} className={`border-l-4 p-4 ${metric.accent}`}><p className="font-display text-2xl font-extrabold">{metric.value}</p><p className="font-mono text-[9px] font-bold uppercase tracking-widest">{metric.label}</p></div>)}
+    </section>
+
+    <section aria-label="Tender alert delivery health" className="border border-slate-200 bg-white p-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><p className="font-mono text-[10px] font-bold uppercase tracking-widest text-violet-700">Saved-search automation</p><h3 className="mt-1 font-display text-lg font-extrabold">Tender alert delivery</h3></div>
+        <span className="border border-violet-200 bg-violet-50 px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-violet-800">{tenderAlerts?.deliveries24h ?? 0} digests · 24h</span>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {[
+          ['Queued', tenderAlerts?.queued ?? 0, 'bg-blue-50 text-blue-800'],
+          ['Sent', tenderAlerts?.sent ?? 0, 'bg-cyan-50 text-cyan-800'],
+          ['Delivered', tenderAlerts?.delivered ?? 0, 'bg-emerald-50 text-emerald-800'],
+          ['Failed', tenderAlerts?.failed ?? 0, 'bg-red-50 text-red-800'],
+          ['Suppressed', tenderAlerts?.suppressed ?? 0, 'bg-amber-50 text-amber-800'],
+        ].map(([label, value, accent]) => <div key={label} className={`p-3 ${accent}`}><p className="font-display text-xl font-extrabold">{value}</p><p className="font-mono text-[8px] font-bold uppercase tracking-wider">{label}</p></div>)}
+      </div>
     </section>
 
     <form onSubmit={saveCampaign} className="border border-slate-200 bg-white p-5 sm:p-6">

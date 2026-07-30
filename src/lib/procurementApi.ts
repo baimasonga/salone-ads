@@ -3141,6 +3141,29 @@ export async function fetchAudienceEmailCampaigns(): Promise<AudienceEmailCampai
   return (data ?? []).map(mapAudienceEmailCampaign);
 }
 
+export interface TenderAlertDeliverySummary {
+  queued: number;
+  sent: number;
+  delivered: number;
+  failed: number;
+  suppressed: number;
+  deliveries24h: number;
+}
+
+export async function fetchTenderAlertDeliverySummary(): Promise<TenderAlertDeliverySummary> {
+  const { data, error } = await supabase.rpc('admin_get_tender_alert_delivery_summary');
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    queued: Number(row?.queued ?? 0),
+    sent: Number(row?.sent ?? 0),
+    delivered: Number(row?.delivered ?? 0),
+    failed: Number(row?.failed ?? 0),
+    suppressed: Number(row?.suppressed ?? 0),
+    deliveries24h: Number(row?.deliveries_24h ?? 0),
+  };
+}
+
 export async function createAudienceEmailCampaign(input: {
   name: string;
   subject: string;

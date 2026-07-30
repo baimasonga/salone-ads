@@ -299,6 +299,32 @@ function renderAudienceEmail(input: {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${htmlEscape(input.subject)}</title></head><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden">${htmlEscape(input.previewText)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#fff;border:2px solid #0f172a"><tr><td style="background:#0f172a;padding:22px 28px;color:#fff"><div style="font-size:21px;font-weight:900;letter-spacing:3px">MANO<span style="color:#10b981">HUB</span></div><div style="margin-top:5px;color:#94a3b8;font-size:10px;letter-spacing:2px">OPPORTUNITIES · BUSINESS · AUDIENCE</div></td></tr><tr><td style="padding:30px 28px"><h1 style="margin:0 0 20px;color:#0f172a;font-size:28px;line-height:1.2">${htmlEscape(input.subject)}</h1>${paragraphs}${cta}${unsubscribe}</td></tr><tr><td style="background:#f4d35e;border-top:2px solid #0f172a;padding:14px 28px;color:#0f172a;font-size:11px;font-weight:700">Manohub · Built for the Mano River market</td></tr></table></td></tr></table></body></html>`;
 }
 
+function renderTenderAlertEmail(input: {
+  frequency: 'immediate' | 'daily' | 'weekly';
+  opportunities: Array<{
+    title: string;
+    slug: string;
+    buyerName: string;
+    deadline: string | null;
+    searchName: string;
+    matchScore: number;
+  }>;
+  appOrigin: string;
+}): string {
+  const label = input.frequency === 'immediate'
+    ? 'New tender alert'
+    : input.frequency === 'daily' ? 'Daily tender digest' : 'Weekly tender digest';
+  const cards = input.opportunities.map((opportunity) => {
+    const href = `${input.appOrigin}/tenders/${encodeURIComponent(opportunity.slug)}`;
+    const deadline = opportunity.deadline
+      ? new Date(opportunity.deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' })
+      : 'See notice';
+    return `<tr><td style="padding:18px 0;border-bottom:1px solid #cbd5e1"><div style="color:#047857;font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase">${htmlEscape(opportunity.searchName)} · ${opportunity.matchScore}% match</div><h2 style="margin:7px 0 5px;color:#0f172a;font-size:18px;line-height:1.3">${htmlEscape(opportunity.title)}</h2><p style="margin:0 0 12px;color:#64748b;font-size:13px">${htmlEscape(opportunity.buyerName || 'Buyer not specified')} · Closes ${htmlEscape(deadline)}</p><a href="${htmlEscape(href)}" style="color:#047857;font-size:13px;font-weight:800">View verified tender →</a></td></tr>`;
+  }).join('');
+  const manageHref = `${input.appOrigin}/tenders`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${label}</title></head><body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif"><div style="display:none;max-height:0;overflow:hidden">${input.opportunities.length} matching tender ${input.opportunities.length === 1 ? 'opportunity' : 'opportunities'} from ManoHub</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:650px;background:#fff;border:2px solid #0f172a"><tr><td style="background:#0f172a;padding:22px 28px;color:#fff"><div style="font-size:21px;font-weight:900;letter-spacing:3px">MANO<span style="color:#10b981">HUB</span></div><div style="margin-top:5px;color:#94a3b8;font-size:10px;letter-spacing:2px">${label.toUpperCase()}</div></td></tr><tr><td style="padding:28px"><h1 style="margin:0;color:#0f172a;font-size:26px">${htmlEscape(label)}</h1><p style="margin:8px 0 18px;color:#475569;font-size:14px">These reviewed opportunities match your saved search criteria.</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${cards}</table><p style="margin:24px 0 0;color:#94a3b8;font-size:11px;line-height:1.5">You receive these alerts because you created a saved search on ManoHub. <a href="${htmlEscape(manageHref)}" style="color:#64748b">Manage or pause your alerts</a>.</p></td></tr><tr><td style="background:#f4d35e;border-top:2px solid #0f172a;padding:14px 28px;color:#0f172a;font-size:11px;font-weight:700">ManoHub · Verified opportunities for the Mano River market</td></tr></table></td></tr></table></body></html>`;
+}
+
 async function sendResendEmail(input: { to: string; subject: string; html: string; idempotencyKey: string }): Promise<string> {
   const apiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.RESEND_FROM_EMAIL?.trim();
@@ -400,6 +426,78 @@ async function dispatchAudienceCampaign(campaignId: string, force = false): Prom
   return { sent, failed, remaining };
 }
 
+async function dispatchTenderAlertDelivery(deliveryId: string): Promise<void> {
+  if (!supabaseServiceClient) throw new Error('Tender alert delivery requires SUPABASE_SERVICE_ROLE_KEY.');
+  const appOrigin = configuredAppOrigin();
+  if (!appOrigin) throw new Error('Tender alert delivery requires a valid APP_URL.');
+  const { data: delivery, error: deliveryError } = await supabaseServiceClient
+    .from('tender_alert_deliveries')
+    .select('id,user_id,recipient_email,frequency,match_ids,status,attempts')
+    .eq('id', deliveryId)
+    .single();
+  if (deliveryError || !delivery) throw new Error('Tender alert delivery was not found.');
+  if (['sent', 'delivered', 'bounced', 'complained', 'suppressed'].includes(delivery.status)) return;
+
+  const { data: suppression } = await supabaseServiceClient
+    .from('tender_alert_email_suppressions')
+    .select('user_id')
+    .eq('user_id', delivery.user_id)
+    .maybeSingle();
+  if (suppression) {
+    await supabaseServiceClient.from('tender_alert_deliveries').update({
+      status: 'suppressed', event_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq('id', delivery.id);
+    await supabaseServiceClient.from('saved_search_matches').update({ email_status: 'suppressed' })
+      .eq('email_delivery_id', delivery.id);
+    return;
+  }
+
+  const { data: matches, error: matchError } = await supabaseServiceClient
+    .from('saved_search_matches')
+    .select('id,match_score,saved_searches(name),opportunities(title,slug,buyer_name,submission_deadline)')
+    .in('id', delivery.match_ids);
+  if (matchError) throw matchError;
+  const unique = new Map<string, {
+    title: string; slug: string; buyerName: string; deadline: string | null; searchName: string; matchScore: number;
+  }>();
+  for (const match of matches ?? []) {
+    const opportunity = (match as any).opportunities;
+    if (!opportunity?.slug || unique.has(opportunity.slug)) continue;
+    unique.set(opportunity.slug, {
+      title: opportunity.title,
+      slug: opportunity.slug,
+      buyerName: opportunity.buyer_name,
+      deadline: opportunity.submission_deadline,
+      searchName: (match as any).saved_searches?.name ?? 'Saved search',
+      matchScore: Number(match.match_score),
+    });
+  }
+  const opportunities = [...unique.values()];
+  if (opportunities.length === 0) throw new Error('Tender alert delivery contains no readable matches.');
+
+  await supabaseServiceClient.from('tender_alert_deliveries').update({
+    status: 'sending', attempts: Number(delivery.attempts ?? 0) + 1, updated_at: new Date().toISOString(),
+  }).eq('id', delivery.id);
+  const subject = delivery.frequency === 'immediate'
+    ? `New tender match: ${opportunities[0].title}`
+    : `${delivery.frequency === 'daily' ? 'Daily' : 'Weekly'} ManoHub tender digest · ${opportunities.length} match${opportunities.length === 1 ? '' : 'es'}`;
+  const providerId = await sendResendEmail({
+    to: delivery.recipient_email,
+    subject,
+    html: renderTenderAlertEmail({ frequency: delivery.frequency, opportunities, appOrigin }),
+    idempotencyKey: `manohub-tender-alert-${delivery.id}`,
+  });
+  await supabaseServiceClient.from('tender_alert_deliveries').update({
+    status: 'sent',
+    provider_message_id: providerId,
+    sent_at: new Date().toISOString(),
+    error_message: null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', delivery.id);
+  await supabaseServiceClient.from('saved_search_matches').update({ email_status: 'sent' })
+    .eq('email_delivery_id', delivery.id);
+}
+
 type BackgroundJob = {
   id: string;
   job_type: string;
@@ -419,9 +517,12 @@ async function processAudienceEmailJobs(): Promise<{
   if (!supabaseServiceClient) throw new Error("Audience email worker requires SUPABASE_SERVICE_ROLE_KEY.");
 
   const workerId = `audience-email:${process.pid}:${randomUUID()}`;
-  const { data: enqueued, error: enqueueError } = await supabaseServiceClient
+  const { data: audienceEnqueued, error: enqueueError } = await supabaseServiceClient
     .rpc("enqueue_due_audience_email_jobs", { p_limit: 20 });
   if (enqueueError) throw enqueueError;
+  const { data: tenderEnqueued, error: tenderEnqueueError } = await supabaseServiceClient
+    .rpc('enqueue_due_tender_alert_jobs', { p_limit: 50 });
+  if (tenderEnqueueError) throw tenderEnqueueError;
 
   const { data: recovered, error: recoverError } = await supabaseServiceClient
     .rpc("recover_stalled_background_jobs_for_worker", { p_timeout_minutes: 15 });
@@ -430,8 +531,8 @@ async function processAudienceEmailJobs(): Promise<{
   const { data: jobs, error: claimError } = await supabaseServiceClient
     .rpc("claim_background_jobs_for_worker", {
       p_worker_id: workerId,
-      p_job_types: ["audience.email.dispatch"],
-      p_limit: 5,
+      p_job_types: ["audience.email.dispatch", "tender.alert.dispatch"],
+      p_limit: 10,
     });
   if (claimError) throw claimError;
 
@@ -440,38 +541,44 @@ async function processAudienceEmailJobs(): Promise<{
   let failed = 0;
   for (const job of (jobs ?? []) as BackgroundJob[]) {
     const campaignId = job.payload?.campaign_id;
+    const deliveryId = job.payload?.delivery_id;
     try {
-      if (typeof campaignId !== "string" || !/^[0-9a-f-]{36}$/i.test(campaignId)) {
-        throw new Error("Audience email job has an invalid campaign_id.");
-      }
-
-      const result = await dispatchAudienceCampaign(campaignId);
-      if (result.remaining > 0) {
-        const { data: didDefer, error: deferError } = await supabaseServiceClient
-          .rpc("defer_background_job_for_worker", {
-            p_job_id: job.id,
-            p_worker_id: workerId,
-            p_delay_seconds: 5,
-          });
-        if (deferError || !didDefer) throw deferError ?? new Error("Worker no longer owns the job.");
-        deferred += 1;
+      if (job.job_type === 'tender.alert.dispatch') {
+        if (typeof deliveryId !== 'string' || !/^[0-9a-f-]{36}$/i.test(deliveryId)) {
+          throw new Error('Tender alert job has an invalid delivery_id.');
+        }
+        await dispatchTenderAlertDelivery(deliveryId);
       } else {
-        const { data: didComplete, error: completeError } = await supabaseServiceClient
-          .rpc("complete_background_job_for_worker", {
-            p_job_id: job.id,
-            p_worker_id: workerId,
-          });
-        if (completeError || !didComplete) throw completeError ?? new Error("Worker no longer owns the job.");
-        completed += 1;
+        if (typeof campaignId !== "string" || !/^[0-9a-f-]{36}$/i.test(campaignId)) {
+          throw new Error("Audience email job has an invalid campaign_id.");
+        }
+        const result = await dispatchAudienceCampaign(campaignId);
+        if (result.remaining > 0) {
+          const { data: didDefer, error: deferError } = await supabaseServiceClient
+            .rpc("defer_background_job_for_worker", {
+              p_job_id: job.id,
+              p_worker_id: workerId,
+              p_delay_seconds: 5,
+            });
+          if (deferError || !didDefer) throw deferError ?? new Error("Worker no longer owns the job.");
+          deferred += 1;
+          continue;
+        }
       }
+      const { data: didComplete, error: completeError } = await supabaseServiceClient
+        .rpc("complete_background_job_for_worker", {
+          p_job_id: job.id,
+          p_worker_id: workerId,
+        });
+      if (completeError || !didComplete) throw completeError ?? new Error("Worker no longer owns the job.");
+      completed += 1;
 
       structuredLog("info", "audience_email.job.processed", {
         job_id: job.id,
+        job_type: job.job_type,
         campaign_id: campaignId,
+        delivery_id: deliveryId,
         attempt: job.attempts,
-        sent: result.sent,
-        failed: result.failed,
-        remaining: result.remaining,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Audience email job failed.";
@@ -488,6 +595,15 @@ async function processAudienceEmailJobs(): Promise<{
           error_message: failError.message,
         });
       }
+      if (job.job_type === 'tender.alert.dispatch' && typeof deliveryId === 'string') {
+        await supabaseServiceClient.from('tender_alert_deliveries').update({
+          status: 'failed', error_message: message.slice(0, 500), updated_at: new Date().toISOString(),
+        }).eq('id', deliveryId);
+        if (nextStatus === 'dead_letter') {
+          await supabaseServiceClient.from('saved_search_matches').update({ email_status: 'failed' })
+            .eq('email_delivery_id', deliveryId);
+        }
+      }
       failed += 1;
       structuredLog("error", "audience_email.job.failed", {
         job_id: job.id,
@@ -500,7 +616,7 @@ async function processAudienceEmailJobs(): Promise<{
   }
 
   return {
-    enqueued: Number(enqueued ?? 0),
+    enqueued: Number(audienceEnqueued ?? 0) + Number(tenderEnqueued ?? 0),
     recovered: Number(recovered ?? 0),
     claimed: jobs?.length ?? 0,
     completed,
@@ -632,26 +748,94 @@ async function startServer() {
       res.status(500).json({ error: { message: "Email event lookup failed." } });
       return;
     }
-    if (!delivery) {
+    if (delivery) {
+      const { error: insertError } = await supabaseServiceClient.from("audience_email_events").insert({
+        provider_event_id: eventId,
+        delivery_id: delivery.id,
+        campaign_id: delivery.campaign_id,
+        event_type: event.type,
+        occurred_at: event.created_at,
+        metadata: resendEventMetadata(event),
+      });
+      if (insertError && insertError.code !== "23505") {
+        res.status(500).json({ error: { message: "Email event could not be recorded." } });
+        return;
+      }
+      res.status(200).json({ received: true, duplicate: insertError?.code === "23505" });
+      return;
+    }
+
+    const { data: tenderDelivery, error: tenderLookupError } = await supabaseServiceClient
+      .from("tender_alert_deliveries")
+      .select("id,user_id,recipient_email,status")
+      .eq("provider_message_id", event.data.email_id)
+      .maybeSingle();
+    if (tenderLookupError) {
+      res.status(500).json({ error: { message: "Tender email event lookup failed." } });
+      return;
+    }
+    if (!tenderDelivery) {
       // Valid events for test emails or another Resend stream are acknowledged
       // so the provider does not retry them indefinitely.
       res.status(202).json({ received: true, matched: false });
       return;
     }
 
-    const { error: insertError } = await supabaseServiceClient.from("audience_email_events").insert({
-      provider_event_id: eventId,
-      delivery_id: delivery.id,
-      campaign_id: delivery.campaign_id,
-      event_type: event.type,
-      occurred_at: event.created_at,
-      metadata: resendEventMetadata(event),
-    });
-    if (insertError && insertError.code !== "23505") {
-      res.status(500).json({ error: { message: "Email event could not be recorded." } });
+    const { error: tenderEventError } = await supabaseServiceClient
+      .from("tender_alert_email_events")
+      .insert({
+        provider_event_id: eventId,
+        delivery_id: tenderDelivery.id,
+        event_type: event.type,
+        occurred_at: event.created_at,
+        metadata: resendEventMetadata(event),
+      });
+    if (tenderEventError?.code === "23505") {
+      res.status(200).json({ received: true, duplicate: true });
       return;
     }
-    res.status(200).json({ received: true, duplicate: insertError?.code === "23505" });
+    if (tenderEventError) {
+      res.status(500).json({ error: { message: "Tender email event could not be recorded." } });
+      return;
+    }
+
+    const tenderStatus = event.type === "email.delivered" ? "delivered"
+      : event.type === "email.bounced" ? "bounced"
+      : event.type === "email.complained" ? "complained"
+      : event.type === "email.suppressed" ? "suppressed"
+      : event.type === "email.failed" ? "failed"
+      : null;
+    if (tenderStatus) {
+      const occurredAt = event.created_at || new Date().toISOString();
+      const { error: statusError } = await supabaseServiceClient
+        .from("tender_alert_deliveries")
+        .update({ status: tenderStatus, event_at: occurredAt, updated_at: new Date().toISOString() })
+        .eq("id", tenderDelivery.id);
+      if (statusError) {
+        res.status(500).json({ error: { message: "Tender delivery status could not be updated." } });
+        return;
+      }
+      const matchStatus = tenderStatus === "delivered" ? "delivered"
+        : ["bounced", "failed"].includes(tenderStatus) ? "failed" : "suppressed";
+      await supabaseServiceClient.from("saved_search_matches").update({ email_status: matchStatus })
+        .eq("email_delivery_id", tenderDelivery.id);
+
+      const suppressionReason = tenderStatus === "bounced" ? "bounced"
+        : tenderStatus === "complained" ? "complained"
+        : tenderStatus === "suppressed" ? "suppressed"
+        : null;
+      if (suppressionReason) {
+        await supabaseServiceClient.from("tender_alert_email_suppressions").upsert({
+          user_id: tenderDelivery.user_id,
+          email: tenderDelivery.recipient_email,
+          reason: suppressionReason,
+          provider_event_id: eventId,
+          suppressed_at: occurredAt,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id" });
+      }
+    }
+    res.status(200).json({ received: true, duplicate: false });
   });
 
   app.use(express.json({ limit: "100kb" }));
