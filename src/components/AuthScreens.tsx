@@ -4,8 +4,8 @@ import { supabase } from '../lib/supabaseClient';
 import { createOrganization } from '../lib/api';
 
 interface AuthScreensProps {
-  mode: 'signin' | 'signup' | 'onboarding';
-  onSwitchMode: (newMode: 'signin' | 'signup' | 'onboarding') => void;
+  mode: 'signin' | 'signup' | 'onboarding' | 'forgot-password' | 'update-password';
+  onSwitchMode: (newMode: 'signin' | 'signup' | 'onboarding' | 'forgot-password' | 'update-password') => void;
   onSuccess: () => void;
 }
 
@@ -19,6 +19,8 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
   const [submitting, setSubmitting] = useState(false);
   const [authError, setAuthError] = useState('');
   const [checkEmail, setCheckEmail] = useState(false);
+  const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Onboarding States
   const [orgName, setOrgName] = useState('');
@@ -69,6 +71,51 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
       options: { redirectTo: window.location.origin },
     });
     if (error) setAuthError(error.message);
+  };
+
+  const handlePasswordRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      });
+      if (error) throw error;
+      // Keep the response intentionally neutral so the form does not reveal
+      // whether an account exists for a submitted address.
+      setRecoveryEmailSent(true);
+    } catch (err: any) {
+      setAuthError(err.message || 'Could not request a password reset. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    if (password.length < 8) {
+      setAuthError('Use at least 8 characters for your new password.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setAuthError('The passwords do not match.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      await supabase.auth.signOut();
+      setPassword('');
+      setConfirmPassword('');
+      onSwitchMode('signin');
+    } catch (err: any) {
+      setAuthError(err.message || 'Could not update your password. Please request a new reset link.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleOnboardingSubmit = async (e: React.FormEvent) => {
@@ -252,9 +299,15 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
           <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">Manohub</span>
         </div>
         <h2 className="font-display font-black text-2xl text-[#0F172A] uppercase tracking-tight">
-          {mode === 'signin' ? 'Sign In' : 'Create Account'}
+          {mode === 'signin'
+            ? 'Sign In'
+            : mode === 'signup'
+              ? 'Create Account'
+              : mode === 'forgot-password'
+                ? 'Reset Password'
+                : 'Choose New Password'}
         </h2>
-        <p className="mt-2 text-xs font-mono uppercase tracking-widest text-slate-500">
+        {(mode === 'signin' || mode === 'signup') && <p className="mt-2 text-xs font-mono uppercase tracking-widest text-slate-500">
           Or{' '}
           <button
             onClick={() => {
@@ -262,11 +315,11 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
               setCheckEmail(false);
               onSwitchMode(mode === 'signin' ? 'signup' : 'signin');
             }}
-            className="font-mono font-bold uppercase text-xs text-[#047857] hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0F172A]"
+            className="font-mono font-bold uppercase text-xs text-[#10B981] hover:underline cursor-pointer focus:outline-hidden"
           >
             {mode === 'signin' ? 'start free 14-day trial' : 'sign in to your portal'}
           </button>
-        </p>
+        </p>}
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -275,7 +328,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
             <div className="text-center space-y-3">
               <p className="text-sm font-semibold text-slate-800">Check your inbox!</p>
               <p className="text-xs text-slate-500">
-                We sent a confirmation link to <strong>{email}</strong>. Confirm your address, then sign in to continue setting up your workspace.
+                If <strong>{email}</strong> is a new address, a confirmation link has been sent. If you registered before, sign in with your existing password or reset it.
               </p>
               <button
                 onClick={() => {
@@ -286,24 +339,79 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
               >
                 Back to Sign In
               </button>
+              <button
+                onClick={() => {
+                  setCheckEmail(false);
+                  setRecoveryEmailSent(false);
+                  onSwitchMode('forgot-password');
+                }}
+                className="w-full py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-emerald-700 hover:underline"
+              >
+                Reset existing password
+              </button>
             </div>
+          ) : mode === 'forgot-password' ? (
+            recoveryEmailSent ? (
+              <div className="text-center space-y-3">
+                <p className="text-sm font-semibold text-slate-800">Check your inbox</p>
+                <p className="text-xs leading-relaxed text-slate-500">
+                  If an account exists for <strong>{email}</strong>, a password-reset link has been sent. Also check your spam or junk folder.
+                </p>
+                <button onClick={() => onSwitchMode('signin')} className="btn-geometric-secondary w-full flex justify-center cursor-pointer mt-4">
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <>
+                {authError && <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3">{authError}</div>}
+                <form className="space-y-6 text-left" onSubmit={handlePasswordRecovery}>
+                  <p className="text-sm leading-relaxed text-slate-600">Enter the email used for your ManoHub account. We will send a secure password-reset link.</p>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700">Email Address</label>
+                    <div className="mt-1 relative">
+                      <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 pr-3 py-2 border border-slate-200 bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm" />
+                    </div>
+                  </div>
+                  <button type="submit" disabled={submitting} className="btn-geometric w-full flex justify-center disabled:opacity-50">
+                    {submitting ? 'Sending…' : 'Send Reset Link'}
+                  </button>
+                  <button type="button" onClick={() => onSwitchMode('signin')} className="btn-geometric-secondary w-full flex justify-center">Back to Sign In</button>
+                </form>
+              </>
+            )
+          ) : mode === 'update-password' ? (
+            <>
+              {authError && <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3">{authError}</div>}
+              <form className="space-y-6 text-left" onSubmit={handlePasswordUpdate}>
+                <p className="text-sm leading-relaxed text-slate-600">Choose a new password for your ManoHub account.</p>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">New Password</label>
+                  <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-slate-200 bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">Confirm New Password</label>
+                  <input type="password" required minLength={8} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-slate-200 bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm" />
+                </div>
+                <button type="submit" disabled={submitting} className="btn-geometric w-full flex justify-center disabled:opacity-50">
+                  {submitting ? 'Updating…' : 'Update Password'}
+                </button>
+              </form>
+            </>
           ) : (
             <>
               {authError && (
-                <div role="alert" className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl">{authError}</div>
+                <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl">{authError}</div>
               )}
               <form className="space-y-6 text-left" onSubmit={handleAuthSubmit}>
                 {mode === 'signup' && (
                   <div>
-                    <label htmlFor="auth-full-name" className="block text-sm font-semibold text-slate-700">Full Name</label>
+                    <label className="block text-sm font-semibold text-slate-700">Full Name</label>
                     <div className="mt-1 relative rounded-md shadow-xs">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <User className="h-4 w-4 text-slate-400" />
                       </div>
                       <input
-                        id="auth-full-name"
-                        name="fullName"
-                        autoComplete="name"
                         type="text"
                         required
                         placeholder="Alhassan Kamara"
@@ -316,15 +424,12 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                 )}
 
                 <div>
-                  <label htmlFor="auth-email" className="block text-sm font-semibold text-slate-700">Email Address</label>
+                  <label className="block text-sm font-semibold text-slate-700">Email Address</label>
                   <div className="mt-1 relative rounded-md shadow-xs">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Mail className="h-4 w-4 text-slate-400" />
                     </div>
                     <input
-                      id="auth-email"
-                      name="email"
-                      autoComplete="email"
                       type="email"
                       required
                       placeholder="name@salonemail.com"
@@ -336,15 +441,12 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                 </div>
 
                 <div>
-                  <label htmlFor="auth-password" className="block text-sm font-semibold text-slate-700">Password</label>
+                  <label className="block text-sm font-semibold text-slate-700">Password</label>
                   <div className="mt-1 relative rounded-md shadow-xs">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Lock className="h-4 w-4 text-slate-400" />
                     </div>
                     <input
-                      id="auth-password"
-                      name="password"
-                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                       type="password"
                       required
                       minLength={6}
@@ -363,6 +465,19 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                 >
                   {submitting ? 'Please wait…' : mode === 'signin' ? 'Sign In' : 'Continue to Onboarding'}
                 </button>
+                {mode === 'signin' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthError('');
+                      setRecoveryEmailSent(false);
+                      onSwitchMode('forgot-password');
+                    }}
+                    className="w-full font-mono text-[10px] font-bold uppercase tracking-widest text-emerald-700 hover:underline"
+                  >
+                    Forgot your password?
+                  </button>
+                )}
               </form>
 
               {GOOGLE_AUTH_ENABLED && (
