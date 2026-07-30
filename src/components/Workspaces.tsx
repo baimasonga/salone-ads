@@ -132,6 +132,7 @@ import {
   fetchRecommendedOpportunities,
   fetchAdminAnalytics,
   fetchProcurementSearchInsights,
+  createSourcingTaskFromGap,
   hasFeature,
   fetchSavedSearches,
   deleteSavedSearch,
@@ -2219,6 +2220,8 @@ export function Workspaces({
   const [analytics, setAnalytics] = useState<AdminAnalyticsSummary | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsFeedback, setAnalyticsFeedback] = useState('');
+  const [sourcingTaskFeedback, setSourcingTaskFeedback] = useState('');
+  const [sourcingTaskBusy, setSourcingTaskBusy] = useState('');
   const [searchInsights, setSearchInsights] = useState<ProcurementSearchInsights | null>(null);
   const [searchInsightDays, setSearchInsightDays] = useState<7 | 30 | 90>(30);
 
@@ -2237,6 +2240,19 @@ export function Workspaces({
       .catch((err: any) => setAnalyticsFeedback(`Error: ${err.message || 'Could not load analytics.'}`))
       .finally(() => setAnalyticsLoading(false));
   }, [activeTab, isPlatformAdmin, searchInsightDays]);
+
+  const createGapTask = async (term: string, searches: number) => {
+    setSourcingTaskBusy(term);
+    setSourcingTaskFeedback('');
+    try {
+      await createSourcingTaskFromGap(term, searches >= 5 ? 'high' : searches >= 2 ? 'medium' : 'low');
+      setSourcingTaskFeedback(`Sourcing task created for “${term}”. Assign it in Opportunity Ingestion.`);
+    } catch (err: any) {
+      setSourcingTaskFeedback(`Error: ${err.message || 'Could not create sourcing task.'}`);
+    } finally {
+      setSourcingTaskBusy('');
+    }
+  };
 
   // --- WORKSPACE RENDERING ---
 
@@ -3601,7 +3617,8 @@ export function Workspaces({
 
                   <div className="border border-red-300 bg-red-50">
                     <h5 className="flex items-center gap-2 border-b border-red-300 px-5 py-4 font-display text-sm font-extrabold text-red-950"><AlertCircle className="h-4 w-4 text-red-600" /> Content gaps to address</h5>
-                    {searchInsights.contentGaps.length === 0 ? <p className="p-5 text-xs text-red-700">No repeated zero-result terms in this period.</p> : <div>{searchInsights.contentGaps.map((gap, index) => <div key={gap.term} className={`px-5 py-3 ${index ? 'border-t border-red-200' : ''}`}><div className="flex items-center justify-between gap-3"><span className="text-xs font-bold text-red-950">{gap.term}</span><span className="font-mono text-[9px] font-bold text-red-700">{gap.searches} search{gap.searches === 1 ? '' : 'es'}</span></div><p className="mt-1 text-[10px] text-red-700">Source or publish relevant opportunities for this demand.</p></div>)}</div>}
+                    {sourcingTaskFeedback && <p role="status" className={`border-b border-red-200 px-5 py-3 text-xs font-bold ${sourcingTaskFeedback.startsWith('Error:') ? 'text-red-800' : 'bg-emerald-50 text-emerald-800'}`}>{sourcingTaskFeedback}</p>}
+                    {searchInsights.contentGaps.length === 0 ? <p className="p-5 text-xs text-red-700">No repeated zero-result terms in this period.</p> : <div>{searchInsights.contentGaps.map((gap, index) => <div key={gap.term} className={`px-5 py-3 ${index ? 'border-t border-red-200' : ''}`}><div className="flex items-center justify-between gap-3"><span className="text-xs font-bold text-red-950">{gap.term}</span><span className="font-mono text-[9px] font-bold text-red-700">{gap.searches} search{gap.searches === 1 ? '' : 'es'}</span></div><div className="mt-2 flex items-center justify-between gap-3"><p className="text-[10px] text-red-700">Source or publish relevant opportunities for this demand.</p><button type="button" disabled={sourcingTaskBusy === gap.term} onClick={() => void createGapTask(gap.term, gap.searches)} className="shrink-0 border border-red-800 bg-white px-2 py-1 font-mono text-[8px] font-bold uppercase text-red-900 disabled:opacity-50">{sourcingTaskBusy === gap.term ? 'Creating…' : 'Create task'}</button></div></div>)}</div>}
                   </div>
                 </div>
 

@@ -655,6 +655,28 @@ export interface OpportunityIngestionItem {
   extractionMethod: 'manual' | 'assisted_text';
   extractionConfidence: number | null;
   createdAt: string;
+  sourcingTaskId: string | null;
+}
+
+export interface OpportunitySourcingTask {
+  id: string;
+  searchTerm: string;
+  demandCount: number;
+  latestSearchAt: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'open' | 'assigned' | 'in_progress' | 'candidate_found' | 'completed' | 'cancelled';
+  assignedTo: string | null;
+  dueAt: string | null;
+  notes: string | null;
+  sourceLinks: string[];
+  matchedOpportunityId: string | null;
+  createdAt: string;
+}
+
+export interface PlatformResearcher {
+  id: string;
+  fullName: string;
+  platformRole: 'researcher' | 'admin';
 }
 
 export interface CreateOpportunitySourceInput {
@@ -678,6 +700,7 @@ export interface CreateOpportunityIngestionInput {
   extractedFields?: string[];
   submissionDeadline?: string;
   status?: 'draft' | 'ready_for_review';
+  sourcingTaskId?: string;
 }
 
 function mapOpportunitySource(row: any): OpportunitySource {
@@ -713,7 +736,87 @@ function mapIngestionItem(row: any): OpportunityIngestionItem {
     extractionMethod: row.extraction_method ?? 'manual',
     extractionConfidence: row.extraction_confidence == null ? null : Number(row.extraction_confidence),
     createdAt: row.created_at,
+    sourcingTaskId: row.sourcing_task_id,
   };
+}
+
+function mapSourcingTask(row: any): OpportunitySourcingTask {
+  return {
+    id: row.id,
+    searchTerm: row.search_term,
+    demandCount: Number(row.demand_count ?? 0),
+    latestSearchAt: row.latest_search_at,
+    priority: row.priority,
+    status: row.status,
+    assignedTo: row.assigned_to,
+    dueAt: row.due_at,
+    notes: row.notes,
+    sourceLinks: Array.isArray(row.source_links) ? row.source_links : [],
+    matchedOpportunityId: row.matched_opportunity_id,
+    createdAt: row.created_at,
+  };
+}
+
+export async function fetchOpportunitySourcingTasks(): Promise<OpportunitySourcingTask[]> {
+  const { data, error } = await supabase
+    .from('opportunity_sourcing_tasks')
+    .select('id,search_term,demand_count,latest_search_at,priority,status,assigned_to,due_at,notes,source_links,matched_opportunity_id,created_at')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapSourcingTask);
+}
+
+export async function fetchPlatformResearchers(): Promise<PlatformResearcher[]> {
+  const { data, error } = await supabase.rpc('list_opportunity_researchers');
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    fullName: row.full_name || 'Unnamed staff member',
+    platformRole: row.platform_role,
+  }));
+}
+
+export async function createSourcingTaskFromGap(
+  term: string,
+  priority: OpportunitySourcingTask['priority'] = 'medium',
+): Promise<string> {
+  const { data, error } = await supabase.rpc('create_sourcing_task_from_gap', {
+    p_term: term,
+    p_priority: priority,
+    p_due_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function assignOpportunitySourcingTask(input: {
+  taskId: string;
+  assignedTo: string;
+  priority: OpportunitySourcingTask['priority'];
+  dueAt?: string;
+}): Promise<void> {
+  const { error } = await supabase.rpc('assign_opportunity_sourcing_task', {
+    p_task_id: input.taskId,
+    p_assigned_to: input.assignedTo,
+    p_priority: input.priority,
+    p_due_at: input.dueAt || null,
+  });
+  if (error) throw error;
+}
+
+export async function updateOpportunitySourcingTask(input: {
+  taskId: string;
+  status: Exclude<OpportunitySourcingTask['status'], 'open' | 'completed'>;
+  notes?: string;
+  sourceLinks?: string[];
+}): Promise<void> {
+  const { error } = await supabase.rpc('update_opportunity_sourcing_task', {
+    p_task_id: input.taskId,
+    p_status: input.status,
+    p_notes: input.notes || null,
+    p_source_links: input.sourceLinks ?? [],
+  });
+  if (error) throw error;
 }
 
 export async function fetchOpportunitySources(): Promise<OpportunitySource[]> {
@@ -744,7 +847,7 @@ export async function createOpportunitySource(input: CreateOpportunitySourceInpu
 export async function fetchOpportunityIngestionItems(): Promise<OpportunityIngestionItem[]> {
   const { data, error } = await supabase
     .from('opportunity_ingestion_items')
-    .select('id,source_id,source_url,title,buyer_name,summary,submission_deadline,status,quality_score,quality_issues,duplicate_opportunity_id,opportunity_id,extraction_method,extraction_confidence,created_at,opportunity_sources(name)')
+    .select('id,source_id,source_url,title,buyer_name,summary,submission_deadline,status,quality_score,quality_issues,duplicate_opportunity_id,opportunity_id,extraction_method,extraction_confidence,created_at,sourcing_task_id,opportunity_sources(name)')
     .order('created_at', { ascending: false })
     .limit(200);
   if (error) throw error;
@@ -770,8 +873,9 @@ export async function createOpportunityIngestionItem(
       extracted_fields: Object.fromEntries((input.extractedFields ?? []).map((field) => [field, true])),
       submission_deadline: input.submissionDeadline || null,
       status: input.status ?? 'draft',
+      sourcing_task_id: input.sourcingTaskId || null,
     })
-    .select('id,source_id,source_url,title,buyer_name,summary,submission_deadline,status,quality_score,quality_issues,duplicate_opportunity_id,opportunity_id,extraction_method,extraction_confidence,created_at,opportunity_sources(name)')
+    .select('id,source_id,source_url,title,buyer_name,summary,submission_deadline,status,quality_score,quality_issues,duplicate_opportunity_id,opportunity_id,extraction_method,extraction_confidence,created_at,sourcing_task_id,opportunity_sources(name)')
     .single();
   if (error) throw error;
   return mapIngestionItem(data);
@@ -782,7 +886,7 @@ export async function submitOpportunityIngestionItem(id: string): Promise<Opport
     .from('opportunity_ingestion_items')
     .update({ status: 'ready_for_review' })
     .eq('id', id)
-    .select('id,source_id,source_url,title,buyer_name,summary,submission_deadline,status,quality_score,quality_issues,duplicate_opportunity_id,opportunity_id,extraction_method,extraction_confidence,created_at,opportunity_sources(name)')
+    .select('id,source_id,source_url,title,buyer_name,summary,submission_deadline,status,quality_score,quality_issues,duplicate_opportunity_id,opportunity_id,extraction_method,extraction_confidence,created_at,sourcing_task_id,opportunity_sources(name)')
     .single();
   if (error) throw error;
   return mapIngestionItem(data);

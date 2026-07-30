@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  ClipboardList,
   CheckCircle2,
   Database,
   ExternalLink,
@@ -14,15 +15,21 @@ import {
   Sparkles,
 } from 'lucide-react';
 import {
+  assignOpportunitySourcingTask,
   createOpportunityIngestionItem,
   createOpportunitySource,
   fetchOpportunityIngestionItems,
+  fetchOpportunitySourcingTasks,
   fetchOpportunitySources,
+  fetchPlatformResearchers,
   promoteOpportunityIngestionItem,
   recordOpportunitySourceCheck,
   submitOpportunityIngestionItem,
+  updateOpportunitySourcingTask,
   type OpportunityIngestionItem,
   type OpportunitySource,
+  type OpportunitySourcingTask,
+  type PlatformResearcher,
 } from '../../lib/procurementApi';
 import { extractOpportunityFromText } from './opportunityExtraction';
 
@@ -37,6 +44,9 @@ function message(error: unknown, fallback: string): string {
 export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIngestionWorkspaceProps) {
   const [sources, setSources] = useState<OpportunitySource[]>([]);
   const [items, setItems] = useState<OpportunityIngestionItem[]>([]);
+  const [tasks, setTasks] = useState<OpportunitySourcingTask[]>([]);
+  const [researchers, setResearchers] = useState<PlatformResearcher[]>([]);
+  const [selectedTask, setSelectedTask] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -60,18 +70,22 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
     setLoading(true);
     setFeedback('');
     try {
-      const [sourceRows, itemRows] = await Promise.all([
+      const [sourceRows, itemRows, taskRows, researcherRows] = await Promise.all([
         fetchOpportunitySources(),
         fetchOpportunityIngestionItems(),
+        fetchOpportunitySourcingTasks(),
+        isPlatformAdmin ? fetchPlatformResearchers() : Promise.resolve([]),
       ]);
       setSources(sourceRows);
       setItems(itemRows);
+      setTasks(taskRows);
+      setResearchers(researcherRows);
     } catch (error) {
       setFeedback(`Error: ${message(error, 'Could not load the ingestion workspace.')}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isPlatformAdmin]);
 
   useEffect(() => {
     void load();
@@ -123,6 +137,7 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
         extractionConfidence: extractionConfidence ?? undefined,
         extractedFields,
         submissionDeadline: deadline ? new Date(deadline).toISOString() : undefined,
+        sourcingTaskId: selectedTask || undefined,
       });
       setItems((current) => [item, ...current]);
       setTitle('');
@@ -134,9 +149,53 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
       setExternalReference('');
       setExtractionConfidence(null);
       setExtractedFields([]);
+      setSelectedTask('');
+      await load();
       setFeedback('Opportunity draft captured. Review its quality checks before submission.');
     } catch (error) {
       setFeedback(`Error: ${message(error, 'Could not capture opportunity.')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const assignTask = async (task: OpportunitySourcingTask, assignedTo: string) => {
+    if (!assignedTo) return;
+    setBusy(`task-${task.id}`);
+    setFeedback('');
+    try {
+      await assignOpportunitySourcingTask({
+        taskId: task.id,
+        assignedTo,
+        priority: task.priority,
+        dueAt: task.dueAt ?? undefined,
+      });
+      await load();
+      setFeedback('Sourcing task assigned and the researcher has been notified.');
+    } catch (error) {
+      setFeedback(`Error: ${message(error, 'Could not assign sourcing task.')}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const beginTask = async (task: OpportunitySourcingTask) => {
+    setBusy(`task-${task.id}`);
+    setFeedback('');
+    try {
+      await updateOpportunitySourcingTask({
+        taskId: task.id,
+        status: 'in_progress',
+        notes: task.notes ?? undefined,
+        sourceLinks: task.sourceLinks,
+      });
+      setSelectedTask(task.id);
+      setTitle(task.searchTerm);
+      setSummary(`Sourced in response to ${task.demandCount} zero-result search${task.demandCount === 1 ? '' : 'es'} for “${task.searchTerm}”.`);
+      await load();
+      setFeedback('Task linked to the capture form below. Add the verified notice and source evidence.');
+    } catch (error) {
+      setFeedback(`Error: ${message(error, 'Could not start sourcing task.')}`);
     } finally {
       setBusy('');
     }
@@ -241,6 +300,58 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
         </div>
       )}
 
+      <section className="border-2 border-slate-950 bg-white">
+        <div className="flex flex-col gap-3 border-b-2 border-slate-950 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <ClipboardList className="h-5 w-5 text-amber-700" />
+            <div>
+              <p className="font-mono text-[9px] font-bold uppercase tracking-widest text-amber-800">Demand-led research</p>
+              <h3 className="font-display text-lg font-extrabold">Search-gap sourcing tasks</h3>
+            </div>
+          </div>
+          <span className="font-mono text-[10px] font-bold uppercase text-slate-600">{tasks.filter((task) => !['completed', 'cancelled'].includes(task.status)).length} active</span>
+        </div>
+        {tasks.length === 0 ? (
+          <p className="p-6 text-sm text-slate-500">{isPlatformAdmin ? 'Create a task from Content gaps in Platform Analytics.' : 'No sourcing tasks are assigned to you.'}</p>
+        ) : (
+          <div className="grid gap-px bg-slate-300 md:grid-cols-2">
+            {tasks.map((task) => (
+              <article key={task.id} className="bg-white p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-[9px] font-bold uppercase text-violet-700">{task.demandCount} searches · {task.priority} priority</p>
+                    <h4 className="mt-1 font-display text-base font-extrabold">{task.searchTerm}</h4>
+                  </div>
+                  <span className="border border-slate-950 bg-slate-50 px-2 py-1 font-mono text-[8px] font-bold uppercase">{task.status.replace('_', ' ')}</span>
+                </div>
+                <p className="mt-3 text-xs text-slate-600">
+                  {task.dueAt ? `Due ${new Date(task.dueAt).toLocaleDateString()}` : 'No due date'} · Latest demand {new Date(task.latestSearchAt).toLocaleDateString()}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {isPlatformAdmin && !['completed', 'cancelled'].includes(task.status) && (
+                    <select
+                      aria-label={`Assign ${task.searchTerm}`}
+                      value={task.assignedTo ?? ''}
+                      disabled={busy === `task-${task.id}`}
+                      onChange={(event) => void assignTask(task, event.target.value)}
+                      className="min-w-44 border-2 border-slate-950 bg-white px-3 py-2 text-xs"
+                    >
+                      <option value="">Assign researcher</option>
+                      {researchers.map((researcher) => <option key={researcher.id} value={researcher.id}>{researcher.fullName}</option>)}
+                    </select>
+                  )}
+                  {!['completed', 'cancelled'].includes(task.status) && task.assignedTo && (
+                    <button type="button" disabled={busy === `task-${task.id}`} onClick={() => void beginTask(task)} className="inline-flex items-center gap-2 bg-slate-950 px-3 py-2 font-mono text-[9px] font-bold uppercase text-white disabled:opacity-50">
+                      <FilePlus2 className="h-3.5 w-3.5" /> Use for capture
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section className="grid gap-5 xl:grid-cols-2">
         <form onSubmit={addSource} className="border-2 border-slate-950 bg-white p-5">
           <div className="flex items-center gap-3">
@@ -261,6 +372,7 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
             <FilePlus2 className="h-5 w-5 text-emerald-600" />
             <div><p className="font-mono text-[9px] font-bold uppercase text-emerald-700">Research queue</p><h3 className="font-display text-lg font-extrabold">Capture opportunity</h3></div>
           </div>
+          {selectedTask && <div className="mt-4 border border-amber-500 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">Linked to sourcing task: {tasks.find((task) => task.id === selectedTask)?.searchTerm}</div>}
           <div className="mt-5 border-2 border-violet-300 bg-violet-50 p-4">
             <div className="flex items-start gap-3">
               <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-violet-700" />
