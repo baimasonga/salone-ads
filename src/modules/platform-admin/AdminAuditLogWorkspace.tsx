@@ -18,6 +18,24 @@ const ACTION_OPTIONS = [
   'tender.awarded',
   'tender.featured',
   'tender.unfeatured',
+  'subscription.activated',
+  'subscription.renewed',
+  'subscription.suspended',
+  'subscription.cancelled',
+  'content.created',
+  'content.published',
+  'content.deleted',
+  'membership.added',
+  'membership.role_changed',
+  'membership.removed',
+  'agency.client_invited',
+  'agency.client_status_changed',
+  'advertising.order_created',
+  'advertising.order_status_changed',
+  'billing.payment_recorded',
+  'billing.credit_issued',
+  'billing.refund_recorded',
+  'campaign.created',
 ];
 
 function shortId(value: string | null): string {
@@ -74,7 +92,8 @@ export function AdminAuditLogWorkspace() {
           <ClipboardList className="h-7 w-7 text-violet-300" /> Platform audit log
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-          Review immutable records of sensitive procurement and administrative actions.
+          Review immutable records across procurement, subscriptions, billing, content,
+          organizations, agencies and administrator operations.
         </p>
       </section>
 

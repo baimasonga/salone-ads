@@ -4,6 +4,8 @@ import {
   BookOpen,
   Building2,
   CreditCard,
+  Gauge,
+  History,
   Landmark,
   Mail,
   Megaphone,
@@ -16,8 +18,9 @@ import {
 import { AdminJobOperationsWorkspace } from './AdminJobOperationsWorkspace';
 import { AdminOrganizationLifecycleWorkspace } from './AdminOrganizationLifecycleWorkspace';
 import { AdminResilienceWorkspace } from './AdminResilienceWorkspace';
+import { AdminUsageMeteringWorkspace } from './AdminUsageMeteringWorkspace';
 
-const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience'] as const;
+const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage'] as const;
 export type PlatformAdminTab = (typeof PLATFORM_ADMIN_TABS)[number];
 
 export function isPlatformAdminWorkspaceTab(tab: string): tab is PlatformAdminTab {
@@ -204,6 +207,9 @@ export function PlatformAdminWorkspace({
   if (activeTab === 'admin-resilience') {
     return <AdminResilienceWorkspace />;
   }
+  if (activeTab === 'admin-usage') {
+    return <AdminUsageMeteringWorkspace />;
+  }
 
   if (activeTab === 'audience-hub') {
     return (
@@ -278,6 +284,18 @@ export function PlatformAdminWorkspace({
           title: 'Reliability & recovery',
           description: 'Command incidents, track recovery objectives and record tested restore evidence.',
           icon: LifeBuoy,
+        },
+        {
+          id: 'admin-audit-log',
+          title: 'Platform audit log',
+          description: 'Review immutable records across procurement, billing, subscriptions, content and administration.',
+          icon: History,
+        },
+        {
+          id: 'admin-usage',
+          title: 'Usage metering',
+          description: 'Inspect organization consumption and commercially important metered actions.',
+          icon: Gauge,
         },
       ]}
     />
