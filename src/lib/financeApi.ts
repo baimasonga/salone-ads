@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { executeBackendCommand } from './commandApi';
 export interface FinancePayment {
   id: string;
   reference: string;
@@ -65,13 +66,7 @@ export async function recordFinancePayment(
   method: string,
   amount: number,
 ) {
-  const { error } = await supabase.rpc('record_commercial_payment', {
-    p_invoice_id: invoiceId,
-    p_reference: reference,
-    p_method: method,
-    p_amount: amount,
-  });
-  if (error) throw error;
+  await executeBackendCommand('billing.payment.record', { invoiceId, reference, method, amount });
 }
 
 export async function issueFinanceCredit(
@@ -80,13 +75,7 @@ export async function issueFinanceCredit(
   amount: number,
   reason: string,
 ) {
-  const { error } = await supabase.rpc('issue_commercial_credit', {
-    p_invoice_id: invoiceId,
-    p_credit_number: creditNumber,
-    p_amount: amount,
-    p_reason: reason,
-  });
-  if (error) throw error;
+  await executeBackendCommand('billing.credit.issue', { invoiceId, creditNumber, amount, reason });
 }
 
 export async function recordFinanceRefund(
@@ -95,13 +84,7 @@ export async function recordFinanceRefund(
   amount: number,
   reason: string,
 ) {
-  const { error } = await supabase.rpc('record_commercial_refund', {
-    p_payment_id: paymentId,
-    p_refund_reference: refundReference,
-    p_amount: amount,
-    p_reason: reason,
-  });
-  if (error) throw error;
+  await executeBackendCommand('billing.refund.record', { paymentId, refundReference, amount, reason });
 }
 
 export async function processOverdueInvoices(): Promise<number> {

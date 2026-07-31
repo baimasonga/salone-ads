@@ -20,8 +20,9 @@ import { AdminOrganizationLifecycleWorkspace } from './AdminOrganizationLifecycl
 import { AdminResilienceWorkspace } from './AdminResilienceWorkspace';
 import { AdminUsageMeteringWorkspace } from './AdminUsageMeteringWorkspace';
 import { AdminAuthorizationAssuranceWorkspace } from './AdminAuthorizationAssuranceWorkspace';
+import { AdminCommandOperationsWorkspace } from './AdminCommandOperationsWorkspace';
 
-const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage', 'admin-authorization'] as const;
+const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage', 'admin-authorization', 'admin-commands'] as const;
 export type PlatformAdminTab = (typeof PLATFORM_ADMIN_TABS)[number];
 
 export function isPlatformAdminWorkspaceTab(tab: string): tab is PlatformAdminTab {
@@ -214,6 +215,9 @@ export function PlatformAdminWorkspace({
   if (activeTab === 'admin-authorization') {
     return <AdminAuthorizationAssuranceWorkspace />;
   }
+  if (activeTab === 'admin-commands') {
+    return <AdminCommandOperationsWorkspace />;
+  }
 
   if (activeTab === 'audience-hub') {
     return (
@@ -306,6 +310,12 @@ export function PlatformAdminWorkspace({
           title: 'Authorization assurance',
           description: 'Verify tenant isolation, RLS policy coverage and protected-access denials.',
           icon: ShieldCheck,
+        },
+        {
+          id: 'admin-commands',
+          title: 'Command operations',
+          description: 'Monitor sensitive backend actions, idempotent retries and normalized failures.',
+          icon: ServerCog,
         },
       ]}
     />

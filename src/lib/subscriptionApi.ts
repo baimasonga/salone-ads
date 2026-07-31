@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { executeBackendCommand } from './commandApi';
 
 export type SubscriptionStatus =
   | 'pending' | 'trialing' | 'active' | 'past_due' | 'grace_period'
@@ -52,11 +53,5 @@ export async function transitionSubscription(
   action: SubscriptionAction,
   reason = '',
 ): Promise<void> {
-  const { error } = await supabase.rpc('transition_subscription', {
-    p_subscription_id: subscriptionId,
-    p_action: action,
-    p_reason: reason || null,
-  });
-  if (error) throw error;
+  await executeBackendCommand('subscription.transition', { subscriptionId, action, reason });
 }
-

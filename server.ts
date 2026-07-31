@@ -70,6 +70,57 @@ async function requirePlatformAdmin(req: express.Request, res: express.Response,
   next();
 }
 
+function userScopedSupabase(req: express.Request) {
+  const token = req.headers.authorization?.slice(7);
+  if (!token || !SUPABASE_URL || !SUPABASE_ANON_KEY) throw Object.assign(new Error("Authentication required."), { status: 401, expose: true });
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+const COMMAND_NAME_PATTERN = /^[a-z][a-z0-9_.]{2,79}$/;
+const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+type CommandPayload = Record<string, unknown>;
+const commandField = (payload: CommandPayload, name: string, maximum = 500, optional = false): string | null => {
+  const value = payload[name];
+  if (optional && (value === undefined || value === null || value === '')) return null;
+  if (typeof value !== 'string' || !value.trim() || value.length > maximum) throw Object.assign(new Error(`${name} is invalid.`), { status: 400, expose: true });
+  return value.trim();
+};
+const commandUuid = (payload: CommandPayload, name: string, optional = false): string | null => {
+  const value = commandField(payload, name, 64, optional);
+  if (value !== null && !UUID_PATTERN.test(value)) throw Object.assign(new Error(`${name} must be a valid identifier.`), { status: 400, expose: true });
+  return value;
+};
+const commandAmount = (payload: CommandPayload, name: string): number => {
+  const value = payload[name];
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > 1_000_000_000) throw Object.assign(new Error(`${name} must be a positive amount.`), { status: 400, expose: true });
+  return value;
+};
+const commandBoolean = (payload: CommandPayload, name: string): boolean => {
+  if (typeof payload[name] !== 'boolean') throw Object.assign(new Error(`${name} must be true or false.`), { status: 400, expose: true });
+  return payload[name] as boolean;
+};
+const oneOf = (value: string | null, allowed: readonly string[], name: string): string => {
+  if (!value || !allowed.includes(value)) throw Object.assign(new Error(`${name} is invalid.`), { status: 400, expose: true });
+  return value;
+};
+
+const COMMANDS: Record<string, { rpc: string; params: (payload: CommandPayload) => Record<string, unknown> }> = {
+  'organization.invite': { rpc: 'invite_team_member', params: p => ({ p_org_id: commandUuid(p, 'orgId'), p_email: commandField(p, 'email', 320), p_role: oneOf(commandField(p, 'role', 20), ['owner','admin','member'], 'role') }) },
+  'organization.transition': { rpc: 'admin_transition_organization', params: p => ({ p_org_id: commandUuid(p, 'orgId'), p_action: oneOf(commandField(p, 'action', 20), ['suspend','reactivate','close'], 'action'), p_reason: commandField(p, 'reason', 1000) }) },
+  'organization.recovery.decide': { rpc: 'admin_decide_organization_recovery', params: p => ({ p_request_id: commandUuid(p, 'requestId'), p_approve: commandBoolean(p, 'approve'), p_note: commandField(p, 'note', 1000, true) }) },
+  'subscription.transition': { rpc: 'transition_subscription', params: p => ({ p_subscription_id: commandUuid(p, 'subscriptionId'), p_action: oneOf(commandField(p, 'action', 30), ['start_trial','activate','renew','mark_past_due','start_grace','suspend','resume','schedule_cancel','cancel','expire'], 'action'), p_reason: commandField(p, 'reason', 1000, true), p_effective_date: commandField(p, 'effectiveDate', 10, true) }) },
+  'advertising.order.create': { rpc: 'create_advert_order', params: p => ({ p_org_id: commandUuid(p, 'orgId'), p_campaign_id: commandUuid(p, 'campaignId', true), p_package_id: commandUuid(p, 'packageId'), p_billing_period: oneOf(commandField(p, 'billingPeriod', 20), ['daily','weekly','monthly'], 'billingPeriod'), p_payment_method: commandField(p, 'paymentMethod', 80), p_payment_reference: commandField(p, 'paymentReference', 200, true) }) },
+  'organization.verification.approve': { rpc: 'admin_approve_organization_verification', params: p => ({ p_request_id: commandUuid(p, 'requestId'), p_org_id: commandUuid(p, 'orgId'), p_request_type: oneOf(commandField(p, 'requestType', 20), ['supplier','buyer'], 'requestType') }) },
+  'procurement.ingestion.promote': { rpc: 'promote_opportunity_ingestion_item', params: p => ({ p_item_id: commandUuid(p, 'itemId') }) },
+  'billing.payment.record': { rpc: 'record_commercial_payment', params: p => ({ p_invoice_id: commandUuid(p, 'invoiceId'), p_reference: commandField(p, 'reference', 200), p_method: commandField(p, 'method', 80), p_amount: commandAmount(p, 'amount') }) },
+  'billing.credit.issue': { rpc: 'issue_commercial_credit', params: p => ({ p_invoice_id: commandUuid(p, 'invoiceId'), p_credit_number: commandField(p, 'creditNumber', 100), p_amount: commandAmount(p, 'amount'), p_reason: commandField(p, 'reason', 1000) }) },
+  'billing.refund.record': { rpc: 'record_commercial_refund', params: p => ({ p_payment_id: commandUuid(p, 'paymentId'), p_refund_reference: commandField(p, 'refundReference', 200), p_amount: commandAmount(p, 'amount'), p_reason: commandField(p, 'reason', 1000) }) },
+};
+
 const aiRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 10,
@@ -872,6 +923,59 @@ async function startServer() {
       measurementProtection: "visitor-dedupe-v1",
       requestId: res.locals.requestId,
     });
+  });
+
+  // Sensitive state changes enter through one authenticated, validated and
+  // idempotent command envelope. The caller's JWT remains attached to every
+  // RPC, so existing authorization, entitlements and RLS stay authoritative.
+  app.post("/api/commands", requireUser, async (req, res, next) => {
+    const command = typeof req.body?.command === 'string' ? req.body.command : '';
+    const payload = req.body?.payload;
+    const idempotencyKey = req.get('x-idempotency-key')?.trim() || '';
+    if (!COMMAND_NAME_PATTERN.test(command) || !COMMANDS[command]) {
+      res.status(400).json({ error: { message: 'Unsupported command.' } }); return;
+    }
+    if (!IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+      res.status(400).json({ error: { message: 'A valid idempotency key is required.' } }); return;
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      res.status(400).json({ error: { message: 'Command payload must be an object.' } }); return;
+    }
+
+    let commandId: string | undefined;
+    const client = userScopedSupabase(req);
+    try {
+      const definition = COMMANDS[command];
+      const params = definition.params(payload as CommandPayload);
+      const payloadHash = createHash('sha256').update(JSON.stringify(params)).digest('hex');
+      const { data: claim, error: claimError } = await client.rpc('claim_backend_command', {
+        p_command_name: command,
+        p_idempotency_key: idempotencyKey,
+        p_payload_hash: payloadHash,
+        p_request_id: (req as RequestWithContext).requestId || randomUUID(),
+      });
+      if (claimError) {
+        const conflict = /already processing|already used/i.test(claimError.message);
+        throw Object.assign(new Error(claimError.message), { status: conflict ? 409 : 400, expose: true, code: conflict ? 'COMMAND_CONFLICT' : 'COMMAND_REJECTED' });
+      }
+      commandId = claim?.commandId;
+      if (claim?.cached) {
+        res.json({ result: claim.result, cached: true, commandId }); return;
+      }
+
+      const { data, error } = await client.rpc(definition.rpc, params);
+      if (error) throw Object.assign(new Error(error.message), { status: 400, expose: true, code: 'COMMAND_REJECTED' });
+      const result = data ?? null;
+      const { error: completionError } = await client.rpc('complete_backend_command', { p_command_id: commandId, p_result: result });
+      if (completionError) throw completionError;
+      res.json({ result, cached: false, commandId });
+    } catch (error) {
+      if (commandId) {
+        const code = typeof (error as any)?.code === 'string' ? (error as any).code : 'COMMAND_FAILED';
+        await client.rpc('fail_backend_command', { p_command_id: commandId, p_error_code: code });
+      }
+      next(error);
+    }
   });
 
   // Server-Side Gemini Completion Handler
