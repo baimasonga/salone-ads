@@ -3,35 +3,17 @@ import JSZip from 'jszip';
 import { toPng } from 'html-to-image';
 import { Link } from 'react-router-dom';
 import { AdvertCreative, CreativeScaler, AdvertFormat, AdvertTheme } from './AdvertCreative';
-import { CampaignBuilderPage } from './CampaignBuilderPage';
-import { AdvertBillingPage } from './AdvertBillingPage';
-import { AgencyWorkspacePage } from './AgencyWorkspacePage';
-import { LandingCmsPage } from './LandingCmsPage';
-import { CmsContentManagerPage } from './CmsContentManagerPage';
-import { AudienceSubscribersPage } from './AudienceSubscribersPage';
-import { AudienceEmailCampaignsPage } from './AudienceEmailCampaignsPage';
-import { CampaignPerformancePage } from './CampaignPerformancePage';
-import { NotificationCentre } from '../modules/notifications/NotificationCentre';
+import { resolveDelegatedWorkspaceRoute } from './WorkspaceRouteResolver';
 import {
   campaignStatusOptions,
   campaignTransitionRequiresReason,
   canTransitionCampaign,
 } from '../domain/workflows/campaignStatus';
-import { AdminSubscriptionLifecycleWorkspace } from '../modules/subscriptions/AdminSubscriptionLifecycleWorkspace';
 import { QuotaUsagePanel } from '../modules/subscriptions/QuotaUsagePanel';
-import { FinanceLedgerWorkspace } from '../modules/finance/FinanceLedgerWorkspace';
-import {
-  isPlatformAdminWorkspaceTab,
-  PlatformAdminWorkspace,
-} from '../modules/platform-admin/PlatformAdminWorkspace';
-import { ProcurementOverview } from '../modules/procurement/ProcurementOverview';
 import { useProcurementOverview } from '../modules/procurement/useProcurementOverview';
 import { useTenderWorkspace } from '../modules/procurement/useTenderWorkspace';
 import { TenderCreationForm } from '../modules/procurement/TenderCreationForm';
 import { TenderManagementPanel } from '../modules/procurement/TenderManagementPanel';
-import { AdminTenderReviewWorkspace } from '../modules/procurement/AdminTenderReviewWorkspace';
-import { OpportunityIngestionWorkspace } from '../modules/procurement/OpportunityIngestionWorkspace';
-import { AdminAuditLogWorkspace } from '../modules/platform-admin/AdminAuditLogWorkspace';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
@@ -2256,52 +2238,21 @@ export function Workspaces({
 
   // --- WORKSPACE RENDERING ---
 
-  if (activeTab === 'notifications') {
-    return <NotificationCentre activeOrgId={activeOrg.id} onNavigate={setActiveTab} />;
-  }
-  if (activeTab === 'opportunity-ingestion') {
-    if (!isPlatformAdmin && !isPlatformResearcher) {
-      return <div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Researcher access is required.</div>;
-    }
-    return <OpportunityIngestionWorkspace isPlatformAdmin={isPlatformAdmin} />;
-  }
-  if (activeTab === 'admin-finance' && isPlatformAdmin) {
-    return <FinanceLedgerWorkspace />;
-  }
-
-
-  if (isPlatformAdmin && isPlatformAdminWorkspaceTab(activeTab)) {
-    return (
-      <PlatformAdminWorkspace
-        activeTab={activeTab}
-        onNavigate={setActiveTab}
-        metrics={{
-          activeCampaigns: campaigns.filter((campaign) => campaign.status === 'Active').length,
-          publishedContent: contentItems.filter((item) => item.status === 'Published').length,
-          activeLeads: leads.length,
-          trackedClicks: trackingLinks.reduce((sum, link) => sum + link.clickCount, 0),
-        }}
-      />
-    );
-  }
-
-  // 1. OVERVIEW WORKSPACE
-  if (activeTab === 'overview' && !isPlatformAdmin) {
-    return (
-      <ProcurementOverview
-        organizationName={activeOrg.name}
-        tier={procurementOverview.tier}
-        pipelineCount={procurementOverview.pipelineCount}
-        savedSearchCount={procurementOverview.savedSearchCount}
-        savedSearches={procurementOverview.savedSearches}
-        recommended={procurementOverview.recommended}
-        publishedTenderCount={procurementOverview.publishedTenderCount}
-        loading={procurementOverview.loading}
-        degraded={procurementOverview.degraded}
-        onNavigate={setActiveTab}
-      />
-    );
-  }
+  const delegatedRoute = resolveDelegatedWorkspaceRoute({
+    activeTab,
+    activeOrg,
+    isPlatformAdmin,
+    isPlatformResearcher,
+    onNavigate: setActiveTab,
+    overview: procurementOverview,
+    metrics: {
+      activeCampaigns: campaigns.filter((campaign) => campaign.status === 'Active').length,
+      publishedContent: contentItems.filter((item) => item.status === 'Published').length,
+      activeLeads: leads.length,
+      trackedClicks: trackingLinks.reduce((sum, link) => sum + link.clickCount, 0),
+    },
+  });
+  if (delegatedRoute !== undefined) return delegatedRoute;
 
   // TENDERS WORKSPACE (Procurement)
   if (activeTab === 'tenders') {
@@ -2427,28 +2378,6 @@ export function Workspaces({
   }
 
   // ADMIN TENDER REVIEW WORKSPACE (platform admins only)
-  if (activeTab === 'admin-tender-review') {
-    if (!isPlatformAdmin) {
-      return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
-          You do not have platform admin access.
-        </div>
-      );
-    }
-    return <AdminTenderReviewWorkspace />;
-  }
-
-  if (activeTab === 'admin-audit-log') {
-    if (!isPlatformAdmin) {
-      return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
-          You do not have platform admin access.
-        </div>
-      );
-    }
-    return <AdminAuditLogWorkspace />;
-  }
-
   // SUPPLIER PROFILE WORKSPACE
   if (activeTab === 'supplier-profile') {
     if (isPlatformAdmin) {
@@ -2740,45 +2669,6 @@ export function Workspaces({
           )}
         </div>
       </div>
-    );
-  }
-
-  // ADVERTISER SUBSCRIBER WORKSPACE ("My Adverts")
-  // Deliberately narrow: no directory/event-promotion browsing UI here at
-  // all. This subscriber submits what they want advertised and later sees
-  // a read-only report of what happened -- platform, run count, reach.
-  // The actual design/production work stays admin-only ad-platform tooling.
-  // Keep the retired "campaigns" route as a compatibility redirect. Both
-  // navigation paths now render the same authoritative campaign workflow.
-  if (activeTab === 'campaign-builder' || activeTab === 'campaigns') {
-    return <CampaignBuilderPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
-  }
-  if (activeTab === 'advert-packages' || activeTab === 'admin-advert-revenue') {
-    return <AdvertBillingPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
-  }
-  if (activeTab === 'agency-workspace') {
-    return <AgencyWorkspacePage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
-  }
-  if (activeTab === 'landing-cms') {
-    return <LandingCmsPage />;
-  }
-  if (activeTab === 'content-cms') {
-    return <CmsContentManagerPage isPlatformAdmin={isPlatformAdmin} />;
-  }
-  if (activeTab === 'audience-subscribers') {
-    return <AudienceSubscribersPage />;
-  }
-  if (activeTab === 'audience-messaging') {
-    return <AudienceEmailCampaignsPage />;
-  }
-
-  if (activeTab === 'campaign-performance') {
-    return (
-      <CampaignPerformancePage
-        activeOrg={activeOrg}
-        isPlatformAdmin={isPlatformAdmin}
-        onCreateAdvert={() => setActiveTab(isPlatformAdmin ? 'admin-advertising' : 'advertising')}
-      />
     );
   }
 
@@ -3361,14 +3251,6 @@ export function Workspaces({
         </div>
       </div>
     );
-  }
-
-  // ADMIN SUBSCRIPTION LIFECYCLE WORKSPACE
-  if (activeTab === 'admin-subscriptions') {
-    if (!isPlatformAdmin) {
-      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
-    }
-    return <AdminSubscriptionLifecycleWorkspace />;
   }
 
   // ADMIN SERVICE REQUESTS WORKSPACE
