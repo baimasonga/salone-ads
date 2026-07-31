@@ -10,6 +10,10 @@ const delegatedRoutes = readFileSync(
   resolve(process.cwd(), 'src/components/WorkspaceRouteResolver.tsx'),
   'utf8',
 );
+const subscriberAdvertising = readFileSync(
+  resolve(process.cwd(), 'src/components/SubscriberAdvertisingWorkspace.tsx'),
+  'utf8',
+);
 
 describe('workspace source integrity', () => {
   it('retains early, middle and late workspace implementations', () => {
@@ -21,7 +25,7 @@ describe('workspace source integrity', () => {
 
   it('retains the complete workspace source rather than a partial publish', () => {
     expect(workspaceSource.split('\n').length).toBeGreaterThan(5_600);
-    expect((workspaceSource + delegatedRoutes).split('\n').length).toBeGreaterThan(5_700);
+    expect((workspaceSource + delegatedRoutes + subscriberAdvertising).split('\n').length).toBeGreaterThan(5_800);
     expect(workspaceSource.trimEnd().endsWith('}')).toBe(true);
   });
 
@@ -30,5 +34,13 @@ describe('workspace source integrity', () => {
     expect(workspaceSource).not.toContain("if (activeTab === 'notifications')");
     expect(delegatedRoutes).toContain("activeTab === 'admin-subscriptions'");
     expect(delegatedRoutes).toContain("activeTab === 'campaign-performance'");
+  });
+
+  it('keeps subscriber advertising visible while isolating its rendering', () => {
+    expect(workspaceSource).toContain('<SubscriberAdvertisingWorkspace');
+    expect(workspaceSource).not.toContain("<h3 className=\"font-display font-bold text-slate-900 text-lg\">My Adverts</h3>");
+    expect(subscriberAdvertising).toContain('My Adverts');
+    expect(subscriberAdvertising).toContain('Your Requests');
+    expect(subscriberAdvertising).toContain('Advertising is available on the Business plan and above.');
   });
 });
