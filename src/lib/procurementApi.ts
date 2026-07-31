@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 32696)
-Total output lines: 3395
-
 import { supabase } from './supabaseClient';
 import {
   getPublicVisitorTokenHash,
@@ -1738,7 +1735,286 @@ export async function createServiceRequest(orgId: string, serviceType: ServiceTy
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
-…2696 tokens truncated…arches ?? 0),
+  const { error } = await supabase.from('service_requests').insert({
+    org_id: orgId,
+    requested_by: user.id,
+    service_type: serviceType,
+    description,
+    related_opportunity_id: relatedOpportunityId || null,
+  });
+  if (error) throw error;
+}
+
+export async function fetchMyServiceRequests(orgId: string): Promise<ServiceRequest[]> {
+  const { data, error } = await supabase
+    .from('service_requests')
+    .select('id, org_id, service_type, description, status, quote_amount, quote_currency, created_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapServiceRequest);
+}
+
+export async function fetchAllServiceRequests(): Promise<ServiceRequest[]> {
+  const { data, error } = await supabase
+    .from('service_requests')
+    .select('id, org_id, service_type, description, status, quote_amount, quote_currency, created_at, organizations(name)')
+    .neq('status', 'completed')
+    .neq('status', 'cancelled')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({ ...mapServiceRequest(row), orgName: row.organizations?.name }));
+}
+
+function mapServiceRequest(row: any): ServiceRequest {
+  return {
+    id: row.id,
+    orgId: row.org_id,
+    serviceType: row.service_type,
+    description: row.description,
+    status: row.status,
+    quoteAmount: row.quote_amount !== null && row.quote_amount !== undefined ? Number(row.quote_amount) : null,
+    quoteCurrency: row.quote_currency,
+    createdAt: row.created_at,
+  };
+}
+
+export async function fetchServiceRequestActivities(requestId: string): Promise<ServiceRequestActivity[]> {
+  const { data, error } = await supabase
+    .from('service_request_activities')
+    .select('id, note, is_internal, created_at')
+    .eq('request_id', requestId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({ id: row.id, note: row.note, isInternal: row.is_internal, createdAt: row.created_at }));
+}
+
+export async function addServiceRequestNote(requestId: string, note: string, isInternal: boolean): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { error } = await supabase.from('service_request_activities').insert({
+    request_id: requestId,
+    author_id: user.id,
+    note,
+    is_internal: isInternal,
+  });
+  if (error) throw error;
+}
+
+export async function updateServiceRequestStatus(id: string, status: string): Promise<void> {
+  const { error } = await supabase.from('service_requests').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function quoteServiceRequest(id: string, amount: number, currencyCode: string): Promise<void> {
+  const { error } = await supabase
+    .from('service_requests')
+    .update({ status: 'quoted', quote_amount: amount, quote_currency: currencyCode, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// --- Supplier opportunity pipeline (strictly private -- see RLS) ---
+
+export type PipelineStage = 'saved' | 'reviewing' | 'interested' | 'go' | 'no_go' | 'preparing' | 'submitted' | 'won' | 'lost' | 'withdrawn' | 'archived';
+
+export interface PipelineRecord {
+  id: string;
+  opportunityId: string;
+  opportunityTitle: string;
+  opportunitySlug: string;
+  submissionDeadline: string;
+  stage: PipelineStage;
+  bidValue: number | null;
+  probability: number | null;
+  internalDeadline: string | null;
+  lossReason: string | null;
+  notes: string | null;
+}
+
+export async function fetchPipeline(orgId: string): Promise<PipelineRecord[]> {
+  const { data, error } = await supabase
+    .from('pipeline_records')
+    .select('id, opportunity_id, stage, bid_value, probability, internal_deadline, loss_reason, notes, opportunities(title, slug, submission_deadline)')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    opportunityId: row.opportunity_id,
+    opportunityTitle: row.opportunities?.title ?? 'Unknown tender',
+    opportunitySlug: row.opportunities?.slug ?? '',
+    submissionDeadline: row.opportunities?.submission_deadline ?? '',
+    stage: row.stage,
+    bidValue: row.bid_value !== null ? Number(row.bid_value) : null,
+    probability: row.probability,
+    internalDeadline: row.internal_deadline,
+    lossReason: row.loss_reason,
+    notes: row.notes,
+  }));
+}
+
+export async function addToPipeline(orgId: string, opportunityId: string): Promise<void> {
+  const { error } = await supabase.from('pipeline_records').upsert(
+    { org_id: orgId, opportunity_id: opportunityId },
+    { onConflict: 'org_id,opportunity_id', ignoreDuplicates: true }
+  );
+  if (error) throw error;
+}
+
+export interface UpdatePipelineInput {
+  stage?: PipelineStage;
+  bidValue?: number | null;
+  probability?: number | null;
+  internalDeadline?: string | null;
+  lossReason?: string | null;
+  notes?: string | null;
+}
+
+export async function updatePipelineRecord(id: string, updates: UpdatePipelineInput): Promise<void> {
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.stage !== undefined) patch.stage = updates.stage;
+  if (updates.bidValue !== undefined) patch.bid_value = updates.bidValue;
+  if (updates.probability !== undefined) patch.probability = updates.probability;
+  if (updates.internalDeadline !== undefined) patch.internal_deadline = updates.internalDeadline;
+  if (updates.lossReason !== undefined) patch.loss_reason = updates.lossReason;
+  if (updates.notes !== undefined) patch.notes = updates.notes;
+  const { error } = await supabase.from('pipeline_records').update(patch).eq('id', id);
+  if (error) throw error;
+}
+
+export async function removeFromPipeline(id: string): Promise<void> {
+  const { error } = await supabase.from('pipeline_records').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export interface PipelineTask {
+  id: string;
+  title: string;
+  isDone: boolean;
+}
+
+export async function fetchPipelineTasks(pipelineRecordId: string): Promise<PipelineTask[]> {
+  const { data, error } = await supabase
+    .from('pipeline_tasks')
+    .select('id, title, is_done')
+    .eq('pipeline_record_id', pipelineRecordId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({ id: row.id, title: row.title, isDone: row.is_done }));
+}
+
+export async function addPipelineTask(pipelineRecordId: string, title: string): Promise<void> {
+  const { error } = await supabase.from('pipeline_tasks').insert({ pipeline_record_id: pipelineRecordId, title });
+  if (error) throw error;
+}
+
+export async function togglePipelineTask(id: string, isDone: boolean): Promise<void> {
+  const { error } = await supabase.from('pipeline_tasks').update({ is_done: isDone }).eq('id', id);
+  if (error) throw error;
+}
+
+// --- Supplier sector tagging (drives recommendations) ---
+
+export async function fetchSupplierSectorIds(orgId: string): Promise<string[]> {
+  const { data, error } = await supabase.from('supplier_sectors').select('sector_id').eq('org_id', orgId);
+  if (error) throw error;
+  return (data ?? []).map((row: any) => row.sector_id);
+}
+
+export async function setSupplierSectorIds(orgId: string, sectorIds: string[]): Promise<void> {
+  const { error: deleteError } = await supabase.from('supplier_sectors').delete().eq('org_id', orgId);
+  if (deleteError) throw deleteError;
+  if (sectorIds.length === 0) return;
+  const { error: insertError } = await supabase.from('supplier_sectors').insert(sectorIds.map((sectorId) => ({ org_id: orgId, sector_id: sectorId })));
+  if (insertError) throw insertError;
+}
+
+export async function fetchRecommendedOpportunities(orgId: string): Promise<OpportunityListItem[]> {
+  const sectorIds = await fetchSupplierSectorIds(orgId);
+  if (sectorIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('opportunities')
+    .select(LIST_SELECT)
+    .in('sector_id', sectorIds)
+    .order('submission_deadline', { ascending: true })
+    .limit(10);
+  if (error) throw error;
+  return (data ?? []).map(mapListItem);
+}
+
+// --- View tracking ---
+
+export async function incrementOpportunityView(opportunityId: string): Promise<void> {
+  try {
+    if (isLikelyAutomatedBrowser()) return;
+    const visitorTokenHash = await getPublicVisitorTokenHash();
+    const { error } = await supabase.rpc('increment_opportunity_view', {
+      p_opportunity_id: opportunityId,
+      p_visitor_token_hash: visitorTokenHash,
+    });
+    if (error) {
+      /* view counting is best-effort, never block the page on it */
+      console.warn('Could not record tender view', error.message);
+    }
+  } catch {
+    /* privacy-safe analytics must never block tender discovery */
+  }
+}
+
+// --- Admin analytics ---
+
+export interface AnalyticsStat {
+  label: string;
+  count: number;
+  total_value?: number;
+}
+
+export interface AdminAnalyticsSummary {
+  opportunities_by_status: AnalyticsStat[];
+  opportunities_by_sector: AnalyticsStat[];
+  opportunities_by_district: AnalyticsStat[];
+  most_viewed: { title: string; slug: string; value: number }[];
+  most_saved: { title: string; slug: string; value: number }[];
+  most_followed_buyers: AnalyticsStat[];
+  subscriptions_by_plan: AnalyticsStat[];
+  awards_by_sector: AnalyticsStat[];
+  total_organizations: number;
+  total_suppliers: number;
+  total_verified_suppliers: number;
+  total_buyers: number;
+}
+
+export async function fetchAdminAnalytics(): Promise<AdminAnalyticsSummary> {
+  const { data, error } = await supabase.rpc('get_admin_analytics_summary');
+  if (error) throw error;
+  return data as AdminAnalyticsSummary;
+}
+
+export interface ProcurementSearchInsights {
+  periodDays: number;
+  searches: number;
+  uniqueSearchers: number;
+  zeroResultSearches: number;
+  zeroResultRate: number;
+  averageResults: number;
+  dailyTrend: { date: string; searches: number; zeroResults: number }[];
+  topTerms: { term: string; searches: number; averageResults: number; zeroResultRate: number }[];
+  contentGaps: { term: string; searches: number; latestSearchAt: string }[];
+  sectorDemand: { label: string; searches: number }[];
+  countryDemand: { label: string; searches: number }[];
+  districtDemand: { label: string; searches: number }[];
+}
+
+export async function fetchProcurementSearchInsights(days = 30): Promise<ProcurementSearchInsights> {
+  const { data, error } = await supabase.rpc('admin_get_procurement_search_insights', { p_days: days });
+  if (error) throw error;
+  const insight = data ?? {};
+  return {
+    periodDays: Number(insight.period_days ?? days),
+    searches: Number(insight.searches ?? 0),
     uniqueSearchers: Number(insight.unique_searchers ?? 0),
     zeroResultSearches: Number(insight.zero_result_searches ?? 0),
     zeroResultRate: Number(insight.zero_result_rate ?? 0),
