@@ -19,8 +19,9 @@ import { AdminJobOperationsWorkspace } from './AdminJobOperationsWorkspace';
 import { AdminOrganizationLifecycleWorkspace } from './AdminOrganizationLifecycleWorkspace';
 import { AdminResilienceWorkspace } from './AdminResilienceWorkspace';
 import { AdminUsageMeteringWorkspace } from './AdminUsageMeteringWorkspace';
+import { AdminAuthorizationAssuranceWorkspace } from './AdminAuthorizationAssuranceWorkspace';
 
-const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage'] as const;
+const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage', 'admin-authorization'] as const;
 export type PlatformAdminTab = (typeof PLATFORM_ADMIN_TABS)[number];
 
 export function isPlatformAdminWorkspaceTab(tab: string): tab is PlatformAdminTab {
@@ -210,6 +211,9 @@ export function PlatformAdminWorkspace({
   if (activeTab === 'admin-usage') {
     return <AdminUsageMeteringWorkspace />;
   }
+  if (activeTab === 'admin-authorization') {
+    return <AdminAuthorizationAssuranceWorkspace />;
+  }
 
   if (activeTab === 'audience-hub') {
     return (
@@ -296,6 +300,12 @@ export function PlatformAdminWorkspace({
           title: 'Usage metering',
           description: 'Inspect organization consumption and commercially important metered actions.',
           icon: Gauge,
+        },
+        {
+          id: 'admin-authorization',
+          title: 'Authorization assurance',
+          description: 'Verify tenant isolation, RLS policy coverage and protected-access denials.',
+          icon: ShieldCheck,
         },
       ]}
     />
