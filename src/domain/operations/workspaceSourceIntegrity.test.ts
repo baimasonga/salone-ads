@@ -14,6 +14,10 @@ const subscriberAdvertising = readFileSync(
   resolve(process.cwd(), 'src/components/SubscriberAdvertisingWorkspace.tsx'),
   'utf8',
 );
+const adminAdvertisingQueue = readFileSync(
+  resolve(process.cwd(), 'src/components/AdminAdvertisingRequestQueue.tsx'),
+  'utf8',
+);
 
 describe('workspace source integrity', () => {
   it('retains early, middle and late workspace implementations', () => {
@@ -24,8 +28,8 @@ describe('workspace source integrity', () => {
   });
 
   it('retains the complete workspace source rather than a partial publish', () => {
-    expect(workspaceSource.split('\n').length).toBeGreaterThan(5_600);
-    expect((workspaceSource + delegatedRoutes + subscriberAdvertising).split('\n').length).toBeGreaterThan(5_800);
+    expect(workspaceSource.split('\n').length).toBeGreaterThan(5_400);
+    expect((workspaceSource + delegatedRoutes + subscriberAdvertising + adminAdvertisingQueue).split('\n').length).toBeGreaterThan(5_800);
     expect(workspaceSource.trimEnd().endsWith('}')).toBe(true);
   });
 
@@ -42,5 +46,13 @@ describe('workspace source integrity', () => {
     expect(subscriberAdvertising).toContain('My Adverts');
     expect(subscriberAdvertising).toContain('Your Requests');
     expect(subscriberAdvertising).toContain('Advertising is available on the Business plan and above.');
+  });
+
+  it('isolates the visible admin fulfilment queue without duplicating campaign management', () => {
+    expect(workspaceSource).toContain('<AdminAdvertisingRequestQueue');
+    expect(adminAdvertisingQueue).toContain('Advertising Requests');
+    expect(adminAdvertisingQueue).toContain('Load into publisher');
+    expect(adminAdvertisingQueue).toContain('No advertising requests yet.');
+    expect(adminAdvertisingQueue).not.toContain('Campaigns');
   });
 });

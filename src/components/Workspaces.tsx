@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { AdvertCreative, CreativeScaler, AdvertFormat, AdvertTheme } from './AdvertCreative';
 import { resolveDelegatedWorkspaceRoute } from './WorkspaceRouteResolver';
 import { SubscriberAdvertisingWorkspace } from './SubscriberAdvertisingWorkspace';
+import { AdminAdvertisingRequestQueue } from './AdminAdvertisingRequestQueue';
 import {
   campaignStatusOptions,
   campaignTransitionRequiresReason,
@@ -2692,92 +2693,15 @@ export function Workspaces({
     if (!isPlatformAdmin) {
       return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
     }
-    const categoryLabels: Record<string, string> = { business: 'Business', event: 'Event', goods: 'Goods', service: 'Service' };
     return (
       <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-emerald-600" /> Advertising Requests
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Fulfillment queue for subscriber advert requests — update status and report reach/run data once the advert is live.</p>
-        </div>
-
-        {advertisementFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{advertisementFeedback}</div>}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {advertisementsLoading ? (
-            <p className="text-xs text-slate-400">Loading…</p>
-          ) : allAdvertisements.length === 0 ? (
-            <p className="text-xs text-slate-400">No advertising requests yet.</p>
-          ) : (
-            <div className="space-y-4">
-              {allAdvertisements.map((ad) => (
-                <div key={ad.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-start gap-3 min-w-0">
-                      {ad.mediaUrl && (
-                        <a href={ad.mediaUrl} target="_blank" rel="noopener noreferrer" className="shrink-0" title="Attached photo — open full size">
-                          <img src={ad.mediaUrl} alt="" className="h-12 w-12 object-cover rounded-lg border border-slate-200" />
-                        </a>
-                      )}
-                      <div className="min-w-0">
-                        <h4 className="font-semibold text-slate-800 text-sm">{ad.subject} — {ad.orgName}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">{categoryLabels[ad.category]}: {ad.description}</p>
-                      </div>
-                    </div>
-                    <select value={ad.status} onChange={(e) => handleUpdateAdvertisement(ad.id, { status: e.target.value as AdvertisementRequest['status'] })}
-                      className="text-xs border border-slate-200 rounded-lg p-1 bg-white shrink-0">
-                      <option value="submitted">Submitted</option>
-                      <option value="in_production">In Production</option>
-                      <option value="live">Live</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4 mt-3">
-                    <button
-                      onClick={() => loadRequestIntoPublisher(ad)}
-                      className="text-xs font-bold text-emerald-700 border border-emerald-200 bg-emerald-50 rounded-lg px-2.5 py-1 hover:bg-emerald-100 cursor-pointer"
-                    >
-                      Load into publisher →
-                    </button>
-                    <button
-                      onClick={() => {
-                        const platform = prompt('Platform(s) the advert ran on:', ad.platform ?? '');
-                        if (platform === null) return;
-                        handleUpdateAdvertisement(ad.id, { platform });
-                      }}
-                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
-                    >
-                      Platform: {ad.platform || 'Set'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        const reachStr = prompt('Reach (number of people reached):', ad.reachCount?.toString() ?? '');
-                        if (reachStr === null) return;
-                        handleUpdateAdvertisement(ad.id, { reachCount: Number(reachStr) || 0 });
-                      }}
-                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
-                    >
-                      Reach: {ad.reachCount !== null ? ad.reachCount.toLocaleString() : 'Set'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        const runStr = prompt('Number of times the advert was run:', ad.runCount?.toString() ?? '');
-                        if (runStr === null) return;
-                        handleUpdateAdvertisement(ad.id, { runCount: Number(runStr) || 0 });
-                      }}
-                      className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer"
-                    >
-                      Times Run: {ad.runCount !== null ? ad.runCount.toLocaleString() : 'Set'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+        <AdminAdvertisingRequestQueue
+          feedback={advertisementFeedback}
+          loading={advertisementsLoading}
+          requests={allAdvertisements}
+          onUpdate={handleUpdateAdvertisement}
+          onLoadIntoPublisher={loadRequestIntoPublisher}
+        />
         {/* Retained temporarily in source for release comparison; no longer rendered.
             Campaign creation and controls live only in Campaign Management. */}
         {false && <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
