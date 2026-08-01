@@ -34,7 +34,7 @@ import {
   type OpportunitySourcingTask,
   type OpportunitySourcingTaskEvent,
   type PlatformResearcher,
-} from '../../lib/procurementApi';
+} from '../../lib/procurement/sourcingApi';
 import { extractOpportunityFromText } from './opportunityExtraction';
 
 interface OpportunityIngestionWorkspaceProps {

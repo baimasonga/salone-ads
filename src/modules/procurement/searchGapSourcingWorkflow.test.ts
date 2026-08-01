@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const migration = readFileSync('migrations/manohub-new-project/61_search_gap_sourcing_workflow.sql', 'utf8');
 const operationsMigration = readFileSync('migrations/manohub-new-project/62_sourcing_task_operations.sql', 'utf8');
-const api = readFileSync('src/lib/procurementApi.ts', 'utf8');
+const api = readFileSync('src/lib/procurement/sourcingApi.ts', 'utf8');
 const analytics = readFileSync('src/components/Workspaces.tsx', 'utf8');
 const workspace = readFileSync('src/modules/procurement/OpportunityIngestionWorkspace.tsx', 'utf8');
 

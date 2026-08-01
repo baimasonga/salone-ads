@@ -119,7 +119,6 @@ import {
   fetchRecommendedOpportunities,
   fetchAdminAnalytics,
   fetchProcurementSearchInsights,
-  createSourcingTaskFromGap,
   hasFeature,
   fetchSavedSearches,
   deleteSavedSearch,
@@ -152,6 +151,7 @@ import {
   aiPolishAdvertCopy,
   Advert,
 } from '../lib/procurementApi';
+import { createSourcingTaskFromGap } from '../lib/procurement/sourcingApi';
 import { supabase } from '../lib/supabaseClient';
 
 const AdminAdvertPublisherPanel = React.lazy(() =>
