@@ -2,7 +2,7 @@ import type { Dispatch, FormEvent, RefObject, SetStateAction } from 'react';
 import { Sparkles } from 'lucide-react';
 import { AdvertCreative, CreativeScaler, type AdvertFormat, type AdvertTheme } from './AdvertCreative';
 import type { Organization } from '../types';
-import type { AdvertisementCategory, AdvertisementRequest } from '../lib/procurementApi';
+import type { AdvertisementCategory, AdvertisementRequest } from '../lib/advertisingApi';
 
 interface SubscriberAdvertisingWorkspaceProps {
   activeOrg: Organization;

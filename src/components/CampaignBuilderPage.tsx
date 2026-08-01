@@ -32,7 +32,7 @@ import {
   Advert,
   reviewCampaign,
   updateAdCampaign,
-} from '../lib/procurementApi';
+} from '../lib/advertisingApi';
 
 interface CampaignBuilderPageProps {
   activeOrg: Organization;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Megaphone, Store } from 'lucide-react';
-import { fetchLiveAdverts, Advert } from '../lib/procurementApi';
+import { fetchLiveAdverts, Advert } from '../lib/advertisingApi';
 import { trackAdvertEvent } from '../lib/advertAnalytics';
 import { AdvertCreative, CreativeScaler } from './AdvertCreative';
 

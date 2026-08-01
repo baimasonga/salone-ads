@@ -1,8 +1,8 @@
 import type { Dispatch, FormEvent, ReactNode, SetStateAction } from 'react';
 import { Link } from 'react-router-dom';
 import { Landmark, Sparkles } from 'lucide-react';
-import type { AdCampaign, Advert, AdvertAnalyticsSummary } from '../lib/procurementApi';
-import { buildAdvertShareIntents, buildAdvertSharePack } from '../lib/procurementApi';
+import type { AdCampaign, Advert, AdvertAnalyticsSummary } from '../lib/advertisingApi';
+import { buildAdvertShareIntents, buildAdvertSharePack } from '../lib/advertisingApi';
 import type { AdminAdvertCreativeForm } from './AdminAdvertCreativeEditor';
 
 export interface AdminAdvertPublisherForm extends AdminAdvertCreativeForm {

@@ -2,9 +2,10 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, CreditCard, Loader2, ReceiptText, ShieldCheck } from 'lucide-react';
 import type { Organization } from '../types';
 import {
-  AdvertOrder, AdvertPackage, AdCampaign, confirmAdvertOrder, createAdvertOrder,
-  fetchAdvertOrders, fetchAdvertPackages, fetchCampaignsForWorkspace,
+  AdvertOrder, AdvertPackage, confirmAdvertOrder, createAdvertOrder,
+  fetchAdvertOrders, fetchAdvertPackages,
 } from '../lib/procurementApi';
+import { type AdCampaign, fetchCampaignsForWorkspace } from '../lib/advertisingApi';
 
 export function AdvertBillingPage({ activeOrg, isPlatformAdmin }: { activeOrg: Organization; isPlatformAdmin: boolean }) {
   const [packages, setPackages] = useState<AdvertPackage[]>([]);

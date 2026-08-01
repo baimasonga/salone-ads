@@ -1,5 +1,5 @@
 import { Landmark } from 'lucide-react';
-import type { AdvertisementRequest, UpdateAdvertisementReportInput } from '../lib/procurementApi';
+import type { AdvertisementRequest, UpdateAdvertisementReportInput } from '../lib/advertisingApi';
 
 interface AdminAdvertisingRequestQueueProps {
   feedback: string;

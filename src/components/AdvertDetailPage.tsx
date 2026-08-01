@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, ExternalLink, Megaphone, Store, Share2, Check, Copy, Download } from 'lucide-react';
-import { fetchAdvertBySlug, buildAdvertSharePack, buildAdvertShareIntents, advertPublicUrl, Advert } from '../lib/procurementApi';
+import { fetchAdvertBySlug, buildAdvertSharePack, buildAdvertShareIntents, advertPublicUrl, Advert } from '../lib/advertisingApi';
 import { AdvertAction, trackAdvertEvent } from '../lib/advertAnalytics';
 import { AdvertCreative, CreativeScaler } from './AdvertCreative';
 

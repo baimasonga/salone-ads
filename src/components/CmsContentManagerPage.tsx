@@ -25,7 +25,7 @@ import {
   saveCmsContent,
   uploadCmsContentImage,
 } from '../lib/cmsApi';
-import { Advert, fetchAllAdverts } from '../lib/procurementApi';
+import { Advert, fetchAllAdverts } from '../lib/advertisingApi';
 import { CmsWorkflowPanel } from './CmsWorkflowPanel';
 
 const EMPTY: CmsContent[] = [];
