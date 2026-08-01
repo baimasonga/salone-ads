@@ -1,16 +1,17 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OpportunityListItem } from '../../lib/procurementApi';
+import type { OpportunityListItem } from '../../lib/procurement/opportunityApi';
 import { TenderCreationForm } from './TenderCreationForm';
 import { submitTenderWithDocuments } from './tenderSubmission';
 
-vi.mock('../../lib/procurementApi', () => ({
+vi.mock('../../lib/procurement/opportunityApi', () => ({
   MAX_DOCUMENT_SIZE_BYTES: 10 * 1024 * 1024,
-  aiSuggestSector: vi.fn(),
   createOpportunity: vi.fn(),
   uploadOpportunityDocument: vi.fn(),
 }));
+
+vi.mock('../../lib/procurementApi', () => ({ aiSuggestSector: vi.fn() }));
 
 vi.mock('./tenderSubmission', async (importOriginal) => {
   const original = await importOriginal<typeof import('./tenderSubmission')>();

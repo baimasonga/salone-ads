@@ -4,7 +4,7 @@ import {
   submitTenderWithDocuments,
   tenderSubmissionFeedback,
 } from './tenderSubmission';
-import type { OpportunityDocument, OpportunityListItem } from '../../lib/procurementApi';
+import type { OpportunityDocument, OpportunityListItem } from '../../lib/procurement/opportunityApi';
 
 const opportunity = { id: 'opportunity-1', title: 'Road works' } as OpportunityListItem;
 const uploaded = { id: 'document-1', fileName: 'notice.pdf' } as OpportunityDocument;
@@ -73,4 +73,3 @@ describe('tender submission feedback', () => {
     expect(tenderSubmissionFeedback(2)).toContain('2 documents failed');
   });
 });
-

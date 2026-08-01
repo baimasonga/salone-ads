@@ -1,21 +1,19 @@
 import { useEffect, useState } from 'react';
 import {
-  deleteSavedSearch,
   fetchCountries,
   fetchCurrencies,
   fetchDistricts,
   fetchMyOpportunities,
   fetchOpportunityTypes,
-  fetchSavedSearches,
   fetchSectors,
-  hasFeature,
-} from '../../lib/procurementApi';
+} from '../../lib/procurement/opportunityApi';
 import type {
   CurrencyOption,
   OpportunityListItem,
-  SavedSearch,
   TaxonomyOption,
-} from '../../lib/procurementApi';
+} from '../../lib/procurement/opportunityApi';
+import { deleteSavedSearch, fetchSavedSearches, hasFeature } from '../../lib/procurementApi';
+import type { SavedSearch } from '../../lib/procurementApi';
 import { retainValidTaxonomySelection } from './model';
 
 export function useTenderWorkspace({

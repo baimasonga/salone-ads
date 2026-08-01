@@ -10,9 +10,16 @@ import {
   fetchCurrencies,
   isOpportunitySaved,
   setOpportunitySaved,
+  incrementOpportunityView,
+  OpportunityDetail,
+  OpportunityDocument,
+  OpportunityAward,
+  OpportunityAmendment,
+  CurrencyOption,
+} from '../lib/procurement/opportunityApi';
+import {
   isFollowingBuyer,
   setFollowingBuyer,
-  incrementOpportunityView,
   aiExplainTender,
   fetchMyOrgId,
   hasFeature,
@@ -20,13 +27,8 @@ import {
   submitResponse,
   withdrawResponse,
   fetchResponseCount,
-  OpportunityDetail,
-  OpportunityDocument,
-  OpportunityAward,
-  OpportunityAmendment,
   OpportunityResponse,
   ResponseKind,
-  CurrencyOption,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../lib/i18n';

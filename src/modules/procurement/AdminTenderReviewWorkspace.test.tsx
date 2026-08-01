@@ -2,19 +2,21 @@ import { MemoryRouter } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ReviewQueueItem } from '../../lib/procurementApi';
+import type { ReviewQueueItem } from '../../lib/procurement/opportunityApi';
 import { AdminTenderReviewWorkspace } from './AdminTenderReviewWorkspace';
 import {
-  approveOpportunity,
   fetchOpportunitiesForReview,
   findSimilarTitledOpportunities,
-  requestCorrection,
-} from '../../lib/procurementApi';
+} from '../../lib/procurement/opportunityApi';
+import { approveOpportunity, requestCorrection } from '../../lib/procurementApi';
+
+vi.mock('../../lib/procurement/opportunityApi', () => ({
+  fetchOpportunitiesForReview: vi.fn(),
+  findSimilarTitledOpportunities: vi.fn(),
+}));
 
 vi.mock('../../lib/procurementApi', () => ({
   approveOpportunity: vi.fn(),
-  fetchOpportunitiesForReview: vi.fn(),
-  findSimilarTitledOpportunities: vi.fn(),
   rejectOpportunity: vi.fn(),
   requestCorrection: vi.fn(),
   setOpportunityFeatured: vi.fn(),

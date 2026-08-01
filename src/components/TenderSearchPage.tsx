@@ -12,12 +12,14 @@ import {
   fetchCountries,
   fetchCurrencies,
   fetchOpportunityTypes,
-  fetchSavedSearches,
-  createSavedSearch,
-  deleteSavedSearch,
   OpportunityListItem,
   TaxonomyOption,
   CurrencyOption,
+} from '../lib/procurement/opportunityApi';
+import {
+  fetchSavedSearches,
+  createSavedSearch,
+  deleteSavedSearch,
   SavedSearch,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Bell, CheckCircle, Loader2, Mail, MapPin, MessageCircle } from 'lucide-react';
-import { fetchCountries, fetchDistricts, type TaxonomyOption } from '../lib/procurementApi';
+import { fetchCountries, fetchDistricts, type TaxonomyOption } from '../lib/procurement/opportunityApi';
 import { subscribePublicAudience } from '../lib/audienceApi';
 
 const INTERESTS = ['Tenders', 'Jobs', 'Business offers', 'Events', 'Training', 'Products & services'];

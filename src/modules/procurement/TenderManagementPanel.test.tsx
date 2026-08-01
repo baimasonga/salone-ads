@@ -3,27 +3,28 @@ import { MemoryRouter } from 'react-router-dom';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { OpportunityListItem } from '../../lib/procurementApi';
+import type { OpportunityListItem } from '../../lib/procurement/opportunityApi';
 import { TenderManagementPanel } from './TenderManagementPanel';
 import {
   cancelOpportunity,
   closeOpportunity,
   fetchMyOpportunities,
-} from '../../lib/procurementApi';
+} from '../../lib/procurement/opportunityApi';
 
-vi.mock('../../lib/procurementApi', () => ({
+vi.mock('../../lib/procurement/opportunityApi', () => ({
   cancelOpportunity: vi.fn(),
   closeOpportunity: vi.fn(),
   deleteOpportunityDocument: vi.fn(),
   extendDeadline: vi.fn(),
   fetchMyOpportunities: vi.fn(),
   fetchOpportunityDocuments: vi.fn(async () => []),
-  fetchOpportunityResponses: vi.fn(async () => []),
   getOpportunityDocumentUrl: vi.fn(),
   recordAward: vi.fn(),
   resubmitForReview: vi.fn(),
   uploadOpportunityDocument: vi.fn(),
 }));
+
+vi.mock('../../lib/procurementApi', () => ({ fetchOpportunityResponses: vi.fn(async () => []) }));
 
 const publishedOpportunity = {
   id: 'opportunity-1',

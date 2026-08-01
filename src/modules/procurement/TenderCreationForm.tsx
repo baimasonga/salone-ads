@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { FileSearch, FileUp, Paperclip, Sparkle, Trash2 } from 'lucide-react';
 import {
   MAX_DOCUMENT_SIZE_BYTES,
-  aiSuggestSector,
   createOpportunity,
   uploadOpportunityDocument,
   type CurrencyOption,
   type TaxonomyOption,
-} from '../../lib/procurementApi';
+} from '../../lib/procurement/opportunityApi';
+import { aiSuggestSector } from '../../lib/procurementApi';
 import {
   partitionTenderDocuments,
   submitTenderWithDocuments,

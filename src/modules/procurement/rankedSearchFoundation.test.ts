@@ -6,7 +6,7 @@ const migration = readFileSync(
   resolve(process.cwd(), 'migrations/manohub-new-project/59_procurement_ranked_search.sql'),
   'utf8',
 ).toLowerCase();
-const api = readFileSync(resolve(process.cwd(), 'src/lib/procurementApi.ts'), 'utf8');
+const api = readFileSync(resolve(process.cwd(), 'src/lib/procurement/opportunityApi.ts'), 'utf8');
 const page = readFileSync(resolve(process.cwd(), 'src/components/TenderSearchPage.tsx'), 'utf8');
 
 describe('ranked procurement search foundation', () => {

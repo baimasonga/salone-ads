@@ -2,13 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, Check, ShieldAlert } from 'lucide-react';
 import {
-  approveOpportunity,
   fetchOpportunitiesForReview,
   findSimilarTitledOpportunities,
+  type ReviewQueueItem,
+} from '../../lib/procurement/opportunityApi';
+import {
+  approveOpportunity,
   rejectOpportunity,
   requestCorrection,
   setOpportunityFeatured,
-  type ReviewQueueItem,
 } from '../../lib/procurementApi';
 import { ProcurementActionDialog } from './ProcurementActionDialog';
 

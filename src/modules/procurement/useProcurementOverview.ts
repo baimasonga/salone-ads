@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import {
   fetchMyOpportunities,
+} from '../../lib/procurement/opportunityApi';
+import type { OpportunityListItem } from '../../lib/procurement/opportunityApi';
+import {
   fetchPipeline,
   fetchRecommendedOpportunities,
   fetchSavedSearches,
   hasFeature,
 } from '../../lib/procurementApi';
-import type { OpportunityListItem, SavedSearch } from '../../lib/procurementApi';
+import type { SavedSearch } from '../../lib/procurementApi';
 import { resolveProcurementTier } from './model';
 import type { ProcurementTier } from './model';
 

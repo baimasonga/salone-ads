@@ -2,7 +2,7 @@ import type {
   CreateOpportunityInput,
   OpportunityDocument,
   OpportunityListItem,
-} from '../../lib/procurementApi';
+} from '../../lib/procurement/opportunityApi';
 
 export interface TenderSubmissionRequest {
   organizationId: string;
@@ -80,4 +80,3 @@ export async function submitTenderWithDocuments(
 
   return { opportunity, uploadedDocuments, failedDocumentCount };
 }
-

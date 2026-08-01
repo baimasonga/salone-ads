@@ -25,7 +25,7 @@ import {
   OpportunityListItem,
   searchOpportunities,
   TaxonomyOption,
-} from '../lib/procurementApi';
+} from '../lib/procurement/opportunityApi';
 import { fetchLandingAdvertPlacements, type LandingAdvertPlacement } from '../lib/landingCmsApi';
 import { trackAdvertEvent } from '../lib/advertAnalytics';
 

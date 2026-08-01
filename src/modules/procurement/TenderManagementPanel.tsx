@@ -8,15 +8,14 @@ import {
   extendDeadline,
   fetchMyOpportunities,
   fetchOpportunityDocuments,
-  fetchOpportunityResponses,
   getOpportunityDocumentUrl,
   recordAward,
   resubmitForReview,
   uploadOpportunityDocument,
   type OpportunityDocument,
   type OpportunityListItem,
-  type OpportunityResponse,
-} from '../../lib/procurementApi';
+} from '../../lib/procurement/opportunityApi';
+import { fetchOpportunityResponses, type OpportunityResponse } from '../../lib/procurementApi';
 import { ProcurementActionDialog } from './ProcurementActionDialog';
 
 type ManagementDialogType = 'cancel' | 'close' | 'deadline' | 'award';
