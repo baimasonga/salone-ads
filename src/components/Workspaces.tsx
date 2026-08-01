@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 68132)
-Total output lines: 5348
-
 import React, { useState, useEffect, useRef } from 'react';
 import JSZip from 'jszip';
 import { toPng } from 'html-to-image';
@@ -2417,7 +2414,1135 @@ export function Workspaces({
             <p className="text-sm text-slate-600">Enable Supplier Mode to create a profile and apply for verification.</p>
             <button
               onClick={handleEnableSupplierMode}
-              disabled…18132 tokens truncated…                  onChange={(e) => setEditHashtagsInput(e.target.value)}
+              disabled={enablingSupplier}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50"
+            >
+              {enablingSupplier ? 'Enabling…' : 'Enable Supplier Mode'}
+            </button>
+          </div>
+        ) : supplierLoading ? (
+          <p className="text-xs text-slate-400">Loading…</p>
+        ) : (
+          <>
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-display font-bold text-slate-900 text-sm">Verification Status</h4>
+                {activeOrg.supplierVerifiedUntil && new Date(activeOrg.supplierVerifiedUntil) > new Date() ? (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-emerald-100 text-emerald-800">
+                    Verified until {new Date(activeOrg.supplierVerifiedUntil).toLocaleDateString('en-GB')}
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-slate-100 text-slate-600">Not Verified</span>
+                )}
+              </div>
+              <button onClick={handleSubmitVerification} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">
+                Apply for Supplier Verification
+              </button>
+              {myVerifications.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {myVerifications.map((v) => (
+                    <div key={v.id} className="border border-slate-100 rounded-lg p-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-700">{v.requestType} verification</span>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{v.status.replace('_', ' ')}</span>
+                      </div>
+                      {v.reviewerNote && <p className="text-red-600 mt-1">{v.reviewerNote}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+              <h4 className="font-display font-bold text-slate-900 text-sm mb-1">Sectors You Serve</h4>
+              <p className="text-xs text-slate-500 mb-3">Drives your "Recommended For You" tender matches in the Pipeline tab.</p>
+              <div className="flex flex-wrap gap-2">
+                {allSectors.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => toggleSupplierSector(s.id)}
+                    className={`text-xs px-3 py-1.5 rounded-full border cursor-pointer ${
+                      supplierSectorIds.includes(s.id) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveSupplierProfile} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+              <h4 className="font-display font-bold text-slate-900 text-sm">Company Details</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Trading Name</label>
+                  <input type="text" value={supplierProfile.tradingName} onChange={(e) => setSupplierProfile({ ...supplierProfile, tradingName: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Registration Number</label>
+                  <input type="text" value={supplierProfile.registrationNumber} onChange={(e) => setSupplierProfile({ ...supplierProfile, registrationNumber: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Tax ID</label>
+                  <input type="text" value={supplierProfile.taxIdentificationNumber} onChange={(e) => setSupplierProfile({ ...supplierProfile, taxIdentificationNumber: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Website</label>
+                  <input type="text" value={supplierProfile.website} onChange={(e) => setSupplierProfile({ ...supplierProfile, website: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Year Established</label>
+                  <input type="number" value={supplierProfile.yearEstablished ?? ''} onChange={(e) => setSupplierProfile({ ...supplierProfile, yearEstablished: e.target.value ? Number(e.target.value) : null })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Employees</label>
+                  <input type="text" placeholder="e.g. 11-50" value={supplierProfile.employeeCount} onChange={(e) => setSupplierProfile({ ...supplierProfile, employeeCount: e.target.value })}
+                    className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Company Description</label>
+                <textarea rows={3} value={supplierProfile.description} onChange={(e) => setSupplierProfile({ ...supplierProfile, description: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Geographic Coverage</label>
+                <input type="text" placeholder="e.g. Western Area, Bo, Kenema" value={supplierProfile.geographicCoverage} onChange={(e) => setSupplierProfile({ ...supplierProfile, geographicCoverage: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Certifications & Licences</label>
+                <input type="text" value={supplierProfile.certifications} onChange={(e) => setSupplierProfile({ ...supplierProfile, certifications: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Major Clients / Past Projects</label>
+                <input type="text" value={supplierProfile.majorClients} onChange={(e) => setSupplierProfile({ ...supplierProfile, majorClients: e.target.value })}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+              </div>
+              <button type="submit" disabled={supplierSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50">
+                {supplierSaving ? 'Saving…' : 'Save Supplier Profile'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ADMIN VERIFICATION REVIEW WORKSPACE (platform admins only)
+  if (activeTab === 'admin-verification') {
+    if (!isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          You do not have platform admin access.
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-emerald-600" /> Verification Requests
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Review supplier and buyer verification applications.</p>
+        </div>
+
+        {verificationFeedback && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{verificationFeedback}</div>
+        )}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {verificationQueueLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : verificationQueue.length === 0 ? (
+            <p className="text-xs text-slate-400">No pending verification requests.</p>
+          ) : (
+            <div className="space-y-4">
+              {verificationQueue.map((v) => (
+                <div key={v.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-slate-800 text-sm">{v.orgName}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">{v.requestType} verification · Submitted {new Date(v.submittedAt).toLocaleDateString('en-GB')}</p>
+                    </div>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{v.status.replace('_', ' ')}</span>
+                  </div>
+                  {v.notes && <p className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2 mt-2">{v.notes}</p>}
+                  <div className="flex items-center gap-4 mt-3">
+                    <button onClick={() => handleApproveVerification(v)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Approve</button>
+                    <button onClick={() => handleRejectVerification(v.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Reject</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // BID SUPPORT SERVICES WORKSPACE (buyers & suppliers)
+  if (activeTab === 'services') {
+    if (isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          Requesting bid support is subscriber tooling for Tender Publishers/Viewers, not platform admins.
+          Use Service Requests under Platform Admin to fulfill subscriber requests.
+        </div>
+      );
+    }
+    const serviceTypeLabels: Record<ServiceType, string> = {
+      document_retrieval: 'Document Retrieval',
+      tender_clarification: 'Tender Clarification',
+      eligibility_assessment: 'Eligibility Assessment',
+      bid_readiness_review: 'Bid-Readiness Review',
+      proposal_review: 'Proposal Review',
+      company_profile_prep: 'Company Profile Preparation',
+      supplier_registration_assistance: 'Supplier Registration Assistance',
+      featured_placement: 'Featured Placement Request',
+      other: 'Other',
+    };
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg">Support Services</h3>
+          <p className="text-xs text-slate-500 mt-1">Request paid, human-assisted help — separate from our AI Content Studio, these are performed by our team.</p>
+        </div>
+
+        {serviceRequestFeedback && (
+          <div className={`text-sm p-4 rounded-xl font-semibold ${serviceRequestFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+            {serviceRequestFeedback}
+          </div>
+        )}
+
+        <form onSubmit={handleCreateServiceRequest} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase">Service Needed</label>
+            <select value={srServiceType} onChange={(e) => setSrServiceType(e.target.value as ServiceType)}
+              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
+              {Object.entries(serviceTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase">Describe What You Need</label>
+            <textarea required rows={3} value={srDescription} onChange={(e) => setSrDescription(e.target.value)}
+              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
+          </div>
+          <button type="submit" disabled={srSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
+            {srSubmitting ? 'Submitting…' : 'Submit Request'}
+          </button>
+        </form>
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Requests</h4>
+          {serviceRequestsLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : myServiceRequests.length === 0 ? (
+            <p className="text-xs text-slate-400">No requests yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {myServiceRequests.map((r) => (
+                <div key={r.id} className="border border-slate-100 rounded-xl p-4">
+                  <button onClick={() => toggleExpandRequest(r.id)} className="w-full flex items-center justify-between gap-4 cursor-pointer text-left">
+                    <div>
+                      <span className="font-semibold text-slate-800 text-sm block">{serviceTypeLabels[r.serviceType]}</span>
+                      <span className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleDateString('en-GB')}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {r.quoteAmount !== null && <span className="text-xs font-mono text-slate-600">{r.quoteCurrency} {r.quoteAmount.toLocaleString()}</span>}
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{r.status}</span>
+                    </div>
+                  </button>
+                  {expandedRequestId === r.id && (
+                    <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
+                      {requestActivities.length === 0 ? (
+                        <p className="text-xs text-slate-400">No updates yet.</p>
+                      ) : (
+                        requestActivities.map((a) => (
+                          <p key={a.id} className="text-xs text-slate-600"><span className="font-mono text-slate-400">{new Date(a.createdAt).toLocaleDateString('en-GB')}:</span> {a.note}</p>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (activeTab === 'advertising') {
+    return <SubscriberAdvertisingWorkspace
+      activeOrg={activeOrg} advertisementFeedback={advertisementFeedback}
+      advertisementsLoading={advertisementsLoading} canAdvertise={canAdvertise} setActiveTab={setActiveTab}
+      adCategory={adCategory} setAdCategory={setAdCategory} adSubject={adSubject} setAdSubject={setAdSubject}
+      adDescription={adDescription} setAdDescription={setAdDescription} polishingSub={polishingSub}
+      handlePolishSubCopy={handlePolishSubCopy} adUploading={adUploading} adMediaUrl={adMediaUrl}
+      setAdMediaUrl={setAdMediaUrl} handleUploadRequestPhoto={handleUploadRequestPhoto}
+      adSubmitting={adSubmitting} handleSubmitAdvertisement={handleSubmitAdvertisement}
+      advFormat={advFormat} setAdvFormat={setAdvFormat} advTheme={advTheme} setAdvTheme={setAdvTheme}
+      advWithPhoto={advWithPhoto} setAdvWithPhoto={setAdvWithPhoto} subCreativeRef={subCreativeRef}
+      handleDownloadSubCreative={handleDownloadSubCreative} myAdvertisements={myAdvertisements}
+    />;
+  }
+  // ADMIN ADVERTISING FULFILLMENT QUEUE
+  if (activeTab === 'admin-advertising') {
+    if (!isPlatformAdmin) {
+      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
+    }
+    return (
+      <div className="space-y-8 text-left">
+        <AdminAdvertisingRequestQueue
+          feedback={advertisementFeedback}
+          loading={advertisementsLoading}
+          requests={allAdvertisements}
+          onUpdate={handleUpdateAdvertisement}
+          onLoadIntoPublisher={loadRequestIntoPublisher}
+        />
+        {/* Retained temporarily in source for release comparison; no longer rendered.
+            Campaign creation and controls live only in Campaign Management. */}
+        {false && <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-emerald-600" /> Campaigns
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Group a business's creatives into a campaign with a run window and a reach goal. Adverts assigned to a
+            campaign only show on the site during its dates, and rotate through the marquee and feed. Pause to pull the
+            whole campaign off the site instantly.
+          </p>
+
+          <form onSubmit={handleCreateAdCampaign} className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-2 items-end">
+            <div className="lg:col-span-2">
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Campaign name</label>
+              <input value={campForm.name} onChange={(e) => setCampForm({ ...campForm, name: e.target.value })} placeholder="e.g. Rokel Q3 push" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Business</label>
+              <input value={campForm.businessName} onChange={(e) => setCampForm({ ...campForm, businessName: e.target.value })} placeholder="Business" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Start</label>
+              <input type="date" value={campForm.startDate} onChange={(e) => setCampForm({ ...campForm, startDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">End</label>
+              <input type="date" value={campForm.endDate} onChange={(e) => setCampForm({ ...campForm, endDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Reach goal</label>
+              <input type="number" min={0} value={campForm.reachGoal} onChange={(e) => setCampForm({ ...campForm, reachGoal: e.target.value })} placeholder="e.g. 5000" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
+            </div>
+            <button type="submit" disabled={campSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer disabled:opacity-50 lg:col-span-1">
+              {campSaving ? 'Creating…' : 'Add campaign'}
+            </button>
+          </form>
+
+          {adCampaigns.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {adCampaigns.map((c) => {
+                const reach = campaignReach[c.id] || { adverts: 0, views: 0, clicks: 0 };
+                const now = Date.now();
+                const started = !c.startDate || new Date(c.startDate).getTime() <= now;
+                const ended = c.endDate && new Date(`${c.endDate}T23:59:59`).getTime() < now;
+                const phase = c.status === 'paused' ? 'Paused' : ended ? 'Ended' : !started ? 'Scheduled' : 'Active';
+                const phaseColor = phase === 'Active' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : phase === 'Paused' ? 'text-amber-700 bg-amber-50 border-amber-200' : phase === 'Scheduled' ? 'text-sky-700 bg-sky-50 border-sky-200' : 'text-slate-500 bg-slate-50 border-slate-200';
+                const pct = c.reachGoal ? Math.min(100, Math.round((reach.views / c.reachGoal) * 100)) : null;
+                return (
+                  <div key={c.id} className="border border-slate-100 rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-slate-800 text-sm truncate">{c.name}</h4>
+                          <span className={`font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${phaseColor}`}>{phase}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {c.businessName || '—'} · {c.startDate || 'no start'} → {c.endDate || 'no end'} · {reach.adverts} creative{reach.adverts === 1 ? '' : 's'} · 👁 {reach.views.toLocaleString()} · ↗ {reach.clicks.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <button onClick={() => handleToggleAdCampaign(c)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
+                          {c.status === 'active' ? 'Pause' : 'Resume'}
+                        </button>
+                        <button onClick={() => handleDeleteAdCampaign(c.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
+                      </div>
+                    </div>
+                    {pct !== null && (
+                      <div className="mt-2.5">
+                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+                          <span>Reach goal</span><span>{reach.views.toLocaleString()} / {c.reachGoal!.toLocaleString()} views ({pct}%)</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 overflow-hidden">
+                          <div className="h-full bg-emerald-600" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-emerald-600" /> Campaign Management
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Campaign setup, channels, budgets, targeting, approvals, and schedules are managed in one place.
+          </p>
+          <button
+            type="button"
+            onClick={() => setActiveTab('campaign-builder')}
+            className="mt-4 inline-flex items-center gap-2 bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
+          >
+            Open Campaign Management <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <React.Suspense fallback={<div className="rounded-2xl border border-slate-100 bg-white p-6 text-sm text-slate-500 shadow-xs">Loading advert publisher…</div>}>
+          <AdminAdvertPublisherPanel
+          analytics={advAnalytics}
+          campaigns={adCampaigns}
+          campaignId={advCampaignId}
+          copiedKey={copiedKey}
+          editingId={advEditingId}
+          form={advForm}
+          polishingCopy={polishingCopy}
+          publishedAdverts={publishedAdverts}
+          requestId={advRequestId}
+          saving={advSaving}
+          sharePackId={sharePackId}
+          uploading={advUploading}
+          onCampaignChange={setAdvCampaignId}
+          onCancel={cancelAdvertEdit}
+          onCopyCaption={handleCopyCaption}
+          onDelete={handleDeleteAdvert}
+          onEdit={loadAdvertForEdit}
+          onFormChange={setAdvForm}
+          onPolishCopy={handlePolishAdvertCopy}
+          onSharePackChange={setSharePackId}
+          onSubmit={handlePublishAdvert}
+          onToggleStatus={handleToggleAdvertStatus}
+          onUploadImage={handleUploadAdvertImage}
+          creativeEditor={
+            <AdminAdvertCreativeEditor
+              form={advForm}
+              format={advFormat}
+              theme={advTheme}
+              withPhoto={advWithPhoto}
+              creativeRef={creativeRef}
+              ogRef={ogRef}
+              kitRefs={kitRefs}
+              kitFormats={KIT_FORMATS}
+              kitExporting={kitExporting}
+              savingCreative={savingCreative}
+              onFormatChange={setAdvFormat}
+              onThemeChange={setAdvTheme}
+              onWithPhotoChange={setAdvWithPhoto}
+              onDownloadCreative={handleDownloadCreative}
+              onSaveCreative={handleSaveCreativeForSocial}
+              onKitExportChange={setKitExporting}
+            />
+          }
+          />
+        </React.Suspense>
+      </div>
+    );
+  }
+
+  // ADMIN SERVICE REQUESTS WORKSPACE
+  if (activeTab === 'admin-services') {
+    if (!isPlatformAdmin) {
+      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
+    }
+    const serviceTypeLabels: Record<string, string> = {
+      document_retrieval: 'Document Retrieval', tender_clarification: 'Tender Clarification',
+      eligibility_assessment: 'Eligibility Assessment', bid_readiness_review: 'Bid-Readiness Review',
+      proposal_review: 'Proposal Review', company_profile_prep: 'Company Profile Preparation',
+      supplier_registration_assistance: 'Supplier Registration Assistance', featured_placement: 'Featured Placement Request', other: 'Other',
+    };
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-emerald-600" /> Service Requests
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Quote, assign, and track bid-support requests. Internal notes are never visible to the requester.</p>
+        </div>
+
+        {serviceRequestFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{serviceRequestFeedback}</div>}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {serviceRequestsLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : allServiceRequests.length === 0 ? (
+            <p className="text-xs text-slate-400">No open service requests.</p>
+          ) : (
+            <div className="space-y-4">
+              {allServiceRequests.map((r) => (
+                <div key={r.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4 className="font-semibold text-slate-800 text-sm">{serviceTypeLabels[r.serviceType]} — {r.orgName}</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>
+                    </div>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800 shrink-0">{r.status}</span>
+                  </div>
+                  <button onClick={() => toggleExpandRequest(r.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer mt-2">
+                    {expandedRequestId === r.id ? 'Hide activity' : 'View activity & notes'}
+                  </button>
+                  {expandedRequestId === r.id && (
+                    <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
+                      {requestActivities.map((a) => (
+                        <p key={a.id} className={`text-xs ${a.isInternal ? 'text-amber-700 bg-amber-50 rounded p-1.5' : 'text-slate-600'}`}>
+                          {a.isInternal && <strong>[Internal] </strong>}{a.note}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4 mt-3 flex-wrap">
+                    <button onClick={() => handleAddAdminNote(r.id, false)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Message Customer</button>
+                    <button onClick={() => handleAddAdminNote(r.id, true)} className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer">Internal Note</button>
+                    <button onClick={() => handleQuoteRequest(r.id)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">Add Quote</button>
+                    <select value={r.status} onChange={(e) => handleUpdateRequestStatus(r.id, e.target.value)} className="text-xs border border-slate-200 rounded-lg p-1 bg-white">
+                      <option value="submitted">Submitted</option>
+                      <option value="quoted">Quoted</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // SUPPLIER PIPELINE WORKSPACE
+  if (activeTab === 'pipeline') {
+    if (isPlatformAdmin) {
+      return (
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
+          Tracking bid pipelines is subscriber tooling for Tender Publishers/Viewers, not platform admins.
+        </div>
+      );
+    }
+    const stageColor = (stage: PipelineStage) =>
+      stage === 'won' ? 'bg-emerald-100 text-emerald-800' :
+      stage === 'lost' || stage === 'withdrawn' ? 'bg-slate-200 text-slate-600' :
+      stage === 'submitted' ? 'bg-blue-100 text-blue-800' :
+      'bg-amber-100 text-amber-800';
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs flex items-center justify-between">
+          <div>
+            <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
+              <BarChart2 className="h-5 w-5 text-emerald-600" /> My Bid Pipeline
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">Private to {activeOrg.name} — never visible to buyers or other suppliers.</p>
+          </div>
+          {canExport && pipeline.length > 0 && (
+            <button onClick={handleExportPipelineCsv} className="btn-geometric-secondary flex items-center gap-2 cursor-pointer text-xs">
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
+          )}
+        </div>
+
+        {pipelineFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{pipelineFeedback}</div>}
+
+        {recommended.length > 0 && (
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6">
+            <h4 className="font-display font-bold text-emerald-900 text-sm mb-3 flex items-center gap-2"><Sparkle className="h-4 w-4" /> Recommended For You</h4>
+            <p className="text-xs text-emerald-700 mb-3">Matched to the sectors in your Supplier Profile.</p>
+            <div className="space-y-2">
+              {recommended.map((op) => (
+                <div key={op.id} className="bg-white border border-emerald-100 rounded-xl p-3 flex items-center justify-between gap-3">
+                  <Link to={`/tenders/${op.slug}`} target="_blank" className="text-sm font-semibold text-slate-800 hover:underline">{op.title}</Link>
+                  <button onClick={() => handleAddToPipeline(op.id)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer shrink-0">Add to Pipeline</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          {pipelineLoading ? (
+            <p className="text-xs text-slate-400">Loading…</p>
+          ) : pipeline.length === 0 ? (
+            <p className="text-xs text-slate-400">Nothing in your pipeline yet. Save a tender from the public search page or add a recommended one above.</p>
+          ) : (
+            <div className="space-y-3">
+              {pipeline.map((p) => (
+                <div key={p.id} className="border border-slate-100 rounded-xl p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <Link to={`/tenders/${p.opportunitySlug}`} target="_blank" className="font-semibold text-slate-800 text-sm hover:underline">{p.opportunityTitle}</Link>
+                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">Deadline: {p.submissionDeadline ? new Date(p.submissionDeadline).toLocaleDateString('en-GB') : '—'}</p>
+                    </div>
+                    <button onClick={() => handleRemoveFromPipeline(p.id)} className="text-xs text-red-500 hover:underline cursor-pointer shrink-0">Remove</button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 mt-3">
+                    <select value={p.stage} onChange={(e) => handleStageChange(p, e.target.value as PipelineStage)}
+                      className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border-0 cursor-pointer ${stageColor(p.stage)}`}>
+                      {PIPELINE_STAGES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                    </select>
+                    <button onClick={() => handleUpdateBidValue(p)} className="text-xs text-slate-500 hover:underline cursor-pointer">
+                      {p.bidValue ? `Le ${p.bidValue.toLocaleString()}` : 'Set bid value'}
+                    </button>
+                  </div>
+                  {p.notes && <p className="text-xs text-slate-500 mt-2">{p.notes}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ADMIN ANALYTICS WORKSPACE
+  if (activeTab === 'admin-analytics') {
+    if (!isPlatformAdmin) {
+      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
+    }
+    const StatBlock = ({ title, stats }: { title: string; stats: { label: string; count: number }[] }) => (
+      <div className="bg-white border border-[#0F172A]">
+        <h4 className="border-b border-[#0F172A] px-5 py-4 font-display font-extrabold text-slate-950 text-sm">{title}</h4>
+        {stats.length === 0 ? <p className="text-xs text-slate-400">No data yet.</p> : (
+          <div>
+            {stats.map((s, i) => (
+              <div key={i} className={`flex items-center justify-between px-5 py-3 text-xs ${i > 0 ? 'border-t border-slate-200' : ''}`}>
+                <span className="text-slate-600">{s.label}</span>
+                <span className="font-display text-lg font-extrabold text-slate-950">{s.count.toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+    return (
+      <div className="space-y-5 text-left">
+        <div className="border-b-2 border-[#0F172A] pb-5">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700">Manohub intelligence</span>
+          <h3 className="mt-1 font-display text-3xl font-extrabold tracking-tight text-slate-950 flex items-center gap-3">
+            <Landmark className="h-6 w-6 text-emerald-600" /> Platform Analytics
+          </h3>
+          <p className="mt-1 text-sm text-slate-500">A clear view of marketplace participation, opportunities and procurement activity.</p>
+        </div>
+
+        {analyticsFeedback && <div className="bg-red-50 border border-red-300 border-l-4 text-red-700 text-sm p-4">{analyticsFeedback}</div>}
+
+        {analyticsLoading ? (
+          <p className="text-xs text-slate-400">Loading…</p>
+        ) : analytics ? (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-px border border-[#0F172A] bg-[#0F172A]">
+              <div className="bg-white border-t-4 border-indigo-600 p-5">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Organizations</span>
+                <span className="font-display font-extrabold text-4xl text-slate-950 block mt-3">{analytics.total_organizations.toLocaleString()}</span>
+              </div>
+              <div className="bg-white border-t-4 border-emerald-600 p-5">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Buyers</span>
+                <span className="font-display font-extrabold text-4xl text-slate-950 block mt-3">{analytics.total_buyers.toLocaleString()}</span>
+              </div>
+              <div className="bg-white border-t-4 border-amber-500 p-5">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Suppliers</span>
+                <span className="font-display font-extrabold text-4xl text-slate-950 block mt-3">{analytics.total_suppliers.toLocaleString()}</span>
+              </div>
+              <div className="bg-white border-t-4 border-fuchsia-600 p-5">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Verified Suppliers</span>
+                <span className="font-display font-extrabold text-4xl text-emerald-700 block mt-3">{analytics.total_verified_suppliers.toLocaleString()}</span>
+              </div>
+            </div>
+
+            {searchInsights && (() => {
+              const maximumDailySearches = Math.max(1, ...searchInsights.dailyTrend.map((day) => day.searches));
+              const locations = [...searchInsights.countryDemand, ...searchInsights.districtDemand]
+                .sort((left, right) => right.searches - left.searches)
+                .slice(0, 10);
+              const DemandList = ({ rows, empty }: { rows: { label: string; searches: number }[]; empty: string }) => (
+                rows.length === 0 ? <p className="p-5 text-xs text-slate-400">{empty}</p> : <div>
+                  {rows.map((row, index) => <div key={`${row.label}-${index}`} className={`flex items-center justify-between px-5 py-3 text-xs ${index ? 'border-t border-slate-200' : ''}`}><span className="text-slate-600">{row.label}</span><span className="font-display text-lg font-extrabold text-slate-950">{row.searches.toLocaleString()}</span></div>)}
+                </div>
+              );
+              return <section aria-label="Procurement search intelligence" className="border-2 border-[#0F172A] bg-white">
+                <div className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-[#0F172A] bg-[#0F172A] px-5 py-5 text-white">
+                  <div><span className="font-mono text-[9px] font-bold uppercase tracking-[0.22em] text-cyan-300">Demand intelligence</span><h4 className="mt-1 flex items-center gap-2 font-display text-xl font-extrabold !text-white"><Search className="h-5 w-5 text-cyan-300" /> What users are looking for</h4><p className="mt-1 text-xs text-slate-300">Use real search demand to prioritise tender sourcing, sectors and locations.</p></div>
+                  <div className="flex border border-slate-500">
+                    {([7, 30, 90] as const).map((days) => <button key={days} type="button" aria-pressed={searchInsightDays === days} onClick={() => setSearchInsightDays(days)} className={`px-3 py-2 font-mono text-[10px] font-bold ${searchInsightDays === days ? 'bg-cyan-300 text-slate-950' : 'bg-slate-950 text-white'}`}>{days} DAYS</button>)}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-px bg-[#0F172A] lg:grid-cols-4">
+                  {[
+                    ['Search sessions', searchInsights.searches.toLocaleString(), `${searchInsights.uniqueSearchers} anonymous or signed-in visitors`, 'border-cyan-500'],
+                    ['Zero-result rate', `${searchInsights.zeroResultRate}%`, `${searchInsights.zeroResultSearches} unmet searches`, 'border-red-500'],
+                    ['Average results', searchInsights.averageResults.toLocaleString(), 'results returned per search', 'border-emerald-500'],
+                    ['Content gaps', searchInsights.contentGaps.length.toLocaleString(), 'terms requiring sourcing', 'border-amber-500'],
+                  ].map(([label, value, detail, accent]) => <div key={label} className={`border-t-4 ${accent} bg-white p-5`}><span className="font-mono text-[9px] font-bold uppercase tracking-widest text-slate-500">{label}</span><strong className="mt-2 block font-display text-3xl font-extrabold text-slate-950">{value}</strong><span className="mt-1 block text-[10px] text-slate-500">{detail}</span></div>)}
+                </div>
+
+                <div className="grid gap-4 border-t-2 border-[#0F172A] p-5 xl:grid-cols-[1.35fr_1fr]">
+                  <div className="border border-slate-300 p-4">
+                    <div className="flex items-center justify-between gap-3"><h5 className="font-display text-sm font-extrabold text-slate-950">Search demand trend</h5><span className="font-mono text-[9px] uppercase tracking-widest text-slate-400">{searchInsights.periodDays} days</span></div>
+                    <div className="mt-5 flex h-36 items-end gap-1" aria-label="Daily search volume">
+                      {searchInsights.dailyTrend.map((day) => <div key={day.date} title={`${day.date}: ${day.searches} searches, ${day.zeroResults} zero results`} className="group flex h-full min-w-0 flex-1 items-end"><div className="relative w-full bg-cyan-500 transition-colors group-hover:bg-cyan-600" style={{ height: `${Math.max(day.searches ? 8 : 2, (day.searches / maximumDailySearches) * 100)}%` }}><div className="absolute bottom-0 left-0 w-full bg-red-500" style={{ height: `${day.searches ? (day.zeroResults / day.searches) * 100 : 0}%` }} /></div></div>)}
+                    </div>
+                    <div className="mt-3 flex gap-4 font-mono text-[8px] uppercase tracking-wider text-slate-500"><span><i className="mr-1 inline-block h-2 w-2 bg-cyan-500" />Searches</span><span><i className="mr-1 inline-block h-2 w-2 bg-red-500" />No results</span></div>
+                  </div>
+
+                  <div className="border border-red-300 bg-red-50">
+                    <h5 className="flex items-center gap-2 border-b border-red-300 px-5 py-4 font-display text-sm font-extrabold text-red-950"><AlertCircle className="h-4 w-4 text-red-600" /> Content gaps to address</h5>
+                    {sourcingTaskFeedback && <p role="status" className={`border-b border-red-200 px-5 py-3 text-xs font-bold ${sourcingTaskFeedback.startsWith('Error:') ? 'text-red-800' : 'bg-emerald-50 text-emerald-800'}`}>{sourcingTaskFeedback}</p>}
+                    {searchInsights.contentGaps.length === 0 ? <p className="p-5 text-xs text-red-700">No repeated zero-result terms in this period.</p> : <div>{searchInsights.contentGaps.map((gap, index) => <div key={gap.term} className={`px-5 py-3 ${index ? 'border-t border-red-200' : ''}`}><div className="flex items-center justify-between gap-3"><span className="text-xs font-bold text-red-950">{gap.term}</span><span className="font-mono text-[9px] font-bold text-red-700">{gap.searches} search{gap.searches === 1 ? '' : 'es'}</span></div><div className="mt-2 flex items-center justify-between gap-3"><p className="text-[10px] text-red-700">Source or publish relevant opportunities for this demand.</p><button type="button" disabled={sourcingTaskBusy === gap.term} onClick={() => void createGapTask(gap.term, gap.searches)} className="shrink-0 border border-red-800 bg-white px-2 py-1 font-mono text-[8px] font-bold uppercase text-red-900 disabled:opacity-50">{sourcingTaskBusy === gap.term ? 'Creating…' : 'Create task'}</button></div></div>)}</div>}
+                  </div>
+                </div>
+
+                <div className="grid gap-px border-t-2 border-[#0F172A] bg-[#0F172A] md:grid-cols-3">
+                  <div className="bg-white"><h5 className="border-b border-slate-300 px-5 py-4 font-display text-sm font-extrabold">Popular search terms</h5>{searchInsights.topTerms.length === 0 ? <p className="p-5 text-xs text-slate-400">Search terms will appear as demand grows.</p> : <div>{searchInsights.topTerms.map((term, index) => <div key={term.term} className={`px-5 py-3 ${index ? 'border-t border-slate-200' : ''}`}><div className="flex items-center justify-between gap-3"><span className="truncate text-xs text-slate-700">{term.term}</span><strong className="font-display text-base text-slate-950">{term.searches}</strong></div><p className="mt-1 text-[9px] text-slate-400">{term.averageResults} average results · {term.zeroResultRate}% unmet</p></div>)}</div>}</div>
+                  <div className="bg-white"><h5 className="border-b border-slate-300 px-5 py-4 font-display text-sm font-extrabold">Demand by sector</h5><DemandList rows={searchInsights.sectorDemand} empty="Sector-filter demand will appear here." /></div>
+                  <div className="bg-white"><h5 className="flex items-center gap-2 border-b border-slate-300 px-5 py-4 font-display text-sm font-extrabold"><MapPin className="h-4 w-4 text-fuchsia-600" /> Demand by location</h5><DemandList rows={locations} empty="Country and district demand will appear here." /></div>
+                </div>
+              </section>;
+            })()}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <StatBlock title="Opportunities by Status" stats={analytics.opportunities_by_status} />
+              <StatBlock title="Opportunities by Sector" stats={analytics.opportunities_by_sector} />
+              <StatBlock title="Opportunities by District" stats={analytics.opportunities_by_district} />
+              <StatBlock title="Most Followed Buyers" stats={analytics.most_followed_buyers} />
+              <StatBlock title="Active Subscriptions by Plan" stats={analytics.subscriptions_by_plan} />
+              <div className="bg-white border border-[#0F172A]">
+                <h4 className="border-b border-[#0F172A] px-5 py-4 font-display font-extrabold text-slate-950 text-sm flex items-center gap-2"><Trophy className="h-4 w-4 text-fuchsia-600" /> Contract Awards by Sector</h4>
+                {analytics.awards_by_sector.length === 0 ? <p className="text-xs text-slate-400">No awards recorded yet.</p> : (
+                  <div>
+                    {analytics.awards_by_sector.map((s, i) => (
+                      <div key={i} className={`flex items-center justify-between px-5 py-3 text-xs ${i > 0 ? 'border-t border-slate-200' : ''}`}>
+                        <span className="text-slate-600">{s.label} ({s.count})</span>
+                        {s.total_value !== undefined && <span className="font-display text-base font-extrabold text-slate-950">Le {s.total_value.toLocaleString()}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white border border-[#0F172A]">
+                <h4 className="border-b border-[#0F172A] px-5 py-4 font-display font-extrabold text-slate-950 text-sm flex items-center gap-2"><Eye className="h-4 w-4 text-indigo-600" /> Most Viewed Tenders</h4>
+                <div>
+                  {analytics.most_viewed.map((v, i) => (
+                    <div key={i} className={`flex items-center justify-between px-5 py-3 text-xs ${i > 0 ? 'border-t border-slate-200' : ''}`}>
+                      <Link to={`/tenders/${v.slug}`} target="_blank" className="text-slate-600 hover:underline truncate">{v.title}</Link>
+                      <span className="font-display text-lg font-extrabold text-slate-950 shrink-0 ml-2">{v.value.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-white border border-[#0F172A]">
+                <h4 className="border-b border-[#0F172A] px-5 py-4 font-display font-extrabold text-slate-950 text-sm flex items-center gap-2"><Award className="h-4 w-4 text-amber-600" /> Most Saved Tenders</h4>
+                <div>
+                  {analytics.most_saved.map((v, i) => (
+                    <div key={i} className={`flex items-center justify-between px-5 py-3 text-xs ${i > 0 ? 'border-t border-slate-200' : ''}`}>
+                      <Link to={`/tenders/${v.slug}`} target="_blank" className="text-slate-600 hover:underline truncate">{v.title}</Link>
+                      <span className="font-display text-lg font-extrabold text-slate-950 shrink-0 ml-2">{v.value.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
+  // 2. CAMPAIGNS WORKSPACE
+  if (false && activeTab === 'campaigns') {
+    return (
+      <div className="space-y-8 text-left">
+        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-display font-bold text-slate-900 text-lg">Establish Campaign Plan</h3>
+            {editingCampaignId && (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 shrink-0">
+                Editing
+              </span>
+            )}
+          </div>
+          {campFeedback && (
+            <div className={`text-sm p-4 rounded-xl mb-4 font-semibold ${campFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+              {campFeedback}
+            </div>
+          )}
+          <form onSubmit={handleCreateCampaign} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Campaign Slogan / Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Christmas Parboiled Rice Promo"
+                  value={newCampName}
+                  onChange={(e) => setNewCampName(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Primary Objective</label>
+                <select
+                  value={newCampObjective}
+                  onChange={(e) => setNewCampObjective(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                >
+                  <option>WhatsApp enquiries</option>
+                  <option>Product sales & bookings</option>
+                  <option>NGO public outreach</option>
+                  <option>Investor Enquiries</option>
+                  <option>Tourism & Bookings</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Operating District (Sierra Leone)</label>
+                <select
+                  value={newCampDistrict}
+                  onChange={(e) => setNewCampDistrict(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                >
+                  <option>Western Area Urban</option>
+                  <option>Bo</option>
+                  <option>Kenema</option>
+                  <option>Makeni</option>
+                  <option>Port Loko</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Diaspora Hub Focus</label>
+                <select
+                  value={newCampDiaspora}
+                  onChange={(e) => setNewCampDiaspora(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                >
+                  <option>United Kingdom</option>
+                  <option>United States</option>
+                  <option>Canada</option>
+                  <option>Germany</option>
+                  <option>Sweden</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Brief Description</label>
+              <textarea
+                required
+                rows={2}
+                placeholder="Targeting diaspora investors to support smallholder rice producers in Bo..."
+                value={newCampDesc}
+                onChange={(e) => setNewCampDesc(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Allocated Budget (Leones)</label>
+              <input
+                type="number"
+                required
+                placeholder="15000000"
+                value={newCampBudget}
+                onChange={(e) => setNewCampBudget(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+              />
+            </div>
+            {editingCampaignId && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Status</label>
+                <select
+                  value={newCampStatus}
+                  onChange={(e: any) => setNewCampStatus(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                >
+                  <option>Draft</option>
+                  <option>Planning</option>
+                  <option>Approved</option>
+                  <option>Scheduled</option>
+                  <option>Active</option>
+                  <option>Completed</option>
+                  <option>Failed</option>
+                </select>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <button type="submit" disabled={campSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                {campSubmitting ? 'Saving…' : editingCampaignId ? 'Save Changes' : 'Launch Campaign Plan'}
+              </button>
+              {editingCampaignId && (
+                <button type="button" onClick={resetCampaignForm} className="text-xs font-semibold text-slate-500 hover:underline cursor-pointer">
+                  Cancel edit
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Existing Campaigns */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h3 className="font-display font-bold text-slate-900 text-lg">Active Campaign Scopes</h3>
+            <div className="flex items-center gap-3">
+              {healthCheckFeedback && (
+                <span className="text-xs font-medium text-slate-500">{healthCheckFeedback}</span>
+              )}
+              <button
+                type="button"
+                onClick={handleRunHealthCheck}
+                disabled={runningHealthCheck}
+                className="flex items-center gap-1.5 bg-white border border-slate-200 hover:border-emerald-300 text-slate-700 font-semibold px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer disabled:opacity-50"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                {runningHealthCheck ? 'Checking…' : 'Run Health Check Now'}
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {campaigns.map((camp) => {
+              const statusColor: Record<Campaign['status'], string> = {
+                Draft: 'bg-slate-200 text-slate-600',
+                Planning: 'bg-slate-100 text-slate-600',
+                Approved: 'bg-amber-100 text-amber-800',
+                Scheduled: 'bg-blue-100 text-blue-800',
+                Active: 'bg-emerald-100 text-emerald-800',
+                Completed: 'bg-indigo-100 text-indigo-800',
+                Failed: 'bg-red-100 text-red-700',
+              };
+              return (
+                <div key={camp.id} className={`bg-white border rounded-2xl p-5 shadow-xs flex flex-col justify-between ${editingCampaignId === camp.id ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-100'}`}>
+                  <div>
+                    <div className="flex justify-between items-start gap-2 mb-3">
+                      <h4 className="font-display font-bold text-slate-900 leading-tight">{camp.name}</h4>
+                      {/* Only the transitions the campaign state machine accepts
+                          are offered; anything else is rejected by the database. */}
+                      <select
+                        value={camp.status}
+                        aria-label={`Status for ${camp.name}`}
+                        disabled={campStatusUpdatingId === camp.id || campaignStatusOptions(camp.status).length === 1}
+                        onChange={(e: any) => handleChangeCampaignStatus(camp, e.target.value)}
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border-0 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${statusColor[camp.status]}`}
+                      >
+                        {campaignStatusOptions(camp.status).map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-slate-500 text-xs leading-relaxed mb-4">{camp.description}</p>
+                  </div>
+                  <div className="border-t border-slate-50 pt-4 space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-600">
+                      <span className="font-medium">District:</span>
+                      <span className="font-mono text-slate-500">{camp.district || 'All Sierra Leone'}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span className="font-medium">Diaspora:</span>
+                      <span className="font-mono text-slate-500">{camp.diasporaMarket || 'All Diaspora'}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span className="font-medium">Budget:</span>
+                      <span className="font-mono font-bold text-slate-800">Le {camp.totalBudget.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-slate-400 font-mono pt-2">
+                    {campaignActivity[camp.id]?.contentCount ?? 0} content · {campaignActivity[camp.id]?.trackingLinkCount ?? 0} tracking links · {campaignActivity[camp.id]?.totalClicks ?? 0} clicks
+                  </div>
+                  <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-50">
+                    <button type="button" onClick={() => handleEditCampaign(camp)} className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer">
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSuggestContentPlan(camp)}
+                      className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Sparkles className="h-3 w-3" /> Suggest Content Plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCampaign(camp)}
+                      disabled={deletingCampaignId === camp.id}
+                      className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50 ml-auto"
+                    >
+                      {deletingCampaignId === camp.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {contentPlanCampaignId && (() => {
+          const camp = campaigns.find((c) => c.id === contentPlanCampaignId);
+          if (!camp) return null;
+          return (
+            <div className="bg-emerald-950 text-white rounded-2xl p-6 shadow-md space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="inline-flex items-center gap-2 bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs px-3 py-1 rounded-full font-mono uppercase tracking-widest">
+                    <Sparkles className="h-3.5 w-3.5" /> AI Content Plan — {camp!.name}
+                  </span>
+                  <p className="text-emerald-300 text-[11px] mt-2">Nothing is saved yet — pick which drafts to actually create below.</p>
+                </div>
+                <button type="button" onClick={() => setContentPlanCampaignId(null)} className="text-emerald-400 hover:text-white cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {contentPlanLoading && (
+                <p className="text-xs text-emerald-300 italic">Drafting a content plan…</p>
+              )}
+              {contentPlanError && (
+                <p className="text-xs text-red-300">{contentPlanError}</p>
+              )}
+              {!contentPlanLoading && contentPlanItems.length > 0 && (
+                <div className="space-y-3">
+                  {contentPlanItems.map((item, idx) => (
+                    <label key={idx} className="flex items-start gap-3 bg-emerald-900/40 border border-emerald-800 p-3.5 rounded-xl cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={contentPlanSelected.has(idx)}
+                        onChange={() => toggleContentPlanItem(idx)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-white">{item.title}</span>
+                          <span className="text-[9px] font-mono text-emerald-400 shrink-0 ml-2">{item.contentType} · {item.platform} · {item.scheduledDate}</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-100 leading-relaxed">{item.headline}</p>
+                        <p className="text-[10px] text-emerald-300 leading-relaxed line-clamp-2">{item.body}</p>
+                        {item.hashtags?.length > 0 && (
+                          <p className="text-[10px] text-emerald-400 font-mono">{item.hashtags.join(' ')}</p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleCreateSelectedDrafts}
+                    disabled={creatingContentPlanDrafts || contentPlanSelected.size === 0}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {creatingContentPlanDrafts ? 'Creating…' : `Create ${contentPlanSelected.size} Selected Draft${contentPlanSelected.size === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+    );
+  }
+
+  // 3. CONTENT STUDIO WORKSPACE
+  if (activeTab === 'content') {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 text-left">
+        {/* Left Side: Template Editor */}
+        <div className="lg:col-span-7 bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-display font-bold text-slate-900 text-lg">Central Content Composer</h3>
+              <p className="text-xs text-slate-500">Draft templates manually or trigger our server-side AI assistant on the right panel.</p>
+            </div>
+            {editingContentId && (
+              <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 shrink-0">
+                Editing
+              </span>
+            )}
+          </div>
+          {contentFeedback && (
+            <div className={`text-sm p-3.5 rounded-xl font-semibold ${contentFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
+              {contentFeedback}
+            </div>
+          )}
+          <form onSubmit={handleSaveContent} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Item Title</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Organic native rice showcase"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Content Type</label>
+                <select
+                  value={editType}
+                  onChange={(e: any) => setEditType(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                >
+                  <option>Social Post</option>
+                  <option>WhatsApp Promo</option>
+                  <option>Video Script</option>
+                  <option>Radio Brief</option>
+                  <option>Email News</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Target Platform</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Facebook & WhatsApp"
+                  value={editPlatform}
+                  onChange={(e) => setEditPlatform(e.target.value)}
+                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Headline / Main Hook</label>
+              <input
+                type="text"
+                required
+                placeholder="Bring Sierra Leone flavar back to your dinner table!"
+                value={editHeadline}
+                onChange={(e) => setEditHeadline(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase">Body Caption / Script Narrative</label>
+              <textarea
+                required
+                rows={4}
+                placeholder="Describe product advantages, delivery networks, and support options..."
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value)}
+                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500 font-sans"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase">Hashtags</label>
+                <input
+                  type="text"
+                  placeholder="#Manohub, #EatSalone"
+                  value={editHashtagsInput}
+                  onChange={(e) => setEditHashtagsInput(e.target.value)}
                   className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">Comma-separated</p>
