@@ -17,9 +17,11 @@ import { useProcurementOverview } from '../modules/procurement/useProcurementOve
 import { useTenderWorkspace } from '../modules/procurement/useTenderWorkspace';
 import { TenderCreationForm } from '../modules/procurement/TenderCreationForm';
 import { TenderManagementPanel } from '../modules/procurement/TenderManagementPanel';
+import { SubscriberServiceRequestsWorkspace } from '../modules/service-requests/SubscriberServiceRequestsWorkspace';
+import { AdminServiceRequestsWorkspace } from '../modules/service-requests/AdminServiceRequestsWorkspace';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
-  MessageSquare, UserCheck, BookOpen, Award, Compass, Sparkles,
+  MessageSquare, BookOpen, Award, Compass, Sparkles,
   Settings, ShieldAlert, CreditCard, UserPlus, Upload, Trash2,
   Check, Play, Plus, Search, Filter, Download, AlertCircle, Eye, RefreshCw,
   FileSearch, ExternalLink, Sparkle, Trophy, Landmark, Megaphone, X, Image as ImageIcon,
@@ -98,20 +100,10 @@ import {
   fetchPendingSubscriptions,
   activateSubscription,
   cancelSubscriptionRequest,
-  createServiceRequest,
-  fetchMyServiceRequests,
-  fetchAllServiceRequests,
-  fetchServiceRequestActivities,
-  addServiceRequestNote,
-  updateServiceRequestStatus,
-  quoteServiceRequest,
   TeamMember,
   Plan,
   OrgSubscription,
   PendingSubscription,
-  ServiceRequest,
-  ServiceRequestActivity,
-  ServiceType,
   submitAdvertisementRequest,
   fetchMyAdvertisements,
   fetchAllAdvertisementRequests,
@@ -1567,95 +1559,6 @@ export function Workspaces({
     }
   };
 
-  // --- Service Requests States (buyer/supplier + admin) ---
-  const [myServiceRequests, setMyServiceRequests] = useState<ServiceRequest[]>([]);
-  const [allServiceRequests, setAllServiceRequests] = useState<ServiceRequest[]>([]);
-  const [serviceRequestsLoading, setServiceRequestsLoading] = useState(false);
-  const [serviceRequestFeedback, setServiceRequestFeedback] = useState('');
-  const [srServiceType, setSrServiceType] = useState<ServiceType>('bid_readiness_review');
-  const [srDescription, setSrDescription] = useState('');
-  const [srSubmitting, setSrSubmitting] = useState(false);
-  const [expandedRequestId, setExpandedRequestId] = useState('');
-  const [requestActivities, setRequestActivities] = useState<ServiceRequestActivity[]>([]);
-
-  useEffect(() => {
-    if (activeTab !== 'services') return;
-    setServiceRequestsLoading(true);
-    fetchMyServiceRequests(activeOrg.id)
-      .then(setMyServiceRequests)
-      .catch((err: any) => setServiceRequestFeedback(`Error: ${err.message || 'Could not load service requests.'}`))
-      .finally(() => setServiceRequestsLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  useEffect(() => {
-    if (activeTab !== 'admin-services' || !isPlatformAdmin) return;
-    setServiceRequestsLoading(true);
-    fetchAllServiceRequests()
-      .then(setAllServiceRequests)
-      .catch((err: any) => setServiceRequestFeedback(`Error: ${err.message || 'Could not load service requests.'}`))
-      .finally(() => setServiceRequestsLoading(false));
-  }, [activeTab, isPlatformAdmin]);
-
-  const handleCreateServiceRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSrSubmitting(true);
-    try {
-      await createServiceRequest(activeOrg.id, srServiceType, srDescription);
-      setMyServiceRequests(await fetchMyServiceRequests(activeOrg.id));
-      setSrDescription('');
-      setServiceRequestFeedback('Request submitted. Our team will follow up shortly.');
-    } catch (err: any) {
-      setServiceRequestFeedback(`Error: ${err.message || 'Could not submit request.'}`);
-    } finally {
-      setSrSubmitting(false);
-      setTimeout(() => setServiceRequestFeedback(''), 5000);
-    }
-  };
-
-  const toggleExpandRequest = async (id: string) => {
-    if (expandedRequestId === id) {
-      setExpandedRequestId('');
-      return;
-    }
-    setExpandedRequestId(id);
-    try {
-      setRequestActivities(await fetchServiceRequestActivities(id));
-    } catch {
-      setRequestActivities([]);
-    }
-  };
-
-  const handleAddAdminNote = async (id: string, internal: boolean) => {
-    const note = prompt(internal ? 'Internal note (admin only):' : 'Message to the customer:');
-    if (!note) return;
-    try {
-      await addServiceRequestNote(id, note, internal);
-      setRequestActivities(await fetchServiceRequestActivities(id));
-    } catch (err: any) {
-      setServiceRequestFeedback(`Error: ${err.message || 'Could not add note.'}`);
-    }
-  };
-
-  const handleQuoteRequest = async (id: string) => {
-    const amountStr = prompt('Quote amount:');
-    if (!amountStr) return;
-    try {
-      await quoteServiceRequest(id, Number(amountStr), 'SLE');
-      setAllServiceRequests(await fetchAllServiceRequests());
-    } catch (err: any) {
-      setServiceRequestFeedback(`Error: ${err.message || 'Could not save quote.'}`);
-    }
-  };
-
-  const handleUpdateRequestStatus = async (id: string, status: string) => {
-    try {
-      await updateServiceRequestStatus(id, status);
-      setAllServiceRequests(await fetchAllServiceRequests());
-    } catch (err: any) {
-      setServiceRequestFeedback(`Error: ${err.message || 'Could not update status.'}`);
-    }
-  };
-
   // --- Advertiser subscriber: "My Adverts" + admin fulfillment queue ---
   const [canAdvertise, setCanAdvertise] = useState(false);
   const [myAdvertisements, setMyAdvertisements] = useState<AdvertisementRequest[]>([]);
@@ -2597,94 +2500,7 @@ export function Workspaces({
 
   // BID SUPPORT SERVICES WORKSPACE (buyers & suppliers)
   if (activeTab === 'services') {
-    if (isPlatformAdmin) {
-      return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">
-          Requesting bid support is subscriber tooling for Tender Publishers/Viewers, not platform admins.
-          Use Service Requests under Platform Admin to fulfill subscriber requests.
-        </div>
-      );
-    }
-    const serviceTypeLabels: Record<ServiceType, string> = {
-      document_retrieval: 'Document Retrieval',
-      tender_clarification: 'Tender Clarification',
-      eligibility_assessment: 'Eligibility Assessment',
-      bid_readiness_review: 'Bid-Readiness Review',
-      proposal_review: 'Proposal Review',
-      company_profile_prep: 'Company Profile Preparation',
-      supplier_registration_assistance: 'Supplier Registration Assistance',
-      featured_placement: 'Featured Placement Request',
-      other: 'Other',
-    };
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Support Services</h3>
-          <p className="text-xs text-slate-500 mt-1">Request paid, human-assisted help — separate from our AI Content Studio, these are performed by our team.</p>
-        </div>
-
-        {serviceRequestFeedback && (
-          <div className={`text-sm p-4 rounded-xl font-semibold ${serviceRequestFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-            {serviceRequestFeedback}
-          </div>
-        )}
-
-        <form onSubmit={handleCreateServiceRequest} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase">Service Needed</label>
-            <select value={srServiceType} onChange={(e) => setSrServiceType(e.target.value as ServiceType)}
-              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
-              {Object.entries(serviceTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase">Describe What You Need</label>
-            <textarea required rows={3} value={srDescription} onChange={(e) => setSrDescription(e.target.value)}
-              className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-          </div>
-          <button type="submit" disabled={srSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm cursor-pointer disabled:opacity-50">
-            {srSubmitting ? 'Submitting…' : 'Submit Request'}
-          </button>
-        </form>
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Your Requests</h4>
-          {serviceRequestsLoading ? (
-            <p className="text-xs text-slate-400">Loading…</p>
-          ) : myServiceRequests.length === 0 ? (
-            <p className="text-xs text-slate-400">No requests yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {myServiceRequests.map((r) => (
-                <div key={r.id} className="border border-slate-100 rounded-xl p-4">
-                  <button onClick={() => toggleExpandRequest(r.id)} className="w-full flex items-center justify-between gap-4 cursor-pointer text-left">
-                    <div>
-                      <span className="font-semibold text-slate-800 text-sm block">{serviceTypeLabels[r.serviceType]}</span>
-                      <span className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleDateString('en-GB')}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {r.quoteAmount !== null && <span className="text-xs font-mono text-slate-600">{r.quoteCurrency} {r.quoteAmount.toLocaleString()}</span>}
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800">{r.status}</span>
-                    </div>
-                  </button>
-                  {expandedRequestId === r.id && (
-                    <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
-                      {requestActivities.length === 0 ? (
-                        <p className="text-xs text-slate-400">No updates yet.</p>
-                      ) : (
-                        requestActivities.map((a) => (
-                          <p key={a.id} className="text-xs text-slate-600"><span className="font-mono text-slate-400">{new Date(a.createdAt).toLocaleDateString('en-GB')}:</span> {a.note}</p>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+    return <SubscriberServiceRequestsWorkspace orgId={activeOrg.id} isPlatformAdmin={isPlatformAdmin} />;
   }
 
   if (activeTab === 'advertising') {
@@ -2868,73 +2684,7 @@ export function Workspaces({
 
   // ADMIN SERVICE REQUESTS WORKSPACE
   if (activeTab === 'admin-services') {
-    if (!isPlatformAdmin) {
-      return <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs text-sm text-slate-500">You do not have platform admin access.</div>;
-    }
-    const serviceTypeLabels: Record<string, string> = {
-      document_retrieval: 'Document Retrieval', tender_clarification: 'Tender Clarification',
-      eligibility_assessment: 'Eligibility Assessment', bid_readiness_review: 'Bid-Readiness Review',
-      proposal_review: 'Proposal Review', company_profile_prep: 'Company Profile Preparation',
-      supplier_registration_assistance: 'Supplier Registration Assistance', featured_placement: 'Featured Placement Request', other: 'Other',
-    };
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <UserCheck className="h-5 w-5 text-emerald-600" /> Service Requests
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">Quote, assign, and track bid-support requests. Internal notes are never visible to the requester.</p>
-        </div>
-
-        {serviceRequestFeedback && <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">{serviceRequestFeedback}</div>}
-
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          {serviceRequestsLoading ? (
-            <p className="text-xs text-slate-400">Loading…</p>
-          ) : allServiceRequests.length === 0 ? (
-            <p className="text-xs text-slate-400">No open service requests.</p>
-          ) : (
-            <div className="space-y-4">
-              {allServiceRequests.map((r) => (
-                <div key={r.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h4 className="font-semibold text-slate-800 text-sm">{serviceTypeLabels[r.serviceType]} — {r.orgName}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{r.description}</p>
-                    </div>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full uppercase bg-blue-100 text-blue-800 shrink-0">{r.status}</span>
-                  </div>
-                  <button onClick={() => toggleExpandRequest(r.id)} className="text-xs text-emerald-600 hover:underline cursor-pointer mt-2">
-                    {expandedRequestId === r.id ? 'Hide activity' : 'View activity & notes'}
-                  </button>
-                  {expandedRequestId === r.id && (
-                    <div className="mt-3 pt-3 border-t border-slate-50 space-y-2">
-                      {requestActivities.map((a) => (
-                        <p key={a.id} className={`text-xs ${a.isInternal ? 'text-amber-700 bg-amber-50 rounded p-1.5' : 'text-slate-600'}`}>
-                          {a.isInternal && <strong>[Internal] </strong>}{a.note}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-4 mt-3 flex-wrap">
-                    <button onClick={() => handleAddAdminNote(r.id, false)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer">Message Customer</button>
-                    <button onClick={() => handleAddAdminNote(r.id, true)} className="text-xs font-semibold text-amber-600 hover:underline cursor-pointer">Internal Note</button>
-                    <button onClick={() => handleQuoteRequest(r.id)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">Add Quote</button>
-                    <select value={r.status} onChange={(e) => handleUpdateRequestStatus(r.id, e.target.value)} className="text-xs border border-slate-200 rounded-lg p-1 bg-white">
-                      <option value="submitted">Submitted</option>
-                      <option value="quoted">Quoted</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
+    return <AdminServiceRequestsWorkspace isPlatformAdmin={isPlatformAdmin} />;
   }
 
   // SUPPLIER PIPELINE WORKSPACE

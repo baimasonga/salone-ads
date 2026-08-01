@@ -26,6 +26,14 @@ const adminAdvertPublisherPanel = readFileSync(
   resolve(process.cwd(), 'src/components/AdminAdvertPublisherPanel.tsx'),
   'utf8',
 );
+const subscriberServiceRequests = readFileSync(
+  resolve(process.cwd(), 'src/modules/service-requests/SubscriberServiceRequestsWorkspace.tsx'),
+  'utf8',
+);
+const adminServiceRequests = readFileSync(
+  resolve(process.cwd(), 'src/modules/service-requests/AdminServiceRequestsWorkspace.tsx'),
+  'utf8',
+);
 
 describe('workspace source integrity', () => {
   it('retains early, middle and late workspace implementations', () => {
@@ -36,8 +44,8 @@ describe('workspace source integrity', () => {
   });
 
   it('retains the complete workspace source rather than a partial publish', () => {
-    expect(workspaceSource.split('\n').length).toBeGreaterThan(5_200);
-    expect((workspaceSource + delegatedRoutes + subscriberAdvertising + adminAdvertisingQueue + adminAdvertCreativeEditor + adminAdvertPublisherPanel).split('\n').length).toBeGreaterThan(5_900);
+    expect(workspaceSource.split('\n').length).toBeGreaterThan(5_000);
+    expect((workspaceSource + delegatedRoutes + subscriberAdvertising + adminAdvertisingQueue + adminAdvertCreativeEditor + adminAdvertPublisherPanel + subscriberServiceRequests + adminServiceRequests).split('\n').length).toBeGreaterThan(6_000);
     expect(workspaceSource.trimEnd().endsWith('}')).toBe(true);
   });
 
@@ -83,5 +91,19 @@ describe('workspace source integrity', () => {
     expect(adminAdvertPublisherPanel).toContain('No adverts published yet.');
     expect(adminAdvertPublisherPanel).toContain('Share pack');
     expect(adminAdvertPublisherPanel).not.toContain('Campaign Management');
+  });
+
+  it('isolates subscriber and administrator service requests without duplicating routes', () => {
+    expect(workspaceSource).toContain('<SubscriberServiceRequestsWorkspace');
+    expect(workspaceSource).toContain('<AdminServiceRequestsWorkspace');
+    expect(workspaceSource).not.toContain('createServiceRequest');
+    expect(workspaceSource).not.toContain('fetchAllServiceRequests');
+    expect(subscriberServiceRequests).toContain('Support Services');
+    expect(subscriberServiceRequests).toContain('Your Requests');
+    expect(subscriberServiceRequests).toContain('Submit Request');
+    expect(adminServiceRequests).toContain('Service Requests');
+    expect(adminServiceRequests).toContain('Message Customer');
+    expect(adminServiceRequests).toContain('Internal Note');
+    expect(adminServiceRequests).toContain('Add Quote');
   });
 });
