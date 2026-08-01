@@ -6,7 +6,8 @@ const migration = readFileSync(
   resolve(process.cwd(), 'migrations/manohub-new-project/58_tender_alert_email_delivery.sql'),
   'utf8',
 ).toLowerCase();
-const server = readFileSync(resolve(process.cwd(), 'server.ts'), 'utf8');
+const emailModule = readFileSync(resolve(process.cwd(), 'server/email/audienceEmail.ts'), 'utf8');
+const resendProvider = readFileSync(resolve(process.cwd(), 'server/email/resendProvider.ts'), 'utf8');
 
 describe('tender alert delivery foundation', () => {
   it('queues immediate and digest matches through durable jobs', () => {
@@ -26,11 +27,11 @@ describe('tender alert delivery foundation', () => {
   });
 
   it('uses verified webhooks and deterministic idempotency', () => {
-    expect(server).toContain('manohub-tender-alert-${delivery.id}');
-    expect(server).toContain('tender_alert_email_events');
-    expect(server).toContain('tender_alert_email_suppressions');
-    expect(server).toContain('email.complained');
-    expect(server).toContain('email.bounced');
-    expect(server).toContain('webhooks.verify');
+    expect(emailModule).toContain('manohub-tender-alert-${delivery.id}');
+    expect(emailModule).toContain('tender_alert_email_events');
+    expect(emailModule).toContain('tender_alert_email_suppressions');
+    expect(emailModule).toContain('email.complained');
+    expect(emailModule).toContain('email.bounced');
+    expect(resendProvider).toContain('webhooks.verify');
   });
 });
