@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Eye, History, ImagePlus, Loader2, Pause, Play, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import {
-  Advert,
   assignLandingAdvert,
   createLandingContentBlock,
-  fetchAllAdverts,
   fetchAllLandingContent,
   fetchLandingContentRevisions,
   fetchLandingContentTrash,
@@ -21,7 +19,8 @@ import {
   updateLandingAdvertAssignment,
   updateLandingContent,
   uploadLandingContentMedia,
-} from '../lib/procurementApi';
+} from '../lib/landingCmsApi';
+import { type Advert, fetchAllAdverts } from '../lib/advertisingApi';
 
 type PlacementOption = { id: string; code: string; name: string };
 

@@ -4,7 +4,7 @@ import {
   fetchPublicAudienceSubscribers,
   PublicAudienceSubscriber,
   updatePublicAudienceSubscriberStatus,
-} from '../lib/procurementApi';
+} from '../lib/audienceApi';
 
 function csvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;

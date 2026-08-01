@@ -20,14 +20,13 @@ import {
 } from 'lucide-react';
 import {
   fetchCountries,
-  fetchLandingAdvertPlacements,
   fetchOpportunityTypes,
   fetchSectors,
-  LandingAdvertPlacement,
   OpportunityListItem,
   searchOpportunities,
   TaxonomyOption,
 } from '../lib/procurementApi';
+import { fetchLandingAdvertPlacements, type LandingAdvertPlacement } from '../lib/landingCmsApi';
 import { trackAdvertEvent } from '../lib/advertAnalytics';
 
 interface LandingPageProps {

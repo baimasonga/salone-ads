@@ -7,11 +7,13 @@ import {
   dispatchAudienceEmailCampaign,
   fetchAudienceEmailCampaigns,
   fetchPublicAudienceSubscribers,
-  fetchTenderAlertDeliverySummary,
   PublicAudienceSubscriber,
   queueAudienceEmailCampaign,
   sendAudienceEmailTest,
-  TenderAlertDeliverySummary,
+} from '../lib/audienceApi';
+import {
+  fetchTenderAlertDeliverySummary,
+  type TenderAlertDeliverySummary,
 } from '../lib/procurementApi';
 
 const INTERESTS = ['Tenders', 'Jobs', 'Business offers', 'Events', 'Training', 'Products & services'];
