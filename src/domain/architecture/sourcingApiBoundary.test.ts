@@ -23,6 +23,8 @@ describe('opportunity sourcing API boundary', () => {
       .toContain('lib/procurement/sourcingApi');
     expect(readSource('src/components/Workspaces.tsx'))
       .toContain('lib/procurement/sourcingApi');
+    expect(readSource('src/components/WorkspaceRouteResolver.tsx'))
+      .toContain("import('../modules/procurement/OpportunityIngestionWorkspace')");
   });
 
   it('keeps promotion behind the secure backend command boundary', () => {

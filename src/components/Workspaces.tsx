@@ -151,7 +151,6 @@ import {
   aiPolishAdvertCopy,
   Advert,
 } from '../lib/procurementApi';
-import { createSourcingTaskFromGap } from '../lib/procurement/sourcingApi';
 import { supabase } from '../lib/supabaseClient';
 
 const AdminAdvertPublisherPanel = React.lazy(() =>
@@ -2234,6 +2233,7 @@ export function Workspaces({
     setSourcingTaskBusy(term);
     setSourcingTaskFeedback('');
     try {
+      const { createSourcingTaskFromGap } = await import('../lib/procurement/sourcingApi');
       await createSourcingTaskFromGap(term, searches >= 5 ? 'high' : searches >= 2 ? 'medium' : 'low');
       setSourcingTaskFeedback(`Sourcing task created for “${term}”. Assign it in Opportunity Ingestion.`);
     } catch (err: any) {

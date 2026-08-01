@@ -1,8 +1,7 @@
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import type { Organization } from '../types';
 import type { OpportunityListItem, SavedSearch } from '../lib/procurementApi';
 import { NotificationCentre } from '../modules/notifications/NotificationCentre';
-import { OpportunityIngestionWorkspace } from '../modules/procurement/OpportunityIngestionWorkspace';
 import { AdminTenderReviewWorkspace } from '../modules/procurement/AdminTenderReviewWorkspace';
 import { ProcurementOverview } from '../modules/procurement/ProcurementOverview';
 import type { ProcurementTier } from '../modules/procurement/model';
@@ -18,6 +17,11 @@ import { CmsContentManagerPage } from './CmsContentManagerPage';
 import { AudienceSubscribersPage } from './AudienceSubscribersPage';
 import { AudienceEmailCampaignsPage } from './AudienceEmailCampaignsPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
+
+const OpportunityIngestionWorkspace = lazy(() =>
+  import('../modules/procurement/OpportunityIngestionWorkspace')
+    .then((module) => ({ default: module.OpportunityIngestionWorkspace })),
+);
 
 interface OverviewModel {
   tier: ProcurementTier; pipelineCount: number; savedSearchCount: number; savedSearches: SavedSearch[];
@@ -42,7 +46,11 @@ export function resolveDelegatedWorkspaceRoute({
   if (activeTab === 'notifications') return <NotificationCentre activeOrgId={activeOrg.id} onNavigate={onNavigate} />;
   if (activeTab === 'opportunity-ingestion') {
     if (!isPlatformAdmin && !isPlatformResearcher) return <div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Researcher access is required.</div>;
-    return <OpportunityIngestionWorkspace isPlatformAdmin={isPlatformAdmin} />;
+    return (
+      <Suspense fallback={<div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Loading sourcing workspace…</div>}>
+        <OpportunityIngestionWorkspace isPlatformAdmin={isPlatformAdmin} />
+      </Suspense>
+    );
   }
   if (activeTab === 'admin-finance') return isPlatformAdmin ? <FinanceLedgerWorkspace /> : adminDenied();
   if (isPlatformAdmin && isPlatformAdminWorkspaceTab(activeTab)) {
