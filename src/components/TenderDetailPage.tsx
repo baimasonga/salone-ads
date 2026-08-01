@@ -23,15 +23,17 @@ import {
 } from '../lib/procurement/savedSearchApi';
 import {
   aiExplainTender,
-  fetchMyOrgId,
   hasFeature,
+} from '../lib/procurementApi';
+import {
+  fetchMyOrgId,
   fetchMyResponse,
   submitResponse,
   withdrawResponse,
   fetchResponseCount,
-  OpportunityResponse,
-  ResponseKind,
-} from '../lib/procurementApi';
+  type OpportunityResponse,
+  type ResponseKind,
+} from '../lib/procurement/responseApi';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../lib/i18n';
 

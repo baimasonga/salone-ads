@@ -15,7 +15,7 @@ import {
   type OpportunityDocument,
   type OpportunityListItem,
 } from '../../lib/procurement/opportunityApi';
-import { fetchOpportunityResponses, type OpportunityResponse } from '../../lib/procurementApi';
+import { fetchOpportunityResponses, type OpportunityResponse } from '../../lib/procurement/responseApi';
 import { ProcurementActionDialog } from './ProcurementActionDialog';
 
 type ManagementDialogType = 'cancel' | 'close' | 'deadline' | 'award';

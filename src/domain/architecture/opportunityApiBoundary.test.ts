@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 const facade = readSource('src/lib/procurementApi.ts');
 const opportunityApi = readSource('src/lib/procurement/opportunityApi.ts');
+const bidPipelineApi = readSource('src/lib/procurement/bidPipelineApi.ts');
 
 const directConsumers = [
   'src/components/LandingPage.tsx',
@@ -38,8 +39,8 @@ describe('opportunity lifecycle API boundary', () => {
     expect(opportunityApi).toContain('export const OPPORTUNITY_LIST_SELECT');
     expect(opportunityApi).toContain('export function mapOpportunityListItem');
     expect(opportunityApi).toContain('export async function getOpportunityStatusId');
-    expect(facade).toContain('OPPORTUNITY_LIST_SELECT');
-    expect(facade).toContain('mapOpportunityListItem');
+    expect(bidPipelineApi).toContain('OPPORTUNITY_LIST_SELECT');
+    expect(bidPipelineApi).toContain('mapOpportunityListItem');
     expect(facade).toContain('getOpportunityStatusId');
   });
 

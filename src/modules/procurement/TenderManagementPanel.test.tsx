@@ -24,7 +24,7 @@ vi.mock('../../lib/procurement/opportunityApi', () => ({
   uploadOpportunityDocument: vi.fn(),
 }));
 
-vi.mock('../../lib/procurementApi', () => ({ fetchOpportunityResponses: vi.fn(async () => []) }));
+vi.mock('../../lib/procurement/responseApi', () => ({ fetchOpportunityResponses: vi.fn(async () => []) }));
 
 const publishedOpportunity = {
   id: 'opportunity-1',

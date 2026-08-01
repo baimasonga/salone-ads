@@ -1,10 +1,6 @@
 import { supabase } from './supabaseClient';
-import { fetchMyOrganization } from './api';
 import {
-  OPPORTUNITY_LIST_SELECT,
   getOpportunityStatusId,
-  mapOpportunityListItem,
-  type OpportunityListItem,
 } from './procurement/opportunityApi';
 
 export * from './procurement/opportunityApi';
@@ -15,6 +11,8 @@ const ALLOWED_ADVERT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/we
 export * from './procurement/sourcingApi';
 export * from './procurement/supplierVerificationApi';
 export * from './procurement/savedSearchApi';
+export * from './procurement/responseApi';
+export * from './procurement/bidPipelineApi';
 
 export async function approveOpportunity(id: string): Promise<void> {
   const publishedId = await getOpportunityStatusId('published');
@@ -56,101 +54,6 @@ export async function rejectOpportunity(id: string, note: string): Promise<void>
 
 export * from './procurement/notificationApi';
 
-// --- Tender responses: suppliers express interest / intent to bid ---
-
-export type ResponseKind = 'interest' | 'intent_to_bid';
-
-export interface OpportunityResponse {
-  id: string;
-  opportunityId: string;
-  orgId: string;
-  orgName?: string;
-  kind: ResponseKind;
-  note: string | null;
-  status: 'active' | 'withdrawn';
-  createdAt: string;
-}
-
-function mapResponse(row: any): OpportunityResponse {
-  return {
-    id: row.id,
-    opportunityId: row.opportunity_id,
-    orgId: row.org_id,
-    orgName: row.organizations?.name,
-    kind: row.kind,
-    note: row.note ?? null,
-    status: row.status,
-    createdAt: row.created_at,
-  };
-}
-
-// Use the same verified, persisted organization context as the dashboard.
-// fetchMyOrganization validates the stored id against the current user's
-// visible memberships before returning it.
-export async function fetchMyOrgId(): Promise<string | null> {
-  const organization = await fetchMyOrganization();
-  return organization?.id ?? null;
-}
-
-// Public social-proof count of active responders on a tender.
-export async function fetchResponseCount(opportunityId: string): Promise<number> {
-  const { data, error } = await supabase.rpc('get_opportunity_response_count', { p_opportunity_id: opportunityId });
-  if (error) return 0;
-  return Number(data ?? 0);
-}
-
-// The current org's response to a tender, if any.
-export async function fetchMyResponse(opportunityId: string, orgId: string): Promise<OpportunityResponse | null> {
-  const { data, error } = await supabase
-    .from('opportunity_responses')
-    .select('id, opportunity_id, org_id, kind, note, status, created_at')
-    .eq('opportunity_id', opportunityId)
-    .eq('org_id', orgId)
-    .maybeSingle();
-  if (error) throw error;
-  return data ? mapResponse(data) : null;
-}
-
-// Create or update this org's response (upsert on the unique pair).
-export async function submitResponse(input: { opportunityId: string; orgId: string; kind: ResponseKind; note?: string | null }): Promise<OpportunityResponse> {
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data, error } = await supabase
-    .from('opportunity_responses')
-    .upsert(
-      {
-        opportunity_id: input.opportunityId,
-        org_id: input.orgId,
-        user_id: user?.id ?? null,
-        kind: input.kind,
-        note: input.note ?? null,
-        status: 'active',
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'opportunity_id,org_id' },
-    )
-    .select('id, opportunity_id, org_id, kind, note, status, created_at')
-    .single();
-  if (error) throw error;
-  return mapResponse(data);
-}
-
-export async function withdrawResponse(id: string): Promise<void> {
-  const { error } = await supabase.from('opportunity_responses').update({ status: 'withdrawn', updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) throw error;
-}
-
-// Buyer view: all active responses to one of their tenders (with org names).
-export async function fetchOpportunityResponses(opportunityId: string): Promise<OpportunityResponse[]> {
-  const { data, error } = await supabase
-    .from('opportunity_responses')
-    .select('id, opportunity_id, org_id, kind, note, status, created_at, organizations(name)')
-    .eq('opportunity_id', opportunityId)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map(mapResponse);
-}
-
 // --- Team accounts ---
 
 export * from './procurement/teamApi';
@@ -169,135 +72,6 @@ export async function setOpportunityFeatured(id: string, featured: boolean): Pro
 // --- Service requests ---
 
 export * from './procurement/serviceRequestApi';
-
-// --- Supplier opportunity pipeline (strictly private -- see RLS) ---
-
-export type PipelineStage = 'saved' | 'reviewing' | 'interested' | 'go' | 'no_go' | 'preparing' | 'submitted' | 'won' | 'lost' | 'withdrawn' | 'archived';
-
-export interface PipelineRecord {
-  id: string;
-  opportunityId: string;
-  opportunityTitle: string;
-  opportunitySlug: string;
-  submissionDeadline: string;
-  stage: PipelineStage;
-  bidValue: number | null;
-  probability: number | null;
-  internalDeadline: string | null;
-  lossReason: string | null;
-  notes: string | null;
-}
-
-export async function fetchPipeline(orgId: string): Promise<PipelineRecord[]> {
-  const { data, error } = await supabase
-    .from('pipeline_records')
-    .select('id, opportunity_id, stage, bid_value, probability, internal_deadline, loss_reason, notes, opportunities(title, slug, submission_deadline)')
-    .eq('org_id', orgId)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    opportunityId: row.opportunity_id,
-    opportunityTitle: row.opportunities?.title ?? 'Unknown tender',
-    opportunitySlug: row.opportunities?.slug ?? '',
-    submissionDeadline: row.opportunities?.submission_deadline ?? '',
-    stage: row.stage,
-    bidValue: row.bid_value !== null ? Number(row.bid_value) : null,
-    probability: row.probability,
-    internalDeadline: row.internal_deadline,
-    lossReason: row.loss_reason,
-    notes: row.notes,
-  }));
-}
-
-export async function addToPipeline(orgId: string, opportunityId: string): Promise<void> {
-  const { error } = await supabase.from('pipeline_records').upsert(
-    { org_id: orgId, opportunity_id: opportunityId },
-    { onConflict: 'org_id,opportunity_id', ignoreDuplicates: true }
-  );
-  if (error) throw error;
-}
-
-export interface UpdatePipelineInput {
-  stage?: PipelineStage;
-  bidValue?: number | null;
-  probability?: number | null;
-  internalDeadline?: string | null;
-  lossReason?: string | null;
-  notes?: string | null;
-}
-
-export async function updatePipelineRecord(id: string, updates: UpdatePipelineInput): Promise<void> {
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (updates.stage !== undefined) patch.stage = updates.stage;
-  if (updates.bidValue !== undefined) patch.bid_value = updates.bidValue;
-  if (updates.probability !== undefined) patch.probability = updates.probability;
-  if (updates.internalDeadline !== undefined) patch.internal_deadline = updates.internalDeadline;
-  if (updates.lossReason !== undefined) patch.loss_reason = updates.lossReason;
-  if (updates.notes !== undefined) patch.notes = updates.notes;
-  const { error } = await supabase.from('pipeline_records').update(patch).eq('id', id);
-  if (error) throw error;
-}
-
-export async function removeFromPipeline(id: string): Promise<void> {
-  const { error } = await supabase.from('pipeline_records').delete().eq('id', id);
-  if (error) throw error;
-}
-
-export interface PipelineTask {
-  id: string;
-  title: string;
-  isDone: boolean;
-}
-
-export async function fetchPipelineTasks(pipelineRecordId: string): Promise<PipelineTask[]> {
-  const { data, error } = await supabase
-    .from('pipeline_tasks')
-    .select('id, title, is_done')
-    .eq('pipeline_record_id', pipelineRecordId)
-    .order('created_at', { ascending: true });
-  if (error) throw error;
-  return (data ?? []).map((row: any) => ({ id: row.id, title: row.title, isDone: row.is_done }));
-}
-
-export async function addPipelineTask(pipelineRecordId: string, title: string): Promise<void> {
-  const { error } = await supabase.from('pipeline_tasks').insert({ pipeline_record_id: pipelineRecordId, title });
-  if (error) throw error;
-}
-
-export async function togglePipelineTask(id: string, isDone: boolean): Promise<void> {
-  const { error } = await supabase.from('pipeline_tasks').update({ is_done: isDone }).eq('id', id);
-  if (error) throw error;
-}
-
-// --- Supplier sector tagging (drives recommendations) ---
-
-export async function fetchSupplierSectorIds(orgId: string): Promise<string[]> {
-  const { data, error } = await supabase.from('supplier_sectors').select('sector_id').eq('org_id', orgId);
-  if (error) throw error;
-  return (data ?? []).map((row: any) => row.sector_id);
-}
-
-export async function setSupplierSectorIds(orgId: string, sectorIds: string[]): Promise<void> {
-  const { error: deleteError } = await supabase.from('supplier_sectors').delete().eq('org_id', orgId);
-  if (deleteError) throw deleteError;
-  if (sectorIds.length === 0) return;
-  const { error: insertError } = await supabase.from('supplier_sectors').insert(sectorIds.map((sectorId) => ({ org_id: orgId, sector_id: sectorId })));
-  if (insertError) throw insertError;
-}
-
-export async function fetchRecommendedOpportunities(orgId: string): Promise<OpportunityListItem[]> {
-  const sectorIds = await fetchSupplierSectorIds(orgId);
-  if (sectorIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from('opportunities')
-    .select(OPPORTUNITY_LIST_SELECT)
-    .in('sector_id', sectorIds)
-    .order('submission_deadline', { ascending: true })
-    .limit(10);
-  if (error) throw error;
-  return (data ?? []).map(mapOpportunityListItem);
-}
 
 // --- Admin analytics ---
 
