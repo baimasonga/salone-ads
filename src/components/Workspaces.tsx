@@ -122,9 +122,6 @@ import {
   fetchAdminAnalytics,
   fetchProcurementSearchInsights,
   hasFeature,
-  fetchSavedSearches,
-  deleteSavedSearch,
-  SavedSearch,
   PipelineRecord,
   PipelineStage,
   AdminAnalyticsSummary,
@@ -153,6 +150,11 @@ import {
   aiPolishAdvertCopy,
   Advert,
 } from '../lib/procurementApi';
+import {
+  fetchSavedSearches,
+  deleteSavedSearch,
+  type SavedSearch,
+} from '../lib/procurement/savedSearchApi';
 import { supabase } from '../lib/supabaseClient';
 
 const AdminAdvertPublisherPanel = React.lazy(() =>

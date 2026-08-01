@@ -11,7 +11,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { OpportunityListItem, SavedSearch } from '../../lib/procurementApi';
+import type { OpportunityListItem } from '../../lib/procurement/opportunityApi';
+import type { SavedSearch } from '../../lib/procurement/savedSearchApi';
 import type { ProcurementTier } from './model';
 
 interface ProcurementOverviewProps {

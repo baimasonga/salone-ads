@@ -21,7 +21,7 @@ import {
   createSavedSearch,
   deleteSavedSearch,
   SavedSearch,
-} from '../lib/procurementApi';
+} from '../lib/procurement/savedSearchApi';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../lib/i18n';
 import {

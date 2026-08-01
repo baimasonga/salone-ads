@@ -6,10 +6,10 @@ import type { OpportunityListItem } from '../../lib/procurement/opportunityApi';
 import {
   fetchPipeline,
   fetchRecommendedOpportunities,
-  fetchSavedSearches,
   hasFeature,
 } from '../../lib/procurementApi';
-import type { SavedSearch } from '../../lib/procurementApi';
+import { fetchSavedSearches } from '../../lib/procurement/savedSearchApi';
+import type { SavedSearch } from '../../lib/procurement/savedSearchApi';
 import { resolveProcurementTier } from './model';
 import type { ProcurementTier } from './model';
 

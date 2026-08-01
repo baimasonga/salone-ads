@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import type { Organization } from '../types';
-import type { OpportunityListItem, SavedSearch } from '../lib/procurementApi';
+import type { OpportunityListItem } from '../lib/procurement/opportunityApi';
+import type { SavedSearch } from '../lib/procurement/savedSearchApi';
 import { NotificationCentre } from '../modules/notifications/NotificationCentre';
 import { AdminTenderReviewWorkspace } from '../modules/procurement/AdminTenderReviewWorkspace';
 import { ProcurementOverview } from '../modules/procurement/ProcurementOverview';
