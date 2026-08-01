@@ -11,7 +11,7 @@ vi.mock('../../lib/procurement/opportunityApi', () => ({
   uploadOpportunityDocument: vi.fn(),
 }));
 
-vi.mock('../../lib/procurementApi', () => ({ aiSuggestSector: vi.fn() }));
+vi.mock('../../lib/procurement/entitlementAssistApi', () => ({ aiSuggestSector: vi.fn() }));
 
 vi.mock('./tenderSubmission', async (importOriginal) => {
   const original = await importOriginal<typeof import('./tenderSubmission')>();

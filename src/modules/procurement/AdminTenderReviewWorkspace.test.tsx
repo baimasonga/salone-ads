@@ -5,17 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReviewQueueItem } from '../../lib/procurement/opportunityApi';
 import { AdminTenderReviewWorkspace } from './AdminTenderReviewWorkspace';
 import {
+  approveOpportunity,
   fetchOpportunitiesForReview,
   findSimilarTitledOpportunities,
+  requestCorrection,
 } from '../../lib/procurement/opportunityApi';
-import { approveOpportunity, requestCorrection } from '../../lib/procurementApi';
 
 vi.mock('../../lib/procurement/opportunityApi', () => ({
   fetchOpportunitiesForReview: vi.fn(),
   findSimilarTitledOpportunities: vi.fn(),
-}));
-
-vi.mock('../../lib/procurementApi', () => ({
   approveOpportunity: vi.fn(),
   rejectOpportunity: vi.fn(),
   requestCorrection: vi.fn(),

@@ -21,7 +21,8 @@ import {
   getStoredActiveOrganizationId,
   storeActiveOrganizationId,
 } from './lib/api';
-import { fetchMyNotifications, markNotificationRead, AppNotification, hasFeature } from './lib/procurementApi';
+import { fetchMyNotifications, markNotificationRead, type AppNotification } from './lib/procurement/notificationApi';
+import { hasFeature } from './lib/procurement/entitlementAssistApi';
 import { CmsTeamRole, fetchCmsCurrentRole } from './lib/cmsApi';
 import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
 import { clearAllResilienceCaches } from './lib/networkResilience';

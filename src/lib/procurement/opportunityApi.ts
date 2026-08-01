@@ -628,3 +628,44 @@ export async function incrementOpportunityView(opportunityId: string): Promise<v
     /* privacy-safe analytics must never block tender discovery */
   }
 }
+
+export async function approveOpportunity(id: string): Promise<void> {
+  const publishedId = await getOpportunityStatusId('published');
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('opportunities')
+    .update({ status_id: publishedId, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), review_note: null })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function requestCorrection(id: string, note: string): Promise<void> {
+  const needsCorrectionId = await getOpportunityStatusId('needs_correction');
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('opportunities')
+    .update({ status_id: needsCorrectionId, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), review_note: note })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function rejectOpportunity(id: string, note: string): Promise<void> {
+  const rejectedId = await getOpportunityStatusId('rejected');
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { error } = await supabase
+    .from('opportunities')
+    .update({ status_id: rejectedId, reviewed_by: user?.id ?? null, reviewed_at: new Date().toISOString(), review_note: note })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function setOpportunityFeatured(id: string, featured: boolean): Promise<void> {
+  const { error } = await supabase.from('opportunities').update({ is_featured: featured }).eq('id', id);
+  if (error) throw error;
+}

@@ -3,9 +3,7 @@ import {
   fetchMyOpportunities,
 } from '../../lib/procurement/opportunityApi';
 import type { OpportunityListItem } from '../../lib/procurement/opportunityApi';
-import {
-  hasFeature,
-} from '../../lib/procurementApi';
+import { hasFeature } from '../../lib/procurement/entitlementAssistApi';
 import {
   fetchPipeline,
   fetchRecommendedOpportunities,

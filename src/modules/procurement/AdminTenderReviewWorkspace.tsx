@@ -11,7 +11,7 @@ import {
   rejectOpportunity,
   requestCorrection,
   setOpportunityFeatured,
-} from '../../lib/procurementApi';
+} from '../../lib/procurement/opportunityApi';
 import { ProcurementActionDialog } from './ProcurementActionDialog';
 
 type ReviewAction = 'approve' | 'feature' | 'correction' | 'reject';

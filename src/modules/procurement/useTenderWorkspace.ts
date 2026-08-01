@@ -14,7 +14,7 @@ import type {
 } from '../../lib/procurement/opportunityApi';
 import { deleteSavedSearch, fetchSavedSearches } from '../../lib/procurement/savedSearchApi';
 import type { SavedSearch } from '../../lib/procurement/savedSearchApi';
-import { hasFeature } from '../../lib/procurementApi';
+import { hasFeature } from '../../lib/procurement/entitlementAssistApi';
 import { retainValidTaxonomySelection } from './model';
 
 export function useTenderWorkspace({

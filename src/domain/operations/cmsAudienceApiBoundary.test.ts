@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 const procurementApi = read('src/lib/procurementApi.ts');
+const insightsApi = read('src/lib/procurement/insightsApi.ts');
 const landingCmsApi = read('src/lib/landingCmsApi.ts');
 const audienceApi = read('src/lib/audienceApi.ts');
 const landingCmsPage = read('src/components/LandingCmsPage.tsx');
@@ -46,8 +47,10 @@ describe('CMS and audience API boundaries', () => {
   });
 
   it('keeps tender alert delivery reporting in the procurement domain', () => {
-    expect(procurementApi).toContain('function fetchTenderAlertDeliverySummary');
+    expect(procurementApi).toContain("export * from './procurement/insightsApi'");
+    expect(insightsApi).toContain('function fetchTenderAlertDeliverySummary');
     expect(audienceApi).not.toContain('function fetchTenderAlertDeliverySummary');
+    expect(audienceCampaigns).toContain("from '../lib/procurement/insightsApi'");
   });
 
   it('routes focused consumers directly to the authoritative modules', () => {

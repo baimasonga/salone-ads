@@ -6,7 +6,7 @@ const migration = readFileSync(
   resolve(process.cwd(), 'migrations/manohub-new-project/60_procurement_search_intelligence.sql'),
   'utf8',
 ).toLowerCase();
-const api = readFileSync(resolve(process.cwd(), 'src/lib/procurementApi.ts'), 'utf8');
+const api = readFileSync(resolve(process.cwd(), 'src/lib/procurement/insightsApi.ts'), 'utf8');
 const workspace = readFileSync(resolve(process.cwd(), 'src/components/Workspaces.tsx'), 'utf8');
 
 describe('procurement search intelligence', () => {

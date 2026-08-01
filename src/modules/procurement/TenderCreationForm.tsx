@@ -7,7 +7,7 @@ import {
   type CurrencyOption,
   type TaxonomyOption,
 } from '../../lib/procurement/opportunityApi';
-import { aiSuggestSector } from '../../lib/procurementApi';
+import { aiSuggestSector } from '../../lib/procurement/entitlementAssistApi';
 import {
   partitionTenderDocuments,
   submitTenderWithDocuments,

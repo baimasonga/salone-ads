@@ -14,7 +14,7 @@ import {
 import {
   fetchTenderAlertDeliverySummary,
   type TenderAlertDeliverySummary,
-} from '../lib/procurementApi';
+} from '../lib/procurement/insightsApi';
 
 const INTERESTS = ['Tenders', 'Jobs', 'Business offers', 'Events', 'Training', 'Products & services'];
 const FREQUENCIES = ['urgent', 'daily', 'weekly'];

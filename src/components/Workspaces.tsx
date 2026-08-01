@@ -112,11 +112,6 @@ import {
   ServiceRequest,
   ServiceRequestActivity,
   ServiceType,
-  fetchAdminAnalytics,
-  fetchProcurementSearchInsights,
-  hasFeature,
-  AdminAnalyticsSummary,
-  ProcurementSearchInsights,
   submitAdvertisementRequest,
   fetchMyAdvertisements,
   fetchAllAdvertisementRequests,
@@ -141,6 +136,13 @@ import {
   aiPolishAdvertCopy,
   Advert,
 } from '../lib/procurementApi';
+import {
+  fetchAdminAnalytics,
+  fetchProcurementSearchInsights,
+  type AdminAnalyticsSummary,
+  type ProcurementSearchInsights,
+} from '../lib/procurement/insightsApi';
+import { hasFeature } from '../lib/procurement/entitlementAssistApi';
 import {
   fetchPipeline,
   addToPipeline,

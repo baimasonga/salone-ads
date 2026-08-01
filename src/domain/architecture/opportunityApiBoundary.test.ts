@@ -32,7 +32,8 @@ describe('opportunity lifecycle API boundary', () => {
     expect(opportunityApi).toContain('export async function fetchOpportunityBySlug');
     expect(opportunityApi).toContain('export async function fetchOpportunitiesForReview');
     expect(opportunityApi).toContain('export async function incrementOpportunityView');
-    expect(facade).toContain('export async function approveOpportunity');
+    expect(opportunityApi).toContain('export async function approveOpportunity');
+    expect(opportunityApi).toContain('export async function setOpportunityFeatured');
   });
 
   it('shares the opportunity list contract with adjacent procurement services', () => {
@@ -41,7 +42,7 @@ describe('opportunity lifecycle API boundary', () => {
     expect(opportunityApi).toContain('export async function getOpportunityStatusId');
     expect(bidPipelineApi).toContain('OPPORTUNITY_LIST_SELECT');
     expect(bidPipelineApi).toContain('mapOpportunityListItem');
-    expect(facade).toContain('getOpportunityStatusId');
+    expect(facade).toContain("export * from './procurement/opportunityApi'");
   });
 
   it('routes lifecycle consumers through the focused boundary', () => {

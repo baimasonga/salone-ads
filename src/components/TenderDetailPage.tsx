@@ -24,7 +24,7 @@ import {
 import {
   aiExplainTender,
   hasFeature,
-} from '../lib/procurementApi';
+} from '../lib/procurement/entitlementAssistApi';
 import {
   fetchMyOrgId,
   fetchMyResponse,
