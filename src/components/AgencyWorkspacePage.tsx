@@ -5,7 +5,7 @@ import {
   AgencyApproval, AgencyClient, addAgencyClient, createAgencyApproval, decideAgencyApproval,
   fetchAgencyBilling, fetchAgencyApprovals, fetchAgencyClients, saveAgencyProfile, updateAgencyClient,
   saveAgencyBulkUpload,
-} from '../lib/procurementApi';
+} from '../lib/agencyApi';
 
 const PERMISSIONS = ['campaigns_read','campaigns_write','campaigns_approve','billing_read','reports_read','reports_export'];
 

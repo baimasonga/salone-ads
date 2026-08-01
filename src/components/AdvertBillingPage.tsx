@@ -4,7 +4,7 @@ import type { Organization } from '../types';
 import {
   AdvertOrder, AdvertPackage, confirmAdvertOrder, createAdvertOrder,
   fetchAdvertOrders, fetchAdvertPackages,
-} from '../lib/procurementApi';
+} from '../lib/advertBillingApi';
 import { type AdCampaign, fetchCampaignsForWorkspace } from '../lib/advertisingApi';
 
 export function AdvertBillingPage({ activeOrg, isPlatformAdmin }: { activeOrg: Organization; isPlatformAdmin: boolean }) {
