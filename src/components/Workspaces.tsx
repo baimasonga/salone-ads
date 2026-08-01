@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import JSZip from 'jszip';
 import { toPng } from 'html-to-image';
 import { Link } from 'react-router-dom';
-import { AdvertCreative, CreativeScaler, AdvertFormat, AdvertTheme } from './AdvertCreative';
+import type { AdvertFormat, AdvertTheme } from './AdvertCreative';
 import { resolveDelegatedWorkspaceRoute } from './WorkspaceRouteResolver';
 import { SubscriberAdvertisingWorkspace } from './SubscriberAdvertisingWorkspace';
 import { AdminAdvertisingRequestQueue } from './AdminAdvertisingRequestQueue';
+import { AdminAdvertCreativeEditor } from './AdminAdvertCreativeEditor';
 import {
   campaignStatusOptions,
   campaignTransitionRequiresReason,
@@ -2881,99 +2882,24 @@ export function Workspaces({
             </button>
           </form>
 
-          {/* Auto-generated creative — updates live as the form is filled */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Auto-generated creative</span>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  {(['square', 'story', 'landscape', 'banner', 'editorial'] as AdvertFormat[]).map((f) => (
-                    <button key={f} type="button" onClick={() => setAdvFormat(f)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advFormat === f ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{f}</button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-1">
-                  {(['dark', 'light'] as AdvertTheme[]).map((t) => (
-                    <button key={t} type="button" onClick={() => setAdvTheme(t)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advTheme === t ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{t}</button>
-                  ))}
-                </div>
-                <button type="button" onClick={() => setAdvWithPhoto((v) => !v)} className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border cursor-pointer ${advWithPhoto ? 'bg-[#0F172A] text-white border-[#0F172A]' : 'bg-white text-slate-500 border-slate-200'}`}>{advWithPhoto ? 'Photo' : 'Text'}</button>
-              </div>
-            </div>
-            <div className="border border-slate-200 bg-slate-50 p-3">
-              <CreativeScaler format={advFormat}>
-                <AdvertCreative
-                  ref={creativeRef}
-                  format={advFormat}
-                  theme={advTheme}
-                  withPhoto={advWithPhoto}
-                  businessName={advForm.businessName || 'Your Business'}
-                  headline={advForm.title || 'Your headline goes here'}
-                  body={advForm.summary || advForm.content}
-                  category={advForm.category}
-                  mediaUrl={advForm.mediaUrl || null}
-                  platform={advForm.socialPlatform}
-                  accentColor={advForm.accentColor}
-                  logoUrl={advForm.logoUrl || null}
-                />
-              </CreativeScaler>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <button type="button" onClick={handleDownloadCreative} className="border border-[#0F172A] text-[#0F172A] font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-[#0F172A] hover:text-white transition-colors cursor-pointer">
-                Download PNG
-              </button>
-              <button type="button" onClick={handleSaveCreativeForSocial} disabled={savingCreative} className="border border-emerald-600 text-emerald-700 font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-emerald-600 hover:text-white transition-colors cursor-pointer disabled:opacity-50">
-                {savingCreative ? 'Saving…' : 'Save for social'}
-              </button>
-            </div>
-            <button type="button" onClick={() => setKitExporting(true)} disabled={kitExporting} className="mt-2 w-full border border-slate-300 text-slate-700 font-mono text-[11px] font-bold uppercase tracking-widest py-2.5 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50">
-              {kitExporting ? 'Building kit…' : 'Download the kit (all 5 sizes · ZIP)'}
-            </button>
-            {/* Persistent off-screen 1200×628 landscape render → the social feed
-                card (og:image), captured on publish regardless of chosen format. */}
-            <div style={{ position: 'fixed', left: -99999, top: 0, opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
-              <AdvertCreative
-                ref={ogRef}
-                format="landscape"
-                theme={advTheme}
-                withPhoto={advWithPhoto}
-                businessName={advForm.businessName || 'Your Business'}
-                headline={advForm.title || 'Your headline goes here'}
-                body={advForm.summary || advForm.content}
-                category={advForm.category}
-                mediaUrl={advForm.mediaUrl || null}
-                platform={advForm.socialPlatform}
-                accentColor={advForm.accentColor}
-                logoUrl={advForm.logoUrl || null}
-              />
-            </div>
-            {/* Off-screen full-res render of every format for the kit ZIP */}
-            {kitExporting && (
-              <div style={{ position: 'fixed', left: -99999, top: 0, opacity: 0, pointerEvents: 'none' }} aria-hidden="true">
-                {KIT_FORMATS.map((f) => (
-                  <div key={f} ref={(el) => { kitRefs.current[f] = el; }}>
-                    <AdvertCreative
-                      format={f}
-                      theme={advTheme}
-                      withPhoto={advWithPhoto}
-                      businessName={advForm.businessName || 'Your Business'}
-                      headline={advForm.title || 'Your headline goes here'}
-                      body={advForm.summary || advForm.content}
-                      category={advForm.category}
-                      mediaUrl={advForm.mediaUrl || null}
-                      platform={advForm.socialPlatform}
-                      accentColor={advForm.accentColor}
-                      logoUrl={advForm.logoUrl || null}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-            {advForm.creativeUrl && (
-              <p className="mt-2 text-[11px] text-emerald-700">
-                Creative saved · <a href={advForm.creativeUrl} target="_blank" rel="noopener noreferrer" className="underline">open PNG</a> — attaches on publish.
-              </p>
-            )}
-          </div>
+          <AdminAdvertCreativeEditor
+            form={advForm}
+            format={advFormat}
+            theme={advTheme}
+            withPhoto={advWithPhoto}
+            creativeRef={creativeRef}
+            ogRef={ogRef}
+            kitRefs={kitRefs}
+            kitFormats={KIT_FORMATS}
+            kitExporting={kitExporting}
+            savingCreative={savingCreative}
+            onFormatChange={setAdvFormat}
+            onThemeChange={setAdvTheme}
+            onWithPhotoChange={setAdvWithPhoto}
+            onDownloadCreative={handleDownloadCreative}
+            onSaveCreative={handleSaveCreativeForSocial}
+            onKitExportChange={setKitExporting}
+          />
           </div>
 
           <div className="mt-6 space-y-3">

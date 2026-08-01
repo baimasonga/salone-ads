@@ -18,6 +18,10 @@ const adminAdvertisingQueue = readFileSync(
   resolve(process.cwd(), 'src/components/AdminAdvertisingRequestQueue.tsx'),
   'utf8',
 );
+const adminAdvertCreativeEditor = readFileSync(
+  resolve(process.cwd(), 'src/components/AdminAdvertCreativeEditor.tsx'),
+  'utf8',
+);
 
 describe('workspace source integrity', () => {
   it('retains early, middle and late workspace implementations', () => {
@@ -28,8 +32,8 @@ describe('workspace source integrity', () => {
   });
 
   it('retains the complete workspace source rather than a partial publish', () => {
-    expect(workspaceSource.split('\n').length).toBeGreaterThan(5_400);
-    expect((workspaceSource + delegatedRoutes + subscriberAdvertising + adminAdvertisingQueue).split('\n').length).toBeGreaterThan(5_800);
+    expect(workspaceSource.split('\n').length).toBeGreaterThan(5_300);
+    expect((workspaceSource + delegatedRoutes + subscriberAdvertising + adminAdvertisingQueue + adminAdvertCreativeEditor).split('\n').length).toBeGreaterThan(5_850);
     expect(workspaceSource.trimEnd().endsWith('}')).toBe(true);
   });
 
@@ -54,5 +58,15 @@ describe('workspace source integrity', () => {
     expect(adminAdvertisingQueue).toContain('Load into publisher');
     expect(adminAdvertisingQueue).toContain('No advertising requests yet.');
     expect(adminAdvertisingQueue).not.toContain('Campaigns');
+  });
+
+  it('isolates the admin creative editor while retaining every export format', () => {
+    expect(workspaceSource).toContain('<AdminAdvertCreativeEditor');
+    expect(workspaceSource).not.toContain('<CreativeScaler');
+    expect(adminAdvertCreativeEditor).toContain('Auto-generated creative');
+    expect(adminAdvertCreativeEditor).toContain('Download PNG');
+    expect(adminAdvertCreativeEditor).toContain('Save for social');
+    expect(adminAdvertCreativeEditor).toContain('Download the kit (all 5 sizes · ZIP)');
+    expect(adminAdvertCreativeEditor).toContain('format="landscape"');
   });
 });
