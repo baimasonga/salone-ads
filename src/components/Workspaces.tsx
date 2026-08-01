@@ -138,8 +138,6 @@ import {
   deleteAdvert,
   uploadAdvertCreative,
   uploadAdvertImage,
-  buildAdvertSharePack,
-  buildAdvertShareIntents,
   fetchAdvertAnalyticsSummary,
   AdvertAnalyticsSummary,
   fetchAllCampaigns as fetchAllAdCampaigns,
@@ -153,6 +151,10 @@ import {
   Advert,
 } from '../lib/procurementApi';
 import { supabase } from '../lib/supabaseClient';
+
+const AdminAdvertPublisherPanel = React.lazy(() =>
+  import('./AdminAdvertPublisherPanel').then((module) => ({ default: module.AdminAdvertPublisherPanel })),
+);
 
 interface WorkspacesProps {
   activeTab: string;
@@ -2803,162 +2805,53 @@ export function Workspaces({
           </button>
         </div>
 
-        {/* Publish adverts to the public site */}
-        <div id="advert-publisher" className={`bg-white border rounded-2xl p-6 shadow-xs ${advEditingId ? 'border-emerald-300 ring-1 ring-emerald-200' : advRequestId ? 'border-sky-300 ring-1 ring-sky-200' : 'border-slate-100'}`}>
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-emerald-600" /> {advEditingId ? 'Editing advert' : advRequestId ? 'Publishing a request' : 'Adverts on the site'}
-            {(advEditingId || advRequestId) && (
-              <button type="button" onClick={cancelAdvertEdit} className="ml-auto text-xs font-semibold text-slate-500 hover:underline cursor-pointer">Cancel</button>
-            )}
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Publish an advert so it shows on the public homepage and gets its own detail page. Manohub is the
-            source of truth — paste the social post link so visitors can jump to the campaign; the social post
-            should reference this advert's page back on Manohub.
-          </p>
-
-          {advAnalytics && (
-            <div className="mt-5 border border-[#0F172A] bg-[#0F172A] grid grid-cols-2 lg:grid-cols-4 gap-px">
-              {[
-                { label: 'Total views', value: advAnalytics.viewsTotal, sub: `${advAnalytics.views7d} in 7d · ${advAnalytics.views30d} in 30d` },
-                { label: 'Total clicks', value: advAnalytics.clicksTotal, sub: `${advAnalytics.clicks7d} in 7d · ${advAnalytics.clicks30d} in 30d` },
-                { label: 'Live adverts', value: advAnalytics.liveCount, sub: 'showing on the site' },
-                { label: 'Click-through', value: `${advAnalytics.viewsTotal > 0 ? Math.round((advAnalytics.clicksTotal / advAnalytics.viewsTotal) * 100) : 0}%`, sub: 'clicks ÷ views' },
-              ].map((s, index) => (
-                <div key={s.label} className="relative bg-white p-4 overflow-hidden">
-                  <i className={`absolute inset-x-0 top-0 h-1 ${index === 0 ? 'bg-indigo-600' : index === 1 ? 'bg-emerald-600' : index === 2 ? 'bg-amber-500' : 'bg-fuchsia-600'}`} />
-                  <p className="text-[9px] font-mono font-bold uppercase tracking-[0.16em] text-slate-500">{s.label}</p>
-                  <p className="mt-2 font-display text-3xl font-extrabold tracking-tight text-slate-950">{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</p>
-                  <p className="mt-1 text-[10px] text-slate-500">{s.sub}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-4 grid lg:grid-cols-2 gap-6 items-start">
-          <form onSubmit={handlePublishAdvert} className="grid grid-cols-1 gap-3">
-            <input value={advForm.title} onChange={(e) => setAdvForm({ ...advForm, title: e.target.value })} placeholder="Advert title" className="border border-slate-200 rounded-lg p-2 text-sm" />
-            <input value={advForm.businessName} onChange={(e) => setAdvForm({ ...advForm, businessName: e.target.value })} placeholder="Business name" className="border border-slate-200 rounded-lg p-2 text-sm" />
-            <select value={advForm.category} onChange={(e) => setAdvForm({ ...advForm, category: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
-              {['business', 'goods', 'service', 'healthcare', 'transportation', 'event', 'hospitality', 'finance', 'education', 'agriculture'].map((c) => (
-                <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-              ))}
-            </select>
-            <select value={advCampaignId} onChange={(e) => setAdvCampaignId(e.target.value)} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
-              <option value="">No campaign — runs immediately, no end date</option>
-              {adCampaigns.filter((c) => c.status === 'active').map((c) => (
-                <option key={c.id} value={c.id}>Campaign: {c.name}{c.startDate || c.endDate ? ` (${c.startDate || '…'} → ${c.endDate || '…'})` : ''}</option>
-              ))}
-            </select>
-            <div className="flex items-center gap-2">
-              <label className="shrink-0 cursor-pointer inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">
-                {advUploading === 'photo' ? 'Uploading…' : advForm.mediaUrl ? 'Change photo' : 'Upload photo'}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadAdvertImage(e.target.files?.[0], 'photo')} />
-              </label>
-              <input value={advForm.mediaUrl} onChange={(e) => setAdvForm({ ...advForm, mediaUrl: e.target.value })} placeholder="…or paste image URL" className="flex-1 min-w-0 border border-slate-200 rounded-lg p-2 text-sm" />
-              {advForm.mediaUrl && <button type="button" onClick={() => setAdvForm({ ...advForm, mediaUrl: '' })} className="shrink-0 text-xs text-slate-400 hover:text-red-500 cursor-pointer">Clear</button>}
-            </div>
-            <input value={advForm.summary} onChange={(e) => setAdvForm({ ...advForm, summary: e.target.value })} placeholder="Short summary (one line)" className="border border-slate-200 rounded-lg p-2 text-sm sm:col-span-2" />
-            <textarea value={advForm.content} onChange={(e) => setAdvForm({ ...advForm, content: e.target.value })} placeholder="Full advert content" rows={3} className="border border-slate-200 rounded-lg p-2 text-sm" />
-            <button type="button" onClick={handlePolishAdvertCopy} disabled={polishingCopy} className="justify-self-start inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer disabled:opacity-50">
-              <Sparkles className="h-3.5 w-3.5" /> {polishingCopy ? 'Polishing…' : 'Polish copy with AI'}
-            </button>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="flex items-center gap-2 text-xs text-slate-600 border border-slate-200 rounded-lg p-2">
-                Brand colour
-                <input type="color" value={advForm.accentColor} onChange={(e) => setAdvForm({ ...advForm, accentColor: e.target.value })} className="h-6 w-8 cursor-pointer border-0 bg-transparent p-0" />
-              </label>
-              <label className="cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50">
-                {advUploading === 'logo' ? 'Uploading…' : advForm.logoUrl ? 'Change logo' : 'Upload logo'}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUploadAdvertImage(e.target.files?.[0], 'logo')} />
-              </label>
-            </div>
-            <select value={advForm.socialPlatform} onChange={(e) => setAdvForm({ ...advForm, socialPlatform: e.target.value })} className="border border-slate-200 rounded-lg p-2 text-sm bg-white">
-              {['Facebook', 'Instagram', 'WhatsApp', 'TikTok', 'X', 'YouTube', 'LinkedIn'].map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-            <input value={advForm.socialUrl} onChange={(e) => setAdvForm({ ...advForm, socialUrl: e.target.value })} placeholder="Social post URL (https://…)" className="border border-slate-200 rounded-lg p-2 text-sm" />
-            <button type="submit" disabled={advSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm cursor-pointer disabled:opacity-50 justify-self-start">
-              {advSaving ? (advEditingId ? 'Saving…' : 'Publishing…') : advEditingId ? 'Save changes' : 'Publish advert'}
-            </button>
-          </form>
-
-          <AdminAdvertCreativeEditor
-            form={advForm}
-            format={advFormat}
-            theme={advTheme}
-            withPhoto={advWithPhoto}
-            creativeRef={creativeRef}
-            ogRef={ogRef}
-            kitRefs={kitRefs}
-            kitFormats={KIT_FORMATS}
-            kitExporting={kitExporting}
-            savingCreative={savingCreative}
-            onFormatChange={setAdvFormat}
-            onThemeChange={setAdvTheme}
-            onWithPhotoChange={setAdvWithPhoto}
-            onDownloadCreative={handleDownloadCreative}
-            onSaveCreative={handleSaveCreativeForSocial}
-            onKitExportChange={setKitExporting}
+        <React.Suspense fallback={<div className="rounded-2xl border border-slate-100 bg-white p-6 text-sm text-slate-500 shadow-xs">Loading advert publisher…</div>}>
+          <AdminAdvertPublisherPanel
+          analytics={advAnalytics}
+          campaigns={adCampaigns}
+          campaignId={advCampaignId}
+          copiedKey={copiedKey}
+          editingId={advEditingId}
+          form={advForm}
+          polishingCopy={polishingCopy}
+          publishedAdverts={publishedAdverts}
+          requestId={advRequestId}
+          saving={advSaving}
+          sharePackId={sharePackId}
+          uploading={advUploading}
+          onCampaignChange={setAdvCampaignId}
+          onCancel={cancelAdvertEdit}
+          onCopyCaption={handleCopyCaption}
+          onDelete={handleDeleteAdvert}
+          onEdit={loadAdvertForEdit}
+          onFormChange={setAdvForm}
+          onPolishCopy={handlePolishAdvertCopy}
+          onSharePackChange={setSharePackId}
+          onSubmit={handlePublishAdvert}
+          onToggleStatus={handleToggleAdvertStatus}
+          onUploadImage={handleUploadAdvertImage}
+          creativeEditor={
+            <AdminAdvertCreativeEditor
+              form={advForm}
+              format={advFormat}
+              theme={advTheme}
+              withPhoto={advWithPhoto}
+              creativeRef={creativeRef}
+              ogRef={ogRef}
+              kitRefs={kitRefs}
+              kitFormats={KIT_FORMATS}
+              kitExporting={kitExporting}
+              savingCreative={savingCreative}
+              onFormatChange={setAdvFormat}
+              onThemeChange={setAdvTheme}
+              onWithPhotoChange={setAdvWithPhoto}
+              onDownloadCreative={handleDownloadCreative}
+              onSaveCreative={handleSaveCreativeForSocial}
+              onKitExportChange={setKitExporting}
+            />
+          }
           />
-          </div>
-
-          <div className="mt-6 space-y-3">
-            {publishedAdverts.length === 0 ? (
-              <p className="text-xs text-slate-400">No adverts published yet.</p>
-            ) : (
-              publishedAdverts.map((adv) => (
-                <div key={adv.id} className="border border-slate-100 rounded-xl p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <h4 className="font-semibold text-slate-800 text-sm truncate">{adv.title} — {adv.businessName}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {adv.category} · {adv.status}
-                        {' · '}<span title="Detail-page views">👁 {adv.viewCount.toLocaleString()}</span>
-                        {' · '}<span title="'View on social' clicks">↗ {adv.clickCount.toLocaleString()}</span>
-                        {adv.socialUrl && <> · <a href={adv.socialUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">social post</a></>}
-                        {adv.creativeUrl && <> · <a href={adv.creativeUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">creative PNG</a></>}
-                        {' · '}<Link to={`/adverts/${adv.slug}`} target="_blank" className="text-emerald-600 hover:underline">/adverts/{adv.slug}</Link>
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <button onClick={() => loadAdvertForEdit(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">Edit</button>
-                      <button onClick={() => setSharePackId((id) => (id === adv.id ? null : adv.id))} className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer">
-                        {sharePackId === adv.id ? 'Hide share pack' : 'Share pack'}
-                      </button>
-                      <button onClick={() => handleToggleAdvertStatus(adv)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
-                        {adv.status === 'live' ? 'Archive' : 'Set live'}
-                      </button>
-                      <button onClick={() => handleDeleteAdvert(adv.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
-                    </div>
-                  </div>
-                  {sharePackId === adv.id && (
-                    <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        {buildAdvertShareIntents(adv).map((it) => (
-                          <a key={it.key} href={it.href} target="_blank" rel="noopener noreferrer" className="border border-slate-200 text-slate-700 font-mono text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 hover:border-[#0F172A] hover:text-[#0F172A] transition-colors cursor-pointer">
-                            Post to {it.label}
-                          </a>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-slate-500">One-click posts open each app pre-filled. Or copy a caption below — each links back to this advert on Manohub. Attach the creative PNG or a kit image as the post picture.</p>
-                      {buildAdvertSharePack(adv).map((cap) => (
-                        <div key={cap.key} className="border border-slate-200 rounded-lg p-2.5">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">{cap.label}</span>
-                            <button onClick={() => handleCopyCaption(`${adv.id}-${cap.key}`, cap.text)} className="text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer">
-                              {copiedKey === `${adv.id}-${cap.key}` ? 'Copied ✓' : 'Copy'}
-                            </button>
-                          </div>
-                          <pre className="text-xs text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{cap.text}</pre>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        </React.Suspense>
       </div>
     );
   }

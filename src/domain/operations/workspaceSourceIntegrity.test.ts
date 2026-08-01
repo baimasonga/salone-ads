@@ -22,6 +22,10 @@ const adminAdvertCreativeEditor = readFileSync(
   resolve(process.cwd(), 'src/components/AdminAdvertCreativeEditor.tsx'),
   'utf8',
 );
+const adminAdvertPublisherPanel = readFileSync(
+  resolve(process.cwd(), 'src/components/AdminAdvertPublisherPanel.tsx'),
+  'utf8',
+);
 
 describe('workspace source integrity', () => {
   it('retains early, middle and late workspace implementations', () => {
@@ -32,8 +36,8 @@ describe('workspace source integrity', () => {
   });
 
   it('retains the complete workspace source rather than a partial publish', () => {
-    expect(workspaceSource.split('\n').length).toBeGreaterThan(5_300);
-    expect((workspaceSource + delegatedRoutes + subscriberAdvertising + adminAdvertisingQueue + adminAdvertCreativeEditor).split('\n').length).toBeGreaterThan(5_850);
+    expect(workspaceSource.split('\n').length).toBeGreaterThan(5_200);
+    expect((workspaceSource + delegatedRoutes + subscriberAdvertising + adminAdvertisingQueue + adminAdvertCreativeEditor + adminAdvertPublisherPanel).split('\n').length).toBeGreaterThan(5_900);
     expect(workspaceSource.trimEnd().endsWith('}')).toBe(true);
   });
 
@@ -68,5 +72,16 @@ describe('workspace source integrity', () => {
     expect(adminAdvertCreativeEditor).toContain('Save for social');
     expect(adminAdvertCreativeEditor).toContain('Download the kit (all 5 sizes · ZIP)');
     expect(adminAdvertCreativeEditor).toContain('format="landscape"');
+  });
+
+  it('isolates the complete admin advert publisher workflow', () => {
+    expect(workspaceSource).toContain('<AdminAdvertPublisherPanel');
+    expect(workspaceSource).not.toContain('id="advert-publisher"');
+    expect(adminAdvertPublisherPanel).toContain('id="advert-publisher"');
+    expect(adminAdvertPublisherPanel).toContain('Adverts on the site');
+    expect(adminAdvertPublisherPanel).toContain('Polish copy with AI');
+    expect(adminAdvertPublisherPanel).toContain('No adverts published yet.');
+    expect(adminAdvertPublisherPanel).toContain('Share pack');
+    expect(adminAdvertPublisherPanel).not.toContain('Campaign Management');
   });
 });
