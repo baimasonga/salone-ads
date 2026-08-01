@@ -58,12 +58,12 @@ export default {
     // Keep one stable Durable Object identity so Cloudflare can replace its
     // image during a rollout instead of accumulating one running instance per
     // commit. The workflow uses an immediate rollout to restart this instance.
-    const container = getContainer(env.MANOHUB_CONTAINER, 'production-admin-advert-v8');
+    const container = getContainer(env.MANOHUB_CONTAINER, 'production-admin-publisher-v9');
     return container.fetch(request);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (!env.EMAIL_DISPATCH_SECRET) return;
-    const container = getContainer(env.MANOHUB_CONTAINER, 'production-admin-advert-v8');
+    const container = getContainer(env.MANOHUB_CONTAINER, 'production-admin-publisher-v9');
     ctx.waitUntil(container.fetch(new Request('http://container/api/audience-email/dispatch-due', {
       method: 'POST',
       headers: { 'x-manohub-dispatch-secret': env.EMAIL_DISPATCH_SECRET },
