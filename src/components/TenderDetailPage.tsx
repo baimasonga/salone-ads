@@ -36,6 +36,7 @@ import {
 } from '../lib/procurement/responseApi';
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../lib/i18n';
+import { BidSubmissionPanel } from '../modules/procurement/BidSubmissionPanel';
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -420,6 +421,9 @@ export function TenderDetailPage() {
                     )}
                     <button onClick={handleWithdraw} disabled={respondBusy || !isOnline} className="btn-geometric-secondary cursor-pointer disabled:opacity-50">Withdraw</button>
                   </div>
+                  {myResponse.kind === 'intent_to_bid' && myOrgId && (
+                    <BidSubmissionPanel opportunityId={opportunity.id} responseId={myResponse.id} orgId={myOrgId} closed={isClosed} />
+                  )}
                 </div>
               ) : (
                 <div className="mt-3">

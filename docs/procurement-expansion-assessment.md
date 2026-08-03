@@ -1833,3 +1833,21 @@ existed.) Added a full supplier-response loop:
 **Verification**: `tsc` + `npm run build` clean; against the live DB the count RPC, the response insert,
 the buyer-view join and the unique upsert-on-conflict were all exercised on a temp opportunity, then
 cleaned up. (Remaining natural follow-up: bid-document upload to a private per-tender bucket.)
+
+## 56. Secure supplier bid-document submissions (2026-08-03)
+
+The response loop now continues into a confidential, versioned bid hand-off. Suppliers with an active
+`intent_to_bid` response can prepare a draft, upload one or more documents (10MB each), add a cover note,
+submit, withdraw, and create a replacement version before the deadline. Submitted files are immutable;
+replacement happens through a new version rather than silently changing what the buyer received.
+
+`bid_submissions` and `bid_submission_documents` use RLS, immutable identity/version fields, and a guarded
+draft → submitted → withdrawn state machine. Files live in a dedicated private `bid-submissions` bucket,
+separate from buyer-owned tender notices. Storage reads are limited to the submitting supplier organisation,
+the tender's buyer organisation, and platform administrators. The buyer response panel lists submitted bid
+versions and mints five-minute signed download URLs.
+
+The supplier tender-detail experience now exposes the secure upload flow after intent-to-bid registration;
+the buyer tender-management panel displays received confidential submissions. Architecture tests cover the
+bucket separation, authorization predicates, intent/deadline gate, immutable transition guard, and API/UI
+boundaries.

@@ -16,6 +16,7 @@ import {
   type OpportunityListItem,
 } from '../../lib/procurement/opportunityApi';
 import { fetchOpportunityResponses, type OpportunityResponse } from '../../lib/procurement/responseApi';
+import { fetchTenderBidSubmissions, getBidDocumentUrl, type BidSubmission } from '../../lib/procurement/bidSubmissionApi';
 import { ProcurementActionDialog } from './ProcurementActionDialog';
 
 type ManagementDialogType = 'cancel' | 'close' | 'deadline' | 'award';
@@ -47,6 +48,7 @@ export function TenderManagementPanel({
   const [uploadingDocumentFor, setUploadingDocumentFor] = useState<string | null>(null);
   const [expandedResponsesId, setExpandedResponsesId] = useState<string | null>(null);
   const [responsesByOpportunity, setResponsesByOpportunity] = useState<Record<string, OpportunityResponse[]>>({});
+  const [bidsByOpportunity, setBidsByOpportunity] = useState<Record<string, BidSubmission[]>>({});
   const [dialog, setDialog] = useState<ManagementDialog | null>(null);
   const [dialogSubmitting, setDialogSubmitting] = useState(false);
   const [dialogNote, setDialogNote] = useState('');
@@ -75,6 +77,8 @@ export function TenderManagementPanel({
     try {
       const responses = await fetchOpportunityResponses(opportunityId);
       setResponsesByOpportunity((current) => ({ ...current, [opportunityId]: responses }));
+      const bids = await fetchTenderBidSubmissions(opportunityId);
+      setBidsByOpportunity((current) => ({ ...current, [opportunityId]: bids }));
     } catch (error) {
       reportFeedback(`Error: ${error instanceof Error ? error.message : 'Could not load responses.'}`);
     }
@@ -279,6 +283,13 @@ export function TenderManagementPanel({
                             <span className={`shrink-0 font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${response.kind === 'intent_to_bid' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-600 bg-white border-slate-200'}`}>
                               {response.kind === 'intent_to_bid' ? 'Intent to bid' : 'Interested'}
                             </span>
+                          </div>
+                        ))}
+                        {(bidsByOpportunity[opportunity.id] ?? []).map((bid) => (
+                          <div key={bid.id} className="border-2 border-slate-900 bg-white p-3 text-xs">
+                            <p className="font-bold">Confidential bid · version {bid.version}</p>
+                            {bid.coverNote ? <p className="mt-1 text-slate-600">{bid.coverNote}</p> : null}
+                            <div className="mt-2 flex flex-wrap gap-2">{bid.documents.map((document) => <button key={document.id} onClick={async () => window.open(await getBidDocumentUrl(document), '_blank', 'noopener,noreferrer')} className="inline-flex items-center gap-1 border px-2 py-1 font-semibold"><FileText className="h-3 w-3"/>{document.fileName}</button>)}</div>
                           </div>
                         ))}
                       </div>

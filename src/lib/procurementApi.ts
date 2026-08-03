@@ -5,6 +5,7 @@ export * from './procurement/sourcingApi';
 export * from './procurement/supplierVerificationApi';
 export * from './procurement/savedSearchApi';
 export * from './procurement/responseApi';
+export * from './procurement/bidSubmissionApi';
 export * from './procurement/bidPipelineApi';
 export * from './procurement/notificationApi';
 export * from './procurement/teamApi';
