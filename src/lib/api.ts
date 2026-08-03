@@ -13,6 +13,7 @@ import {
   TrackingLink,
   AudienceSegment,
 } from '../types';
+import type { SubscriberType } from '../domain/subscriptions/subscriberTypes';
 
 export interface OrgBundle {
   organization: Organization;
@@ -30,6 +31,7 @@ export interface OnboardingInput {
   district: string;
   primaryObjective: string;
   monthlyBudget: string;
+  subscriberType: SubscriberType;
 }
 
 // --- row -> app type mappers (DB is snake_case, app types are camelCase) ---
@@ -325,13 +327,14 @@ export async function fetchInfluencerProfiles(): Promise<InfluencerProfile[]> {
 // --- mutations ---
 
 export async function createOrganization(input: OnboardingInput): Promise<Organization> {
-  const { data, error } = await supabase.rpc('create_organization', {
+  const { data, error } = await supabase.rpc('create_subscriber_organization', {
     org_name: input.orgName,
     org_type: input.orgType,
     org_country: input.country,
     org_district: input.district,
     org_primary_objective: input.primaryObjective,
     org_monthly_budget: input.monthlyBudget,
+    subscriber_type: input.subscriberType,
   });
   if (error) throw error;
   return mapOrganization(data);

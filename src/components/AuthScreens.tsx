@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Mail, Lock, User, Building, DollarSign, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { createOrganization } from '../lib/api';
+import { isSubscriberType, SUBSCRIBER_TYPES, type SubscriberType } from '../domain/subscriptions/subscriberTypes';
 
 interface AuthScreensProps {
   mode: 'signin' | 'signup' | 'onboarding' | 'forgot-password' | 'update-password';
@@ -30,6 +31,15 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
   const [focus, setFocus] = useState('Both Local and Diaspora');
   const [mainObjective, setMainObjective] = useState('WhatsApp enquiries');
   const [monthlyBudget, setMonthlyBudget] = useState('Le 15,000,000');
+  const [subscriberType, setSubscriberType] = useState<SubscriberType>('free');
+
+  useEffect(() => {
+    if (mode !== 'onboarding') return;
+    void supabase.auth.getUser().then(({ data }) => {
+      const selected = data.user?.user_metadata?.subscriber_type;
+      if (isSubscriberType(selected)) setSubscriberType(selected);
+    });
+  }, [mode]);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +55,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
           email,
           password,
           options: {
-            data: { full_name: fullName },
+            data: { full_name: fullName, subscriber_type: subscriberType },
             emailRedirectTo: window.location.origin,
           },
         });
@@ -130,6 +140,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
         district: operatingDistrict,
         primaryObjective: mainObjective,
         monthlyBudget,
+        subscriberType,
       });
       onSuccess();
     } catch (err: any) {
@@ -161,6 +172,19 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
               <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-xl">{authError}</div>
             )}
             <form onSubmit={handleOnboardingSubmit} className="space-y-6 text-left">
+              <fieldset>
+                <legend className="block text-sm font-semibold text-slate-700">Subscriber Type</legend>
+                <p className="mt-1 text-xs text-slate-500">Paid selections create a pending request. Access starts only after payment confirmation.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {SUBSCRIBER_TYPES.map((type) => (
+                    <label key={type.value} className={`cursor-pointer border-2 p-3 ${subscriberType === type.value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                      <input type="radio" name="onboardingSubscriberType" value={type.value} checked={subscriberType === type.value} onChange={() => setSubscriberType(type.value)} className="sr-only" />
+                      <span className="block text-sm font-bold text-slate-900">{type.label}</span>
+                      <span className="mt-1 block text-xs text-slate-500">{type.description}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700">Organization Name</label>
@@ -405,6 +429,19 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
               )}
               <form className="space-y-6 text-left" onSubmit={handleAuthSubmit}>
                 {mode === 'signup' && (
+                  <>
+                  <fieldset>
+                    <legend className="block text-sm font-semibold text-slate-700">How will you use ManoHub?</legend>
+                    <div className="mt-2 grid gap-2">
+                      {SUBSCRIBER_TYPES.map((type) => (
+                        <label key={type.value} className={`cursor-pointer border-2 p-3 ${subscriberType === type.value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'}`}>
+                          <input type="radio" name="subscriberType" value={type.value} checked={subscriberType === type.value} onChange={() => setSubscriberType(type.value)} className="sr-only" />
+                          <span className="block text-sm font-bold text-slate-900">{type.label}</span>
+                          <span className="mt-1 block text-xs text-slate-500">{type.description}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
                   <div>
                     <label htmlFor="auth-full-name" className="block text-sm font-semibold text-slate-700">Full Name</label>
                     <div className="mt-1 relative rounded-md shadow-xs">
@@ -424,6 +461,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                       />
                     </div>
                   </div>
+                  </>
                 )}
 
                 <div>

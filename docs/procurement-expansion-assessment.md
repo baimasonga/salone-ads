@@ -1851,3 +1851,15 @@ The supplier tender-detail experience now exposes the secure upload flow after i
 the buyer tender-management panel displays received confidential submissions. Architecture tests cover the
 bucket separation, authorization predicates, intent/deadline gate, immutable transition guard, and API/UI
 boundaries.
+
+## 57. Registration subscriber-type selection (2026-08-03)
+
+Registration now asks how the customer will use ManoHub: Tender Viewer, Tender Publisher, Business Advertiser,
+or Free Access. The choice is saved in auth metadata only as an onboarding preference (never trusted for
+authorization), restored after email confirmation, and confirmed again with the organisation details.
+
+Organisation creation and the corresponding subscription request now run atomically through
+`create_subscriber_organization`. Viewer maps to Professional, Publisher maps to Business, and Business
+Advertiser maps to a new advertising-only plan whose tender viewing/publishing features remain disabled.
+Paid selections create a `pending` monthly/manual-bank-transfer request; they do not grant entitlements until
+an administrator confirms payment. Free Access creates no paid subscription request.
