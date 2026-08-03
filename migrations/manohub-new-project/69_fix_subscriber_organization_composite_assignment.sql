@@ -1,40 +1,3 @@
-insert into public.plans (id, code, name, description, monthly_price, annual_price, currency_code, is_active, sort_order)
-values (
-  'cf7afebf-ebc8-49c4-b809-a885f42c6b04',
-  'advertiser',
-  'Business Advertiser',
-  'Submit advertising requests and monitor campaign delivery and performance.',
-  null,
-  null,
-  'SLE',
-  true,
-  4
-)
-on conflict (code) do update set
-  name = excluded.name,
-  description = excluded.description,
-  is_active = true,
-  sort_order = excluded.sort_order;
-
-update public.plans set sort_order = 5 where code = 'enterprise' and sort_order <= 4;
-
-insert into public.plan_features (plan_id, feature_key, feature_label, limit_value)
-select p.id, values_to_add.feature_key, values_to_add.feature_label, values_to_add.limit_value
-from public.plans p
-cross join (values
-  ('business_advertising', 'Business Advertising Requests', 1),
-  ('tender_alerts_and_details', 'Tender Detail Access & Alerts', 0),
-  ('tender_publishing', 'Publish Tenders', 0),
-  ('max_team_members', 'Team Members', 3),
-  ('max_saved_searches', 'Saved Searches', 3),
-  ('data_export', 'Data Exports', 0)
-) as values_to_add(feature_key, feature_label, limit_value)
-where p.code = 'advertiser'
-  and not exists (
-    select 1 from public.plan_features existing
-    where existing.plan_id = p.id and existing.feature_key = values_to_add.feature_key
-  );
-
 create or replace function public.create_subscriber_organization(
   org_name text,
   org_type text,
@@ -60,6 +23,9 @@ begin
     raise exception 'Unknown subscriber type';
   end if;
 
+  -- A function returning a composite row must be expanded before assigning
+  -- it to a row variable. Selecting it as one scalar attempts to cast the
+  -- complete `(id,name,...)` record into the first UUID column.
   select *
   into new_org
   from public.create_organization(org_name, org_type, org_country, org_district, org_primary_objective, org_monthly_budget);

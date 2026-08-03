@@ -20,4 +20,10 @@ describe('registration subscriber type boundary', () => {
     expect(migration).toContain("('tender_publishing', 'Publish Tenders', 0)");
     expect(migration).toContain("'pending', 'monthly', 'manual_bank_transfer'");
   });
+
+  it('expands the organization row before assigning the composite result', () => {
+    const migration = read('migrations/manohub-new-project/69_fix_subscriber_organization_composite_assignment.sql');
+    expect(migration).toContain('select *\n  into new_org\n  from public.create_organization');
+    expect(migration).not.toContain('select public.create_organization');
+  });
 });
