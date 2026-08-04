@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CreditCard, RefreshCw, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CreditCard, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-react';
 import {
   fetchManagedSubscriptions,
   transitionSubscription,
@@ -7,6 +7,7 @@ import {
   type SubscriptionAction,
   type SubscriptionStatus,
 } from '../../lib/subscriptionApi';
+import { createSubscriptionReceiptUrl, fetchPendingSubscriptionPaymentProofs, reviewSubscriptionPayment, type SubscriptionPaymentProof } from '../../lib/subscriptionPaymentApi';
 
 const filters: Array<{ value: 'all' | SubscriptionStatus; label: string }> = [
   { value: 'all', label: 'All' }, { value: 'pending', label: 'Pending' },
@@ -34,10 +35,14 @@ export function AdminSubscriptionLifecycleWorkspace() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [feedback, setFeedback] = useState('');
+  const [proofs, setProofs] = useState<SubscriptionPaymentProof[]>([]);
 
   const load = async () => {
     setLoading(true);
-    try { setItems(await fetchManagedSubscriptions()); }
+    try {
+      const [subscriptions, paymentProofs] = await Promise.all([fetchManagedSubscriptions(), fetchPendingSubscriptionPaymentProofs()]);
+      setItems(subscriptions); setProofs(paymentProofs);
+    }
     catch (error) { setFeedback(error instanceof Error ? error.message : 'Could not load subscriptions.'); }
     finally { setLoading(false); }
   };
@@ -59,6 +64,23 @@ export function AdminSubscriptionLifecycleWorkspace() {
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Subscription transition failed.');
     } finally { setBusyId(''); }
+  };
+
+  const reviewPayment = async (proof: SubscriptionPaymentProof, decision: 'verified' | 'rejected') => {
+    const note = decision === 'rejected' ? window.prompt(`Why is ${proof.orgName}'s payment rejected?`)?.trim() ?? '' : '';
+    if (decision === 'rejected' && !note) return;
+    setBusyId(proof.id); setFeedback('');
+    try {
+      await reviewSubscriptionPayment(proof.id, decision, note);
+      await load();
+      setFeedback(`${proof.orgName}: payment ${decision}; subscription ${decision === 'verified' ? 'activated' : 'declined'}.`);
+    } catch (error) { setFeedback(error instanceof Error ? error.message : 'Payment review failed.'); }
+    finally { setBusyId(''); }
+  };
+
+  const openReceipt = async (path: string) => {
+    try { window.open(await createSubscriptionReceiptUrl(path), '_blank', 'noopener,noreferrer'); }
+    catch (error) { setFeedback(error instanceof Error ? error.message : 'Receipt could not be opened.'); }
   };
 
   return (
@@ -83,6 +105,10 @@ export function AdminSubscriptionLifecycleWorkspace() {
       </section>
 
       {feedback && <div className="border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{feedback}</div>}
+      <section className="border-2 border-slate-950 bg-white">
+        <div className="border-b-2 border-slate-950 p-4"><h3 className="font-display text-lg font-extrabold">Payment verification queue</h3><p className="mt-1 text-xs text-slate-500">Verify the transaction and receipt before activating access. Rejection requires a reason.</p></div>
+        {proofs.length === 0 ? <p className="p-6 text-sm text-slate-500">No payment evidence is waiting for review.</p> : <div className="divide-y-2 divide-slate-950">{proofs.map(proof => <article key={proof.id} className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_220px_auto] lg:items-center"><div><h4 className="font-display font-extrabold">{proof.orgName}</h4><p className="mt-1 text-xs text-slate-500">{proof.planName} · {proof.paymentMethod.replaceAll('_', ' ')} · reference <strong>{proof.paymentReference}</strong></p><p className="mt-1 text-xs text-slate-500">{proof.payerName || 'Payer not supplied'}{proof.amount ? ` · ${proof.currencyCode} ${proof.amount.toLocaleString()}` : ' · Amount not supplied'}</p></div><div><p className="text-xs text-slate-500">Submitted {new Date(proof.createdAt).toLocaleString('en-GB')}</p>{proof.receiptObjectPath ? <button onClick={() => void openReceipt(proof.receiptObjectPath!)} className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-sky-700"><ExternalLink className="h-3.5 w-3.5"/>Open receipt</button> : <p className="mt-2 text-xs font-bold text-amber-700">No receipt attached</p>}</div><div className="flex gap-2"><button disabled={busyId === proof.id} onClick={() => void reviewPayment(proof, 'verified')} className="bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Verify & activate</button><button disabled={busyId === proof.id} onClick={() => void reviewPayment(proof, 'rejected')} className="border border-red-300 px-3 py-2 text-xs font-bold text-red-700 disabled:opacity-50">Reject</button></div></article>)}</div>}
+      </section>
       <div className="flex flex-wrap gap-2">{filters.map(option => <button key={option.value} onClick={() => setFilter(option.value)} className={`border px-3 py-2 font-mono text-[9px] font-bold uppercase ${filter === option.value ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-300 bg-white'}`}>{option.label}</button>)}</div>
 
       <section className="border-2 border-slate-950 bg-white">
@@ -98,4 +124,3 @@ export function AdminSubscriptionLifecycleWorkspace() {
     </div>
   );
 }
-

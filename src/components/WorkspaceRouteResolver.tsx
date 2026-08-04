@@ -18,6 +18,7 @@ import { CmsContentManagerPage } from './CmsContentManagerPage';
 import { AudienceSubscribersPage } from './AudienceSubscribersPage';
 import { AudienceEmailCampaignsPage } from './AudienceEmailCampaignsPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
+import { SubscriptionBillingPage } from './SubscriptionBillingPage';
 
 const OpportunityIngestionWorkspace = lazy(() =>
   import('../modules/procurement/OpportunityIngestionWorkspace')
@@ -67,6 +68,7 @@ export function resolveDelegatedWorkspaceRoute({
   if (activeTab === 'admin-tender-review') return isPlatformAdmin ? <AdminTenderReviewWorkspace /> : adminDenied();
   if (activeTab === 'admin-audit-log') return isPlatformAdmin ? <AdminAuditLogWorkspace /> : adminDenied();
   if (activeTab === 'admin-subscriptions') return isPlatformAdmin ? <AdminSubscriptionLifecycleWorkspace /> : adminDenied();
+  if (activeTab === 'billing') return <SubscriptionBillingPage activeOrg={activeOrg} />;
   if (activeTab === 'campaign-builder' || activeTab === 'campaigns') return <CampaignBuilderPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
   if (activeTab === 'advert-packages' || activeTab === 'admin-advert-revenue') return <AdvertBillingPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
   if (activeTab === 'agency-workspace') return <AgencyWorkspacePage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
