@@ -2,6 +2,9 @@ export type CmsRole = 'writer' | 'editor' | 'publisher' | 'administrator' | null
 
 export type WorkspaceCapability =
   | 'platform:administer'
+  | 'finance:manage'
+  | 'support:manage'
+  | 'audit:read'
   | 'content:manage'
   | 'advertising:manage'
   | 'agency:manage'
@@ -10,6 +13,7 @@ export type WorkspaceCapability =
 
 export interface AccessContext {
   isPlatformAdmin: boolean;
+  platformStaffRole?: import('../../lib/platformStaffApi').PlatformStaffRole | null;
   isPlatformResearcher?: boolean;
   cmsRole: CmsRole;
   features: ReadonlySet<string>;
@@ -29,8 +33,17 @@ export function hasWorkspaceCapability(
     return capability === 'procurement:use';
   }
 
+  if (context.platformStaffRole === 'finance') return capability === 'finance:manage';
+  if (context.platformStaffRole === 'editorial') return capability === 'content:manage';
+  if (context.platformStaffRole === 'support') return capability === 'support:manage';
+  if (context.platformStaffRole === 'auditor') return capability === 'audit:read';
+
   switch (capability) {
     case 'platform:administer':
+      return false;
+    case 'finance:manage':
+    case 'support:manage':
+    case 'audit:read':
       return false;
     case 'content:manage':
       return context.cmsRole !== null;

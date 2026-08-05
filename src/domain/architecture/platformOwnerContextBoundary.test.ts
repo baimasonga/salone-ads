@@ -7,9 +7,9 @@ const adminWorkspace = readFileSync('src/modules/platform-admin/PlatformAdminWor
 
 describe('platform owner workspace boundary', () => {
   it('presents the platform owner separately from subscriber organisations', () => {
-    expect(app).toContain("isPlatformAdmin ? 'PLATFORM.OWNER' : 'SYSTEM.CONTEXT'");
+    expect(app).toContain("platformStaffRole ? 'PLATFORM.STAFF' : 'SYSTEM.CONTEXT'");
     expect(app).toContain('Quantix Sierra Leone');
-    expect(app).toContain("isPlatformAdmin ? 'Platform Administrator' : activeOrg.type");
+    expect(app).toContain("platformStaffRole ? platformStaffRole.replace('_',' ') : activeOrg.type");
   });
 
   it('routes platform owners to subscriber administration instead of an organisation agency page', () => {

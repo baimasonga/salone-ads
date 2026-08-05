@@ -82,6 +82,27 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
     ];
   }
 
+  if (context.platformStaffRole === 'finance') return [{ group: 'Finance', items: [
+    { id: 'overview', label: 'Finance Overview', icon: BarChart2 },
+    { id: 'admin-finance', label: 'Finance Ledger', icon: CreditCard },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+  ] }];
+  if (context.platformStaffRole === 'editorial') return [{ group: 'Editorial', items: [
+    { id: 'overview', label: 'Editorial Overview', icon: BarChart2 },
+    { id: 'content-cms', label: 'Pages & Editorial', icon: BookOpen },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+  ] }];
+  if (context.platformStaffRole === 'support') return [{ group: 'Support', items: [
+    { id: 'overview', label: 'Support Overview', icon: BarChart2 },
+    { id: 'admin-services', label: 'Service Requests', icon: LifeBuoy },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+  ] }];
+  if (context.platformStaffRole === 'auditor') return [{ group: 'Assurance', items: [
+    { id: 'overview', label: 'Audit Overview', icon: BarChart2 },
+    { id: 'admin-audit-log', label: 'Audit Log', icon: ClipboardList },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+  ] }];
+
   if (context.isPlatformResearcher) {
     return [
       {

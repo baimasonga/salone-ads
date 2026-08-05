@@ -34,9 +34,18 @@ import { fetchMySubscriptions } from './lib/procurement/subscriptionRequestApi';
 import type { SubscriberAccessSummary } from './components/SubscriberOverview';
 import { getSubscriberType } from './domain/subscriptions/subscriberTypes';
 import { AccountRestrictedPage } from './components/AccountRestrictedPage';
+import { fetchMyPlatformStaffAccess, type PlatformStaffRole } from './lib/platformStaffApi';
 
 const NO_FEATURES = new Set<string>();
 const ADVERTISING_FEATURES = new Set(['business_advertising']);
+const PLATFORM_CONTEXT_ORG: Organization = {
+  id:'00000000-0000-0000-0000-000000000000',name:'Quantix Sierra Leone',type:'Platform Staff',country:'Sierra Leone',
+  district:'Western Area Urban',primaryObjective:'Manohub platform operations',monthlyBudget:'',monthlyBudgetSle:null,
+  subscriberType:'free',city:'Freetown',website:'',phone:'',whatsapp:'',description:'Manohub internal platform context',
+  audienceScope:'Platform',subscriberDetails:{},isBuyer:false,isSupplier:false,buyerVerified:false,supplierVerifiedUntil:null,
+  status:'active',statusReason:null,recoverableUntil:null,
+};
+const PLATFORM_BRAND_KIT: BrandKit = {brandName:'Manohub',legalName:'Quantix Sierra Leone',mission:'Operate Manohub',tagline:'',primaryColor:'#10B981',secondaryColor:'#0F172A',fonts:'',toneOfVoice:'Professional',prohibitedTerminology:[]};
 
 const Workspaces = lazy(() => import('./components/Workspaces').then((module) => ({ default: module.Workspaces })));
 const TenderSearchPage = lazy(() => import('./components/TenderSearchPage').then((module) => ({ default: module.TenderSearchPage })));
@@ -101,6 +110,7 @@ function MainApp() {
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [isPlatformResearcher, setIsPlatformResearcher] = useState(false);
+  const [platformStaffRole, setPlatformStaffRole] = useState<PlatformStaffRole | null>(null);
   const [canAdvertise, setCanAdvertise] = useState(false);
   const [cmsRole, setCmsRole] = useState<CmsTeamRole | null>(null);
   const [subscriberAccess, setSubscriberAccess] = useState<SubscriberAccessSummary | null>(null);
@@ -122,6 +132,7 @@ function MainApp() {
       setInfluencerProfiles([]);
       setIsPlatformAdmin(false);
       setIsPlatformResearcher(false);
+      setPlatformStaffRole(null);
       setCanAdvertise(false);
       setCmsRole(null);
       setSubscriberAccess(null);
@@ -133,8 +144,24 @@ function MainApp() {
     setWorkspaceLoading(true);
     setWorkspaceError('');
     try {
+      const staffAccess = await fetchMyPlatformStaffAccess().catch(() => null);
+      if (staffAccess && !['active','invited'].includes(staffAccess.status)) {
+        throw new Error(`Your platform staff access is ${staffAccess.status}. Contact the Manohub owner.`);
+      }
+      const activeStaffRole = staffAccess?.role ?? null;
+      setPlatformStaffRole(activeStaffRole);
       const availableOrganizations = await fetchMyOrganizations();
       if (availableOrganizations.length === 0) {
+        if (activeStaffRole) {
+          setOrganizations([]); setActiveOrg(PLATFORM_CONTEXT_ORG); setBrandKit(PLATFORM_BRAND_KIT);
+          setCampaigns([]); setContentItems([]); setLeads([]); setSocialConnections([]);
+          setDirectoryProfiles([]); setInfluencerProfiles([]); setSubscriberAccess(null); setCanAdvertise(false);
+          setIsPlatformAdmin(activeStaffRole === 'owner' || activeStaffRole === 'administrator');
+          setIsPlatformResearcher(false);
+          setCmsRole(activeStaffRole === 'editorial' ? 'administrator' : null);
+          setView('dashboard');
+          return;
+        }
         setOrganizations([]);
         setView('onboarding');
         return;
@@ -160,7 +187,7 @@ function MainApp() {
       setSocialConnections(bundle.socialConnections);
       setDirectoryProfiles(directory);
       setInfluencerProfiles(influencers);
-      setIsPlatformAdmin(platformRole === 'admin');
+      setIsPlatformAdmin(activeStaffRole === 'owner' || activeStaffRole === 'administrator' || platformRole === 'admin');
       setIsPlatformResearcher(platformRole === 'researcher');
       setCanAdvertise(advertisingEntitled);
       setCmsRole(editorialRole);
@@ -260,6 +287,7 @@ function MainApp() {
 
   const navGroups = buildWorkspaceNavigation({
     isPlatformAdmin,
+    platformStaffRole,
     isPlatformResearcher,
     cmsRole,
     features: canAdvertise ? ADVERTISING_FEATURES : NO_FEATURES,
@@ -267,7 +295,7 @@ function MainApp() {
     subscriberType: activeOrg.subscriberType,
   });
 
-  if (!isPlatformAdmin && activeOrg.status !== 'active') {
+  if (!isPlatformAdmin && !platformStaffRole && activeOrg.status !== 'active') {
     return <AccountRestrictedPage organization={activeOrg} onLogout={handleLogout} />;
   }
 
@@ -284,6 +312,7 @@ function MainApp() {
       setSidebarOpen={setSidebarOpen}
       navGroups={navGroups}
       isPlatformAdmin={isPlatformAdmin}
+      platformStaffRole={platformStaffRole}
       onLogout={handleLogout}
     >
       <Workspaces
@@ -295,6 +324,7 @@ function MainApp() {
         currentUserId={session.user.id}
         isPlatformAdmin={isPlatformAdmin}
         isPlatformResearcher={isPlatformResearcher}
+        platformStaffRole={platformStaffRole}
         campaigns={campaigns}
         setCampaigns={setCampaigns}
         contentItems={contentItems}
@@ -330,6 +360,7 @@ interface DashboardShellProps {
   setSidebarOpen: (open: boolean) => void;
   navGroups: WorkspaceNavigationGroup[];
   isPlatformAdmin: boolean;
+  platformStaffRole: PlatformStaffRole | null;
   onLogout: () => void;
   children: React.ReactNode;
 }
@@ -402,6 +433,7 @@ function DashboardShell({
   setSidebarOpen,
   navGroups,
   isPlatformAdmin,
+  platformStaffRole,
   onLogout,
   children,
 }: DashboardShellProps) {
@@ -491,12 +523,12 @@ function DashboardShell({
           {/* Platform owners have a platform identity; subscribers have an organisation context. */}
           <div className="border border-[#0F172A] bg-white p-3.5 text-left shadow-xs">
             <span className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.25em] block">
-              {isPlatformAdmin ? 'PLATFORM.OWNER' : 'SYSTEM.CONTEXT'}
+              {platformStaffRole ? 'PLATFORM.STAFF' : 'SYSTEM.CONTEXT'}
             </span>
-            {isPlatformAdmin ? (
+            {platformStaffRole ? (
               <>
                 <span className="font-extrabold text-sm block mt-0.5 text-[#0F172A]">Quantix Sierra Leone</span>
-                <span className="text-[10px] text-emerald-700 font-mono mt-1 block">MANOHUB ADMINISTRATION</span>
+                <span className="text-[10px] text-emerald-700 font-mono mt-1 block">MANOHUB {platformStaffRole.toUpperCase()}</span>
               </>
             ) : organizations.length > 1 ? (
               <select
@@ -513,7 +545,7 @@ function DashboardShell({
             ) : (
               <span className="font-extrabold text-sm block mt-0.5 text-[#0F172A] truncate">{activeOrg.name}</span>
             )}
-            {!isPlatformAdmin && (
+            {!platformStaffRole && (
               <>
                 <span className="text-[10px] text-slate-600 font-mono mt-1 block">TYPE: {getSubscriberType(activeOrg.subscriberType).label}</span>
                 <span className={`text-[9px] font-mono mt-1 block uppercase ${subscriberAccess?.status === 'active' ? 'text-emerald-700' : 'text-amber-700'}`}>ACCESS: {subscriberAccess?.status?.replaceAll('_', ' ') ?? 'Free'}</span>
@@ -570,7 +602,7 @@ function DashboardShell({
               <Menu className="h-6 w-6" />
             </button>
             <div className="flex items-center gap-2 font-mono text-xs font-bold text-[#0F172A]">
-              <span className="tracking-widest uppercase">{isPlatformAdmin ? 'System.Admin' : 'System.Core'}</span>
+              <span className="tracking-widest uppercase">{platformStaffRole ? 'System.Staff' : 'System.Core'}</span>
               <span className="text-slate-300">//</span>
               <span className="uppercase text-slate-500 font-medium">
                 {activeTab.replace('kit', ' Kit').replace('market', ' Market')}
@@ -634,7 +666,7 @@ function DashboardShell({
             </div>
 
             <span className="bg-[#0F172A] text-white text-[10px] font-mono font-bold px-2.5 py-1 uppercase tracking-wider">
-              {isPlatformAdmin ? 'Platform Administrator' : activeOrg.type}
+              {platformStaffRole ? platformStaffRole.replace('_',' ') : activeOrg.type}
             </span>
           </div>
         </header>

@@ -9,6 +9,8 @@ import type { ProcurementTier } from '../modules/procurement/model';
 import { FinanceLedgerWorkspace } from '../modules/finance/FinanceLedgerWorkspace';
 import { AdminSubscriptionLifecycleWorkspace } from '../modules/subscriptions/AdminSubscriptionLifecycleWorkspace';
 import { AdminAuditLogWorkspace } from '../modules/platform-admin/AdminAuditLogWorkspace';
+import { AdminServiceRequestsWorkspace } from '../modules/service-requests/AdminServiceRequestsWorkspace';
+import type { PlatformStaffRole } from '../lib/platformStaffApi';
 import { isPlatformAdminWorkspaceTab, PlatformAdminWorkspace } from '../modules/platform-admin/PlatformAdminWorkspace';
 import { CampaignBuilderPage } from './CampaignBuilderPage';
 import { AdvertBillingPage } from './AdvertBillingPage';
@@ -41,6 +43,7 @@ interface WorkspaceRouteResolverProps {
   activeOrg: Organization;
   isPlatformAdmin: boolean;
   isPlatformResearcher: boolean;
+  platformStaffRole: PlatformStaffRole | null;
   onNavigate: (tab: string) => void;
   onOrganizationUpdated: (organization: Organization) => void;
   subscriberAccess: SubscriberAccessSummary | null;
@@ -50,8 +53,20 @@ interface WorkspaceRouteResolverProps {
 
 const adminDenied = () => <div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">You do not have platform admin access.</div>;
 
+const staffOverview = (role: PlatformStaffRole) => {
+  const copy: Record<PlatformStaffRole,{title:string;description:string}> = {
+    owner:{title:'Platform owner',description:'Full control of Manohub operations and staff access.'},
+    administrator:{title:'Platform administration',description:'Operate Manohub services, publishing and customer workflows.'},
+    finance:{title:'Finance workspace',description:'Review invoices and record authorised payments, credits and refunds.'},
+    editorial:{title:'Editorial workspace',description:'Create, review and publish Manohub pages and articles.'},
+    support:{title:'Support workspace',description:'Respond to subscriber service requests and maintain customer communication.'},
+    auditor:{title:'Audit workspace',description:'Read-only visibility into platform activity and accountability records.'},
+  };
+  return <section className="border-2 border-slate-950 bg-slate-950 p-8 text-white"><p className="font-mono text-[9px] font-bold uppercase tracking-[.22em] text-emerald-300">Quantix Sierra Leone</p><h2 className="mt-3 font-display text-3xl font-extrabold !text-white">{copy[role].title}</h2><p className="mt-3 max-w-2xl text-sm text-slate-300">{copy[role].description}</p></section>;
+};
+
 export function resolveDelegatedWorkspaceRoute({
-  activeTab, activeOrg, isPlatformAdmin, isPlatformResearcher, onNavigate,
+  activeTab, activeOrg, isPlatformAdmin, isPlatformResearcher, platformStaffRole, onNavigate,
   onOrganizationUpdated, subscriberAccess, overview, metrics,
 }: WorkspaceRouteResolverProps): ReactNode | undefined {
   if (activeTab === 'notifications') return <NotificationCentre activeOrgId={activeOrg.id} onNavigate={onNavigate} />;
@@ -63,11 +78,12 @@ export function resolveDelegatedWorkspaceRoute({
       </Suspense>
     );
   }
-  if (activeTab === 'admin-finance') return isPlatformAdmin ? <FinanceLedgerWorkspace /> : adminDenied();
+  if (activeTab === 'admin-finance') return isPlatformAdmin || platformStaffRole === 'finance' ? <FinanceLedgerWorkspace /> : adminDenied();
   if (isPlatformAdmin && isPlatformAdminWorkspaceTab(activeTab)) {
     return <PlatformAdminWorkspace activeTab={activeTab} onNavigate={onNavigate} metrics={metrics} />;
   }
   if (activeTab === 'overview' && !isPlatformAdmin) {
+    if (platformStaffRole) return staffOverview(platformStaffRole);
     if (activeOrg.subscriberType === 'advertiser') {
       return <AdvertisingSubscriberOverview organization={activeOrg} access={subscriberAccess} metrics={metrics} onNavigate={onNavigate} />;
     }
@@ -82,7 +98,8 @@ export function resolveDelegatedWorkspaceRoute({
     </>;
   }
   if (activeTab === 'admin-tender-review') return isPlatformAdmin ? <AdminTenderReviewWorkspace /> : adminDenied();
-  if (activeTab === 'admin-audit-log') return isPlatformAdmin ? <AdminAuditLogWorkspace /> : adminDenied();
+  if (activeTab === 'admin-audit-log') return isPlatformAdmin || platformStaffRole === 'auditor' ? <AdminAuditLogWorkspace /> : adminDenied();
+  if (activeTab === 'admin-services') return isPlatformAdmin || platformStaffRole === 'support' ? <AdminServiceRequestsWorkspace isPlatformAdmin /> : adminDenied();
   if (activeTab === 'admin-subscriptions') return isPlatformAdmin ? <AdminSubscriptionLifecycleWorkspace /> : adminDenied();
   if (activeTab === 'billing') return <SubscriptionBillingPage activeOrg={activeOrg} />;
   if (activeTab === 'org-profile') return <OrganizationProfilePage activeOrg={activeOrg} onUpdated={onOrganizationUpdated} />;
@@ -90,7 +107,7 @@ export function resolveDelegatedWorkspaceRoute({
   if (activeTab === 'advert-packages' || activeTab === 'admin-advert-revenue') return <AdvertBillingPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
   if (activeTab === 'agency-workspace') return <AgencyWorkspacePage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
   if (activeTab === 'landing-cms') return <LandingCmsPage />;
-  if (activeTab === 'content-cms') return <CmsContentManagerPage isPlatformAdmin={isPlatformAdmin} />;
+  if (activeTab === 'content-cms') return <CmsContentManagerPage isPlatformAdmin={isPlatformAdmin || platformStaffRole === 'editorial'} />;
   if (activeTab === 'audience-subscribers') return <AudienceSubscribersPage />;
   if (activeTab === 'audience-messaging') return <AudienceEmailCampaignsPage />;
   if (activeTab === 'campaign-performance') return <CampaignPerformancePage activeOrg={activeOrg}

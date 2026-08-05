@@ -10,6 +10,19 @@ export interface PlatformStaffMember {
   suspendedAt: string | null; suspensionReason: string | null; updatedAt: string;
 }
 
+export interface MyPlatformStaffAccess {
+  role: PlatformStaffRole;
+  status: PlatformStaffStatus;
+  email: string;
+}
+
+export async function fetchMyPlatformStaffAccess(): Promise<MyPlatformStaffAccess | null> {
+  const { data, error } = await supabase.rpc('get_my_platform_staff_access');
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || !('role' in data)) return null;
+  return data as unknown as MyPlatformStaffAccess;
+}
+
 export async function fetchPlatformStaff(): Promise<PlatformStaffMember[]> {
   const { data, error } = await supabase.rpc('admin_list_platform_staff');
   if (error) throw error;

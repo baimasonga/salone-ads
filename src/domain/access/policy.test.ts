@@ -71,4 +71,17 @@ describe('workspace access policy', () => {
     expect(hasWorkspaceCapability(researcher, 'organization:manage')).toBe(false);
     expect(hasWorkspaceCapability(researcher, 'advertising:manage')).toBe(false);
   });
+
+  it.each([
+    ['finance','finance:manage'],
+    ['editorial','content:manage'],
+    ['support','support:manage'],
+    ['auditor','audit:read'],
+  ] as const)('limits %s staff to its assigned capability', (role, allowed) => {
+    const context: AccessContext = { ...subscriber, platformStaffRole: role };
+    expect(hasWorkspaceCapability(context, allowed)).toBe(true);
+    for (const capability of ['platform:administer','finance:manage','content:manage','support:manage','audit:read'] as const) {
+      if (capability !== allowed) expect(hasWorkspaceCapability(context, capability)).toBe(false);
+    }
+  });
 });
