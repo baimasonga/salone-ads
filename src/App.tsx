@@ -283,6 +283,7 @@ function MainApp() {
       sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}
       navGroups={navGroups}
+      isPlatformAdmin={isPlatformAdmin}
       onLogout={handleLogout}
     >
       <Workspaces
@@ -328,6 +329,7 @@ interface DashboardShellProps {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   navGroups: WorkspaceNavigationGroup[];
+  isPlatformAdmin: boolean;
   onLogout: () => void;
   children: React.ReactNode;
 }
@@ -399,6 +401,7 @@ function DashboardShell({
   sidebarOpen,
   setSidebarOpen,
   navGroups,
+  isPlatformAdmin,
   onLogout,
   children,
 }: DashboardShellProps) {
@@ -485,10 +488,17 @@ function DashboardShell({
             </button>
           </div>
 
-          {/* Org Scoped Pill */}
+          {/* Platform owners have a platform identity; subscribers have an organisation context. */}
           <div className="border border-[#0F172A] bg-white p-3.5 text-left shadow-xs">
-            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.25em] block">SYSTEM.CONTEXT</span>
-            {organizations.length > 1 ? (
+            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.25em] block">
+              {isPlatformAdmin ? 'PLATFORM.OWNER' : 'SYSTEM.CONTEXT'}
+            </span>
+            {isPlatformAdmin ? (
+              <>
+                <span className="font-extrabold text-sm block mt-0.5 text-[#0F172A]">Quantix Sierra Leone</span>
+                <span className="text-[10px] text-emerald-700 font-mono mt-1 block">MANOHUB ADMINISTRATION</span>
+              </>
+            ) : organizations.length > 1 ? (
               <select
                 value={activeOrg.id}
                 onChange={(event) => onOrganizationChange(event.target.value)}
@@ -503,8 +513,12 @@ function DashboardShell({
             ) : (
               <span className="font-extrabold text-sm block mt-0.5 text-[#0F172A] truncate">{activeOrg.name}</span>
             )}
-            <span className="text-[10px] text-slate-600 font-mono mt-1 block">TYPE: {getSubscriberType(activeOrg.subscriberType).label}</span>
-            <span className={`text-[9px] font-mono mt-1 block uppercase ${subscriberAccess?.status === 'active' ? 'text-emerald-700' : 'text-amber-700'}`}>ACCESS: {subscriberAccess?.status?.replaceAll('_', ' ') ?? 'Free'}</span>
+            {!isPlatformAdmin && (
+              <>
+                <span className="text-[10px] text-slate-600 font-mono mt-1 block">TYPE: {getSubscriberType(activeOrg.subscriberType).label}</span>
+                <span className={`text-[9px] font-mono mt-1 block uppercase ${subscriberAccess?.status === 'active' ? 'text-emerald-700' : 'text-amber-700'}`}>ACCESS: {subscriberAccess?.status?.replaceAll('_', ' ') ?? 'Free'}</span>
+              </>
+            )}
           </div>
 
           {/* Navigation is generated from the central access policy. */}
@@ -556,7 +570,7 @@ function DashboardShell({
               <Menu className="h-6 w-6" />
             </button>
             <div className="flex items-center gap-2 font-mono text-xs font-bold text-[#0F172A]">
-              <span className="tracking-widest uppercase">System.Core</span>
+              <span className="tracking-widest uppercase">{isPlatformAdmin ? 'System.Admin' : 'System.Core'}</span>
               <span className="text-slate-300">//</span>
               <span className="uppercase text-slate-500 font-medium">
                 {activeTab.replace('kit', ' Kit').replace('market', ' Market')}
@@ -620,7 +634,7 @@ function DashboardShell({
             </div>
 
             <span className="bg-[#0F172A] text-white text-[10px] font-mono font-bold px-2.5 py-1 uppercase tracking-wider">
-              {activeOrg.type}
+              {isPlatformAdmin ? 'Platform Administrator' : activeOrg.type}
             </span>
           </div>
         </header>

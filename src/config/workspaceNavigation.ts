@@ -58,7 +58,6 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
           { id: 'campaign-builder', label: 'Campaigns', icon: Compass },
           { id: 'admin-advertising', label: 'Advert Requests', icon: Sparkles },
           { id: 'campaign-performance', label: 'Performance', icon: BarChart2 },
-          { id: 'agency-workspace', label: 'Agency Clients', icon: Users },
         ],
       },
       {
@@ -72,6 +71,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
       {
         group: 'Administration',
         items: [
+          { id: 'admin-organizations', label: 'Subscriber Management', icon: Users },
           { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
           { id: 'admin-audit-log', label: 'Audit Log', icon: ClipboardList },
           { id: 'admin-finance', label: 'Finance Ledger', icon: CreditCard },
