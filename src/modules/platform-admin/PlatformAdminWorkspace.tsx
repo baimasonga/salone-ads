@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import { lazy, Suspense } from 'react';
 import {
   ArrowRight,
   BookOpen,
@@ -16,11 +17,16 @@ import {
   Users,
 } from 'lucide-react';
 import { AdminJobOperationsWorkspace } from './AdminJobOperationsWorkspace';
-import { AdminOrganizationLifecycleWorkspace } from './AdminOrganizationLifecycleWorkspace';
 import { AdminResilienceWorkspace } from './AdminResilienceWorkspace';
 import { AdminUsageMeteringWorkspace } from './AdminUsageMeteringWorkspace';
 import { AdminAuthorizationAssuranceWorkspace } from './AdminAuthorizationAssuranceWorkspace';
 import { AdminCommandOperationsWorkspace } from './AdminCommandOperationsWorkspace';
+
+const AdminOrganizationLifecycleWorkspace = lazy(() =>
+  import('./AdminOrganizationLifecycleWorkspace').then((module) => ({
+    default: module.AdminOrganizationLifecycleWorkspace,
+  })),
+);
 
 const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage', 'admin-authorization', 'admin-commands'] as const;
 export type PlatformAdminTab = (typeof PLATFORM_ADMIN_TABS)[number];
@@ -204,7 +210,11 @@ export function PlatformAdminWorkspace({
     return <AdminJobOperationsWorkspace />;
   }
   if (activeTab === 'admin-organizations') {
-    return <AdminOrganizationLifecycleWorkspace />;
+    return (
+      <Suspense fallback={<div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-500">Loading subscriber management…</div>}>
+        <AdminOrganizationLifecycleWorkspace />
+      </Suspense>
+    );
   }
   if (activeTab === 'admin-resilience') {
     return <AdminResilienceWorkspace />;
