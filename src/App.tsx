@@ -30,6 +30,9 @@ import { buildWorkspaceNavigation } from './config/workspaceNavigation';
 import type { WorkspaceNavigationGroup } from './config/workspaceNavigation';
 import { getAuthScreenMode, getInitialView } from './lib/authRouting';
 import type { AppView } from './lib/authRouting';
+import { fetchMySubscriptions } from './lib/procurement/subscriptionRequestApi';
+import type { SubscriberAccessSummary } from './components/SubscriberOverview';
+import { getSubscriberType } from './domain/subscriptions/subscriberTypes';
 
 const NO_FEATURES = new Set<string>();
 const ADVERTISING_FEATURES = new Set(['business_advertising']);
@@ -99,6 +102,7 @@ function MainApp() {
   const [isPlatformResearcher, setIsPlatformResearcher] = useState(false);
   const [canAdvertise, setCanAdvertise] = useState(false);
   const [cmsRole, setCmsRole] = useState<CmsTeamRole | null>(null);
+  const [subscriberAccess, setSubscriberAccess] = useState<SubscriberAccessSummary | null>(null);
 
   // --- DASHBOARD NAVIGATION STATES ---
   const [activeTab, setActiveTab] = useState('overview');
@@ -119,6 +123,7 @@ function MainApp() {
       setIsPlatformResearcher(false);
       setCanAdvertise(false);
       setCmsRole(null);
+      setSubscriberAccess(null);
       setWorkspaceLoading(false);
       setView((v) => (v === 'dashboard' || v === 'onboarding' ? 'landing' : v));
       return;
@@ -137,13 +142,14 @@ function MainApp() {
       const org = availableOrganizations.find((item) => item.id === savedOrgId) ?? availableOrganizations[0];
       storeActiveOrganizationId(activeSession.user.id, org.id);
       setOrganizations(availableOrganizations);
-      const [bundle, directory, influencers, platformRole, advertisingEntitled, editorialRole] = await Promise.all([
+      const [bundle, directory, influencers, platformRole, advertisingEntitled, editorialRole, subscriptions] = await Promise.all([
         fetchOrgBundle(org.id),
         fetchDirectoryProfiles(),
         fetchInfluencerProfiles(),
         fetchMyPlatformRole(),
         hasFeature(org.id, 'business_advertising').catch(() => false),
         fetchCmsCurrentRole().catch(() => null),
+        fetchMySubscriptions(org.id).catch(() => []),
       ]);
       setActiveOrg(bundle.organization);
       setBrandKit(bundle.brandKit);
@@ -157,6 +163,9 @@ function MainApp() {
       setIsPlatformResearcher(platformRole === 'researcher');
       setCanAdvertise(advertisingEntitled);
       setCmsRole(editorialRole);
+      const currentSubscription = subscriptions.find((item) => ['active','trialing','past_due','grace_period','suspended'].includes(item.status))
+        ?? subscriptions.find((item) => item.status === 'pending') ?? null;
+      setSubscriberAccess(currentSubscription ? { planName: currentSubscription.planName, status: currentSubscription.status, currentPeriodEnd: currentSubscription.currentPeriodEnd } : null);
       setView('dashboard');
     } catch (err: any) {
       setWorkspaceError(err.message || 'Failed to load your workspace from the server.');
@@ -254,6 +263,7 @@ function MainApp() {
     cmsRole,
     features: canAdvertise ? ADVERTISING_FEATURES : NO_FEATURES,
     organizationType: activeOrg.type,
+    subscriberType: activeOrg.subscriberType,
   });
 
   return (
@@ -262,6 +272,7 @@ function MainApp() {
       organizations={organizations}
       onOrganizationChange={handleOrganizationChange}
       organizationSwitching={workspaceLoading}
+      subscriberAccess={subscriberAccess}
       activeTab={activeTab}
       setActiveTab={setActiveTab}
       sidebarOpen={sidebarOpen}
@@ -273,6 +284,8 @@ function MainApp() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         activeOrg={activeOrg}
+        setActiveOrg={(organization) => setActiveOrg(organization)}
+        subscriberAccess={subscriberAccess}
         currentUserId={session.user.id}
         isPlatformAdmin={isPlatformAdmin}
         isPlatformResearcher={isPlatformResearcher}
@@ -304,6 +317,7 @@ interface DashboardShellProps {
   organizations: Organization[];
   onOrganizationChange: (orgId: string) => void;
   organizationSwitching: boolean;
+  subscriberAccess: SubscriberAccessSummary | null;
   activeTab: string;
   setActiveTab: (tab: string) => void;
   sidebarOpen: boolean;
@@ -374,6 +388,7 @@ function DashboardShell({
   organizations,
   onOrganizationChange,
   organizationSwitching,
+  subscriberAccess,
   activeTab,
   setActiveTab,
   sidebarOpen,
@@ -483,7 +498,8 @@ function DashboardShell({
             ) : (
               <span className="font-extrabold text-sm block mt-0.5 text-[#0F172A] truncate">{activeOrg.name}</span>
             )}
-            <span className="text-[10px] text-slate-600 font-mono mt-1 block">PLAN: Trial Tier</span>
+            <span className="text-[10px] text-slate-600 font-mono mt-1 block">TYPE: {getSubscriberType(activeOrg.subscriberType).label}</span>
+            <span className={`text-[9px] font-mono mt-1 block uppercase ${subscriberAccess?.status === 'active' ? 'text-emerald-700' : 'text-amber-700'}`}>ACCESS: {subscriberAccess?.status?.replaceAll('_', ' ') ?? 'Free'}</span>
           </div>
 
           {/* Navigation is generated from the central access policy. */}

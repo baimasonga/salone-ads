@@ -13,7 +13,7 @@ import {
   TrackingLink,
   AudienceSegment,
 } from '../types';
-import type { SubscriberType } from '../domain/subscriptions/subscriberTypes';
+import { isSubscriberType, type SubscriberType } from '../domain/subscriptions/subscriberTypes';
 
 export interface OrgBundle {
   organization: Organization;
@@ -29,9 +29,16 @@ export interface OnboardingInput {
   orgType: string;
   country: string;
   district: string;
+  city: string;
+  website: string;
+  phone: string;
+  whatsapp: string;
+  description: string;
   primaryObjective: string;
-  monthlyBudget: string;
+  audienceScope: string;
+  monthlyBudgetSle: number | null;
   subscriberType: SubscriberType;
+  subscriberDetails: Record<string, string>;
 }
 
 // --- row -> app type mappers (DB is snake_case, app types are camelCase) ---
@@ -45,6 +52,15 @@ function mapOrganization(row: any): Organization {
     district: row.district ?? undefined,
     primaryObjective: row.primary_objective ?? '',
     monthlyBudget: row.monthly_budget ?? '',
+    monthlyBudgetSle: row.monthly_budget_sle === null || row.monthly_budget_sle === undefined ? null : Number(row.monthly_budget_sle),
+    subscriberType: isSubscriberType(row.subscriber_type) ? row.subscriber_type : 'free',
+    city: row.city ?? '',
+    website: row.website ?? '',
+    phone: row.phone ?? '',
+    whatsapp: row.whatsapp ?? '',
+    description: row.description ?? '',
+    audienceScope: row.audience_scope ?? '',
+    subscriberDetails: row.subscriber_details && typeof row.subscriber_details === 'object' ? row.subscriber_details : {},
     isBuyer: !!row.is_buyer,
     isSupplier: !!row.is_supplier,
     buyerVerified: !!row.buyer_verified,
@@ -332,12 +348,56 @@ export async function createOrganization(input: OnboardingInput): Promise<Organi
     org_type: input.orgType,
     org_country: input.country,
     org_district: input.district,
+    org_city: input.city,
+    org_website: input.website,
+    org_phone: input.phone,
+    org_whatsapp: input.whatsapp,
+    org_description: input.description,
     org_primary_objective: input.primaryObjective,
-    org_monthly_budget: input.monthlyBudget,
+    org_audience_scope: input.audienceScope,
+    org_monthly_budget_sle: input.monthlyBudgetSle,
     subscriber_type: input.subscriberType,
+    subscriber_details: input.subscriberDetails,
   });
   if (error) throw error;
   return mapOrganization(data);
+}
+
+export async function updateOrganizationProfile(input: Organization): Promise<Organization> {
+  const { data, error } = await supabase.rpc('update_subscriber_organization_profile', {
+    p_org_id: input.id,
+    p_name: input.name,
+    p_type: input.type,
+    p_country: input.country,
+    p_district: input.district ?? '',
+    p_city: input.city,
+    p_website: input.website,
+    p_phone: input.phone,
+    p_whatsapp: input.whatsapp,
+    p_description: input.description,
+    p_primary_objective: input.primaryObjective,
+    p_audience_scope: input.audienceScope,
+    p_monthly_budget_sle: input.monthlyBudgetSle,
+    p_subscriber_details: input.subscriberDetails,
+  });
+  if (error) throw error;
+  return mapOrganization(data);
+}
+
+export async function fetchMyProfile(): Promise<{ fullName: string; email: string }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Sign in to view your profile.');
+  const { data, error } = await supabase.from('profiles').select('full_name,email').eq('id', user.id).single();
+  if (error) throw error;
+  return { fullName: data.full_name ?? '', email: data.email ?? user.email ?? '' };
+}
+
+export async function updateMyProfile(fullName: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Sign in to update your profile.');
+  const { error } = await supabase.from('profiles').update({ full_name: fullName.trim() }).eq('id', user.id);
+  if (error) throw error;
+  await supabase.auth.updateUser({ data: { full_name: fullName.trim() } });
 }
 
 export async function createCampaign(

@@ -14,6 +14,7 @@ export interface AccessContext {
   cmsRole: CmsRole;
   features: ReadonlySet<string>;
   organizationType: string;
+  subscriberType: import('../subscriptions/subscriberTypes').SubscriberType;
 }
 
 export function hasWorkspaceCapability(
@@ -38,6 +39,7 @@ export function hasWorkspaceCapability(
     case 'agency:manage':
       return context.organizationType.trim().toLowerCase().includes('agency');
     case 'procurement:use':
+      return context.subscriberType !== 'advertiser';
     case 'organization:manage':
       return true;
   }

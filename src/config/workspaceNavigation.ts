@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { hasWorkspaceCapability } from '../domain/access/policy';
 import type { AccessContext } from '../domain/access/policy';
+import { getSubscriberType } from '../domain/subscriptions/subscriberTypes';
 
 export interface WorkspaceNavigationItem {
   id: string;
@@ -117,7 +118,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
       items: [
         { id: 'tenders', label: 'Tenders', icon: FileSearch },
         { id: 'pipeline', label: 'My Pipeline', icon: BarChart2 },
-        { id: 'supplier-profile', label: 'Supplier Profile', icon: Award },
+        ...(context.subscriberType === 'viewer' ? [{ id: 'supplier-profile', label: 'Supplier Profile', icon: Award }] : []),
         { id: 'services', label: 'Support Services', icon: UserCheck },
       ],
     });
@@ -143,9 +144,11 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
   }
 
   if (hasWorkspaceCapability(context, 'organization:manage')) {
+    const subscriber = getSubscriberType(context.subscriberType);
     groups.push({
       group: 'Account',
       items: [
+        { id: 'org-profile', label: subscriber.profileLabel, icon: Settings },
         { id: 'team', label: 'Team', icon: UserPlus },
         { id: 'billing', label: 'Billing', icon: CreditCard },
       ],

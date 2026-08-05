@@ -19,6 +19,12 @@ import { AudienceSubscribersPage } from './AudienceSubscribersPage';
 import { AudienceEmailCampaignsPage } from './AudienceEmailCampaignsPage';
 import { CampaignPerformancePage } from './CampaignPerformancePage';
 import { SubscriptionBillingPage } from './SubscriptionBillingPage';
+import { OrganizationProfilePage } from './OrganizationProfilePage';
+import {
+  AdvertisingSubscriberOverview,
+  SubscriberAccessBanner,
+  type SubscriberAccessSummary,
+} from './SubscriberOverview';
 
 const OpportunityIngestionWorkspace = lazy(() =>
   import('../modules/procurement/OpportunityIngestionWorkspace')
@@ -36,6 +42,8 @@ interface WorkspaceRouteResolverProps {
   isPlatformAdmin: boolean;
   isPlatformResearcher: boolean;
   onNavigate: (tab: string) => void;
+  onOrganizationUpdated: (organization: Organization) => void;
+  subscriberAccess: SubscriberAccessSummary | null;
   overview: OverviewModel;
   metrics: { activeCampaigns: number; publishedContent: number; activeLeads: number; trackedClicks: number };
 }
@@ -43,7 +51,8 @@ interface WorkspaceRouteResolverProps {
 const adminDenied = () => <div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">You do not have platform admin access.</div>;
 
 export function resolveDelegatedWorkspaceRoute({
-  activeTab, activeOrg, isPlatformAdmin, isPlatformResearcher, onNavigate, overview, metrics,
+  activeTab, activeOrg, isPlatformAdmin, isPlatformResearcher, onNavigate,
+  onOrganizationUpdated, subscriberAccess, overview, metrics,
 }: WorkspaceRouteResolverProps): ReactNode | undefined {
   if (activeTab === 'notifications') return <NotificationCentre activeOrgId={activeOrg.id} onNavigate={onNavigate} />;
   if (activeTab === 'opportunity-ingestion') {
@@ -59,16 +68,24 @@ export function resolveDelegatedWorkspaceRoute({
     return <PlatformAdminWorkspace activeTab={activeTab} onNavigate={onNavigate} metrics={metrics} />;
   }
   if (activeTab === 'overview' && !isPlatformAdmin) {
-    return <ProcurementOverview organizationName={activeOrg.name} tier={overview.tier}
-      pipelineCount={overview.pipelineCount} savedSearchCount={overview.savedSearchCount}
-      savedSearches={overview.savedSearches} recommended={overview.recommended}
-      publishedTenderCount={overview.publishedTenderCount} loading={overview.loading}
-      degraded={overview.degraded} onNavigate={onNavigate} />;
+    if (activeOrg.subscriberType === 'advertiser') {
+      return <AdvertisingSubscriberOverview organization={activeOrg} access={subscriberAccess} metrics={metrics} onNavigate={onNavigate} />;
+    }
+    return <>
+      <SubscriberAccessBanner organization={activeOrg} access={subscriberAccess} onNavigate={onNavigate} />
+      <ProcurementOverview organizationName={activeOrg.name}
+        tier={subscriberAccess?.status === 'pending' ? null : overview.tier}
+        pipelineCount={overview.pipelineCount} savedSearchCount={overview.savedSearchCount}
+        savedSearches={overview.savedSearches} recommended={overview.recommended}
+        publishedTenderCount={overview.publishedTenderCount} loading={overview.loading}
+        degraded={overview.degraded} onNavigate={onNavigate} />
+    </>;
   }
   if (activeTab === 'admin-tender-review') return isPlatformAdmin ? <AdminTenderReviewWorkspace /> : adminDenied();
   if (activeTab === 'admin-audit-log') return isPlatformAdmin ? <AdminAuditLogWorkspace /> : adminDenied();
   if (activeTab === 'admin-subscriptions') return isPlatformAdmin ? <AdminSubscriptionLifecycleWorkspace /> : adminDenied();
   if (activeTab === 'billing') return <SubscriptionBillingPage activeOrg={activeOrg} />;
+  if (activeTab === 'org-profile') return <OrganizationProfilePage activeOrg={activeOrg} onUpdated={onOrganizationUpdated} />;
   if (activeTab === 'campaign-builder' || activeTab === 'campaigns') return <CampaignBuilderPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
   if (activeTab === 'advert-packages' || activeTab === 'admin-advert-revenue') return <AdvertBillingPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
   if (activeTab === 'agency-workspace') return <AgencyWorkspacePage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;

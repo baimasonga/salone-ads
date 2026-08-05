@@ -19,6 +19,15 @@ export interface Organization {
   district?: string;
   primaryObjective: string;
   monthlyBudget: string;
+  monthlyBudgetSle: number | null;
+  subscriberType: import('./domain/subscriptions/subscriberTypes').SubscriberType;
+  city: string;
+  website: string;
+  phone: string;
+  whatsapp: string;
+  description: string;
+  audienceScope: string;
+  subscriberDetails: Record<string, string>;
   isBuyer: boolean;
   isSupplier: boolean;
   buyerVerified: boolean;

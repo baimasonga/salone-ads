@@ -13,4 +13,11 @@ describe('registration subscriber types', () => {
     expect(isSubscriberType('admin')).toBe(false);
     expect(isSubscriberType('enterprise')).toBe(false);
   });
+
+  it('defines visible capabilities and a profile label for every choice', () => {
+    for (const type of SUBSCRIBER_TYPES) {
+      expect(type.features.length).toBeGreaterThanOrEqual(3);
+      expect(type.profileLabel).toMatch(/Profile/);
+    }
+  });
 });

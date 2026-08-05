@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Mail, Lock, User, Building, DollarSign, Globe } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { createOrganization } from '../lib/api';
-import { isSubscriberType, SUBSCRIBER_TYPES, type SubscriberType } from '../domain/subscriptions/subscriberTypes';
+import { SUBSCRIBER_TYPES, type SubscriberType } from '../domain/subscriptions/subscriberTypes';
 
 interface AuthScreensProps {
   mode: 'signin' | 'signup' | 'onboarding' | 'forgot-password' | 'update-password';
@@ -22,24 +22,30 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
   const [checkEmail, setCheckEmail] = useState(false);
   const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Onboarding States
   const [orgName, setOrgName] = useState('');
   const [orgType, setOrgType] = useState('Small Business');
   const [country, setCountry] = useState('Sierra Leone');
   const [operatingDistrict, setOperatingDistrict] = useState('Western Area Urban');
+  const [city, setCity] = useState('Freetown');
+  const [website, setWebsite] = useState('');
+  const [phone, setPhone] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [orgDescription, setOrgDescription] = useState('');
   const [focus, setFocus] = useState('Both Local and Diaspora');
   const [mainObjective, setMainObjective] = useState('WhatsApp enquiries');
-  const [monthlyBudget, setMonthlyBudget] = useState('Le 15,000,000');
+  const [monthlyBudget, setMonthlyBudget] = useState('');
+  const [registrationNumber, setRegistrationNumber] = useState('');
+  const [geographicCoverage, setGeographicCoverage] = useState('');
+  const [sectors, setSectors] = useState('');
+  const [tenderInterests, setTenderInterests] = useState('');
+  const [tenderFrequency, setTenderFrequency] = useState('Occasional');
+  const [contactPerson, setContactPerson] = useState('');
+  const [preferredChannels, setPreferredChannels] = useState('ManoHub, WhatsApp');
+  const [freeInterests, setFreeInterests] = useState('Tenders and business opportunities');
   const [subscriberType, setSubscriberType] = useState<SubscriberType>('free');
-
-  useEffect(() => {
-    if (mode !== 'onboarding') return;
-    void supabase.auth.getUser().then(({ data }) => {
-      const selected = data.user?.user_metadata?.subscriber_type;
-      if (isSubscriberType(selected)) setSubscriberType(selected);
-    });
-  }, [mode]);
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +61,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
           email,
           password,
           options: {
-            data: { full_name: fullName, subscriber_type: subscriberType },
+            data: { full_name: fullName },
             emailRedirectTo: window.location.origin,
           },
         });
@@ -137,10 +143,23 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
         orgName,
         orgType,
         country,
-        district: operatingDistrict,
-        primaryObjective: mainObjective,
-        monthlyBudget,
+        district: country.trim().toLowerCase() === 'sierra leone' ? operatingDistrict : '',
+        city,
+        website,
+        phone,
+        whatsapp,
+        description: orgDescription,
+        primaryObjective: subscriberType === 'advertiser' ? mainObjective : '',
+        audienceScope: subscriberType === 'advertiser' ? focus : '',
+        monthlyBudgetSle: subscriberType === 'advertiser' && monthlyBudget ? Number(monthlyBudget) : null,
         subscriberType,
+        subscriberDetails: subscriberType === 'viewer'
+          ? { registration_number: registrationNumber, geographic_coverage: geographicCoverage, sectors, tender_interests: tenderInterests }
+          : subscriberType === 'publisher'
+            ? { procurement_sectors: sectors, tender_frequency: tenderFrequency, contact_person: contactPerson }
+            : subscriberType === 'advertiser'
+              ? { preferred_channels: preferredChannels }
+              : { interests: freeInterests, preferred_locations: geographicCoverage },
       });
       onSuccess();
     } catch (err: any) {
@@ -181,6 +200,8 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                       <input type="radio" name="onboardingSubscriberType" value={type.value} checked={subscriberType === type.value} onChange={() => setSubscriberType(type.value)} className="sr-only" />
                       <span className="block text-sm font-bold text-slate-900">{type.label}</span>
                       <span className="mt-1 block text-xs text-slate-500">{type.description}</span>
+                      <span className="mt-2 block text-[10px] font-semibold text-slate-600">{type.features.join(' · ')}</span>
+                      <span className="mt-2 block font-mono text-[9px] font-bold uppercase text-emerald-700">{type.value === 'free' ? 'Immediate access' : 'Payment activation required'}</span>
                     </label>
                   ))}
                 </div>
@@ -211,11 +232,17 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                     className="mt-1 block w-full py-2 px-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm"
                   >
                     <option>Small Business</option>
+                    <option>Sole Trader / Individual Professional</option>
+                    <option>Private Company</option>
                     <option>Agricultural Cooperative</option>
                     <option>Catering & Food Services</option>
                     <option>Tourism Operator</option>
                     <option>NGO / Development Partner</option>
-                    <option>Creative Creator Hub</option>
+                    <option>Government Ministry / Agency</option>
+                    <option>Local Council</option>
+                    <option>State-Owned Enterprise</option>
+                    <option>Educational Institution</option>
+                    <option>Creative / Creator Hub</option>
                     <option>Diaspora Association</option>
                   </select>
                 </div>
@@ -236,9 +263,10 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                   </div>
                 </div>
 
-                <div>
+                {country.trim().toLowerCase() === 'sierra leone' && <div>
                   <label className="block text-sm font-semibold text-slate-700">Sierra Leone District</label>
                   <select
+                    required
                     value={operatingDistrict}
                     onChange={(e) => setOperatingDistrict(e.target.value)}
                     className="mt-1 block w-full py-2 px-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm"
@@ -250,54 +278,68 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                     <option>Makeni (Bombali)</option>
                     <option>Port Loko</option>
                     <option>Kono</option>
-                    <option>Other / Out-of-Country</option>
                   </select>
+                </div>}
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">City / Town</label>
+                  <input required value={city} onChange={(e) => setCity(e.target.value)} className="mt-1 block w-full py-2 px-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm" />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700">Audience Scope</label>
-                  <select
-                    value={focus}
-                    onChange={(e) => setFocus(e.target.value)}
-                    className="mt-1 block w-full py-2 px-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm"
-                  >
-                    <option>Both Local and Diaspora</option>
-                    <option>Strictly Sierra Leone Local</option>
-                    <option>Strictly Diaspora Markets</option>
-                  </select>
+                  <label className="block text-sm font-semibold text-slate-700">Website <span className="font-normal text-slate-400">(optional)</span></label>
+                  <input type="url" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://example.com" className="mt-1 block w-full py-2 px-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm" />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700">Primary Objective</label>
-                  <select
-                    value={mainObjective}
-                    onChange={(e) => setMainObjective(e.target.value)}
-                    className="mt-1 block w-full py-2 px-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm"
-                  >
-                    <option>WhatsApp enquiries</option>
-                    <option>Local brand awareness</option>
-                    <option>Product sales & bookings</option>
-                    <option>NGO public outreach</option>
-                    <option>Diaspora sponsorships</option>
-                  </select>
+                  <label className="block text-sm font-semibold text-slate-700">Telephone</label>
+                  <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1 block w-full py-2 px-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700">WhatsApp <span className="font-normal text-slate-400">(optional)</span></label>
+                  <input type="tel" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} className="mt-1 block w-full py-2 px-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm" />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700">Est. Monthly Budget</label>
-                <div className="mt-1 relative rounded-md">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <DollarSign className="h-4 w-4 text-slate-400" />
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    value={monthlyBudget}
-                    onChange={(e) => setMonthlyBudget(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm"
-                  />
+              <div><label className="block text-sm font-semibold text-slate-700">Organisation Description</label><textarea required maxLength={1000} rows={3} value={orgDescription} onChange={(e) => setOrgDescription(e.target.value)} className="mt-1 block w-full py-2 px-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm" /></div>
+
+              {subscriberType === 'viewer' && <fieldset className="space-y-4 border-2 border-emerald-200 bg-emerald-50/40 p-4">
+                <legend className="px-2 text-sm font-bold text-emerald-900">Supplier preferences</legend>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="text-xs font-bold text-slate-600">Registration number <span className="font-normal">(optional)</span><input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal" /></label>
+                  <label className="text-xs font-bold text-slate-600">Geographic coverage<input required value={geographicCoverage} onChange={(e) => setGeographicCoverage(e.target.value)} placeholder="e.g. Nationwide, Bo and Kenema" className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal" /></label>
+                  <label className="text-xs font-bold text-slate-600">Sectors served<input required value={sectors} onChange={(e) => setSectors(e.target.value)} placeholder="Construction, agriculture, ICT" className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal" /></label>
+                  <label className="text-xs font-bold text-slate-600">Tender interests<input required value={tenderInterests} onChange={(e) => setTenderInterests(e.target.value)} placeholder="Goods, works, consulting" className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal" /></label>
                 </div>
-              </div>
+              </fieldset>}
+
+              {subscriberType === 'publisher' && <fieldset className="space-y-4 border-2 border-sky-200 bg-sky-50/50 p-4">
+                <legend className="px-2 text-sm font-bold text-sky-900">Procurement profile</legend>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="text-xs font-bold text-slate-600">Procurement sectors<input required value={sectors} onChange={(e) => setSectors(e.target.value)} placeholder="Infrastructure, health, agriculture" className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal" /></label>
+                  <label className="text-xs font-bold text-slate-600">Expected tender frequency<select value={tenderFrequency} onChange={(e) => setTenderFrequency(e.target.value)} className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal"><option>Occasional</option><option>Monthly</option><option>Quarterly</option><option>Continuous</option></select></label>
+                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Procurement contact person<input required value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal" /></label>
+                </div>
+              </fieldset>}
+
+              {subscriberType === 'advertiser' && <fieldset className="space-y-4 border-2 border-amber-200 bg-amber-50/50 p-4">
+                <legend className="px-2 text-sm font-bold text-amber-950">Advertising preferences</legend>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="text-xs font-bold text-slate-600">Audience scope<select value={focus} onChange={(e) => setFocus(e.target.value)} className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal"><option>Both Local and Diaspora</option><option>Strictly Sierra Leone Local</option><option>Strictly Diaspora Markets</option></select></label>
+                  <label className="text-xs font-bold text-slate-600">Primary objective<select value={mainObjective} onChange={(e) => setMainObjective(e.target.value)} className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal"><option>WhatsApp enquiries</option><option>Local brand awareness</option><option>Product sales & bookings</option><option>NGO public outreach</option><option>Diaspora sponsorships</option></select></label>
+                  <label className="text-xs font-bold text-slate-600">Preferred channels<input required value={preferredChannels} onChange={(e) => setPreferredChannels(e.target.value)} className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal" /></label>
+                  <label className="text-xs font-bold text-slate-600">Estimated monthly budget (SLE)<span className="relative mt-1 block"><DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/><input type="number" min="0" step="0.01" required value={monthlyBudget} onChange={(e) => setMonthlyBudget(e.target.value)} className="block w-full border border-slate-300 bg-white py-2 pl-9 pr-2 text-sm font-normal" /></span></label>
+                </div>
+              </fieldset>}
+
+              {subscriberType === 'free' && <fieldset className="space-y-4 border-2 border-slate-200 bg-slate-50 p-4">
+                <legend className="px-2 text-sm font-bold text-slate-800">Interests</legend>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="text-xs font-bold text-slate-600">Topics of interest<input required value={freeInterests} onChange={(e) => setFreeInterests(e.target.value)} className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal" /></label>
+                  <label className="text-xs font-bold text-slate-600">Preferred locations<input value={geographicCoverage} onChange={(e) => setGeographicCoverage(e.target.value)} placeholder="e.g. Freetown, Bo, Nationwide" className="mt-1 block w-full border border-slate-300 bg-white p-2 text-sm font-normal" /></label>
+                </div>
+              </fieldset>}
 
               <button
                 type="submit"
@@ -341,7 +383,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
             }}
             className="font-mono font-bold uppercase text-xs text-[#047857] hover:underline cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#0F172A]"
           >
-            {mode === 'signin' ? 'start free 14-day trial' : 'sign in to your portal'}
+            {mode === 'signin' ? 'create a free account' : 'sign in to your portal'}
           </button>
         </p>}
       </div>
@@ -430,18 +472,6 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
               <form className="space-y-6 text-left" onSubmit={handleAuthSubmit}>
                 {mode === 'signup' && (
                   <>
-                  <fieldset>
-                    <legend className="block text-sm font-semibold text-slate-700">How will you use ManoHub?</legend>
-                    <div className="mt-2 grid gap-2">
-                      {SUBSCRIBER_TYPES.map((type) => (
-                        <label key={type.value} className={`cursor-pointer border-2 p-3 ${subscriberType === type.value ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'}`}>
-                          <input type="radio" name="subscriberType" value={type.value} checked={subscriberType === type.value} onChange={() => setSubscriberType(type.value)} className="sr-only" />
-                          <span className="block text-sm font-bold text-slate-900">{type.label}</span>
-                          <span className="mt-1 block text-xs text-slate-500">{type.description}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
                   <div>
                     <label htmlFor="auth-full-name" className="block text-sm font-semibold text-slate-700">Full Name</label>
                     <div className="mt-1 relative rounded-md shadow-xs">
@@ -496,7 +526,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                       autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                       type="password"
                       required
-                      minLength={6}
+                      minLength={8}
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -505,9 +535,14 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
                   </div>
                 </div>
 
+                {mode === 'signup' && <label className="flex items-start gap-3 text-xs leading-relaxed text-slate-600">
+                  <input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} className="mt-0.5 h-4 w-4 accent-emerald-600" />
+                  <span>I agree to ManoHub's Terms of Service and Privacy Policy and understand that paid access begins after payment verification.</span>
+                </label>}
+
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || (mode === 'signup' && !acceptedTerms)}
                   className="btn-geometric w-full flex justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? 'Please wait…' : mode === 'signin' ? 'Sign In' : 'Continue to Onboarding'}

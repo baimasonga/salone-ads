@@ -7,6 +7,7 @@ const subscriber: AccessContext = {
   cmsRole: null,
   features: new Set(),
   organizationType: 'Business',
+  subscriberType: 'viewer',
 };
 
 describe('workspace access policy', () => {
@@ -17,6 +18,11 @@ describe('workspace access policy', () => {
   it('allows ordinary subscribers to use procurement and organization settings', () => {
     expect(hasWorkspaceCapability(subscriber, 'procurement:use')).toBe(true);
     expect(hasWorkspaceCapability(subscriber, 'organization:manage')).toBe(true);
+  });
+
+  it('keeps advertiser-only accounts out of procurement workspaces', () => {
+    expect(hasWorkspaceCapability({ ...subscriber, subscriberType: 'advertiser' }, 'procurement:use')).toBe(false);
+    expect(hasWorkspaceCapability({ ...subscriber, subscriberType: 'advertiser' }, 'organization:manage')).toBe(true);
   });
 
   it('only exposes advertising when the organization has the entitlement', () => {
