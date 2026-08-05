@@ -16,7 +16,7 @@ test.describe('public critical journeys', () => {
     await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
     await expect(page.getByPlaceholder('Alhassan Kamara')).toBeVisible();
     await expect(page.getByPlaceholder('name@salonemail.com')).toBeVisible();
-    await expect(page.locator('input[type="password"]')).toHaveAttribute('minlength', '6');
+    await expect(page.locator('input[type="password"]')).toHaveAttribute('minlength', '8');
     await page.getByRole('button', { name: /sign in to your portal/i }).click();
     await expect(page.getByRole('heading', { name: 'Sign In' })).toBeVisible();
   });
