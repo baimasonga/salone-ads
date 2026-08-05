@@ -27,8 +27,11 @@ const AdminOrganizationLifecycleWorkspace = lazy(() =>
     default: module.AdminOrganizationLifecycleWorkspace,
   })),
 );
+const PlatformStaffAccessWorkspace = lazy(() =>
+  import('./PlatformStaffAccessWorkspace').then((module) => ({ default: module.PlatformStaffAccessWorkspace })),
+);
 
-const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage', 'admin-authorization', 'admin-commands'] as const;
+const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage', 'admin-authorization', 'admin-commands', 'admin-access'] as const;
 export type PlatformAdminTab = (typeof PLATFORM_ADMIN_TABS)[number];
 
 export function isPlatformAdminWorkspaceTab(tab: string): tab is PlatformAdminTab {
@@ -227,6 +230,9 @@ export function PlatformAdminWorkspace({
   }
   if (activeTab === 'admin-commands') {
     return <AdminCommandOperationsWorkspace />;
+  }
+  if (activeTab === 'admin-access') {
+    return <Suspense fallback={<div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-500">Loading staff access…</div>}><PlatformStaffAccessWorkspace /></Suspense>;
   }
 
   if (activeTab === 'audience-hub') {

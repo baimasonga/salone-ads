@@ -121,6 +121,7 @@ const COMMANDS: Record<string, { rpc: string; params: (payload: CommandPayload) 
   'billing.payment.record': { rpc: 'record_commercial_payment', params: p => ({ p_invoice_id: commandUuid(p, 'invoiceId'), p_reference: commandField(p, 'reference', 200), p_method: commandField(p, 'method', 80), p_amount: commandAmount(p, 'amount') }) },
   'billing.credit.issue': { rpc: 'issue_commercial_credit', params: p => ({ p_invoice_id: commandUuid(p, 'invoiceId'), p_credit_number: commandField(p, 'creditNumber', 100), p_amount: commandAmount(p, 'amount'), p_reason: commandField(p, 'reason', 1000) }) },
   'billing.refund.record': { rpc: 'record_commercial_refund', params: p => ({ p_payment_id: commandUuid(p, 'paymentId'), p_refund_reference: commandField(p, 'refundReference', 200), p_amount: commandAmount(p, 'amount'), p_reason: commandField(p, 'reason', 1000) }) },
+  'platform_staff.update': { rpc: 'admin_update_platform_staff', params: p => ({ p_user_id: commandUuid(p, 'userId'), p_action: oneOf(commandField(p, 'action', 30), ['change_role','suspend','reactivate','revoke'], 'action'), p_role: commandField(p, 'role', 30, true), p_reason: commandField(p, 'reason', 1000, true) }) },
 };
 
 
@@ -440,6 +441,65 @@ async function startServer() {
       measurementProtection: "visitor-dedupe-v1",
       requestId: res.locals.requestId,
     });
+  });
+
+  app.post('/api/platform-staff/invitations', requireUser, requirePlatformAdmin, async (req, res, next) => {
+    try {
+      if (!supabaseServiceClient) {
+        throw Object.assign(new Error('Staff invitations are not configured on this deployment.'), { status: 503, expose: true, code: 'STAFF_INVITES_NOT_CONFIGURED' });
+      }
+      const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+      const role = typeof req.body?.role === 'string' ? req.body.role : '';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 320) {
+        throw Object.assign(new Error('A valid work email is required.'), { status: 400, expose: true });
+      }
+      if (!['administrator','finance','editorial','support','auditor'].includes(role)) {
+        throw Object.assign(new Error('A valid staff role is required.'), { status: 400, expose: true });
+      }
+
+      let staffUser: { id: string; email?: string } | undefined;
+      for (let page = 1; page <= 10 && !staffUser; page += 1) {
+        const { data, error } = await supabaseServiceClient.auth.admin.listUsers({ page, perPage: 1000 });
+        if (error) throw error;
+        staffUser = data.users.find((user) => user.email?.toLowerCase() === email);
+        if (data.users.length < 1000) break;
+      }
+      let invitationSent = false;
+      if (!staffUser) {
+        const origin = requestOrigin(req);
+        const { data, error } = await supabaseServiceClient.auth.admin.inviteUserByEmail(email, {
+          redirectTo: origin ? `${origin}/?auth=signin` : undefined,
+          data: { invited_for: 'platform_staff' },
+        });
+        if (error || !data.user) throw error || new Error('Supabase did not create the invited user.');
+        staffUser = data.user;
+        invitationSent = true;
+      }
+
+      const { error: upsertError } = await supabaseServiceClient.from('platform_staff_members').upsert({
+        user_id: staffUser.id,
+        email,
+        role,
+        status: invitationSent ? 'invited' : 'active',
+        invited_by: (req as RequestWithContext).userId,
+        invited_at: new Date().toISOString(),
+        accepted_at: invitationSent ? null : new Date().toISOString(),
+        suspended_at: null,
+        suspension_reason: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+      if (upsertError) throw upsertError;
+      await supabaseServiceClient.from('audit_logs').insert({
+        actor_id: (req as RequestWithContext).userId,
+        action: invitationSent ? 'platform_staff.invited' : 'platform_staff.access_granted',
+        entity_type: 'platform_staff',
+        entity_id: staffUser.id,
+        metadata: { email, role },
+      });
+      res.status(invitationSent ? 201 : 200).json({ result: { userId: staffUser.id, invitationSent } });
+    } catch (error) {
+      next(error);
+    }
   });
 
   // Sensitive state changes enter through one authenticated, validated and

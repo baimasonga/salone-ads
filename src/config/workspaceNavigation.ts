@@ -76,7 +76,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
           { id: 'admin-audit-log', label: 'Audit Log', icon: ClipboardList },
           { id: 'admin-finance', label: 'Finance Ledger', icon: CreditCard },
           { id: 'admin-resilience', label: 'Reliability & Recovery', icon: LifeBuoy },
-          { id: 'admin', label: 'Settings & Access', icon: Settings },
+          { id: 'admin-access', label: 'Settings & Access', icon: Settings },
         ],
       },
     ];
