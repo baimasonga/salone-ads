@@ -33,6 +33,7 @@ import type { AppView } from './lib/authRouting';
 import { fetchMySubscriptions } from './lib/procurement/subscriptionRequestApi';
 import type { SubscriberAccessSummary } from './components/SubscriberOverview';
 import { getSubscriberType } from './domain/subscriptions/subscriberTypes';
+import { AccountRestrictedPage } from './components/AccountRestrictedPage';
 
 const NO_FEATURES = new Set<string>();
 const ADVERTISING_FEATURES = new Set(['business_advertising']);
@@ -265,6 +266,10 @@ function MainApp() {
     organizationType: activeOrg.type,
     subscriberType: activeOrg.subscriberType,
   });
+
+  if (!isPlatformAdmin && activeOrg.status !== 'active') {
+    return <AccountRestrictedPage organization={activeOrg} onLogout={handleLogout} />;
+  }
 
   return (
     <DashboardShell

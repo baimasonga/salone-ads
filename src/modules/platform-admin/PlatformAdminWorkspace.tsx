@@ -277,8 +277,8 @@ export function PlatformAdminWorkspace({
         },
         {
           id: 'admin-organizations',
-          title: 'Organizations & recovery',
-          description: 'Suspend access, review recovery requests and reactivate customer organizations.',
+          title: 'Subscriber management',
+          description: 'View every subscriber profile; filter, export, suspend, close, recover or permanently remove accounts.',
           icon: Building2,
         },
         {

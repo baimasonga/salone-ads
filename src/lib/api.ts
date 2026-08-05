@@ -65,6 +65,9 @@ function mapOrganization(row: any): Organization {
     isSupplier: !!row.is_supplier,
     buyerVerified: !!row.buyer_verified,
     supplierVerifiedUntil: row.supplier_verified_until ?? null,
+    status: row.status ?? 'active',
+    statusReason: row.status_reason ?? null,
+    recoverableUntil: row.recoverable_until ?? null,
   };
 }
 

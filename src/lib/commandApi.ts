@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient';
 
 export type BackendCommand =
-  | 'organization.invite' | 'organization.transition' | 'organization.recovery.decide'
+  | 'organization.invite' | 'organization.transition' | 'organization.recovery.decide' | 'organization.purge'
   | 'subscription.transition' | 'advertising.order.create'
   | 'organization.verification.approve' | 'procurement.ingestion.promote'
   | 'billing.payment.record' | 'billing.credit.issue' | 'billing.refund.record';

@@ -32,6 +32,9 @@ export interface Organization {
   isSupplier: boolean;
   buyerVerified: boolean;
   supplierVerifiedUntil: string | null;
+  status: 'active' | 'suspended' | 'recovery_pending' | 'closed' | 'purged';
+  statusReason: string | null;
+  recoverableUntil: string | null;
 }
 
 export interface BrandKit {

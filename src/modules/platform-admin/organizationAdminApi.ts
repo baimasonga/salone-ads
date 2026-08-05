@@ -1,19 +1,103 @@
-export type OrganizationLifecycleStatus = 'active' | 'suspended' | 'recovery_pending' | 'closed';
-export interface AdminOrganizationRecord {
-  id:string;name:string;type:string;status:OrganizationLifecycleStatus;statusReason:string|null;
-  memberCount:number;activePlan:string|null;recoveryRequestId:string|null;recoveryReason:string|null;
-  createdAt:string;updatedAt:string;
+import type { SubscriberType } from '../../domain/subscriptions/subscriberTypes';
+
+export type SubscriberLifecycleStatus = 'active' | 'suspended' | 'recovery_pending' | 'closed' | 'purged';
+
+export interface AdminSubscriberRecord {
+  id: string;
+  name: string;
+  organizationType: string;
+  subscriberType: SubscriberType;
+  status: SubscriberLifecycleStatus;
+  statusReason: string | null;
+  country: string;
+  district: string | null;
+  city: string | null;
+  website: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  description: string | null;
+  audienceScope: string | null;
+  primaryObjective: string | null;
+  monthlyBudgetSle: number | null;
+  subscriberDetails: Record<string, string>;
+  ownerId: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  memberCount: number;
+  subscriptionId: string | null;
+  planCode: string | null;
+  planName: string | null;
+  subscriptionStatus: string | null;
+  billingCycle: string | null;
+  currentPeriodEnd: string | null;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  recoverableUntil: string | null;
+  purgedAt: string | null;
+  recoveryRequestId: string | null;
+  recoveryReason: string | null;
+  totalCount: number;
 }
-async function getSupabase(){return(await import('../../lib/supabaseClient')).supabase}
-export async function fetchAdminOrganizations(status:OrganizationLifecycleStatus|null,search:string){
-  const supabase=await getSupabase();const{data,error}=await supabase.rpc('admin_list_organizations',{p_status:status,p_search:search||null,p_limit:100});
-  if(error)throw error;return(data??[]).map((r:any)=>({id:r.id,name:r.name,type:r.type,status:r.status,statusReason:r.status_reason,
-    memberCount:Number(r.member_count),activePlan:r.active_plan,recoveryRequestId:r.recovery_request_id,recoveryReason:r.recovery_reason,
-    createdAt:r.created_at,updatedAt:r.updated_at}))as AdminOrganizationRecord[];
+
+export interface SubscriberFilters {
+  status: SubscriberLifecycleStatus | null;
+  subscriberType: SubscriberType | null;
+  search: string;
+  page: number;
+  pageSize: number;
 }
-export async function transitionOrganization(id:string,action:'suspend'|'reactivate'|'close',reason:string){
-  const {executeBackendCommand}=await import('../../lib/commandApi');await executeBackendCommand('organization.transition',{orgId:id,action,reason});
+
+async function getSupabase() { return (await import('../../lib/supabaseClient')).supabase; }
+
+export async function fetchAdminSubscribers(filters: SubscriberFilters): Promise<{ items: AdminSubscriberRecord[]; total: number }> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.rpc('admin_list_subscribers', {
+    p_status: filters.status,
+    p_subscriber_type: filters.subscriberType,
+    p_search: filters.search.trim() || null,
+    p_limit: filters.pageSize,
+    p_offset: filters.page * filters.pageSize,
+  });
+  if (error) throw error;
+  const items = (data ?? []).map((row: any): AdminSubscriberRecord => ({
+    id: row.id, name: row.name, organizationType: row.organization_type,
+    subscriberType: row.subscriber_type, status: row.status, statusReason: row.status_reason,
+    country: row.country, district: row.district, city: row.city, website: row.website,
+    phone: row.phone, whatsapp: row.whatsapp, description: row.description,
+    audienceScope: row.audience_scope, primaryObjective: row.primary_objective,
+    monthlyBudgetSle: row.monthly_budget_sle === null ? null : Number(row.monthly_budget_sle),
+    subscriberDetails: row.subscriber_details ?? {}, ownerId: row.owner_id,
+    ownerName: row.owner_name, ownerEmail: row.owner_email, memberCount: Number(row.member_count),
+    subscriptionId: row.subscription_id, planCode: row.plan_code, planName: row.plan_name,
+    subscriptionStatus: row.subscription_status, billingCycle: row.billing_cycle,
+    currentPeriodEnd: row.current_period_end, createdAt: row.created_at, updatedAt: row.updated_at,
+    closedAt: row.closed_at, recoverableUntil: row.recoverable_until, purgedAt: row.purged_at,
+    recoveryRequestId: row.recovery_request_id, recoveryReason: row.recovery_reason,
+    totalCount: Number(row.total_count),
+  }));
+  return { items, total: items[0]?.totalCount ?? 0 };
 }
-export async function decideOrganizationRecovery(id:string,approve:boolean,note:string){
-  const {executeBackendCommand}=await import('../../lib/commandApi');await executeBackendCommand('organization.recovery.decide',{requestId:id,approve,note});
+
+export async function transitionOrganization(id: string, action: 'suspend' | 'reactivate' | 'close', reason: string) {
+  const { executeBackendCommand } = await import('../../lib/commandApi');
+  await executeBackendCommand('organization.transition', { orgId: id, action, reason });
+}
+
+export async function purgeSubscriber(id: string, confirmation: string, reason: string) {
+  const { executeBackendCommand } = await import('../../lib/commandApi');
+  await executeBackendCommand('organization.purge', { orgId: id, confirmation, reason });
+}
+
+export async function decideOrganizationRecovery(id: string, approve: boolean, note: string) {
+  const { executeBackendCommand } = await import('../../lib/commandApi');
+  await executeBackendCommand('organization.recovery.decide', { requestId: id, approve, note });
+}
+
+export function exportSubscribersCsv(items: AdminSubscriberRecord[]): string {
+  const rows = [
+    ['Organization','Subscriber type','Status','Owner','Owner email','Phone','WhatsApp','Country','District','Plan','Subscription status','Registered'],
+    ...items.map(item => [item.name,item.subscriberType,item.status,item.ownerName ?? '',item.ownerEmail ?? '',item.phone ?? '',item.whatsapp ?? '',item.country,item.district ?? '',item.planName ?? '',item.subscriptionStatus ?? '',item.createdAt]),
+  ];
+  return rows.map(row => row.map(value => `"${String(value).replaceAll('"','""')}"`).join(',')).join('\n');
 }
