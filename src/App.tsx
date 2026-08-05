@@ -204,16 +204,25 @@ function MainApp() {
 
   // --- AUTH SESSION BOOTSTRAP ---
   useEffect(() => {
+    let workspaceLoadTimer: number | undefined;
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       if (event === 'PASSWORD_RECOVERY') {
+        if (workspaceLoadTimer !== undefined) window.clearTimeout(workspaceLoadTimer);
         setWorkspaceLoading(false);
         setView('update-password');
         return;
       }
-      loadWorkspace(nextSession);
+      // Supabase holds an internal auth lock while this callback runs. Starting
+      // another Supabase request here can deadlock the client after a successful
+      // password login, so defer workspace hydration until the callback exits.
+      if (workspaceLoadTimer !== undefined) window.clearTimeout(workspaceLoadTimer);
+      workspaceLoadTimer = window.setTimeout(() => void loadWorkspace(nextSession), 0);
     });
-    return () => subscription.subscription.unsubscribe();
+    return () => {
+      if (workspaceLoadTimer !== undefined) window.clearTimeout(workspaceLoadTimer);
+      subscription.subscription.unsubscribe();
+    };
   }, [loadWorkspace]);
 
   // --- HANDLERS ---
