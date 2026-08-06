@@ -21,6 +21,7 @@ export interface AdminSubscriberRecord {
   monthlyBudgetSle: number | null;
   subscriberDetails: Record<string, string>;
   isProtected: boolean;
+  isDemo: boolean;
   ownerId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
@@ -45,6 +46,7 @@ export interface SubscriberFilters {
   status: SubscriberLifecycleStatus | null;
   subscriberType: SubscriberType | null;
   search: string;
+  includeDemo: boolean;
   page: number;
   pageSize: number;
 }
@@ -60,6 +62,7 @@ export async function fetchAdminSubscribers(filters: SubscriberFilters): Promise
       p_search: filters.search.trim() || null,
       p_limit: filters.pageSize,
       p_offset: filters.page * filters.pageSize,
+      p_include_demo: filters.includeDemo,
     }),
     supabase.rpc('admin_list_protected_organization_ids'),
   ]);
@@ -73,7 +76,7 @@ export async function fetchAdminSubscribers(filters: SubscriberFilters): Promise
     phone: row.phone, whatsapp: row.whatsapp, description: row.description,
     audienceScope: row.audience_scope, primaryObjective: row.primary_objective,
     monthlyBudgetSle: row.monthly_budget_sle === null ? null : Number(row.monthly_budget_sle),
-    subscriberDetails: row.subscriber_details ?? {}, isProtected: protectedIds.has(row.id), ownerId: row.owner_id,
+    subscriberDetails: row.subscriber_details ?? {}, isProtected: protectedIds.has(row.id), isDemo: Boolean(row.is_demo), ownerId: row.owner_id,
     ownerName: row.owner_name, ownerEmail: row.owner_email, memberCount: Number(row.member_count),
     subscriptionId: row.subscription_id, planCode: row.plan_code, planName: row.plan_name,
     subscriptionStatus: row.subscription_status, billingCycle: row.billing_cycle,
@@ -102,8 +105,8 @@ export async function decideOrganizationRecovery(id: string, approve: boolean, n
 
 export function exportSubscribersCsv(items: AdminSubscriberRecord[]): string {
   const rows = [
-    ['Organization','Subscriber type','Status','Owner','Owner email','Phone','WhatsApp','Country','District','Plan','Subscription status','Registered'],
-    ...items.map(item => [item.name,item.subscriberType,item.status,item.ownerName ?? '',item.ownerEmail ?? '',item.phone ?? '',item.whatsapp ?? '',item.country,item.district ?? '',item.planName ?? '',item.subscriptionStatus ?? '',item.createdAt]),
+    ['Organization','Demo record','Subscriber type','Status','Owner','Owner email','Phone','WhatsApp','Country','District','Plan','Subscription status','Registered'],
+    ...items.map(item => [item.name,item.isDemo ? 'Yes' : 'No',item.subscriberType,item.status,item.ownerName ?? '',item.ownerEmail ?? '',item.phone ?? '',item.whatsapp ?? '',item.country,item.district ?? '',item.planName ?? '',item.subscriptionStatus ?? '',item.createdAt]),
   ];
   return rows.map(row => row.map(value => `"${String(value).replaceAll('"','""')}"`).join(',')).join('\n');
 }
