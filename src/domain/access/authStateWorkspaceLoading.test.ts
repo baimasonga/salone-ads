@@ -11,4 +11,8 @@ describe('auth state workspace loading',()=>{
   it('cancels queued hydration for password recovery and unmount',()=>{
     expect(app.match(/window\.clearTimeout\(workspaceLoadTimer\)/g)?.length).toBeGreaterThanOrEqual(2);
   });
+  it('leaves the sign-in form as soon as Supabase confirms a session',()=>{
+    expect(app).toContain("event === 'SIGNED_IN' || event === 'INITIAL_SESSION'");
+    expect(app).toContain("currentView === 'signin' ? 'dashboard' : currentView");
+  });
 });

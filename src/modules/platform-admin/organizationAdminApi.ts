@@ -20,6 +20,7 @@ export interface AdminSubscriberRecord {
   primaryObjective: string | null;
   monthlyBudgetSle: number | null;
   subscriberDetails: Record<string, string>;
+  isProtected: boolean;
   ownerId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
@@ -52,14 +53,19 @@ async function getSupabase() { return (await import('../../lib/supabaseClient'))
 
 export async function fetchAdminSubscribers(filters: SubscriberFilters): Promise<{ items: AdminSubscriberRecord[]; total: number }> {
   const supabase = await getSupabase();
-  const { data, error } = await supabase.rpc('admin_list_subscribers', {
-    p_status: filters.status,
-    p_subscriber_type: filters.subscriberType,
-    p_search: filters.search.trim() || null,
-    p_limit: filters.pageSize,
-    p_offset: filters.page * filters.pageSize,
-  });
+  const [{ data, error }, { data: protectedRows, error: protectedError }] = await Promise.all([
+    supabase.rpc('admin_list_subscribers', {
+      p_status: filters.status,
+      p_subscriber_type: filters.subscriberType,
+      p_search: filters.search.trim() || null,
+      p_limit: filters.pageSize,
+      p_offset: filters.page * filters.pageSize,
+    }),
+    supabase.rpc('admin_list_protected_organization_ids'),
+  ]);
   if (error) throw error;
+  if (protectedError) throw protectedError;
+  const protectedIds = new Set((protectedRows ?? []).map((row: any) => row.org_id));
   const items = (data ?? []).map((row: any): AdminSubscriberRecord => ({
     id: row.id, name: row.name, organizationType: row.organization_type,
     subscriberType: row.subscriber_type, status: row.status, statusReason: row.status_reason,
@@ -67,7 +73,7 @@ export async function fetchAdminSubscribers(filters: SubscriberFilters): Promise
     phone: row.phone, whatsapp: row.whatsapp, description: row.description,
     audienceScope: row.audience_scope, primaryObjective: row.primary_objective,
     monthlyBudgetSle: row.monthly_budget_sle === null ? null : Number(row.monthly_budget_sle),
-    subscriberDetails: row.subscriber_details ?? {}, ownerId: row.owner_id,
+    subscriberDetails: row.subscriber_details ?? {}, isProtected: protectedIds.has(row.id), ownerId: row.owner_id,
     ownerName: row.owner_name, ownerEmail: row.owner_email, memberCount: Number(row.member_count),
     subscriptionId: row.subscription_id, planCode: row.plan_code, planName: row.plan_name,
     subscriptionStatus: row.subscription_status, billingCycle: row.billing_cycle,

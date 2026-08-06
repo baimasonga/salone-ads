@@ -213,6 +213,9 @@ function MainApp() {
         setView('update-password');
         return;
       }
+      if (nextSession && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+        setView((currentView) => currentView === 'signin' ? 'dashboard' : currentView);
+      }
       // Supabase holds an internal auth lock while this callback runs. Starting
       // another Supabase request here can deadlock the client after a successful
       // password login, so defer workspace hydration until the callback exits.
