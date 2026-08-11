@@ -12,9 +12,7 @@ import { AdminAuditLogWorkspace } from '../modules/platform-admin/AdminAuditLogW
 import { AdminServiceRequestsWorkspace } from '../modules/service-requests/AdminServiceRequestsWorkspace';
 import type { PlatformStaffRole } from '../lib/platformStaffApi';
 import { isPlatformAdminWorkspaceTab, PlatformAdminWorkspace } from '../modules/platform-admin/PlatformAdminWorkspace';
-import { CampaignBuilderPage } from './CampaignBuilderPage';
 import { AdvertBillingPage } from './AdvertBillingPage';
-import { AgencyWorkspacePage } from './AgencyWorkspacePage';
 import { LandingCmsPage } from './LandingCmsPage';
 import { CmsContentManagerPage } from './CmsContentManagerPage';
 import { AudienceSubscribersPage } from './AudienceSubscribersPage';
@@ -31,6 +29,16 @@ import {
 const OpportunityIngestionWorkspace = lazy(() =>
   import('../modules/procurement/OpportunityIngestionWorkspace')
     .then((module) => ({ default: module.OpportunityIngestionWorkspace })),
+);
+
+const AgencyWorkspacePage = lazy(() =>
+  import('./AgencyWorkspacePage')
+    .then((module) => ({ default: module.AgencyWorkspacePage })),
+);
+
+const CampaignBuilderPage = lazy(() =>
+  import('./CampaignBuilderPage')
+    .then((module) => ({ default: module.CampaignBuilderPage })),
 );
 
 interface OverviewModel {
@@ -103,9 +111,21 @@ export function resolveDelegatedWorkspaceRoute({
   if (activeTab === 'admin-subscriptions') return isPlatformAdmin ? <AdminSubscriptionLifecycleWorkspace /> : adminDenied();
   if (activeTab === 'billing') return <SubscriptionBillingPage activeOrg={activeOrg} />;
   if (activeTab === 'org-profile') return <OrganizationProfilePage activeOrg={activeOrg} onUpdated={onOrganizationUpdated} />;
-  if (activeTab === 'campaign-builder' || activeTab === 'campaigns') return <CampaignBuilderPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
+  if (activeTab === 'campaign-builder' || activeTab === 'campaigns') {
+    return (
+      <Suspense fallback={<div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Loading Campaign Management…</div>}>
+        <CampaignBuilderPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />
+      </Suspense>
+    );
+  }
   if (activeTab === 'advert-packages' || activeTab === 'admin-advert-revenue') return <AdvertBillingPage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
-  if (activeTab === 'agency-workspace') return <AgencyWorkspacePage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />;
+  if (activeTab === 'agency-workspace') {
+    return (
+      <Suspense fallback={<div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Loading Agency Workspace…</div>}>
+        <AgencyWorkspacePage activeOrg={activeOrg} isPlatformAdmin={isPlatformAdmin} />
+      </Suspense>
+    );
+  }
   if (activeTab === 'landing-cms') return <LandingCmsPage />;
   if (activeTab === 'content-cms') return <CmsContentManagerPage isPlatformAdmin={isPlatformAdmin || platformStaffRole === 'editorial'} />;
   if (activeTab === 'audience-subscribers') return <AudienceSubscribersPage />;
