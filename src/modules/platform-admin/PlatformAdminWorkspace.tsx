@@ -21,6 +21,7 @@ import { AdminResilienceWorkspace } from './AdminResilienceWorkspace';
 import { AdminUsageMeteringWorkspace } from './AdminUsageMeteringWorkspace';
 import { AdminAuthorizationAssuranceWorkspace } from './AdminAuthorizationAssuranceWorkspace';
 import { AdminCommandOperationsWorkspace } from './AdminCommandOperationsWorkspace';
+import type { PlatformStaffRole } from '../../lib/platformStaffApi';
 
 const AdminOrganizationLifecycleWorkspace = lazy(() =>
   import('./AdminOrganizationLifecycleWorkspace').then((module) => ({
@@ -29,6 +30,9 @@ const AdminOrganizationLifecycleWorkspace = lazy(() =>
 );
 const PlatformStaffAccessWorkspace = lazy(() =>
   import('./PlatformStaffAccessWorkspace').then((module) => ({ default: module.PlatformStaffAccessWorkspace })),
+);
+const AdministratorControlCentre = lazy(() =>
+  import('./AdministratorControlCentre').then((module) => ({ default: module.AdministratorControlCentre })),
 );
 
 const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage', 'admin-authorization', 'admin-commands', 'admin-access'] as const;
@@ -56,6 +60,7 @@ interface PlatformAdminWorkspaceProps {
   activeTab: PlatformAdminTab;
   metrics: PlatformAdminMetrics;
   onNavigate: (tab: string) => void;
+  platformStaffRole: PlatformStaffRole | null;
 }
 
 function WorkspaceHub({
@@ -204,9 +209,10 @@ export function PlatformAdminWorkspace({
   activeTab,
   metrics,
   onNavigate,
+  platformStaffRole,
 }: PlatformAdminWorkspaceProps) {
   if (activeTab === 'overview') {
-    return <PlatformOverview metrics={metrics} onNavigate={onNavigate} />;
+    return <Suspense fallback={<div role="status" className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-500">Loading Control Centre…</div>}><AdministratorControlCentre role={platformStaffRole ?? 'administrator'} onNavigate={onNavigate}/></Suspense>;
   }
 
   if (activeTab === 'admin-jobs') {

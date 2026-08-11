@@ -41,6 +41,11 @@ const CampaignBuilderPage = lazy(() =>
     .then((module) => ({ default: module.CampaignBuilderPage })),
 );
 
+const AdministratorControlCentre = lazy(() =>
+  import('../modules/platform-admin/AdministratorControlCentre')
+    .then((module) => ({ default: module.AdministratorControlCentre })),
+);
+
 interface OverviewModel {
   tier: ProcurementTier; pipelineCount: number; savedSearchCount: number; savedSearches: SavedSearch[];
   recommended: OpportunityListItem[]; publishedTenderCount: number; loading: boolean; degraded: boolean;
@@ -61,18 +66,6 @@ interface WorkspaceRouteResolverProps {
 
 const adminDenied = () => <div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">You do not have platform admin access.</div>;
 
-const staffOverview = (role: PlatformStaffRole) => {
-  const copy: Record<PlatformStaffRole,{title:string;description:string}> = {
-    owner:{title:'Platform owner',description:'Full control of Manohub operations and staff access.'},
-    administrator:{title:'Platform administration',description:'Operate Manohub services, publishing and customer workflows.'},
-    finance:{title:'Finance workspace',description:'Review invoices and record authorised payments, credits and refunds.'},
-    editorial:{title:'Editorial workspace',description:'Create, review and publish Manohub pages and articles.'},
-    support:{title:'Support workspace',description:'Respond to subscriber service requests and maintain customer communication.'},
-    auditor:{title:'Audit workspace',description:'Read-only visibility into platform activity and accountability records.'},
-  };
-  return <section className="border-2 border-slate-950 bg-slate-950 p-8 text-white"><p className="font-mono text-[9px] font-bold uppercase tracking-[.22em] text-emerald-300">Quantix Sierra Leone</p><h2 className="mt-3 font-display text-3xl font-extrabold !text-white">{copy[role].title}</h2><p className="mt-3 max-w-2xl text-sm text-slate-300">{copy[role].description}</p></section>;
-};
-
 export function resolveDelegatedWorkspaceRoute({
   activeTab, activeOrg, isPlatformAdmin, isPlatformResearcher, platformStaffRole, onNavigate,
   onOrganizationUpdated, subscriberAccess, overview, metrics,
@@ -88,10 +81,10 @@ export function resolveDelegatedWorkspaceRoute({
   }
   if (activeTab === 'admin-finance') return isPlatformAdmin || platformStaffRole === 'finance' ? <FinanceLedgerWorkspace /> : adminDenied();
   if (isPlatformAdmin && isPlatformAdminWorkspaceTab(activeTab)) {
-    return <PlatformAdminWorkspace activeTab={activeTab} onNavigate={onNavigate} metrics={metrics} />;
+    return <PlatformAdminWorkspace activeTab={activeTab} onNavigate={onNavigate} metrics={metrics} platformStaffRole={platformStaffRole} />;
   }
   if (activeTab === 'overview' && !isPlatformAdmin) {
-    if (platformStaffRole) return staffOverview(platformStaffRole);
+    if (platformStaffRole) return <Suspense fallback={<div role="status" className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Loading Control Centre…</div>}><AdministratorControlCentre role={platformStaffRole} onNavigate={onNavigate}/></Suspense>;
     if (activeOrg.subscriberType === 'advertiser') {
       return <AdvertisingSubscriberOverview organization={activeOrg} access={subscriberAccess} metrics={metrics} onNavigate={onNavigate} />;
     }

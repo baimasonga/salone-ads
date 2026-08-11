@@ -122,6 +122,7 @@ const COMMANDS: Record<string, { rpc: string; params: (payload: CommandPayload) 
   'billing.credit.issue': { rpc: 'issue_commercial_credit', params: p => ({ p_invoice_id: commandUuid(p, 'invoiceId'), p_credit_number: commandField(p, 'creditNumber', 100), p_amount: commandAmount(p, 'amount'), p_reason: commandField(p, 'reason', 1000) }) },
   'billing.refund.record': { rpc: 'record_commercial_refund', params: p => ({ p_payment_id: commandUuid(p, 'paymentId'), p_refund_reference: commandField(p, 'refundReference', 200), p_amount: commandAmount(p, 'amount'), p_reason: commandField(p, 'reason', 1000) }) },
   'platform_staff.update': { rpc: 'admin_update_platform_staff', params: p => ({ p_user_id: commandUuid(p, 'userId'), p_action: oneOf(commandField(p, 'action', 30), ['change_role','suspend','reactivate','revoke'], 'action'), p_role: commandField(p, 'role', 30, true), p_reason: commandField(p, 'reason', 1000, true) }) },
+  'platform_intake_control.update': { rpc: 'admin_update_platform_intake_control', params: p => ({ p_control_key: oneOf(commandField(p, 'controlKey', 40), ['subscriber_onboarding','procurement_submissions','advertising_orders','service_requests'], 'controlKey'), p_enabled: commandBoolean(p, 'enabled'), p_reason: commandField(p, 'reason', 1000) }) },
 };
 
 

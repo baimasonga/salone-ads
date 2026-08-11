@@ -5,7 +5,7 @@ export type BackendCommand =
   | 'subscription.transition' | 'advertising.order.create'
   | 'organization.verification.approve' | 'procurement.ingestion.promote'
   | 'billing.payment.record' | 'billing.credit.issue' | 'billing.refund.record'
-  | 'platform_staff.update';
+  | 'platform_staff.update' | 'platform_intake_control.update';
 
 export async function executeBackendCommand<T = unknown>(command: BackendCommand, payload: Record<string, unknown>): Promise<T> {
   const { data: { session } } = await supabase.auth.getSession();
