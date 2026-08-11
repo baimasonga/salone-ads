@@ -47,7 +47,7 @@ const C = {
   contentBg: '#f4f6f8',
   iconBg: '#e7f4ee',
   iconBorder: '#d5ebdf',
-  amber: '#d5852a',
+  amber: '#95540f',
   featBg: '#fbf1cf',
   featText: '#6b4f00',
   deadlineDim: '#526071',
