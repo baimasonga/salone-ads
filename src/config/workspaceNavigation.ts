@@ -12,6 +12,7 @@ import {
   LifeBuoy,
   Mail,
   Settings,
+  ShieldCheck,
   Shield,
   ScanSearch,
   Sparkles,
@@ -78,6 +79,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
           { id: 'admin-finance', label: 'Finance Ledger', icon: CreditCard },
           { id: 'admin-resilience', label: 'Reliability & Recovery', icon: LifeBuoy },
           { id: 'admin-access', label: 'Settings & Access', icon: Settings },
+          { id: 'account-security', label: 'Account Security', icon: ShieldCheck },
         ],
       },
     ];
@@ -87,21 +89,25 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
     { id: 'overview', label: 'Finance Control Centre', icon: BarChart2 },
     { id: 'admin-finance', label: 'Finance Ledger', icon: CreditCard },
     { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'account-security', label: 'Account Security', icon: ShieldCheck },
   ] }];
   if (context.platformStaffRole === 'editorial') return [{ group: 'Editorial', items: [
     { id: 'overview', label: 'Editorial Control Centre', icon: BarChart2 },
     { id: 'content-cms', label: 'Pages & Editorial', icon: BookOpen },
     { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'account-security', label: 'Account Security', icon: ShieldCheck },
   ] }];
   if (context.platformStaffRole === 'support') return [{ group: 'Support', items: [
     { id: 'overview', label: 'Support Control Centre', icon: BarChart2 },
     { id: 'admin-services', label: 'Service Requests', icon: LifeBuoy },
     { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'account-security', label: 'Account Security', icon: ShieldCheck },
   ] }];
   if (context.platformStaffRole === 'auditor') return [{ group: 'Assurance', items: [
     { id: 'overview', label: 'Audit Control Centre', icon: BarChart2 },
     { id: 'admin-audit-log', label: 'Audit Log', icon: ClipboardList },
     { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'account-security', label: 'Account Security', icon: ShieldCheck },
   ] }];
 
   if (context.isPlatformResearcher) {
@@ -175,6 +181,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         { id: 'org-profile', label: subscriber.profileLabel, icon: Settings },
         { id: 'team', label: 'Team', icon: UserPlus },
         { id: 'billing', label: 'Billing', icon: CreditCard },
+        { id: 'account-security', label: 'Account Security', icon: ShieldCheck },
       ],
     });
   }

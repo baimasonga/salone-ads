@@ -5,7 +5,8 @@ const app=fs.readFileSync('src/App.tsx','utf8');
 
 describe('auth state workspace loading',()=>{
   it('defers Supabase workspace calls until the auth callback lock is released',()=>{
-    expect(app).toContain('window.setTimeout(() => void loadWorkspace(nextSession), 0)');
+    expect(app).toContain('workspaceLoadTimer = window.setTimeout(() => {');
+    expect(app).toContain('await loadWorkspace(nextSession);');
     expect(app).not.toContain('\n      loadWorkspace(nextSession);');
   });
   it('cancels queued hydration for password recovery and unmount',()=>{

@@ -125,6 +125,20 @@ const COMMANDS: Record<string, { rpc: string; params: (payload: CommandPayload) 
   'platform_intake_control.update': { rpc: 'admin_update_platform_intake_control', params: p => ({ p_control_key: oneOf(commandField(p, 'controlKey', 40), ['subscriber_onboarding','procurement_submissions','advertising_orders','service_requests'], 'controlKey'), p_enabled: commandBoolean(p, 'enabled'), p_reason: commandField(p, 'reason', 1000) }) },
 };
 
+const STEP_UP_COMMANDS = new Set([
+  'organization.transition','organization.recovery.decide','organization.purge',
+  'subscription.transition','organization.verification.approve','billing.payment.record',
+  'billing.credit.issue','billing.refund.record','platform_staff.update','platform_intake_control.update',
+]);
+
+function tokenAssuranceLevel(req: express.Request): string {
+  const token = req.headers.authorization?.slice(7) ?? '';
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8'));
+    return typeof payload.aal === 'string' ? payload.aal : 'aal1';
+  } catch { return 'aal1'; }
+}
+
 
 const redirectRateLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -518,6 +532,9 @@ async function startServer() {
     }
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       res.status(400).json({ error: { message: 'Command payload must be an object.' } }); return;
+    }
+    if (STEP_UP_COMMANDS.has(command) && tokenAssuranceLevel(req) !== 'aal2') {
+      res.status(403).json({ error: { message: 'Additional verification is required before this sensitive action.', code: 'MFA_STEP_UP_REQUIRED' } }); return;
     }
 
     let commandId: string | undefined;

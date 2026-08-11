@@ -35,6 +35,8 @@ import type { SubscriberAccessSummary } from './components/SubscriberOverview';
 import { getSubscriberType } from './domain/subscriptions/subscriberTypes';
 import { AccountRestrictedPage } from './components/AccountRestrictedPage';
 import { fetchMyPlatformStaffAccess, type PlatformStaffRole } from './lib/platformStaffApi';
+import { observeAccountSession } from './lib/accountSecurityApi';
+import { MfaChallengeScreen } from './components/MfaChallengeScreen';
 
 const NO_FEATURES = new Set<string>();
 const ADVERTISING_FEATURES = new Set(['business_advertising']);
@@ -99,6 +101,7 @@ function MainApp() {
   const [view, setView] = useState<AppView>(() => getInitialView(window.location.search));
   const [workspaceLoading, setWorkspaceLoading] = useState(true);
   const [workspaceError, setWorkspaceError] = useState('');
+  const [mfaRequired, setMfaRequired] = useState(false);
 
   // --- HYDRATED DATA STATES (populated from Supabase once authenticated) ---
   const [activeOrg, setActiveOrg] = useState<Organization | null>(null);
@@ -222,7 +225,19 @@ function MainApp() {
       // another Supabase request here can deadlock the client after a successful
       // password login, so defer workspace hydration until the callback exits.
       if (workspaceLoadTimer !== undefined) window.clearTimeout(workspaceLoadTimer);
-      workspaceLoadTimer = window.setTimeout(() => void loadWorkspace(nextSession), 0);
+      workspaceLoadTimer = window.setTimeout(() => {
+        void (async () => {
+          if (nextSession) {
+            const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+            if (!assurance.error && assurance.data.nextLevel === 'aal2' && assurance.data.currentLevel !== 'aal2') {
+              setMfaRequired(true); setWorkspaceLoading(false); return;
+            }
+            setMfaRequired(false);
+            await observeAccountSession().catch(() => undefined);
+          }
+          await loadWorkspace(nextSession);
+        })();
+      }, 0);
     });
     return () => {
       if (workspaceLoadTimer !== undefined) window.clearTimeout(workspaceLoadTimer);
@@ -269,6 +284,10 @@ function MainApp() {
         onSuccess={handleOnboardingComplete}
       />
     );
+  }
+
+  if (mfaRequired && session) {
+    return <MfaChallengeScreen onVerified={() => { setMfaRequired(false); void observeAccountSession().catch(() => undefined); void loadWorkspace(session); }} />;
   }
 
   // The dashboard view is only ever set from loadWorkspace with a live

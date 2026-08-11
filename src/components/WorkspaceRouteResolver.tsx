@@ -46,6 +46,10 @@ const AdministratorControlCentre = lazy(() =>
     .then((module) => ({ default: module.AdministratorControlCentre })),
 );
 
+const AccountSecurityPage = lazy(() =>
+  import('./AccountSecurityPage').then((module) => ({ default: module.AccountSecurityPage })),
+);
+
 interface OverviewModel {
   tier: ProcurementTier; pipelineCount: number; savedSearchCount: number; savedSearches: SavedSearch[];
   recommended: OpportunityListItem[]; publishedTenderCount: number; loading: boolean; degraded: boolean;
@@ -71,6 +75,7 @@ export function resolveDelegatedWorkspaceRoute({
   onOrganizationUpdated, subscriberAccess, overview, metrics,
 }: WorkspaceRouteResolverProps): ReactNode | undefined {
   if (activeTab === 'notifications') return <NotificationCentre activeOrgId={activeOrg.id} onNavigate={onNavigate} />;
+  if (activeTab === 'account-security') return <Suspense fallback={<div role="status" className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Loading account security…</div>}><AccountSecurityPage /></Suspense>;
   if (activeTab === 'opportunity-ingestion') {
     if (!isPlatformAdmin && !isPlatformResearcher) return <div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Researcher access is required.</div>;
     return (
