@@ -72,6 +72,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         group: 'Administration',
         items: [
           { id: 'admin-organizations', label: 'Subscriber Management', icon: Users },
+          { id: 'agency-workspace', label: 'Agency Oversight', icon: UserCheck },
           { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
           { id: 'admin-audit-log', label: 'Audit Log', icon: ClipboardList },
           { id: 'admin-finance', label: 'Finance Ledger', icon: CreditCard },
@@ -125,6 +126,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
       ],
     },
   ];
+  const isAgency = hasWorkspaceCapability(context, 'agency:manage');
 
   if (hasWorkspaceCapability(context, 'content:manage')) {
     groups.push({
@@ -157,7 +159,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
     });
   }
 
-  if (hasWorkspaceCapability(context, 'agency:manage')) {
+  if (isAgency) {
     groups.push({
       group: 'Agency',
       items: [{ id: 'agency-workspace', label: 'Client Workspace', icon: Users }],
@@ -169,6 +171,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
     groups.push({
       group: 'Account',
       items: [
+        ...(!isAgency ? [{ id: 'agency-workspace', label: 'Agency Access', icon: UserCheck }] : []),
         { id: 'org-profile', label: subscriber.profileLabel, icon: Settings },
         { id: 'team', label: 'Team', icon: UserPlus },
         { id: 'billing', label: 'Billing', icon: CreditCard },

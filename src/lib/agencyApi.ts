@@ -25,12 +25,13 @@ export interface AgencyApproval {
   createdAt: string;
 }
 
-export async function fetchAgencyClients(orgId: string): Promise<AgencyClient[]> {
-  const { data, error } = await supabase
+export async function fetchAgencyClients(orgId: string, isPlatformAdmin = false): Promise<AgencyClient[]> {
+  let query = supabase
     .from('agency_clients')
     .select('id, agency_org_id, client_org_id, status, monthly_budget_limit, permissions, report_access_enabled, created_at, organizations!agency_clients_client_org_id_fkey(name)')
-    .or(`agency_org_id.eq.${orgId},client_org_id.eq.${orgId}`)
     .order('created_at', { ascending: false });
+  if (!isPlatformAdmin) query = query.or(`agency_org_id.eq.${orgId},client_org_id.eq.${orgId}`);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).map((row: any) => ({
     id: row.id,
@@ -66,7 +67,6 @@ export async function updateAgencyClient(
     ...(patch.permissions !== undefined && { permissions: patch.permissions }),
     ...(patch.reportAccessEnabled !== undefined && { report_access_enabled: patch.reportAccessEnabled }),
     ...(patch.monthlyBudgetLimit !== undefined && { monthly_budget_limit: patch.monthlyBudgetLimit }),
-    ...(patch.status === 'active' && { approved_at: new Date().toISOString() }),
   }).eq('id', id);
   if (error) throw error;
 }
@@ -110,12 +110,9 @@ export async function decideAgencyApproval(
   status: 'approved' | 'changes_requested',
   note: string,
 ): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
   const { error } = await supabase.from('agency_approval_requests').update({
     status,
     decision_note: note || null,
-    decided_by: user?.id ?? null,
-    decided_at: new Date().toISOString(),
   }).eq('id', id);
   if (error) throw error;
 }
