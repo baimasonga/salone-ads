@@ -291,20 +291,13 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
 
   const submitSearch = (event: React.FormEvent) => {
     event.preventDefault();
-    if (searchKind === 'adverts') {
-      navigate('/adverts');
-      return;
-    }
     const params = new URLSearchParams();
     if (keyword.trim()) params.set('q', keyword.trim());
-    if (country) params.set('country', country);
-    if (sector) params.set('sector', sector);
-    if (searchKind === 'contract_awards' || searchKind === 'projects') {
-      const needle = searchKind === 'contract_awards' ? 'contract award' : 'procurement plan';
-      const type = opportunityTypes.find((item) => item.name.toLowerCase().includes(needle));
-      if (type) params.set('type', type.id);
-    }
-    navigate(`/tenders${params.size ? `?${params.toString()}` : ''}`);
+    const resultType = searchKind === 'contract_awards' ? 'award' : searchKind === 'projects' ? 'project' : searchKind === 'adverts' ? 'advert' : 'tender';
+    params.set('type', resultType);
+    const selectedSector = sectors.find(item => item.id === sector);
+    if (selectedSector) params.set('category', selectedSector.name);
+    navigate(`/search?${params.toString()}`);
   };
 
   const navigateToSector = (sectorId: string) => navigate(`/tenders?sector=${sectorId}`);

@@ -49,6 +49,7 @@ const PLATFORM_BRAND_KIT: BrandKit = {brandName:'Manohub',legalName:'Quantix Sie
 
 const Workspaces = lazy(() => import('./components/Workspaces').then((module) => ({ default: module.Workspaces })));
 const TenderSearchPage = lazy(() => import('./components/TenderSearchPage').then((module) => ({ default: module.TenderSearchPage })));
+const AdvancedSearchPage = lazy(() => import('./components/AdvancedSearchPage').then((module) => ({ default: module.AdvancedSearchPage })));
 const TenderDetailPage = lazy(() => import('./components/TenderDetailPage').then((module) => ({ default: module.TenderDetailPage })));
 const AdvertDetailPage = lazy(() => import('./components/AdvertDetailPage').then((module) => ({ default: module.AdvertDetailPage })));
 const AdvertsFeedPage = lazy(() => import('./components/AdvertsFeedPage').then((module) => ({ default: module.AdvertsFeedPage })));
@@ -76,6 +77,7 @@ export default function App() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
+        <Route path="/search" element={<AdvancedSearchPage />} />
         <Route path="/tenders" element={<TenderSearchPage />} />
         <Route path="/tenders/:slug" element={<TenderDetailPage />} />
         <Route path="/adverts" element={<AdvertsFeedPage />} />

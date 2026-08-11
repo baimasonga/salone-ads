@@ -940,3 +940,5 @@ export async function deleteAudienceSegment(id: string): Promise<void> {
   const { error } = await supabase.from('audience_segments').delete().eq('id', id);
   if (error) throw error;
 }
+
+export * from './searchDiscoveryApi';
