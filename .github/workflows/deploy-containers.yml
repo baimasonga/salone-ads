@@ -259,3 +259,4 @@ jobs:
           echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Staging verified: \`${{ needs.validate.outputs.staging_enabled }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Rollback commit: \`${{ steps.rollback.outputs.commit }}\`" >> "$GITHUB_STEP_SUMMARY"
+# Deployment trigger: Agency Workspace authorization hardening rollout (2026-08-11)
