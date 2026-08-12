@@ -1,5 +1,6 @@
 import { ADVERT_SELECT, mapAdvert, type Advert } from './advertisingApi';
 import { supabase } from './supabaseClient';
+import { scanFileBeforeUpload } from './fileSecurity';
 
 export interface LandingContentBlock {
   id: string; blockKey: string; section: string; eyebrow: string; title: string; body: string;
@@ -132,6 +133,7 @@ export async function uploadLandingContentMedia(file: File): Promise<string> {
   if (file.size > 10 * 1024 * 1024) throw new Error('Keep landing-page images under 10MB.');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Please sign in.');
+  await scanFileBeforeUpload(file, 'image');
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `${user.id}/${Date.now()}-${safeName}`;
   const { error } = await supabase.storage.from('landing-cms-media').upload(path, file, {

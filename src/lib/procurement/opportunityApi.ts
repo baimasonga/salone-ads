@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { scanFileBeforeUpload } from '../fileSecurity';
 import {
   getPublicVisitorTokenHash,
   isLikelyAutomatedBrowser,
@@ -224,6 +225,7 @@ export async function uploadOpportunityDocument(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Sign in to upload documents.');
+  await scanFileBeforeUpload(file, 'document');
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const storagePath = `${orgId}/${opportunityId}/${Date.now()}-${safeName}`;

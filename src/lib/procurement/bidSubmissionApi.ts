@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { scanFileBeforeUpload } from '../fileSecurity';
 
 const BUCKET = 'bid-submissions';
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -31,6 +32,7 @@ export async function uploadBidDocument(submission: BidSubmission, file: File): 
   if (file.size > MAX_FILE_SIZE) throw new Error('Each bid document must be 10MB or smaller.');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Sign in to upload bid documents.');
+  await scanFileBeforeUpload(file, 'document');
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const storagePath = `${submission.orgId}/bids/${submission.opportunityId}/${submission.id}/${crypto.randomUUID()}-${safeName}`;
   const { error: uploadError } = await supabase.storage.from(BUCKET).upload(storagePath, file, { upsert: false, contentType: file.type || undefined });

@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { scanFileBeforeUpload } from './fileSecurity';
 
 const MAX_ADVERT_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_ADVERT_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -223,6 +224,7 @@ export async function uploadAdvertCreative(dataUrl: string): Promise<string> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Please sign in before uploading a creative.');
+  await scanFileBeforeUpload(blob, 'image', 'generated-creative.png');
   const path = `${user.id}/generated/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
   const { error } = await supabase.storage.from('advert-creatives').upload(path, blob, { contentType: 'image/png', upsert: false });
   if (error) throw error;
@@ -243,6 +245,7 @@ export async function uploadAdvertImage(file: File, kind: 'photo' | 'logo' = 'ph
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Please sign in before uploading an image.');
+  await scanFileBeforeUpload(file, 'image');
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
   const path = `${user.id}/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await supabase.storage.from('advert-creatives').upload(path, file, { contentType: file.type || undefined, upsert: false });
@@ -732,4 +735,3 @@ export async function deleteCampaign(id: string): Promise<void> {
   const { error } = await supabase.from('ad_campaigns').delete().eq('id', id);
   if (error) throw error;
 }
-

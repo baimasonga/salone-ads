@@ -38,6 +38,11 @@ export interface AdministratorControlCentreSnapshot {
   canManageControls: boolean;
 }
 
+export interface UploadSecurityEvent {
+  id: number; file_name: string; file_kind: string; mime_type: string; file_size: number;
+  verdict: 'clean' | 'blocked' | 'error'; threat_detail: string | null; request_id: string | null; created_at: string;
+}
+
 async function getSupabase() {
   return (await import('../../lib/supabaseClient')).supabase;
 }
@@ -56,4 +61,11 @@ export async function updatePlatformIntakeControl(
   reason: string,
 ): Promise<void> {
   await executeBackendCommand('platform_intake_control.update', { controlKey: key, enabled, reason });
+}
+
+export async function fetchUploadSecurityEvents(): Promise<UploadSecurityEvent[]> {
+  const supabase = await getSupabase();
+  const { data, error } = await supabase.rpc('admin_upload_security_events', { p_limit: 50 });
+  if (error) throw error;
+  return (data ?? []) as UploadSecurityEvent[];
 }

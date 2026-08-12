@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, ArrowRight, CheckCircle2, RefreshCw, ShieldAlert, ToggleLeft, ToggleRight } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, FileWarning, RefreshCw, ShieldAlert, ToggleLeft, ToggleRight } from 'lucide-react';
 import type { PlatformStaffRole } from '../../lib/platformStaffApi';
 import {
   fetchAdministratorControlCentre,
+  fetchUploadSecurityEvents,
   updatePlatformIntakeControl,
   type AdministratorControlCentreSnapshot,
   type ControlCentreSignal,
   type PlatformIntakeControl,
+  type UploadSecurityEvent,
 } from './administratorControlCentreApi';
 
 interface AdministratorControlCentreProps {
@@ -37,8 +39,10 @@ export function AdministratorControlCentre({ role, onNavigate }: AdministratorCo
   const [selected,setSelected]=useState<PlatformIntakeControl|null>(null);
   const [reason,setReason]=useState('');
   const [saving,setSaving]=useState(false);
+  const [uploadEvents,setUploadEvents]=useState<UploadSecurityEvent[]>([]);
 
-  const load=useCallback(async()=>{setLoading(true);setError('');try{setSnapshot(await fetchAdministratorControlCentre())}catch(e){setError(e instanceof Error?e.message:'The operational snapshot could not be loaded.')}finally{setLoading(false)}},[]);
+  const canReviewUploads=['owner','administrator','support','auditor'].includes(role);
+  const load=useCallback(async()=>{setLoading(true);setError('');try{setSnapshot(await fetchAdministratorControlCentre());if(canReviewUploads)setUploadEvents(await fetchUploadSecurityEvents())}catch(e){setError(e instanceof Error?e.message:'The operational snapshot could not be loaded.')}finally{setLoading(false)}},[canReviewUploads]);
   useEffect(()=>{void load()},[load]);
 
   const confirmControl=async()=>{if(!selected||reason.trim().length<10)return;setSaving(true);setError('');try{
@@ -60,6 +64,8 @@ export function AdministratorControlCentre({ role, onNavigate }: AdministratorCo
       <span className="font-mono text-[9px] font-bold uppercase tracking-[.14em] text-slate-500">{metric.label}</span><span className="mt-3 block font-display text-3xl font-extrabold">{metric.format==='currency'?`SLE ${Number(metric.value).toLocaleString()}`:Number(metric.value).toLocaleString()}</span></button>)}</section>
     {!snapshot.metrics.length&&<div className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">No operational figures are available for this role yet.</div>}
     <SignalGrid title="Action queues" items={snapshot.queues} onNavigate={onNavigate}/><SignalGrid title="Risk signals" items={snapshot.risks} onNavigate={onNavigate}/><SignalGrid title="Platform health" items={snapshot.health} onNavigate={onNavigate}/>
+    {canReviewUploads&&<section><div className="flex items-center gap-3"><FileWarning className="h-5 w-5 text-rose-700"/><div><h3 className="font-display text-xl font-extrabold">Upload security review</h3><p className="text-xs text-slate-500">Private scanner evidence; blocked bytes are discarded before storage.</p></div></div>
+      <div className="mt-4 overflow-x-auto border-2 border-slate-950 bg-white"><table className="min-w-full text-left text-xs"><thead className="bg-slate-950 text-white"><tr><th className="p-3">Time</th><th className="p-3">File</th><th className="p-3">Type</th><th className="p-3">Verdict</th><th className="p-3">Detail</th></tr></thead><tbody>{uploadEvents.map(event=><tr key={event.id} className="border-t border-slate-200"><td className="whitespace-nowrap p-3">{new Date(event.created_at).toLocaleString()}</td><td className="max-w-56 truncate p-3" title={event.file_name}>{event.file_name}</td><td className="p-3">{event.file_kind}</td><td className={`p-3 font-bold uppercase ${event.verdict==='blocked'?'text-rose-700':'text-emerald-700'}`}>{event.verdict}</td><td className="max-w-72 truncate p-3" title={event.threat_detail||''}>{event.threat_detail||'No threat found'}</td></tr>)}</tbody></table>{!uploadEvents.length&&<p className="p-5 text-sm text-slate-500">No upload scan events have been recorded yet.</p>}</div></section>}
     {snapshot.canManageControls&&<section><div className="flex items-center gap-3"><ShieldAlert className="h-5 w-5 text-violet-700"/><div><h3 className="font-display text-xl font-extrabold">Emergency intake controls</h3><p className="text-xs text-slate-500">Changes are enforced at the database boundary and recorded in the audit log.</p></div></div>
       <div className="mt-4 grid gap-3 md:grid-cols-2">{snapshot.controls.map(control=><button key={control.key} onClick={()=>{setSelected(control);setReason('')}} className="flex items-start justify-between border-2 border-slate-950 bg-white p-4 text-left">
         <span><span className="font-bold">{control.label}</span><span className="mt-1 block text-xs text-slate-500">{control.enabled?'Accepting new requests':control.reason||'Paused by an administrator'}</span></span>{control.enabled?<ToggleRight className="h-7 w-7 text-emerald-600"/>:<ToggleLeft className="h-7 w-7 text-rose-600"/>}</button>)}</div></section>}

@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { createHash, randomUUID } from "node:crypto";
 import { isIP } from "node:net";
+import { spawn } from "node:child_process";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import { createClient } from "@supabase/supabase-js";
@@ -152,6 +153,31 @@ const redirectRateLimiter = rateLimit({
   },
   message: "Too many redirect requests. Please wait a moment and try again.",
 });
+
+const apiRateLimiter = rateLimit({ windowMs: 60_000, limit: 180, standardHeaders: true, legacyHeaders: false });
+const scanRateLimiter = rateLimit({ windowMs: 60_000, limit: 12, standardHeaders: true, legacyHeaders: false });
+
+function clamAvScan(buffer: Buffer): Promise<{ clean: boolean; detail: string }> {
+  return new Promise((resolve, reject) => {
+    const scanner = spawn('clamscan', ['--no-summary', '--stdout', '-'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let output = '';
+    scanner.stdout.on('data', chunk => { output += chunk.toString(); });
+    scanner.stderr.on('data', chunk => { output += chunk.toString(); });
+    scanner.on('error', () => reject(Object.assign(new Error('Malware scanner is unavailable.'), { status: 503, expose: true, code: 'SCANNER_UNAVAILABLE' })));
+    scanner.on('close', code => {
+      if (code === 0) resolve({ clean: true, detail: 'clean' });
+      else if (code === 1) resolve({ clean: false, detail: output.trim().slice(0, 240) || 'malware detected' });
+      else reject(Object.assign(new Error('Malware scanner could not complete.'), { status: 503, expose: true, code: 'SCAN_FAILED' }));
+    });
+    scanner.stdin.end(buffer);
+  });
+}
+
+function safeUploadedFileName(value: string | undefined): string {
+  if (!value) return 'upload.bin';
+  try { return decodeURIComponent(value.slice(0, 720)).slice(0, 240); }
+  catch { return 'upload.bin'; }
+}
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
 
@@ -420,6 +446,27 @@ async function startServer() {
   app.disable('x-powered-by');
   app.use(requestObservability);
   audienceEmail.registerWebhook(app);
+
+  app.use('/api', apiRateLimiter);
+  app.post('/api/security/scan', scanRateLimiter, requireUser, express.raw({ type: () => true, limit: '10mb' }), async (req, res, next) => {
+    try {
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw Object.assign(new Error('A non-empty file is required.'), { status: 400, expose: true });
+      const result = await clamAvScan(req.body);
+      const event = {
+        user_id: (req as RequestWithContext).userId,
+        file_name: safeUploadedFileName(req.get('x-file-name')),
+        file_kind: (req.get('x-file-kind') || 'document').slice(0, 32),
+        mime_type: (req.get('content-type') || 'application/octet-stream').slice(0, 160),
+        file_size: req.body.length,
+        verdict: result.clean ? 'clean' : 'blocked',
+        threat_detail: result.clean ? null : result.detail,
+        request_id: res.locals.requestId,
+      };
+      if (supabaseServiceClient) await supabaseServiceClient.from('upload_security_events').insert(event);
+      if (!result.clean) throw Object.assign(new Error('This file was blocked because malware was detected.'), { status: 422, expose: true, code: 'MALWARE_DETECTED' });
+      res.json({ verdict: 'clean', requestId: res.locals.requestId });
+    } catch (error) { next(error); }
+  });
 
 
   app.use(express.json({ limit: "100kb" }));

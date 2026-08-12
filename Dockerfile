@@ -18,6 +18,10 @@ RUN npm run build
 FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends clamav clamav-freshclam \
+  && freshclam \
+  && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 # --ignore-scripts: none of the actual runtime deps (express, supabase-js,
 # dotenv, etc.) need install scripts — only esbuild's does, and esbuild
