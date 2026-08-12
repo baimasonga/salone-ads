@@ -9,6 +9,15 @@ export interface RestoreExercise {
   id:string;exerciseType:string;environment:string;status:string;backupPointAt:string;startedAt:string;completedAt:string;
   achievedRpoMinutes:number;achievedRtoMinutes:number;evidenceReference:string;findings:string;
 }
+export interface BackupRun {
+  id:string;runReference:string;backupKind:string;triggerSource:string;status:string;backupPointAt:string;startedAt:string;
+  completedAt:string|null;objectCount:number|null;byteCount:number|null;manifestSha256:string|null;offsiteReference:string|null;
+  workflowRunUrl:string|null;failureSummary:string|null;
+}
+export interface RecoveryReadiness {
+  databaseMethod:string;storageMethod:string;targetRpoMinutes:number;targetRtoMinutes:number;pitrStatus:string;schedule:string;
+  lastSuccessAt:string|null;lastVerifiedRestoreAt:string|null;backupOverdue:boolean;
+}
 
 async function getSupabase(){return(await import('../../lib/supabaseClient')).supabase}
 export async function fetchIncidents(status:IncidentStatus|null=null){
@@ -30,6 +39,20 @@ export async function fetchRestoreExercises(){
   return(data??[]).map((r:any)=>({id:r.id,exerciseType:r.exercise_type,environment:r.environment,status:r.status,
     backupPointAt:r.backup_point_at,startedAt:r.started_at,completedAt:r.completed_at,achievedRpoMinutes:r.achieved_rpo_minutes,
     achievedRtoMinutes:r.achieved_rto_minutes,evidenceReference:r.evidence_reference,findings:r.findings}))as RestoreExercise[];
+}
+export async function fetchBackupRuns(){
+  const supabase=await getSupabase();const{data,error}=await supabase.rpc('admin_list_backup_runs',{p_limit:50});if(error)throw error;
+  return(data??[]).map((r:any)=>({id:r.id,runReference:r.run_reference,backupKind:r.backup_kind,triggerSource:r.trigger_source,status:r.status,
+    backupPointAt:r.backup_point_at,startedAt:r.started_at,completedAt:r.completed_at,objectCount:r.object_count==null?null:Number(r.object_count),
+    byteCount:r.byte_count==null?null:Number(r.byte_count),manifestSha256:r.manifest_sha256,offsiteReference:r.offsite_reference,
+    workflowRunUrl:r.workflow_run_url,failureSummary:r.failure_summary}))as BackupRun[];
+}
+export async function fetchRecoveryReadiness(){
+  const supabase=await getSupabase();const{data,error}=await supabase.rpc('admin_get_recovery_readiness');if(error)throw error;const r=data?.[0];
+  if(!r)throw new Error('Recovery readiness is not configured.');
+  return{databaseMethod:r.database_method,storageMethod:r.storage_method,targetRpoMinutes:r.target_rpo_minutes,targetRtoMinutes:r.target_rto_minutes,
+    pitrStatus:r.pitr_status,schedule:r.schedule,lastSuccessAt:r.last_success_at,lastVerifiedRestoreAt:r.last_verified_restore_at,
+    backupOverdue:Boolean(r.backup_overdue)}as RecoveryReadiness;
 }
 export async function recordRestoreExercise(input:{exerciseType:string;environment:string;status:string;backupPointAt:string;startedAt:string;completedAt:string;achievedRpoMinutes:number;achievedRtoMinutes:number;evidenceReference:string;findings:string}){
   const supabase=await getSupabase();const{error}=await supabase.rpc('admin_record_restore_exercise',{p_exercise_type:input.exerciseType,

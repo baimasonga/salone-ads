@@ -2,7 +2,7 @@
 
 ## Recovery policy
 
-Manohub uses a target RPO of 24 hours and target RTO of 4 hours until Point-in-Time Recovery is enabled and a timed restore exercise proves a tighter objective. Supabase PITR can reduce the database RPO to approximately two minutes, but it is a paid platform capability and must not be marked active in Manohub merely because this runbook exists.
+Manohub uses a target RPO of 24 hours and target RTO of 4 hours until Point-in-Time Recovery is enabled and a timed restore exercise proves a tighter objective. The live Supabase organization is currently on the Free plan, so Manohub uses a daily logical export and must show PITR as unavailable. Supabase PITR can reduce the database RPO to approximately two minutes on an eligible paid plan, but it must not be marked active merely because this runbook exists.
 
 Database backups do not include Storage objects. Database recovery and Storage-object recovery are therefore separate controls. Storage buckets require an independent versioned export or S3-compatible replication process, with restore testing in a non-production bucket.
 
@@ -14,7 +14,25 @@ Database backups do not include Storage objects. Database recovery and Storage-o
 | DNS configuration | Restricted registrar access and encrypted configuration export | Quarterly access review and recovery copy |
 | Secrets and API keys | Named owner, expiry review and rotation procedure | Rotation ticket and post-rotation smoke test |
 
+## Automated backup workflow
+
+`.github/workflows/backup-and-restore.yml` runs the full backup at 02:17 UTC every day. It deliberately fails closed until the protected `backup` environment contains all required credentials. It creates:
+
+- Supabase-filtered role, schema and data SQL exports using the pinned CLI, each encrypted to the recovery custodian's age public key;
+- a client-side encrypted, timestamped copy of every Supabase Storage bucket in an independent Cloudflare R2 bucket;
+- an encrypted Git archive of deployment, migration, workflow and recovery configuration;
+- a SHA-256 manifest containing only counts, sizes, timestamps and the release commit—never secret values;
+- a private database evidence record visible only through the administrator recovery workspace.
+
+The workflow uses timestamped copy operations and never synchronizes or deletes the off-site source of truth. GitHub artifacts are supporting evidence, not the backup destination. The R2 credential should be limited to the dedicated backup bucket and held separately from Supabase credentials.
+
+Required protected secrets: `SUPABASE_BACKUP_DB_URL`, `SUPABASE_STORAGE_S3_ACCESS_KEY`, `SUPABASE_STORAGE_S3_SECRET_KEY`, `MANOHUB_BACKUP_R2_ACCESS_KEY`, `MANOHUB_BACKUP_R2_SECRET_KEY`, and `MANOHUB_BACKUP_CRYPT_PASSWORD`. Required non-secret environment variables: `MANOHUB_BACKUP_R2_ENDPOINT`, `MANOHUB_BACKUP_R2_BUCKET`, and `MANOHUB_BACKUP_AGE_RECIPIENT`.
+
+Secret values are not backed up to Git or the database. Two named custodians must maintain an encrypted offline recovery pack containing the age identity, provider recovery codes, DNS/registrar access instructions, and a current secret inventory. Test access quarterly without copying secret values into exercise evidence.
+
 ## Quarterly restore exercise
+
+The guarded recovery-sandbox job is scheduled for 03:43 UTC on the first day of every third month. It requires a dedicated recovery database and Storage endpoint, rejects the production project reference in both targets, restores the latest logical dump, replaces only the dedicated recovery Storage contents, and compares object counts and bytes. A manual run additionally requires the exact confirmation `RESTORE-TO-RECOVERY-SANDBOX`.
 
 1. Select a recovery point before the exercise and record it.
 2. Restore to staging or a dedicated recovery sandbox—never over production for a test.
@@ -23,6 +41,12 @@ Database backups do not include Storage objects. Database recovery and Storage-o
 5. Measure achieved RPO and RTO.
 6. Store the evidence reference and findings in **Administration → Reliability & Recovery**.
 7. Open follow-up actions for every failure or missed objective.
+
+Required recovery-sandbox secrets: `MANOHUB_RECOVERY_DB_URL`, `MANOHUB_RECOVERY_S3_ACCESS_KEY`, `MANOHUB_RECOVERY_S3_SECRET_KEY`, and `MANOHUB_BACKUP_AGE_IDENTITY`. Required variables: `MANOHUB_RECOVERY_S3_ENDPOINT` and `MANOHUB_RECOVERY_S3_REGION`. The recovery target must contain no production workloads; the scheduled test replaces its database schema and Storage objects.
+
+## Cloudflare, DNS and secret recovery
+
+Application and Worker configuration is recoverable from the validated Git commit and encrypted configuration archive. After restoring, deploy the recorded release SHA, recreate protected secret values from the offline recovery pack, and run health, accessibility, RLS and critical-journey checks. DNS records and registrar recovery codes require a separate encrypted export because the Worker deployment token may not have DNS-read permission. Record the export date and checksum in the quarterly evidence; never store DNS credentials or secret values in Manohub.
 
 ## Incident severity
 

@@ -1,0 +1,249 @@
+name: Backup and Restore Assurance
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+    - cron: '43 3 1 */3 *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Operation to perform
+        type: choice
+        options: [backup, verify-latest]
+        default: backup
+      restore_confirmation:
+        description: For verify-latest, enter RESTORE-TO-RECOVERY-SANDBOX
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manohub-backup-and-restore
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: ${{ github.event.schedule == '17 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'backup') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: backup
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+      SUPABASE_S3_ACCESS_KEY: ${{ secrets.SUPABASE_STORAGE_S3_ACCESS_KEY }}
+      SUPABASE_S3_SECRET_KEY: ${{ secrets.SUPABASE_STORAGE_S3_SECRET_KEY }}
+      R2_ACCESS_KEY: ${{ secrets.MANOHUB_BACKUP_R2_ACCESS_KEY }}
+      R2_SECRET_KEY: ${{ secrets.MANOHUB_BACKUP_R2_SECRET_KEY }}
+      R2_ENDPOINT: ${{ vars.MANOHUB_BACKUP_R2_ENDPOINT }}
+      R2_BUCKET: ${{ vars.MANOHUB_BACKUP_R2_BUCKET }}
+      BACKUP_AGE_RECIPIENT: ${{ vars.MANOHUB_BACKUP_AGE_RECIPIENT }}
+      BACKUP_CRYPT_PASSWORD: ${{ secrets.MANOHUB_BACKUP_CRYPT_PASSWORD }}
+      SUPABASE_S3_ENDPOINT: https://rffjehmbrycztiekcyho.storage.supabase.co/storage/v1/s3
+      SUPABASE_REGION: eu-north-1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize run evidence
+        id: init
+        run: |
+          started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          echo "started_at=$started_at" >> "$GITHUB_OUTPUT"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+          echo "run_reference=BKP-${stamp}-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+      - name: Require complete protected configuration
+        run: |
+          for name in SUPABASE_DB_URL SUPABASE_S3_ACCESS_KEY SUPABASE_S3_SECRET_KEY R2_ACCESS_KEY R2_SECRET_KEY R2_ENDPOINT R2_BUCKET BACKUP_AGE_RECIPIENT BACKUP_CRYPT_PASSWORD; do
+            if [ -z "${!name}" ]; then echo "::error::Missing required backup setting: $name"; exit 1; fi
+          done
+      - name: Install pinned recovery clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y age rclone postgresql-client
+      - name: Prepare encrypted off-site remotes
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/rclone"
+          crypt_password=$(rclone obscure "$BACKUP_CRYPT_PASSWORD")
+          cat > "$RUNNER_TEMP/rclone/rclone.conf" <<EOF
+          [supabase]
+          type = s3
+          provider = Other
+          access_key_id = $SUPABASE_S3_ACCESS_KEY
+          secret_access_key = $SUPABASE_S3_SECRET_KEY
+          endpoint = $SUPABASE_S3_ENDPOINT
+          region = $SUPABASE_REGION
+          force_path_style = true
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = $R2_ACCESS_KEY
+          secret_access_key = $R2_SECRET_KEY
+          endpoint = $R2_ENDPOINT
+          region = auto
+          [encrypted]
+          type = crypt
+          remote = r2:$R2_BUCKET/storage
+          password = $crypt_password
+          filename_encryption = standard
+          directory_name_encryption = true
+          EOF
+          chmod 600 "$RUNNER_TEMP/rclone/rclone.conf"
+          echo "RCLONE_CONFIG=$RUNNER_TEMP/rclone/rclone.conf" >> "$GITHUB_ENV"
+      - name: Create database, storage and configuration backups
+        id: create
+        run: |
+          started_at="${{ steps.init.outputs.started_at }}"
+          stamp="${{ steps.init.outputs.stamp }}"
+          run_reference="${{ steps.init.outputs.run_reference }}"
+          mkdir -p "$RUNNER_TEMP/manohub-backup"
+          npx --yes supabase@2.113.0 db dump --db-url "$SUPABASE_DB_URL" -f "$RUNNER_TEMP/manohub-backup/roles.sql" --role-only
+          npx --yes supabase@2.113.0 db dump --db-url "$SUPABASE_DB_URL" -f "$RUNNER_TEMP/manohub-backup/schema.sql"
+          npx --yes supabase@2.113.0 db dump --db-url "$SUPABASE_DB_URL" -f "$RUNNER_TEMP/manohub-backup/data.sql" --use-copy --data-only -x storage.buckets_vectors -x storage.vector_indexes
+          for file in roles.sql schema.sql data.sql; do
+            age -r "$BACKUP_AGE_RECIPIENT" -o "$RUNNER_TEMP/manohub-backup/$file.age" "$RUNNER_TEMP/manohub-backup/$file"
+            rm "$RUNNER_TEMP/manohub-backup/$file"
+          done
+          git archive --format=tar HEAD .github Dockerfile docs migrations scripts supabase wrangler.containers.toml wrangler.staging.toml \
+            | age -r "$BACKUP_AGE_RECIPIENT" -o "$RUNNER_TEMP/manohub-backup/configuration.tar.age"
+          for bucket in $(rclone lsf supabase: --dirs-only | tr -d '/'); do
+            rclone copy "supabase:$bucket" "encrypted:$stamp/$bucket" --immutable --checkers 8 --transfers 4
+          done
+          source_size=$(rclone size supabase: --json)
+          object_count=$(jq -r '.count' <<<"$source_size")
+          byte_count=$(jq -r '.bytes' <<<"$source_size")
+          rclone copy "$RUNNER_TEMP/manohub-backup" "r2:$R2_BUCKET/runs/$stamp" --immutable
+          manifest="$RUNNER_TEMP/manohub-backup/manifest.json"
+          jq -n --arg run "$run_reference" --arg point "$started_at" --arg commit "$GITHUB_SHA" \
+            --argjson objects "$object_count" --argjson bytes "$byte_count" \
+            '{schema_version:1,run_reference:$run,backup_point_at:$point,commit:$commit,storage_object_count:$objects,storage_bytes:$bytes,encryption:{database:"age",storage:"rclone-crypt"}}' > "$manifest"
+          manifest_sha256=$(sha256sum "$manifest" | cut -d' ' -f1)
+          rclone copyto "$manifest" "r2:$R2_BUCKET/runs/$stamp/manifest.json" --immutable
+          echo "started_at=$started_at" >> "$GITHUB_OUTPUT"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+          echo "run_reference=$run_reference" >> "$GITHUB_OUTPUT"
+          echo "object_count=$object_count" >> "$GITHUB_OUTPUT"
+          echo "byte_count=$byte_count" >> "$GITHUB_OUTPUT"
+          echo "manifest_sha256=$manifest_sha256" >> "$GITHUB_OUTPUT"
+      - name: Verify independent copy integrity
+        run: |
+          source_size=$(rclone size supabase: --json)
+          copy_size=$(rclone size "encrypted:${{ steps.create.outputs.stamp }}" --json)
+          test "$(jq -r '.count' <<<"$source_size")" = "$(jq -r '.count' <<<"$copy_size")"
+          test "$(jq -r '.bytes' <<<"$source_size")" = "$(jq -r '.bytes' <<<"$copy_size")"
+          rclone check supabase: "encrypted:${{ steps.create.outputs.stamp }}" --size-only --one-way
+      - name: Record successful backup evidence
+        run: |
+          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 \
+            -v run_reference="${{ steps.create.outputs.run_reference }}" -v backup_kind=full -v trigger_source="${{ github.event_name == 'schedule' && 'schedule' || 'manual' }}" \
+            -v status=succeeded -v backup_point_at="${{ steps.create.outputs.started_at }}" -v started_at="${{ steps.create.outputs.started_at }}" \
+            -v completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -v object_count="${{ steps.create.outputs.object_count }}" \
+            -v byte_count="${{ steps.create.outputs.byte_count }}" -v manifest_sha256="${{ steps.create.outputs.manifest_sha256 }}" \
+            -v offsite_reference="r2:$R2_BUCKET/runs/${{ steps.create.outputs.stamp }}" \
+            -v workflow_run_url="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -v failure_summary='' \
+            -f scripts/record-backup-run.sql
+      - name: Preserve failure evidence
+        if: ${{ failure() && env.SUPABASE_DB_URL != '' }}
+        run: |
+          psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 \
+            -v run_reference="${{ steps.init.outputs.run_reference }}" -v backup_kind=full \
+            -v trigger_source="${{ github.event_name == 'schedule' && 'schedule' || 'manual' }}" -v status=failed \
+            -v backup_point_at="${{ steps.init.outputs.started_at }}" \
+            -v started_at="${{ steps.init.outputs.started_at }}" -v completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -v object_count='' -v byte_count='' -v manifest_sha256='' -v offsite_reference='' \
+            -v workflow_run_url="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            -v failure_summary='Backup workflow failed; inspect the protected workflow log.' -f scripts/record-backup-run.sql
+
+  verify-latest:
+    if: ${{ github.event.schedule == '43 3 1 */3 *' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'verify-latest') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: recovery-sandbox
+    env:
+      PRODUCTION_DB_URL: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+      RECOVERY_DB_URL: ${{ secrets.MANOHUB_RECOVERY_DB_URL }}
+      R2_ACCESS_KEY: ${{ secrets.MANOHUB_BACKUP_R2_ACCESS_KEY }}
+      R2_SECRET_KEY: ${{ secrets.MANOHUB_BACKUP_R2_SECRET_KEY }}
+      R2_ENDPOINT: ${{ vars.MANOHUB_BACKUP_R2_ENDPOINT }}
+      R2_BUCKET: ${{ vars.MANOHUB_BACKUP_R2_BUCKET }}
+      BACKUP_AGE_IDENTITY: ${{ secrets.MANOHUB_BACKUP_AGE_IDENTITY }}
+      BACKUP_CRYPT_PASSWORD: ${{ secrets.MANOHUB_BACKUP_CRYPT_PASSWORD }}
+      RECOVERY_S3_ACCESS_KEY: ${{ secrets.MANOHUB_RECOVERY_S3_ACCESS_KEY }}
+      RECOVERY_S3_SECRET_KEY: ${{ secrets.MANOHUB_RECOVERY_S3_SECRET_KEY }}
+      RECOVERY_S3_ENDPOINT: ${{ vars.MANOHUB_RECOVERY_S3_ENDPOINT }}
+      RECOVERY_S3_REGION: ${{ vars.MANOHUB_RECOVERY_S3_REGION }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce non-production restore boundary
+        env:
+          CONFIRMATION: ${{ inputs.restore_confirmation }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then test "$CONFIRMATION" = 'RESTORE-TO-RECOVERY-SANDBOX'; fi
+          for name in PRODUCTION_DB_URL RECOVERY_DB_URL R2_ACCESS_KEY R2_SECRET_KEY R2_ENDPOINT R2_BUCKET BACKUP_AGE_IDENTITY BACKUP_CRYPT_PASSWORD RECOVERY_S3_ACCESS_KEY RECOVERY_S3_SECRET_KEY RECOVERY_S3_ENDPOINT RECOVERY_S3_REGION; do
+            if [ -z "${!name}" ]; then echo "::error::Missing required recovery setting: $name"; exit 1; fi
+          done
+          test "$RECOVERY_DB_URL" != "$PRODUCTION_DB_URL"
+          if grep -q 'rffjehmbrycztiekcyho' <<<"$RECOVERY_DB_URL"; then echo '::error::Production database rejected as recovery target'; exit 1; fi
+          if grep -q 'rffjehmbrycztiekcyho' <<<"$RECOVERY_S3_ENDPOINT"; then echo '::error::Production Storage rejected as recovery target'; exit 1; fi
+      - name: Install pinned recovery clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y age rclone postgresql-client
+      - name: Restore latest backup to recovery sandbox
+        id: restore
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/rclone" "$RUNNER_TEMP/restore"
+          crypt_password=$(rclone obscure "$BACKUP_CRYPT_PASSWORD")
+          cat > "$RUNNER_TEMP/rclone/rclone.conf" <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = $R2_ACCESS_KEY
+          secret_access_key = $R2_SECRET_KEY
+          endpoint = $R2_ENDPOINT
+          region = auto
+          [encrypted]
+          type = crypt
+          remote = r2:$R2_BUCKET/storage
+          password = $crypt_password
+          filename_encryption = standard
+          directory_name_encryption = true
+          [recovery]
+          type = s3
+          provider = Other
+          access_key_id = $RECOVERY_S3_ACCESS_KEY
+          secret_access_key = $RECOVERY_S3_SECRET_KEY
+          endpoint = $RECOVERY_S3_ENDPOINT
+          region = $RECOVERY_S3_REGION
+          force_path_style = true
+          EOF
+          chmod 600 "$RUNNER_TEMP/rclone/rclone.conf"
+          export RCLONE_CONFIG="$RUNNER_TEMP/rclone/rclone.conf"
+          stamp=$(rclone lsf "r2:$R2_BUCKET/runs" --dirs-only | tr -d '/' | sort | tail -1)
+          test -n "$stamp"
+          rclone copy "r2:$R2_BUCKET/runs/$stamp" "$RUNNER_TEMP/restore" --include '*.sql.age' --include 'manifest.json'
+          printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$RUNNER_TEMP/restore/identity.txt"
+          chmod 600 "$RUNNER_TEMP/restore/identity.txt"
+          for file in roles.sql schema.sql data.sql; do age -d -i "$RUNNER_TEMP/restore/identity.txt" -o "$RUNNER_TEMP/restore/$file" "$RUNNER_TEMP/restore/$file.age"; done
+          docker run --rm -v "$RUNNER_TEMP/restore:/restore" postgres:17 psql "$RECOVERY_DB_URL" \
+            --single-transaction --variable ON_ERROR_STOP=1 --file /restore/roles.sql --file /restore/schema.sql \
+            --command 'SET session_replication_role = replica' --file /restore/data.sql
+          for bucket in $(rclone lsf "encrypted:$stamp" --dirs-only | tr -d '/'); do
+            rclone sync "encrypted:$stamp/$bucket" "recovery:$bucket" --checkers 8 --transfers 4
+          done
+          source_size=$(rclone size "encrypted:$stamp" --json)
+          restored_size=$(rclone size recovery: --json)
+          test "$(jq -r '.count' <<<"$source_size")" = "$(jq -r '.count' <<<"$restored_size")"
+          test "$(jq -r '.bytes' <<<"$source_size")" = "$(jq -r '.bytes' <<<"$restored_size")"
+          docker run --rm postgres:17 psql "$RECOVERY_DB_URL" -X -v ON_ERROR_STOP=1 -Atc \
+            "select count(*) from supabase_migrations.schema_migrations; select count(*) from storage.objects;"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+          echo "run_reference=$(jq -r '.run_reference' "$RUNNER_TEMP/restore/manifest.json")" >> "$GITHUB_OUTPUT"
+      - name: Mark backup restoration verified
+        run: |
+          psql "$PRODUCTION_DB_URL" -X -v ON_ERROR_STOP=1 \
+            -v run_reference="${{ steps.restore.outputs.run_reference }}" -v backup_kind=full -v trigger_source=restore_exercise \
+            -v status=verified -v backup_point_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -v started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -v completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" -v object_count='' -v byte_count='' -v manifest_sha256='' \
+            -v offsite_reference="r2:$R2_BUCKET/runs/${{ steps.restore.outputs.stamp }}" \
+            -v workflow_run_url="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -v failure_summary='' \
+            -f scripts/record-backup-run.sql
