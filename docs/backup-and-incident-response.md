@@ -77,3 +77,5 @@ Rotate a key immediately after suspected exposure, staff departure, or unexplain
 ## Production restore authorization
 
 A production restore is destructive and requires explicit approval from the designated platform owner after the intended restore point, expected data-loss window, downtime, and rollback limitations are documented. Supabase notes that the project is unavailable during restore. Storage objects require their own recovery action because restoring the database restores metadata, not deleted object bytes.
+
+<!-- CI trigger: Backup Verification and Disaster Recovery release validation (2026-08-12) -->
