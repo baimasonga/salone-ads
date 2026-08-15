@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test.describe('public critical journeys', () => {
   test('visitor can reach tender discovery without authentication', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/Manohub/i);
+    await expect(page).toHaveTitle(/Hyderra/i);
     const browse = page.getByRole('link', { name: /browse live tenders/i });
     await expect(browse).toBeVisible();
     await browse.click();

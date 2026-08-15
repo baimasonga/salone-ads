@@ -5,7 +5,7 @@ test('tender discovery keeps saved results when the network refresh fails', asyn
     id: 'cached-tender-1',
     slug: 'cached-rural-connectivity',
     title: 'Cached Rural Connectivity Tender',
-    buyerName: 'Manohub Test Buyer',
+    buyerName: 'Hyderra Test Buyer',
     submissionDeadline: '2099-12-31T23:59:00.000Z',
     estimatedValue: 125000,
     currencyCode: 'SLE',
