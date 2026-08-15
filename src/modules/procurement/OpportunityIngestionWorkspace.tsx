@@ -511,7 +511,7 @@ export function OpportunityIngestionWorkspace({ isPlatformAdmin }: OpportunityIn
             <Radar className="h-5 w-5 text-sky-600" />
             <div><p className="font-mono text-[9px] font-bold uppercase tracking-widest text-sky-700">Human-supervised monitoring</p><h3 className="font-display text-xl font-extrabold">Source check schedule</h3></div>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Open each source, inspect it, then record the outcome. ManoHub does not claim a source was checked until a researcher confirms it.</p>
+          <p className="mt-2 text-xs text-slate-500">Open each source, inspect it, then record the outcome. Hyderra does not claim a source was checked until a researcher confirms it.</p>
         </div>
         {sources.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">Add a monitoring source to begin.</p> : (
           <div className="grid gap-px bg-slate-300 md:grid-cols-2">

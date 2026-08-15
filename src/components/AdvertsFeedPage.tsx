@@ -99,7 +99,7 @@ export function AdvertsFeedPage() {
     <div className="min-h-screen bg-[#F8FAFC] border-4 md:border-8 border-[#0F172A]">
       <header className="bg-white border-b border-[#0F172A] px-6 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[#0F172A] font-display font-black tracking-widest uppercase text-sm">
-          <ArrowLeft className="h-4 w-4" /> Manohub
+          <ArrowLeft className="h-4 w-4" /> Hyderra
         </Link>
         <Link to="/#advertise" className="text-xs font-mono uppercase tracking-widest text-emerald-700 hover:underline flex items-center gap-1.5">
           <Megaphone className="h-3.5 w-3.5" /> Advertise
@@ -109,7 +109,7 @@ export function AdvertsFeedPage() {
       <main className="max-w-6xl mx-auto px-6 py-10">
         <div className="text-left">
           <span className="font-mono text-[11px] uppercase tracking-widest text-emerald-700">Marketplace</span>
-          <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-slate-900 tracking-tight mt-1">Adverts on Manohub</h1>
+          <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-slate-900 tracking-tight mt-1">Adverts on Hyderra</h1>
           <p className="text-sm text-slate-500 mt-2 max-w-2xl">Businesses, goods, services and notices across Sierra Leone and Liberia. Tap any advert for full details and how to reach them.</p>
         </div>
 
@@ -139,7 +139,7 @@ export function AdvertsFeedPage() {
               <Store className="h-6 w-6 text-slate-400" />
             </div>
             <h2 className="font-display font-bold text-lg text-slate-900 mt-4">No adverts here yet</h2>
-            <p className="text-sm text-slate-500 mt-1.5">Be the first to advertise your business on Manohub.</p>
+            <p className="text-sm text-slate-500 mt-1.5">Be the first to advertise your business on Hyderra.</p>
             <Link to="/#advertise" className="btn-geometric mt-5 inline-flex items-center gap-2 cursor-pointer">Advertise your business</Link>
           </div>
         )}

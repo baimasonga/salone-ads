@@ -572,7 +572,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       </main>
 
       <footer className="mh-shell mh-footer mh-small">
-        <span>MANOHUB · Regional procurement and business discovery</span>
+        <span>HYDERRA · Regional procurement and business discovery</span>
         <span>Trusted notices · Relevant adverts · Market intelligence</span>
       </footer>
     </div>

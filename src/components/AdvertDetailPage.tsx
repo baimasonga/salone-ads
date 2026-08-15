@@ -95,7 +95,7 @@ export function AdvertDetailPage() {
     <div className="min-h-screen bg-[#F8FAFC] border-4 md:border-8 border-[#0F172A]">
       <header className="bg-white border-b border-[#0F172A] px-6 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[#0F172A] font-display font-black tracking-widest uppercase text-sm">
-          <ArrowLeft className="h-4 w-4" /> Manohub
+          <ArrowLeft className="h-4 w-4" /> Hyderra
         </Link>
         <div className="flex items-center gap-4">
           <Link to="/adverts" className="text-xs font-mono uppercase tracking-widest text-slate-500 hover:text-[#0F172A] hover:underline">All adverts</Link>
@@ -118,14 +118,14 @@ export function AdvertDetailPage() {
               <Store className="h-6 w-6 text-slate-400" />
             </div>
             <h1 className="font-display font-bold text-lg text-slate-900 mt-4">Advert not available</h1>
-            <p className="text-sm text-slate-500 mt-1.5">This advert may have ended or isn't published. Browse what's live on Manohub instead.</p>
+            <p className="text-sm text-slate-500 mt-1.5">This advert may have ended or isn't published. Browse what's live on Hyderra instead.</p>
             <Link to="/" className="btn-geometric mt-5 inline-flex items-center gap-2 cursor-pointer">Back to home</Link>
           </div>
         )}
 
         {!loading && advert && (
           <article className="bg-white border border-[#0F172A]">
-            {/* Auto-generated creative from the Manohub design system */}
+            {/* Auto-generated creative from the Hyderra design system */}
             <div className="bg-slate-50 border-b border-[#0F172A] p-5">
               <div className={`${advert.format === 'square' ? 'max-w-[560px]' : advert.format === 'story' ? 'max-w-[420px]' : advert.format === 'editorial' ? 'max-w-[500px]' : advert.format === 'banner' ? 'max-w-[820px]' : 'max-w-[720px]'} mx-auto`}>
                 <CreativeScaler format={advert.format}>
@@ -150,7 +150,7 @@ export function AdvertDetailPage() {
             <div className="p-6 sm:p-8">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[10px] font-bold uppercase tracking-wider px-2 py-0.5">{advert.category}</span>
-                <span className="font-mono text-[11px] text-slate-400">Sponsored on Manohub</span>
+                <span className="font-mono text-[11px] text-slate-400">Sponsored on Hyderra</span>
               </div>
 
               <h1 className="font-display font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight mt-3">{advert.title}</h1>

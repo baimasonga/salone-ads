@@ -1,8 +1,8 @@
-# Manohub Backup, Recovery and Incident Response
+# Hyderra Backup, Recovery and Incident Response
 
 ## Recovery policy
 
-Manohub uses a target RPO of 24 hours and target RTO of 4 hours until Point-in-Time Recovery is enabled and a timed restore exercise proves a tighter objective. The live Supabase organization is currently on the Free plan, so Manohub uses a daily logical export and must show PITR as unavailable. Supabase PITR can reduce the database RPO to approximately two minutes on an eligible paid plan, but it must not be marked active merely because this runbook exists.
+Hyderra uses a target RPO of 24 hours and target RTO of 4 hours until Point-in-Time Recovery is enabled and a timed restore exercise proves a tighter objective. The live Supabase organization is currently on the Free plan, so Hyderra uses a daily logical export and must show PITR as unavailable. Supabase PITR can reduce the database RPO to approximately two minutes on an eligible paid plan, but it must not be marked active merely because this runbook exists.
 
 Database backups do not include Storage objects. Database recovery and Storage-object recovery are therefore separate controls. Storage buckets require an independent versioned export or S3-compatible replication process, with restore testing in a non-production bucket.
 
@@ -46,7 +46,7 @@ Required recovery-sandbox secrets: `MANOHUB_RECOVERY_DB_URL`, `MANOHUB_RECOVERY_
 
 ## Cloudflare, DNS and secret recovery
 
-Application and Worker configuration is recoverable from the validated Git commit and encrypted configuration archive. After restoring, deploy the recorded release SHA, recreate protected secret values from the offline recovery pack, and run health, accessibility, RLS and critical-journey checks. DNS records and registrar recovery codes require a separate encrypted export because the Worker deployment token may not have DNS-read permission. Record the export date and checksum in the quarterly evidence; never store DNS credentials or secret values in Manohub.
+Application and Worker configuration is recoverable from the validated Git commit and encrypted configuration archive. After restoring, deploy the recorded release SHA, recreate protected secret values from the offline recovery pack, and run health, accessibility, RLS and critical-journey checks. DNS records and registrar recovery codes require a separate encrypted export because the Worker deployment token may not have DNS-read permission. Record the export date and checksum in the quarterly evidence; never store DNS credentials or secret values in Hyderra.
 
 ## Incident severity
 

@@ -1,11 +1,11 @@
-# Manohub Architecture Document
+# Hyderra Architecture Document
 
 ## 1. System Topology
 The application is structured as a full-stack Node.js deployment, combining a modern **React client SPA** with a secure **Express.js API proxy server** in a unified repository. This layout completely eliminates CORS configuration overhead and allows us to securely execute Gemini AI completions and other third-party services entirely on the server side, keeping sensitive keys protected from browser inspection.
 
 ```
 +-------------------------------------------------------------+
-|                     Manohub Workspace                   |
+|                     Hyderra Workspace                   |
 |                                                             |
 |   +--------------------------+  HTTP Requests  +---------+  |
 |   |   React Single-Page App  |===============>| Express |  |

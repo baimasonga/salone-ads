@@ -42,12 +42,12 @@ const NO_FEATURES = new Set<string>();
 const ADVERTISING_FEATURES = new Set(['business_advertising']);
 const PLATFORM_CONTEXT_ORG: Organization = {
   id:'00000000-0000-0000-0000-000000000000',name:'Quantix Sierra Leone',type:'Platform Staff',country:'Sierra Leone',
-  district:'Western Area Urban',primaryObjective:'Manohub platform operations',monthlyBudget:'',monthlyBudgetSle:null,
-  subscriberType:'free',city:'Freetown',website:'',phone:'',whatsapp:'',description:'Manohub internal platform context',
+  district:'Western Area Urban',primaryObjective:'Hyderra platform operations',monthlyBudget:'',monthlyBudgetSle:null,
+  subscriberType:'free',city:'Freetown',website:'',phone:'',whatsapp:'',description:'Hyderra internal platform context',
   audienceScope:'Platform',subscriberDetails:{},isBuyer:false,isSupplier:false,buyerVerified:false,supplierVerifiedUntil:null,
   status:'active',statusReason:null,recoverableUntil:null,
 };
-const PLATFORM_BRAND_KIT: BrandKit = {brandName:'Manohub',legalName:'Quantix Sierra Leone',mission:'Operate Manohub',tagline:'',primaryColor:'#10B981',secondaryColor:'#0F172A',fonts:'',toneOfVoice:'Professional',prohibitedTerminology:[]};
+const PLATFORM_BRAND_KIT: BrandKit = {brandName:'Hyderra',legalName:'Quantix Sierra Leone',mission:'Operate Hyderra',tagline:'',primaryColor:'#10B981',secondaryColor:'#0F172A',fonts:'',toneOfVoice:'Professional',prohibitedTerminology:[]};
 
 const Workspaces = lazy(() => import('./components/Workspaces').then((module) => ({ default: module.Workspaces })));
 const TenderSearchPage = lazy(() => import('./components/TenderSearchPage').then((module) => ({ default: module.TenderSearchPage })));
@@ -151,7 +151,7 @@ function MainApp() {
     try {
       const staffAccess = await fetchMyPlatformStaffAccess().catch(() => null);
       if (staffAccess && !['active','invited'].includes(staffAccess.status)) {
-        throw new Error(`Your platform staff access is ${staffAccess.status}. Contact the Manohub owner.`);
+        throw new Error(`Your platform staff access is ${staffAccess.status}. Contact the Hyderra owner.`);
       }
       const activeStaffRole = staffAccess?.role ?? null;
       setPlatformStaffRole(activeStaffRole);
@@ -546,7 +546,7 @@ function DashboardShell({
               <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
                 <div className="w-4 h-4 border-2 border-white"></div>
               </div>
-              <span className="font-display font-black tracking-widest text-lg uppercase text-[#0F172A]">Manohub</span>
+              <span className="font-display font-black tracking-widest text-lg uppercase text-[#0F172A]">Hyderra</span>
             </div>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-[#0F172A] hover:bg-slate-100 p-1 cursor-pointer">
               <X className="h-5 w-5" />
@@ -561,7 +561,7 @@ function DashboardShell({
             {platformStaffRole ? (
               <>
                 <span className="font-extrabold text-sm block mt-0.5 text-[#0F172A]">Quantix Sierra Leone</span>
-                <span className="text-[10px] text-emerald-700 font-mono mt-1 block">MANOHUB {platformStaffRole.toUpperCase()}</span>
+                <span className="text-[10px] text-emerald-700 font-mono mt-1 block">HYDERRA {platformStaffRole.toUpperCase()}</span>
               </>
             ) : organizations.length > 1 ? (
               <select
@@ -725,7 +725,7 @@ function DashboardShell({
             <span className="text-[#10B981]">14ms</span>
           </div>
           <div className="ml-auto opacity-50 tracking-widest uppercase text-[9px]">
-            Manohub v2.4 // Build Complete
+            Hyderra v2.4 // Build Complete
           </div>
         </footer>
       </div>

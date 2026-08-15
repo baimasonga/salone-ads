@@ -367,14 +367,14 @@ function injectAdvertMeta(
   adv: { title: string; business_name: string; summary?: string | null; content?: string | null; category?: string | null; og_image_url?: string | null; creative_url?: string | null; media_url?: string | null },
   url: string,
 ): string {
-  const title = `${adv.title} — ${adv.business_name} · Manohub`;
-  const desc = (adv.summary || adv.content || `${adv.business_name} on Manohub`).slice(0, 200);
+  const title = `${adv.title} — ${adv.business_name} · Hyderra`;
+  const desc = (adv.summary || adv.content || `${adv.business_name} on Hyderra`).slice(0, 200);
   const image = adv.og_image_url || adv.creative_url || adv.media_url || "";
   const tags = [
     `<title>${htmlEscape(title)}</title>`,
     `<meta name="description" content="${htmlEscape(desc)}" />`,
     `<meta property="og:type" content="website" />`,
-    `<meta property="og:site_name" content="Manohub" />`,
+    `<meta property="og:site_name" content="Hyderra" />`,
     `<meta property="og:title" content="${htmlEscape(title)}" />`,
     `<meta property="og:description" content="${htmlEscape(desc)}" />`,
     `<meta property="og:url" content="${htmlEscape(url)}" />`,
@@ -411,14 +411,14 @@ function injectCmsMeta(
     ...(image ? { image: [image] } : {}),
     ...(content.author_name ? { author: { "@type": "Organization", name: content.author_name } } : {}),
     ...(content.published_at ? { datePublished: content.published_at } : {}),
-    publisher: { "@type": "Organization", name: "Manohub" },
+    publisher: { "@type": "Organization", name: "Hyderra" },
   }).replace(/</g, "\\u003c");
   const tags = [
-    `<title>${htmlEscape(title)} · Manohub</title>`,
+    `<title>${htmlEscape(title)} · Hyderra</title>`,
     `<meta name="description" content="${htmlEscape(description)}" />`,
     `<link rel="canonical" href="${htmlEscape(canonical)}" />`,
     `<meta property="og:type" content="${content.content_type === "post" ? "article" : "website"}" />`,
-    `<meta property="og:site_name" content="Manohub" />`,
+    `<meta property="og:site_name" content="Hyderra" />`,
     `<meta property="og:title" content="${htmlEscape(title)}" />`,
     `<meta property="og:description" content="${htmlEscape(description)}" />`,
     `<meta property="og:url" content="${htmlEscape(url)}" />`,

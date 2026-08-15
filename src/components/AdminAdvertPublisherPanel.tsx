@@ -54,9 +54,9 @@ export function AdminAdvertPublisherPanel({
         )}
       </h3>
       <p className="mt-1 text-xs text-slate-500">
-        Publish an advert so it shows on the public homepage and gets its own detail page. Manohub is the
+        Publish an advert so it shows on the public homepage and gets its own detail page. Hyderra is the
         source of truth — paste the social post link so visitors can jump to the campaign; the social post
-        should reference this advert's page back on Manohub.
+        should reference this advert's page back on Hyderra.
       </p>
 
       {analytics && (
@@ -156,7 +156,7 @@ export function AdminAdvertPublisherPanel({
                     <a key={intent.key} href={intent.href} target="_blank" rel="noopener noreferrer" className="cursor-pointer border border-slate-200 px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-700 transition-colors hover:border-[#0F172A] hover:text-[#0F172A]">Post to {intent.label}</a>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-500">One-click posts open each app pre-filled. Or copy a caption below — each links back to this advert on Manohub. Attach the creative PNG or a kit image as the post picture.</p>
+                <p className="text-[11px] text-slate-500">One-click posts open each app pre-filled. Or copy a caption below — each links back to this advert on Hyderra. Attach the creative PNG or a kit image as the post picture.</p>
                 {buildAdvertSharePack(advert).map((caption) => (
                   <div key={caption.key} className="rounded-lg border border-slate-200 p-2.5">
                     <div className="mb-1 flex items-center justify-between">

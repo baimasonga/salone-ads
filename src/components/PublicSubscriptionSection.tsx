@@ -37,7 +37,7 @@ export function PublicSubscriptionSection({ onSubscribed }: { onSubscribed?: () 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!consent) {
-      setFeedback('Please confirm that Manohub may send you the updates you selected.');
+      setFeedback('Please confirm that Hyderra may send you the updates you selected.');
       return;
     }
     const preferredChannels = [
@@ -62,7 +62,7 @@ export function PublicSubscriptionSection({ onSubscribed }: { onSubscribed?: () 
       await subscribePublicAudience({ fullName, email, phone, interests, locations, preferredChannels, frequency });
       setSubscribed(true);
       onSubscribed?.();
-      setFeedback('Your preferences have been saved. Welcome to the Manohub audience.');
+      setFeedback('Your preferences have been saved. Welcome to the Hyderra audience.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Your subscription could not be saved.');
     } finally {
@@ -75,9 +75,9 @@ export function PublicSubscriptionSection({ onSubscribed }: { onSubscribed?: () 
       <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[.8fr_1.2fr]">
         <div className="flex flex-col justify-between">
           <div>
-            <span className="inline-flex items-center gap-2 bg-[#F4D35E] px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-[#0F172A]"><Bell className="h-3.5 w-3.5" /> Your Manohub feed</span>
+            <span className="inline-flex items-center gap-2 bg-[#F4D35E] px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-[#0F172A]"><Bell className="h-3.5 w-3.5" /> Your Hyderra feed</span>
             <h2 className="mt-5 font-display text-3xl font-extrabold leading-tight text-white sm:text-4xl">Get the opportunities and offers that matter to you.</h2>
-            <p className="mt-4 max-w-lg text-sm leading-relaxed text-blue-100">Choose what you want to receive, where you are interested in, and how often Manohub should contact you.</p>
+            <p className="mt-4 max-w-lg text-sm leading-relaxed text-blue-100">Choose what you want to receive, where you are interested in, and how often Hyderra should contact you.</p>
           </div>
           <div className="mt-8 grid grid-cols-2 gap-3">
             <div className="border border-white/20 bg-white/5 p-4"><Mail className="h-5 w-5 text-[#F4D35E]" /><p className="mt-3 font-display font-bold">Email digests</p><p className="mt-1 text-xs text-blue-100">Daily or weekly summaries.</p></div>
@@ -119,7 +119,7 @@ export function PublicSubscriptionSection({ onSubscribed }: { onSubscribed?: () 
                 <fieldset><legend className="text-xs font-bold text-slate-600">Send through</legend><div className="mt-3 flex gap-4 text-xs"><label className="flex items-center gap-2"><input type="checkbox" checked={emailChannel} onChange={event => setEmailChannel(event.target.checked)} /> Email</label><label className="flex items-center gap-2"><input type="checkbox" checked={whatsAppChannel} onChange={event => setWhatsAppChannel(event.target.checked)} /> WhatsApp</label></div></fieldset>
               </div>
 
-              <label className="mt-5 flex items-start gap-3 text-xs leading-relaxed text-slate-600"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} className="mt-0.5" /><span>I agree that Manohub may contact me with the categories and frequency selected. I can unsubscribe at any time.</span></label>
+              <label className="mt-5 flex items-start gap-3 text-xs leading-relaxed text-slate-600"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} className="mt-0.5" /><span>I agree that Hyderra may contact me with the categories and frequency selected. I can unsubscribe at any time.</span></label>
               {feedback && <p role="alert" className="mt-4 border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">{feedback}</p>}
               <button type="submit" disabled={saving} className="mt-5 inline-flex w-full items-center justify-center gap-2 bg-emerald-600 px-5 py-3.5 font-mono text-xs font-bold uppercase tracking-widest text-white disabled:opacity-60">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />} Subscribe to updates</button>
               <p className="mt-3 text-center text-[10px] text-slate-600">Consent source and date are securely recorded for every subscription.</p>

@@ -5,7 +5,7 @@ import { fetchPlatformStaff, invitePlatformStaff, updatePlatformStaff, type Plat
 const roles: Array<{value: Exclude<PlatformStaffRole,'owner'>; label: string; description: string}> = [
   { value:'administrator', label:'Administrator', description:'Runs platform operations and manages staff access.' },
   { value:'finance', label:'Finance', description:'Handles payments, billing records, credits and financial reporting.' },
-  { value:'editorial', label:'Editorial', description:'Creates, reviews and publishes Manohub content.' },
+  { value:'editorial', label:'Editorial', description:'Creates, reviews and publishes Hyderra content.' },
   { value:'support', label:'Support', description:'Assists subscribers and manages service requests.' },
   { value:'auditor', label:'Auditor', description:'Receives read-only operational and audit visibility.' },
 ];

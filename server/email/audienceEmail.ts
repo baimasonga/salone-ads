@@ -142,7 +142,7 @@ async function dispatchTenderAlertDelivery(deliveryId: string): Promise<void> {
   }).eq('id', delivery.id);
   const subject = delivery.frequency === 'immediate'
     ? `New tender match: ${opportunities[0].title}`
-    : `${delivery.frequency === 'daily' ? 'Daily' : 'Weekly'} ManoHub tender digest · ${opportunities.length} match${opportunities.length === 1 ? '' : 'es'}`;
+    : `${delivery.frequency === 'daily' ? 'Daily' : 'Weekly'} Hyderra tender digest · ${opportunities.length} match${opportunities.length === 1 ? '' : 'es'}`;
   const providerId = await sendResendEmail({
     to: delivery.recipient_email,
     subject,

@@ -95,7 +95,7 @@ const formatPeriod = (value: string, granularity: 'day' | 'week' | 'month') =>
 
 function downloadCampaignCsv(campaign: AdvertCampaignPerformance) {
   const rows: Array<Array<string | number>> = [
-    ['Manohub campaign performance report'],
+    ['Hyderra campaign performance report'],
     ['Campaign', campaign.title],
     ['Period (days)', campaign.periodDays],
     [],
@@ -153,7 +153,7 @@ function downloadCampaignCsv(campaign: AdvertCampaignPerformance) {
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `manohub-${campaign.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'campaign'}-performance.csv`;
+  anchor.download = `hyderra-${campaign.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'campaign'}-performance.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -438,7 +438,7 @@ export function CampaignPerformancePage({
             Campaign Performance
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Verified Manohub impressions, advert opens and customer actions for {activeOrg.name}.
+            Verified Hyderra impressions, advert opens and customer actions for {activeOrg.name}.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

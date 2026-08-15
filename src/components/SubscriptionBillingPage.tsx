@@ -10,9 +10,9 @@ import {
   type SubscriptionPaymentProof,
 } from '../lib/subscriptionPaymentApi';
 
-const bankInstructions = import.meta.env.VITE_MANOHUB_BANK_INSTRUCTIONS || 'Ask ManoHub Finance to confirm the bank account and exact amount before transferring.';
-const mobileInstructions = import.meta.env.VITE_MANOHUB_MOBILE_MONEY_INSTRUCTIONS || 'Ask ManoHub Finance to confirm the registered mobile-money number and exact amount before sending.';
-const financeContact = import.meta.env.VITE_MANOHUB_FINANCE_CONTACT || 'Use Customer Requests to contact ManoHub Finance.';
+const bankInstructions = import.meta.env.VITE_MANOHUB_BANK_INSTRUCTIONS || 'Ask Hyderra Finance to confirm the bank account and exact amount before transferring.';
+const mobileInstructions = import.meta.env.VITE_MANOHUB_MOBILE_MONEY_INSTRUCTIONS || 'Ask Hyderra Finance to confirm the registered mobile-money number and exact amount before sending.';
+const financeContact = import.meta.env.VITE_MANOHUB_FINANCE_CONTACT || 'Use Customer Requests to contact Hyderra Finance.';
 
 export function SubscriptionBillingPage({ activeOrg }: { activeOrg: Organization }) {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -56,7 +56,7 @@ export function SubscriptionBillingPage({ activeOrg }: { activeOrg: Organization
     if (!pending) return null;
     if (!proof) return { title: 'Payment evidence required', body: 'Your plan request is saved. Submit the payment reference below after paying.' };
     if (proof.status === 'rejected') return { title: 'Payment needs correction', body: proof.reviewNote || 'Review the payment details and submit them again.' };
-    return { title: 'Payment under review', body: 'ManoHub Finance received your evidence. Access begins only after administrator verification.' };
+    return { title: 'Payment under review', body: 'Hyderra Finance received your evidence. Access begins only after administrator verification.' };
   }, [pending, proof]);
 
   const requestPlan = async (event: React.FormEvent) => {
@@ -88,7 +88,7 @@ export function SubscriptionBillingPage({ activeOrg }: { activeOrg: Organization
       });
       setReference(''); setAmount(''); setPayerName(''); setReceipt(null);
       await load();
-      setFeedback('Payment evidence submitted. ManoHub Finance will review it.');
+      setFeedback('Payment evidence submitted. Hyderra Finance will review it.');
     } catch (error) { setFeedback(error instanceof Error ? error.message : 'Payment evidence could not be submitted.'); }
     finally { setBusy(false); }
   };
@@ -99,7 +99,7 @@ export function SubscriptionBillingPage({ activeOrg }: { activeOrg: Organization
     <section className="border-2 border-slate-950 bg-slate-950 p-6 text-white">
       <p className="font-mono text-[9px] font-bold uppercase tracking-[.22em] text-emerald-300">Account & access</p>
       <h2 className="mt-2 font-display text-3xl font-extrabold !text-white">Subscription & Payment</h2>
-      <p className="mt-2 max-w-2xl text-sm text-slate-300">Request a plan, pay through a confirmed ManoHub channel, and track administrator activation.</p>
+      <p className="mt-2 max-w-2xl text-sm text-slate-300">Request a plan, pay through a confirmed Hyderra channel, and track administrator activation.</p>
     </section>
 
     {feedback && <div role="status" className="border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">{feedback}</div>}
@@ -127,7 +127,7 @@ export function SubscriptionBillingPage({ activeOrg }: { activeOrg: Organization
     </> : <form onSubmit={requestPlan} className="border-2 border-slate-950 bg-white p-6 space-y-5">
       <h3 className="font-display text-xl font-extrabold">Request a paid plan</h3>
       <div className="grid gap-4 md:grid-cols-2"><label className="text-xs font-bold uppercase text-slate-600">Plan<select required value={selectedPlanId} onChange={event => setSelectedPlanId(event.target.value)} className="mt-1 block w-full border border-slate-300 p-3 text-sm font-normal normal-case"><option value="">Select a plan</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label><label className="text-xs font-bold uppercase text-slate-600">Billing cycle<select value={billingCycle} onChange={event => setBillingCycle(event.target.value as 'monthly' | 'annual')} className="mt-1 block w-full border border-slate-300 p-3 text-sm font-normal normal-case"><option value="monthly">Monthly</option><option value="annual">Annual</option></select></label></div>
-      <p className="text-xs text-slate-500">{quotedPrice == null ? 'ManoHub Finance will confirm the exact amount before payment.' : `Amount: ${selectedPlan?.currencyCode} ${quotedPrice.toLocaleString()}`}</p>
+      <p className="text-xs text-slate-500">{quotedPrice == null ? 'Hyderra Finance will confirm the exact amount before payment.' : `Amount: ${selectedPlan?.currencyCode} ${quotedPrice.toLocaleString()}`}</p>
       <button disabled={busy} className="bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Requesting…' : 'Request plan'}</button>
     </form>}
 

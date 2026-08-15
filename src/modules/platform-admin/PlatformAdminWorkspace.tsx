@@ -154,7 +154,7 @@ function PlatformOverview({
         <div className="relative">
           <p className="font-mono text-[9px] font-bold uppercase tracking-[.24em] text-emerald-300">Platform administration</p>
           <h2 className="mt-3 max-w-2xl font-display text-3xl font-extrabold !text-white md:text-4xl">
-            One clear view of Manohub operations.
+            One clear view of Hyderra operations.
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
             Publish content, run advertising, review tenders, and support customers from focused workspaces.

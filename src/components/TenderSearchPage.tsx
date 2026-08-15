@@ -30,7 +30,7 @@ import {
   writeResilienceCache,
 } from '../lib/networkResilience';
 
-// ── Exact palette from the MANOHUB Tenders design (Gradient kit) ──
+// ── Exact palette from the HYDERRA Tenders design (Gradient kit) ──
 const C = {
   navy: '#0d1b2a',
   ink: '#14202e',
@@ -375,7 +375,7 @@ export function TenderSearchPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 70, padding: '0 30px', background: '#fff', borderBottom: `1px solid ${C.border2}` }} className="mh-pad">
             <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 14, color: C.navy }}>
               <ArrowLeft size={18} strokeWidth={2.2} />
-              <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, letterSpacing: '0.13em', color: C.navy }}>MANOHUB TENDERS</span>
+              <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, letterSpacing: '0.13em', color: C.navy }}>HYDERRA TENDERS</span>
             </Link>
             <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
               <div style={{ display: 'flex', border: `1px solid ${C.border}`, borderRadius: 5, overflow: 'hidden', fontFamily: MONO, fontSize: 11, fontWeight: 600, letterSpacing: '0.05em' }}>

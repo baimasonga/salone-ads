@@ -38,7 +38,7 @@ export function OrganizationProfilePage({ activeOrg, onUpdated }: { activeOrg: O
     <section className="border-2 border-slate-950 bg-slate-950 p-6 text-white">
       <p className="font-mono text-[9px] font-bold uppercase tracking-[.22em] text-emerald-300">{subscriber.label}</p>
       <h2 className="mt-2 font-display text-3xl font-extrabold !text-white">{subscriber.profileLabel}</h2>
-      <p className="mt-2 text-sm text-slate-300">Keep the identity and operating details shown across your ManoHub workspace accurate.</p>
+      <p className="mt-2 text-sm text-slate-300">Keep the identity and operating details shown across your Hyderra workspace accurate.</p>
     </section>
     {feedback && <div role="status" className="border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">{feedback}</div>}
 

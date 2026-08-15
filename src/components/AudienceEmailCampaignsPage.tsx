@@ -160,7 +160,7 @@ export function AudienceEmailCampaignsPage() {
     <section className="border border-slate-200 bg-slate-950 p-6 text-white">
       <p className="font-mono text-[10px] uppercase tracking-[.2em] text-blue-300">Audience delivery</p>
       <h2 className="mt-1 font-display text-2xl font-extrabold !text-white">Email Campaigns</h2>
-      <p className="mt-1 text-sm text-slate-300">Compose, target, schedule and measure Manohub audience messages.</p>
+      <p className="mt-1 text-sm text-slate-300">Compose, target, schedule and measure Hyderra audience messages.</p>
     </section>
 
     {feedback && <div role="status" className="border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-800">{feedback}</div>}
@@ -200,8 +200,8 @@ export function AudienceEmailCampaignsPage() {
         <label className="text-xs font-bold text-slate-600">Email subject<input required maxLength={180} value={subject} onChange={event => setSubject(event.target.value)} className="mt-1 w-full" /></label>
         <label className="text-xs font-bold text-slate-600 sm:col-span-2">Preview text<input maxLength={220} value={previewText} onChange={event => setPreviewText(event.target.value)} placeholder="Short text shown beside the subject in the inbox" className="mt-1 w-full" /></label>
         <label className="text-xs font-bold text-slate-600 sm:col-span-2">Message<textarea required rows={7} maxLength={12000} value={body} onChange={event => setBody(event.target.value)} placeholder="Write the audience update…" className="mt-1 w-full" /></label>
-        <label className="text-xs font-bold text-slate-600">Button label<input maxLength={80} value={ctaLabel} onChange={event => setCtaLabel(event.target.value)} placeholder="Explore Manohub" className="mt-1 w-full" /></label>
-        <label className="text-xs font-bold text-slate-600">Button link<input type="url" maxLength={1000} value={ctaHref} onChange={event => setCtaHref(event.target.value)} placeholder="https://manohub.com/…" className="mt-1 w-full" /></label>
+        <label className="text-xs font-bold text-slate-600">Button label<input maxLength={80} value={ctaLabel} onChange={event => setCtaLabel(event.target.value)} placeholder="Explore Hyderra" className="mt-1 w-full" /></label>
+        <label className="text-xs font-bold text-slate-600">Button link<input type="url" maxLength={1000} value={ctaHref} onChange={event => setCtaHref(event.target.value)} placeholder={`/…`} className="mt-1 w-full" /></label>
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">

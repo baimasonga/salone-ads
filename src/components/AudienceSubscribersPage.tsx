@@ -63,7 +63,7 @@ export function AudienceSubscribersPage() {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `manohub-audience-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.download = `hyderra-audience-${new Date().toISOString().slice(0, 10)}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -76,7 +76,7 @@ export function AudienceSubscribersPage() {
     <section className="border border-slate-200 bg-slate-950 p-6 text-white">
       <p className="font-mono text-[10px] uppercase tracking-[.2em] text-emerald-300">Owned audience</p>
       <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
-        <div><h2 className="font-display text-2xl font-extrabold !text-white">Audience Subscribers</h2><p className="mt-1 text-sm text-slate-300">Consent-aware contacts gathered from Manohub’s public experience.</p></div>
+        <div><h2 className="font-display text-2xl font-extrabold !text-white">Audience Subscribers</h2><p className="mt-1 text-sm text-slate-300">Consent-aware contacts gathered from Hyderra’s public experience.</p></div>
         <button onClick={exportCsv} disabled={!visible.length} className="inline-flex items-center gap-2 bg-emerald-600 px-4 py-2.5 font-mono text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"><Download className="h-4 w-4" /> Export filtered</button>
       </div>
     </section>

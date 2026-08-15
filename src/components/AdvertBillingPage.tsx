@@ -49,7 +49,7 @@ export function AdvertBillingPage({ activeOrg, isPlatformAdmin }: { activeOrg: O
         paymentMethod: method, paymentReference: reference,
       });
       setSelected(null); setReference(''); await load();
-      setFeedback('Order submitted. Manohub will verify payment and issue the receipt.');
+      setFeedback('Order submitted. Hyderra will verify payment and issue the receipt.');
     } catch (error) { setFeedback(error instanceof Error ? error.message : 'Order could not be submitted.'); }
     finally { setSaving(false); }
   };

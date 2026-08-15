@@ -43,7 +43,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
   const [tenderInterests, setTenderInterests] = useState('');
   const [tenderFrequency, setTenderFrequency] = useState('Occasional');
   const [contactPerson, setContactPerson] = useState('');
-  const [preferredChannels, setPreferredChannels] = useState('ManoHub, WhatsApp');
+  const [preferredChannels, setPreferredChannels] = useState('Hyderra, WhatsApp');
   const [freeInterests, setFreeInterests] = useState('Tenders and business opportunities');
   const [subscriberType, setSubscriberType] = useState<SubscriberType>('free');
 
@@ -177,7 +177,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
             <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
               <div className="w-4 h-4 border-2 border-white"></div>
             </div>
-            <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">Manohub</span>
+            <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">Hyderra</span>
           </div>
           <h2 className="font-display font-black text-2xl text-[#0F172A] uppercase tracking-tight">Configure active organization</h2>
           <p className="mt-2 text-sm text-slate-500">
@@ -362,7 +362,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
           <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
             <div className="w-4 h-4 border-2 border-white"></div>
           </div>
-          <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">Manohub</span>
+          <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">Hyderra</span>
         </div>
         <h2 className="font-display font-black text-2xl text-[#0F172A] uppercase tracking-tight">
           {mode === 'signin'
@@ -431,7 +431,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
               <>
                 {authError && <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3">{authError}</div>}
                 <form className="space-y-6 text-left" onSubmit={handlePasswordRecovery}>
-                  <p className="text-sm leading-relaxed text-slate-600">Enter the email used for your ManoHub account. We will send a secure password-reset link.</p>
+                  <p className="text-sm leading-relaxed text-slate-600">Enter the email used for your Hyderra account. We will send a secure password-reset link.</p>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700">Email Address</label>
                     <div className="mt-1 relative">
@@ -450,7 +450,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
             <>
               {authError && <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm p-3">{authError}</div>}
               <form className="space-y-6 text-left" onSubmit={handlePasswordUpdate}>
-                <p className="text-sm leading-relaxed text-slate-600">Choose a new password for your ManoHub account.</p>
+                <p className="text-sm leading-relaxed text-slate-600">Choose a new password for your Hyderra account.</p>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700">New Password</label>
                   <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-slate-200 bg-slate-50 focus:bg-white focus:outline-emerald-500 text-sm" />
@@ -537,7 +537,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
 
                 {mode === 'signup' && <label className="flex items-start gap-3 text-xs leading-relaxed text-slate-600">
                   <input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} className="mt-0.5 h-4 w-4 accent-emerald-600" />
-                  <span>I agree to ManoHub's Terms of Service and Privacy Policy and understand that paid access begins after payment verification.</span>
+                  <span>I agree to Hyderra's Terms of Service and Privacy Policy and understand that paid access begins after payment verification.</span>
                 </label>}
 
                 <button

@@ -274,7 +274,7 @@ export function NotificationCentre({ activeOrgId, onNavigate }: NotificationCent
               <div key={item.id} className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_150px_150px] sm:items-center">
                 <div>
                   <h3 className="font-display text-sm font-extrabold text-slate-950">{item.label}</h3>
-                  <p className="mt-1 text-[10px] text-slate-500">Choose how frequently Manohub should deliver this category.</p>
+                  <p className="mt-1 text-[10px] text-slate-500">Choose how frequently Hyderra should deliver this category.</p>
                 </div>
                 {(['in_app', 'email'] as const).map((channel) => (
                   <select

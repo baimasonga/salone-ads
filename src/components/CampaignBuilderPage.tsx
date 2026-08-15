@@ -72,7 +72,7 @@ const DEVICES: Array<{ value: AdCampaignDevice; label: string }> = [
   { value: 'tablet', label: 'Tablet' },
 ];
 const CHANNELS: Array<{ value: AdCampaignChannel; label: string; description: string }> = [
-  { value: 'manohub', label: 'Manohub', description: 'Paid adverts delivered inside Manohub.' },
+  { value: 'manohub', label: 'Hyderra', description: 'Paid adverts delivered inside Hyderra.' },
   { value: 'facebook', label: 'Facebook', description: 'Facebook posts and promotion tracking.' },
   { value: 'instagram', label: 'Instagram', description: 'Instagram content and promotion tracking.' },
   { value: 'whatsapp', label: 'WhatsApp', description: 'WhatsApp promotion and enquiry activity.' },
@@ -328,7 +328,7 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
             <p className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">Enhancement 2</p>
             <h2 className="mt-1 font-display text-2xl font-extrabold text-slate-950">Campaign Management</h2>
             <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Create one campaign for Manohub, social media, or both—without entering the same plan twice.
+              Create one campaign for Hyderra, social media, or both—without entering the same plan twice.
             </p>
           </div>
           <button onClick={openNew} className="inline-flex items-center justify-center gap-2 bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">
@@ -615,7 +615,7 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
                       {(creatives[campaign.id]?.length ?? 0) === 0 ? (
                         <div className="flex items-center gap-3 border border-dashed border-slate-300 bg-white p-5 text-sm text-slate-500">
                           <ImageIcon className="h-5 w-5 text-slate-400" />
-                          No creatives are assigned yet. Manohub administrators can add multiple adverts in the Advert Publisher.
+                          No creatives are assigned yet. Hyderra administrators can add multiple adverts in the Advert Publisher.
                         </div>
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -633,7 +633,7 @@ export function CampaignBuilderPage({ activeOrg, isPlatformAdmin }: CampaignBuil
                                   <p className="text-sm font-bold text-slate-900">{creative.title}</p>
                                   <span className="border border-slate-200 px-2 py-0.5 font-mono text-[9px] uppercase text-slate-500">{creative.format}</span>
                                 </div>
-                                <p className="mt-1 text-xs text-slate-500">{creative.socialPlatform || 'Manohub'} · {creative.status}</p>
+                                <p className="mt-1 text-xs text-slate-500">{creative.socialPlatform || 'Hyderra'} · {creative.status}</p>
                               </div>
                             </article>
                           ))}

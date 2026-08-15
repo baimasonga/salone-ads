@@ -715,7 +715,7 @@ export function Workspaces({
   const [editPlatform, setEditPlatform] = useState('Facebook');
   const [editHeadline, setEditHeadline] = useState('');
   const [editBody, setEditBody] = useState('');
-  const [editHashtagsInput, setEditHashtagsInput] = useState('#Manohub, #EatSalone');
+  const [editHashtagsInput, setEditHashtagsInput] = useState('#Hyderra, #EatSalone');
   const [editScheduledDate, setEditScheduledDate] = useState(defaultScheduledDate());
   const [editStatus, setEditStatus] = useState<ContentItem['status']>('Draft');
   const [contentFeedback, setContentFeedback] = useState('');
@@ -731,7 +731,7 @@ export function Workspaces({
     setEditPlatform('Facebook');
     setEditHeadline('');
     setEditBody('');
-    setEditHashtagsInput('#Manohub, #EatSalone');
+    setEditHashtagsInput('#Hyderra, #EatSalone');
     setEditScheduledDate(defaultScheduledDate());
     setEditStatus('Draft');
   };
@@ -879,7 +879,7 @@ export function Workspaces({
               platform: idea.platform || editPlatform || 'Facebook',
               headline: idea.title || '',
               bodyText: `${idea.concept || ''}\n\nHow to execute: ${idea.executionStep || ''}`,
-              hashtags: ['#Manohub', '#EatSalone'],
+              hashtags: ['#Hyderra', '#EatSalone'],
               scheduledDate: defaultScheduledDate(),
             })
           );
@@ -1592,7 +1592,7 @@ export function Workspaces({
   };
   const [adSubmitting, setAdSubmitting] = useState(false);
 
-  // Admin: published adverts shown on the public site (Manohub is the source
+  // Admin: published adverts shown on the public site (Hyderra is the source
   // of truth; the social post links back).
   const [publishedAdverts, setPublishedAdverts] = useState<Advert[]>([]);
   const [advAnalytics, setAdvAnalytics] = useState<AdvertAnalyticsSummary | null>(null);
@@ -1754,13 +1754,13 @@ export function Workspaces({
           const node = kitRefs.current[f];
           if (!node) continue;
           const dataUrl = await exportCreativePng(node);
-          zip.file(`manohub-${slug}-${f}.png`, dataUrl.split(',')[1], { base64: true });
+          zip.file(`hyderra-${slug}-${f}.png`, dataUrl.split(',')[1], { base64: true });
         }
         const blob = await zip.generateAsync({ type: 'blob' });
         if (cancelled) return;
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `manohub-${slug}-kit.zip`;
+        a.download = `hyderra-${slug}-kit.zip`;
         a.click();
         URL.revokeObjectURL(a.href);
       } catch (err: any) {
@@ -2803,7 +2803,7 @@ export function Workspaces({
     return (
       <div className="space-y-5 text-left">
         <div className="border-b-2 border-[#0F172A] pb-5">
-          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700">Manohub intelligence</span>
+          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-700">Hyderra intelligence</span>
           <h3 className="mt-1 font-display text-3xl font-extrabold tracking-tight text-slate-950 flex items-center gap-3">
             <Landmark className="h-6 w-6 text-emerald-600" /> Platform Analytics
           </h3>
@@ -3309,7 +3309,7 @@ export function Workspaces({
                 <label className="block text-xs font-bold text-slate-500 uppercase">Hashtags</label>
                 <input
                   type="text"
-                  placeholder="#Manohub, #EatSalone"
+                  placeholder="#Hyderra, #EatSalone"
                   value={editHashtagsInput}
                   onChange={(e) => setEditHashtagsInput(e.target.value)}
                   className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
@@ -4028,7 +4028,7 @@ export function Workspaces({
                   <label className="block text-[10px] font-bold text-slate-500 uppercase">Account / Handle</label>
                   <input
                     type="text" required
-                    placeholder="@manohub"
+                    placeholder="@hyderra"
                     value={newChannelAccountName}
                     onChange={(e) => setNewChannelAccountName(e.target.value)}
                     className="mt-1 w-full border border-slate-200 rounded-lg p-2 bg-white text-sm focus:outline-emerald-500"
@@ -4764,7 +4764,7 @@ export function Workspaces({
                         platform: 'Facebook & WhatsApp',
                         headline: ev.title,
                         bodyText: `Join us for ${ev.title} — ${ev.date} at ${ev.location}. Don't miss it!`,
-                        hashtags: ['#Manohub', '#EatSalone'],
+                        hashtags: ['#Hyderra', '#EatSalone'],
                         scheduledDate: ev.scheduledDate,
                       });
                       setContentItems([newItem, ...contentItems]);
@@ -4914,7 +4914,7 @@ export function Workspaces({
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-6">
           <h3 className="font-display font-bold text-slate-900 text-lg">Team Roles & Secure Invites</h3>
           <p className="text-xs text-slate-500">
-            Add existing Manohub users to {activeOrg.name}.
+            Add existing Hyderra users to {activeOrg.name}.
             {teamLimit !== null && ` Your plan allows up to ${teamLimit} team member${teamLimit === 1 ? '' : 's'}.`}
           </p>
 
@@ -4928,7 +4928,7 @@ export function Workspaces({
             <input
               type="email"
               required
-              placeholder="colleague@example.com (must already have a Manohub account)"
+              placeholder="colleague@example.com (must already have a Hyderra account)"
               value={teamEmail}
               onChange={(e) => setTeamEmail(e.target.value)}
               className="flex-1 border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"

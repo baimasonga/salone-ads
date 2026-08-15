@@ -78,7 +78,7 @@ export function AdminOrganizationLifecycleWorkspace() {
         if (records.length >= result.total || result.items.length === 0) break;
       }
       const url = URL.createObjectURL(new Blob([exportSubscribersCsv(records)], { type: 'text/csv;charset=utf-8' }));
-      const link = document.createElement('a'); link.href = url; link.download = `manohub-subscribers-${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(url);
+      const link = document.createElement('a'); link.href = url; link.download = `hyderra-subscribers-${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(url);
     } catch (error) { setFeedback(error instanceof Error ? error.message : 'Export failed.'); }
     finally { setBusy(''); }
   };

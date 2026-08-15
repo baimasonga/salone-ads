@@ -33,7 +33,7 @@ describe('advanced search and discovery', () => {
   });
 
   it('includes deliberate loading, cached, error and empty states', () => {
-    expect(page).toContain('Searching trusted Manohub records');
+    expect(page).toContain('Searching trusted Hyderra records');
     expect(page).toContain('Showing cached results');
     expect(page).toContain('Search is temporarily unavailable');
     expect(page).toContain('No verified results found');

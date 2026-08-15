@@ -41,7 +41,7 @@ body {
 
 /* Sharp boxy components overrides.
    Include pills and circular utility classes so every route follows the
-   same rectangular Manohub language. */
+   same rectangular Hyderra language. */
 .rounded-2xl, .rounded-xl, .rounded-lg, .rounded-md, .rounded, .rounded-full {
   border-radius: 0px !important;
 }
@@ -180,7 +180,7 @@ table,
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* Preserve Manohub's supporting palette for statistics, status and progress.
+/* Preserve Hyderra's supporting palette for statistics, status and progress.
    These accents communicate meaning; the surrounding page theme stays navy,
    slate and white. */
 .bg-emerald-500 { background-color: #10B981 !important; }

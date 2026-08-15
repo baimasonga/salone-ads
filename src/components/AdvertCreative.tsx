@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState, ReactNode } from 'react';
 
-// Auto-generated advert creative — a faithful build of the "Manohub Ad Frame"
+// Auto-generated advert creative — a faithful build of the "Hyderra Ad Frame"
 // design system (exported from Claude Design). One set of advert fields renders
 // a finished, on-brand social/print creative — square / story / landscape, in a
 // dark (dusk gradient + mesh glow) or light (newspaper) theme — like a magazine
@@ -104,7 +104,7 @@ function Wordmark({ p }: { p: Palette }) {
       <div style={{ width: 30, height: 30, background: box, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: 13, height: 13, border: `3px solid ${inner}` }} />
       </div>
-      <span style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700, letterSpacing: '0.16em', color: p.headline }}>MANOHUB</span>
+      <span style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700, letterSpacing: '0.16em', color: p.headline }}>HYDERRA</span>
     </div>
   );
 }
@@ -191,7 +191,7 @@ function BusinessRow({ p, businessName, cta, accent, fontSize }: { p: Palette; b
 function Footer({ p }: { p: Palette }) {
   return (
     <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 500, letterSpacing: '0.04em', color: p.footer }}>
-      Sponsored on Manohub · manohub.com
+      Sponsored on Hyderra
     </div>
   );
 }
@@ -226,7 +226,7 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
   const p = palette(theme);
   const accent = accentColor || IRIS;
   const cat = (category || 'Advert').toUpperCase();
-  const cta = platform ? `Find us on ${platform}` : ctaUrl ? 'Learn more' : 'Advertised on Manohub';
+  const cta = platform ? `Find us on ${platform}` : ctaUrl ? 'Learn more' : 'Advertised on Hyderra';
   const name = businessName || 'Your Business';
   const showPhoto = withPhoto !== false; // false → text-forward, no photo panel
 
@@ -277,7 +277,7 @@ export const AdvertCreative = forwardRef<HTMLDivElement, AdvertCreativeProps>(fu
           {/* masthead */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
             <Logo p={paper} logoUrl={logoUrl} />
-            <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 600, letterSpacing: '0.16em', color: '#8b95a3' }}>MANOHUB.COM</span>
+            <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 600, letterSpacing: '0.16em', color: '#8b95a3' }}>HYDERRA</span>
           </div>
           <div style={{ margin: '22px 0' }}>{inkRule}</div>
           <div><CategoryChip label={cat} accent={accent} /></div>

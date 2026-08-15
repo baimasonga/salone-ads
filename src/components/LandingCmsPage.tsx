@@ -223,7 +223,7 @@ export function LandingCmsPage() {
       <div className="mt-1 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="font-display text-2xl font-extrabold !text-white">Landing Page CMS</h2>
-          <p className="mt-1 text-sm text-slate-300">Manage public stories and advert inventory without changing Manohub’s theme.</p>
+          <p className="mt-1 text-sm text-slate-300">Manage public stories and advert inventory without changing Hyderra’s theme.</p>
         </div>
         <button onClick={() => void createBlock()} disabled={saving === 'new-block'} className="inline-flex items-center gap-2 bg-orange-500 px-4 py-2.5 text-xs font-bold text-white">
           {saving === 'new-block' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}

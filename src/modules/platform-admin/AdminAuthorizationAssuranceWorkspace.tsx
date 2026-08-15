@@ -38,7 +38,7 @@ export function AdminAuthorizationAssuranceWorkspace() {
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div><p className="font-mono text-[9px] font-bold uppercase tracking-[.22em] text-emerald-300">Tenant security</p>
           <h2 className="mt-2 font-display text-3xl font-extrabold !text-white">Authorization Assurance</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Continuously verify RLS coverage, tenant-scoped policies and privileged function exposure across Manohub.</p>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Continuously verify RLS coverage, tenant-scoped policies and privileged function exposure across Hyderra.</p>
         </div>
         <button onClick={() => void load()} className="inline-flex items-center gap-2 border-2 border-white bg-white px-4 py-2 font-mono text-[9px] font-bold uppercase text-slate-950">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}/>Refresh posture

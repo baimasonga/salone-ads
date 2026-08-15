@@ -147,7 +147,7 @@ export async function updateAdvertisementReport(id: string, updates: UpdateAdver
 }
 
 // ── Public adverts (shown on the site) ──────────────────────────────────────
-// Manohub is the source of truth: an admin authors the advert here and stores
+// Hyderra is the source of truth: an admin authors the advert here and stores
 // the social post URL once it's live. Public visitors can read status='live'
 // rows only (RLS); the detail page links out to the social platform.
 export type AdvertStatus = 'draft' | 'live' | 'archived';
@@ -312,7 +312,7 @@ export async function fetchAdvertAnalyticsSummary(): Promise<AdvertAnalyticsSumm
 }
 
 // Ready-to-paste social captions for a published advert, each ending with the
-// advert's public Manohub page — the source-of-truth hand-off (no platform API
+// advert's public Hyderra page — the source-of-truth hand-off (no platform API
 // keys). Shared by the admin publisher and the public detail page.
 export function buildAdvertSharePack(adv: Advert): { key: string; label: string; text: string }[] {
   const base = typeof window !== 'undefined' ? window.location.origin : 'https://manohub.com';
@@ -321,12 +321,12 @@ export function buildAdvertSharePack(adv: Advert): { key: string; label: string;
   const biz = adv.businessName.trim();
   const summary = (adv.summary || adv.content || '').trim();
   const catTag = adv.category ? `#${adv.category.replace(/[^a-zA-Z0-9]+/g, '')}` : '';
-  const tags = [catTag, '#Manohub', '#SierraLeone', '#Liberia'].filter(Boolean).join(' ');
+  const tags = [catTag, '#Hyderra', '#SierraLeone', '#Liberia'].filter(Boolean).join(' ');
   const wa = `📣 ${title}\n\n${summary}\n\n— ${biz}\n👉 Details & contact: ${url}`;
-  const fb = `${title}\n\n${summary}\n\nBrought to you by ${biz} on Manohub.\nFull details 👉 ${url}\n\n${tags}`;
+  const fb = `${title}\n\n${summary}\n\nBrought to you by ${biz} on Hyderra.\nFull details 👉 ${url}\n\n${tags}`;
   const ig = `${title} ✨\n${summary}\n\n${biz} — see the full advert 👉 ${url}\n(link in bio)\n\n${tags} #ManoRiver`;
-  let x = `${title} — ${biz}. ${url} ${catTag} #Manohub`.trim();
-  if (x.length > 280) x = `${title.slice(0, 180)}… ${url} #Manohub`;
+  let x = `${title} — ${biz}. ${url} ${catTag} #Hyderra`.trim();
+  if (x.length > 280) x = `${title.slice(0, 180)}… ${url} #Hyderra`;
   return [
     { key: 'whatsapp', label: 'WhatsApp', text: wa },
     { key: 'facebook', label: 'Facebook', text: fb },
@@ -335,7 +335,7 @@ export function buildAdvertSharePack(adv: Advert): { key: string; label: string;
   ];
 }
 
-// The public URL of an advert's Manohub page.
+// The public URL of an advert's Hyderra page.
 export function advertPublicUrl(adv: Advert): string {
   const base = typeof window !== 'undefined' ? window.location.origin : 'https://manohub.com';
   return `${base}/adverts/${adv.slug}`;
@@ -704,7 +704,7 @@ export async function reviewCampaign(id: string, decision: 'approved' | 'rejecte
   const now = new Date().toISOString();
   const patch = decision === 'approved'
     ? { status: 'approved', approved_at: now, reviewed_by: user?.id ?? null, rejection_reason: null, updated_at: now }
-    : { status: 'rejected', approved_at: null, reviewed_by: user?.id ?? null, rejection_reason: rejectionReason?.trim() || 'Changes requested by Manohub.', updated_at: now };
+    : { status: 'rejected', approved_at: null, reviewed_by: user?.id ?? null, rejection_reason: rejectionReason?.trim() || 'Changes requested by Hyderra.', updated_at: now };
   const { error } = await supabase.from('ad_campaigns').update(patch).eq('id', id).eq('status', 'submitted');
   if (error) throw error;
 }
