@@ -12,7 +12,6 @@ import {
   MonitorCog,
   Package,
   Search,
-  Square,
   Truck,
   Wheat,
   X,
@@ -95,7 +94,7 @@ const CONCEPT_CSS = `
   .mh-badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;color:#0b5fad;background:#e5f2ff;font-size:12px;font-weight:700}
   .mh-topbar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding-block:18px;border-bottom:2px solid var(--mh-ink)}
   .mh-brand{display:flex;align-items:center;gap:10px;color:var(--mh-ink);font-size:18px;font-weight:900;letter-spacing:.08em}
-  .mh-brand-mark{display:grid;width:34px;height:34px;place-items:center;background:var(--mh-ink);color:#fff}
+  .mh-brand-mark{display:block;width:38px;height:38px;object-fit:contain}
   .mh-brand-accent{color:var(--mh-green)}
   .mh-nav{display:flex;align-items:center;gap:20px}
   .mh-nav a,.mh-nav-link{border:0;background:transparent;color:var(--mh-ink);cursor:pointer;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em;text-decoration:none;text-transform:uppercase}
@@ -309,7 +308,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
 
       <header className="mh-shell mh-topbar">
         <div className="mh-brand">
-          <span className="mh-brand-mark"><Square aria-hidden="true" size={17} /></span>
+          <img className="mh-brand-mark" src="/hyderra-mono.svg" alt="" aria-hidden="true" />
           <span>HYD<span className="mh-brand-accent">ERRA</span></span>
         </div>
         <nav className="mh-nav" aria-label="Main navigation">

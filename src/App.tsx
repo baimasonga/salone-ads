@@ -543,9 +543,7 @@ function DashboardShell({
           {/* Logo Brand Header */}
           <div className="flex items-center justify-between pb-4 border-b border-[#0F172A]">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
-                <div className="w-4 h-4 border-2 border-white"></div>
-              </div>
+              <img src="/hyderra-mono.svg" alt="" aria-hidden="true" className="h-9 w-9 shrink-0" />
               <span className="font-display font-black tracking-widest text-lg uppercase text-[#0F172A]">Hyderra</span>
             </div>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-[#0F172A] hover:bg-slate-100 p-1 cursor-pointer">

@@ -174,9 +174,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
       <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 px-6 lg:px-8 border-4 md:border-8 border-[#0F172A]">
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
           <div className="flex justify-center items-center gap-3 mb-4">
-            <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
-              <div className="w-4 h-4 border-2 border-white"></div>
-            </div>
+            <img src="/hyderra-mono.svg" alt="" aria-hidden="true" className="h-10 w-10 shrink-0" />
             <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">Hyderra</span>
           </div>
           <h2 className="font-display font-black text-2xl text-[#0F172A] uppercase tracking-tight">Configure active organization</h2>
@@ -359,9 +357,7 @@ export function AuthScreens({ mode, onSwitchMode, onSuccess }: AuthScreensProps)
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 px-6 lg:px-8 border-4 md:border-8 border-[#0F172A]">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="flex justify-center items-center gap-3 mb-4">
-          <div className="w-8 h-8 bg-[#0F172A] flex items-center justify-center shrink-0">
-            <div className="w-4 h-4 border-2 border-white"></div>
-          </div>
+          <img src="/hyderra-mono.svg" alt="" aria-hidden="true" className="h-10 w-10 shrink-0" />
           <span className="font-display font-black tracking-widest text-xl uppercase text-[#0F172A]">Hyderra</span>
         </div>
         <h2 className="font-display font-black text-2xl text-[#0F172A] uppercase tracking-tight">
