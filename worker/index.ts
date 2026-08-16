@@ -19,6 +19,10 @@ interface Env {
   EMAIL_DISPATCH_SECRET?: string;
 }
 
+// Change the identity when a release must replace a stale long-lived container.
+// Cloudflare keeps Durable Object container identities stable across Worker deploys.
+const PRODUCTION_CONTAINER_ID = 'production-customer-support-centre-v18';
+
 // A single routed instance is intentional: server.ts's AI rate limiter
 // keeps its counters in in-process memory (express-rate-limit's default
 // store), which only behaves correctly with one instance. Don't switch this
@@ -58,12 +62,12 @@ export default {
     // Keep one stable Durable Object identity so Cloudflare can replace its
     // image during a rollout instead of accumulating one running instance per
     // commit. The workflow uses an immediate rollout to restart this instance.
-    const container = getContainer(env.MANOHUB_CONTAINER, 'production-customer-requests-modules-v17');
+    const container = getContainer(env.MANOHUB_CONTAINER, PRODUCTION_CONTAINER_ID);
     return container.fetch(request);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (!env.EMAIL_DISPATCH_SECRET) return;
-    const container = getContainer(env.MANOHUB_CONTAINER, 'production-customer-requests-modules-v17');
+    const container = getContainer(env.MANOHUB_CONTAINER, PRODUCTION_CONTAINER_ID);
     ctx.waitUntil(container.fetch(new Request('http://container/api/audience-email/dispatch-due', {
       method: 'POST',
       headers: { 'x-manohub-dispatch-secret': env.EMAIL_DISPATCH_SECRET },
