@@ -6,10 +6,11 @@ const read = (path: string) => readFileSync(path, 'utf8');
 describe('Hyderra brand transition', () => {
   it('uses Hyderra in customer-facing entry points', () => {
     expect(read('index.html')).toContain('<title>Hyderra</title>');
-    expect(read('index.html')).toContain('href="/hyderra-mono.svg"');
+    expect(read('index.html')).toContain('href="/hyderra-favicon.svg?v=2"');
+    expect(read('public/hyderra-horizontal.svg')).toContain('aria-label="hyderra"');
+    expect(read('public/hyderra-favicon.svg')).toContain('aria-label="hyderra"');
     expect(read('public/hyderra-mono.svg')).toContain('aria-label="hyderra"');
-    expect(read('src/App.tsx')).toContain('>Hyderra</span>');
-    expect(read('src/App.tsx')).toContain('src="/hyderra-mono.svg"');
+    expect(read('src/App.tsx')).toContain('src="/hyderra-horizontal.svg?v=2"');
     expect(read('server/email/templates.ts')).toContain('HYD<span style="color:#10b981">ERRA</span>');
     expect(read('src/components/LandingPage.tsx')).not.toContain('MANO<span');
     expect(read('src/components/InsightsPage.tsx')).not.toContain('MANO<span');
