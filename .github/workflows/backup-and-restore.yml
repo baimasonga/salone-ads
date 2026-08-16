@@ -120,7 +120,11 @@ jobs:
             --argjson objects "$object_count" --argjson bytes "$byte_count" \
             '{schema_version:1,run_reference:$run,backup_point_at:$point,commit:$commit,storage_object_count:$objects,storage_bytes:$bytes,encryption:{database:"age",storage:"rclone-crypt"}}' > "$manifest"
           manifest_sha256=$(sha256sum "$manifest" | cut -d' ' -f1)
-          rclone copyto "$manifest" "r2:$R2_BUCKET/runs/$stamp/manifest.json" --immutable
+          if rclone lsf "r2:$R2_BUCKET/runs/$stamp" --files-only | grep -Fxq 'manifest.json'; then
+            echo '::error::Backup manifest already exists for this timestamp'
+            exit 1
+          fi
+          rclone copyto "$manifest" "r2:$R2_BUCKET/runs/$stamp/manifest.json"
           echo "started_at=$started_at" >> "$GITHUB_OUTPUT"
           echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
           echo "run_reference=$run_reference" >> "$GITHUB_OUTPUT"
