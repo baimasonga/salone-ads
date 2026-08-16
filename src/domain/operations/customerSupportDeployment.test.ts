@@ -15,6 +15,7 @@ describe('customer support production deployment', () => {
     expect(workflow).toContain('Verify deployed customer support navigation');
     expect(workflow).toContain("grep -Fq 'Customer Support Centre'");
     expect(workflow).toContain('Verify deployed release identity');
-    expect(workflow).toContain('r.commit!==process.env.GITHUB_SHA');
+    expect(workflow).toContain('r.commit===process.env.GITHUB_SHA');
+    expect(workflow).toContain('for attempt in {1..24}');
   });
 });
