@@ -57,6 +57,15 @@ export interface AdvertBreakdownItem {
   value: number;
 }
 
+export interface AdvertAttributionRow {
+  campaign: string;
+  medium: string;
+  views: number;
+  clicks: number;
+  outcomes: number;
+  revenue: number;
+}
+
 export type AdvertGoalType = 'awareness' | 'traffic' | 'lead' | 'sale';
 export type AdvertOutcomeType = 'lead' | 'sale';
 export type AdvertOutcomeStatus = 'pending' | 'confirmed' | 'rejected';
@@ -140,6 +149,14 @@ function sourceFromLocation(): string {
   return safeReferrerHost() || 'direct';
 }
 
+function campaignMetadata(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const params = new URLSearchParams(window.location.search);
+  return Object.fromEntries(['utm_campaign', 'utm_medium', 'utm_term', 'utm_content']
+    .map(key => [key, params.get(key)?.trim().slice(0, 120)] as const)
+    .filter((entry): entry is [string, string] => Boolean(entry[1])));
+}
+
 function cleanMetadata(
   metadata: AdvertEventInput['metadata']
 ): Record<string, string | number | boolean | null> {
@@ -189,7 +206,7 @@ export async function trackAdvertEvent(input: AdvertEventInput): Promise<boolean
       p_country_code: null,
       p_district: null,
       p_dedupe_key: dedupeKey,
-      p_metadata: cleanMetadata(input.metadata),
+      p_metadata: cleanMetadata({ ...campaignMetadata(), ...input.metadata }),
     });
 
     if (error) return false;
@@ -198,6 +215,13 @@ export async function trackAdvertEvent(input: AdvertEventInput): Promise<boolean
     // Analytics is best-effort and must never block advert discovery or CTAs.
     return false;
   }
+}
+
+export async function fetchAdvertAttribution(advertId: string, periodDays = 30): Promise<AdvertAttributionRow[]> {
+  const { data, error } = await supabase.rpc('get_advert_attribution', { p_advert_id: advertId, p_days: periodDays });
+  if (error) throw error;
+  const rows = ((data as any)?.rows ?? []) as any[];
+  return rows.map(row => ({ campaign: String(row.campaign), medium: String(row.medium), views: Number(row.views), clicks: Number(row.clicks), outcomes: Number(row.outcomes), revenue: Number(row.revenue) }));
 }
 
 export async function fetchAdvertPerformance(

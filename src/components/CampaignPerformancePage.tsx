@@ -28,9 +28,11 @@ import {
   AdvertOutcomeSource,
   AdvertOutcomeStatus,
   AdvertOutcomeType,
+  fetchAdvertAttribution,
   fetchOrganizationAdvertPerformance,
   saveAdvertCommercialSettings,
   updateAdvertOutcomeStatus,
+  type AdvertAttributionRow,
 } from '../lib/advertAnalytics';
 import { Organization } from '../types';
 
@@ -198,6 +200,7 @@ export function CampaignPerformancePage({
   const [outcomeRevenue, setOutcomeRevenue] = useState('');
   const [outcomeDate, setOutcomeDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [outcomeNote, setOutcomeNote] = useState('');
+  const [attribution, setAttribution] = useState<AdvertAttributionRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -229,6 +232,10 @@ export function CampaignPerformancePage({
   }, [activeOrg.id, isPlatformAdmin, periodDays, reloadKey]);
 
   const selected = campaigns.find((campaign) => campaign.advertId === selectedId) ?? campaigns[0] ?? null;
+  useEffect(() => {
+    if (!selected) { setAttribution([]); return; }
+    fetchAdvertAttribution(selected.advertId, periodDays).then(setAttribution).catch(() => setAttribution([]));
+  }, [selected?.advertId, periodDays, reloadKey]);
   useEffect(() => {
     if (!selected) return;
     setGoalType(selected.commercial.goalType);
@@ -961,6 +968,11 @@ export function CampaignPerformancePage({
                     <p className="mt-1 text-xs text-slate-500">The chart will begin with the first verified event in this period.</p>
                   </div>
                 )}
+              </section>
+
+              <section className="border border-[#0F172A] bg-white">
+                <div className="border-b border-[#0F172A] p-5"><h3 className="font-display text-lg font-extrabold text-slate-950">Campaign attribution</h3><p className="mt-1 text-xs text-slate-500">Privacy-preserving last-touch outcomes across UTM campaigns and media; unattributed results remain explicit.</p></div>
+                {attribution.length ? <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead className="bg-slate-50 font-mono text-[9px] uppercase text-slate-500"><tr><th className="p-3 text-left">Campaign</th><th className="p-3 text-left">Medium</th><th className="p-3 text-right">Views</th><th className="p-3 text-right">Clicks</th><th className="p-3 text-right">Outcomes</th><th className="p-3 text-right">Revenue</th></tr></thead><tbody>{attribution.map(row => <tr key={`${row.campaign}:${row.medium}`} className="border-t border-slate-200"><td className="p-3 font-bold">{row.campaign}</td><td className="p-3">{row.medium}</td><td className="p-3 text-right">{formatNumber(row.views)}</td><td className="p-3 text-right">{formatNumber(row.clicks)}</td><td className="p-3 text-right">{formatNumber(row.outcomes)}</td><td className="p-3 text-right">{money(row.revenue, selected.commercial.currencyCode)}</td></tr>)}</tbody></table></div> : <p className="p-6 text-sm text-slate-500">No attributable campaign touches have been recorded for this period.</p>}
               </section>
 
               <section className="grid border border-[#0F172A] bg-white lg:grid-cols-2">
