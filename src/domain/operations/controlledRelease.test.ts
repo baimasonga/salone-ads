@@ -27,6 +27,11 @@ describe('controlled release workflow', () => {
     expect(server).toContain('MANOHUB_ENVIRONMENT');
   });
 
+  it('deploys after secret updates so an older Worker version cannot be reactivated', () => {
+    expect(workflow.indexOf('- name: Set optional Gemini secret'))
+      .toBeLessThan(workflow.indexOf('- name: Deploy production container'));
+  });
+
   it('publishes release and rollback metadata', () => {
     expect(workflow).toContain('release-manifest.json');
     expect(workflow).toContain('actions/upload-artifact@v4');

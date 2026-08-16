@@ -190,11 +190,6 @@ jobs:
           VITE_SUPABASE_URL=https://rffjehmbrycztiekcyho.supabase.co
           VITE_SUPABASE_ANON_KEY=sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
           EOF
-      - name: Deploy production container
-        run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate | tee wrangler-production-deploy.log
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Set optional Gemini secret
         run: |
           if [ -n "$GEMINI_API_KEY" ]; then
@@ -202,6 +197,13 @@ jobs:
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Secret updates create a Worker version. Deploy last so a secret update
+      # can never reactivate the previous application bundle.
+      - name: Deploy production container
+        run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate | tee wrangler-production-deploy.log
+        env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Resolve production URL
