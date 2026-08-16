@@ -25,11 +25,13 @@ describe('service request workspace boundary', () => {
     }
   });
 
-  it('preserves subscriber submission and customer-visible activity behavior', () => {
+  it('supports subscriber ticket submission, replies and customer-visible activity', () => {
     expect(subscriberWorkspace).toContain('createServiceRequest(orgId, serviceType, description)');
+    expect(subscriberWorkspace).toContain('createSupportTicket(orgId');
     expect(subscriberWorkspace).toContain('fetchMyServiceRequests(orgId)');
     expect(subscriberWorkspace).toContain('fetchServiceRequestActivities(requestId)');
-    expect(subscriberWorkspace).not.toContain('addServiceRequestNote');
+    expect(subscriberWorkspace).toContain('addServiceRequestNote(requestId, note, false)');
+    expect(subscriberWorkspace).toContain('rateServiceRequest(requestId, rating)');
   });
 
   it('preserves administrator fulfilment operations and shared service labels', () => {

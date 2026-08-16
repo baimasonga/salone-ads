@@ -98,10 +98,10 @@ describe('workspace source integrity', () => {
     expect(workspaceSource).toContain('<AdminServiceRequestsWorkspace');
     expect(workspaceSource).not.toContain('createServiceRequest');
     expect(workspaceSource).not.toContain('fetchAllServiceRequests');
-    expect(subscriberServiceRequests).toContain('Support Services');
+    expect(subscriberServiceRequests).toContain('Customer Support Centre');
     expect(subscriberServiceRequests).toContain('Your Requests');
-    expect(subscriberServiceRequests).toContain('Submit Request');
-    expect(adminServiceRequests).toContain('Service Requests');
+    expect(subscriberServiceRequests).toContain('Create Support Ticket');
+    expect(adminServiceRequests).toContain('Customer Support Centre');
     expect(adminServiceRequests).toContain('Message Customer');
     expect(adminServiceRequests).toContain('Internal Note');
     expect(adminServiceRequests).toContain('Add Quote');

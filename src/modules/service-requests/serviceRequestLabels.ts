@@ -9,5 +9,11 @@ export const serviceTypeLabels: Record<ServiceType, string> = {
   company_profile_prep: 'Company Profile Preparation',
   supplier_registration_assistance: 'Supplier Registration Assistance',
   featured_placement: 'Featured Placement Request',
+  technical_support: 'Technical Support',
+  billing_support: 'Billing Support',
+  account_support: 'Account & Login Support',
+  tender_access_support: 'Tender Access Support',
+  data_correction: 'Data Correction',
+  feedback: 'Feedback',
   other: 'Other',
 };
