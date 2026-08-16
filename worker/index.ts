@@ -8,6 +8,7 @@ import { Container, getContainer } from '@cloudflare/containers';
 interface Env {
   MANOHUB_CONTAINER: DurableObjectNamespace<ManohubContainer>;
   MANOHUB_ENVIRONMENT?: string;
+  RELEASE_VERSION?: string;
   GEMINI_API_KEY?: string;
   APP_URL?: string;
   VITE_SUPABASE_URL: string;
@@ -19,9 +20,7 @@ interface Env {
   EMAIL_DISPATCH_SECRET?: string;
 }
 
-// Change the identity when a release must replace a stale long-lived container.
-// Cloudflare keeps Durable Object container identities stable across Worker deploys.
-const PRODUCTION_CONTAINER_ID = 'production-customer-support-centre-v18';
+const productionContainerId = (env: Env) => `production-${(env.RELEASE_VERSION || 'development').slice(0, 16)}`;
 
 // A single routed instance is intentional: server.ts's AI rate limiter
 // keeps its counters in in-process memory (express-rate-limit's default
@@ -41,6 +40,7 @@ export class ManohubContainer extends Container<Env> {
     this.envVars = {
       NODE_ENV: 'production',
       MANOHUB_ENVIRONMENT: env.MANOHUB_ENVIRONMENT ?? 'production',
+      RELEASE_VERSION: env.RELEASE_VERSION ?? 'development',
       GEMINI_API_KEY: env.GEMINI_API_KEY ?? '',
       APP_URL: env.APP_URL ?? '',
       // These are public client configuration values (RLS remains the access
@@ -62,12 +62,12 @@ export default {
     // Keep one stable Durable Object identity so Cloudflare can replace its
     // image during a rollout instead of accumulating one running instance per
     // commit. The workflow uses an immediate rollout to restart this instance.
-    const container = getContainer(env.MANOHUB_CONTAINER, PRODUCTION_CONTAINER_ID);
+    const container = getContainer(env.MANOHUB_CONTAINER, productionContainerId(env));
     return container.fetch(request);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (!env.EMAIL_DISPATCH_SECRET) return;
-    const container = getContainer(env.MANOHUB_CONTAINER, PRODUCTION_CONTAINER_ID);
+    const container = getContainer(env.MANOHUB_CONTAINER, productionContainerId(env));
     ctx.waitUntil(container.fetch(new Request('http://container/api/audience-email/dispatch-due', {
       method: 'POST',
       headers: { 'x-manohub-dispatch-secret': env.EMAIL_DISPATCH_SECRET },

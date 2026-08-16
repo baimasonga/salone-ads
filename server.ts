@@ -499,6 +499,7 @@ async function startServer() {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       environment: process.env.MANOHUB_ENVIRONMENT || process.env.NODE_ENV || "development",
+      release: process.env.RELEASE_VERSION || "development",
       version: "1.0.0",
       measurementProtection: "visitor-dedupe-v1",
       requestId: res.locals.requestId,
