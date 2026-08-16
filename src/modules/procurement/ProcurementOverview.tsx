@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { OpportunityListItem } from '../../lib/procurement/opportunityApi';
+import type { TenderRecommendation } from '../../lib/procurement/bidPipelineApi';
 import type { SavedSearch } from '../../lib/procurement/savedSearchApi';
 import type { ProcurementTier } from './model';
 
@@ -21,7 +21,7 @@ interface ProcurementOverviewProps {
   pipelineCount: number;
   savedSearchCount: number;
   savedSearches: SavedSearch[];
-  recommended: OpportunityListItem[];
+  recommended: TenderRecommendation[];
   publishedTenderCount: number;
   loading?: boolean;
   degraded?: boolean;
@@ -144,7 +144,11 @@ export function ProcurementOverview({
                     <p className="truncate text-xs text-slate-500">
                       {[opportunity.buyerName, opportunity.sector].filter(Boolean).join(' · ')}
                     </p>
+                    <p className="mt-1 truncate text-[11px] text-emerald-700">
+                      {opportunity.recommendationReasons.slice(0, 2).join(' · ')}
+                    </p>
                   </div>
+                  <span className="shrink-0 bg-emerald-50 px-2 py-1 font-mono text-[10px] font-bold text-emerald-800">{opportunity.recommendationScore}% match</span>
                   <div className="flex shrink-0 items-center gap-1.5 font-mono text-[11px] text-slate-500">
                     <Clock className="h-3.5 w-3.5" />
                     {new Date(opportunity.submissionDeadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}

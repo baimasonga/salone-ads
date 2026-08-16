@@ -1,5 +1,4 @@
 import {
-  OPPORTUNITY_LIST_SELECT,
   mapOpportunityListItem,
   type OpportunityListItem,
 } from './opportunityApi';
@@ -83,6 +82,11 @@ export interface PipelineTask {
   isDone: boolean;
 }
 
+export interface TenderRecommendation extends OpportunityListItem {
+  recommendationScore: number;
+  recommendationReasons: string[];
+}
+
 export async function fetchPipelineTasks(pipelineRecordId: string): Promise<PipelineTask[]> {
   const { data, error } = await supabase
     .from('pipeline_tasks')
@@ -117,15 +121,22 @@ export async function setSupplierSectorIds(orgId: string, sectorIds: string[]): 
   if (insertError) throw insertError;
 }
 
-export async function fetchRecommendedOpportunities(orgId: string): Promise<OpportunityListItem[]> {
-  const sectorIds = await fetchSupplierSectorIds(orgId);
-  if (sectorIds.length === 0) return [];
-  const { data, error } = await supabase
-    .from('opportunities')
-    .select(OPPORTUNITY_LIST_SELECT)
-    .in('sector_id', sectorIds)
-    .order('submission_deadline', { ascending: true })
-    .limit(10);
+export async function fetchRecommendedOpportunities(orgId: string): Promise<TenderRecommendation[]> {
+  const { data, error } = await supabase.rpc('get_advanced_tender_recommendations', {
+    p_org_id: orgId,
+    p_limit: 12,
+  });
   if (error) throw error;
-  return (data ?? []).map(mapOpportunityListItem);
+  return (data ?? []).map((row: any) => ({
+    ...mapOpportunityListItem({
+      ...row,
+      sectors: { name: row.sector },
+      districts: { name: row.district },
+      countries: { name: row.country },
+      opportunity_types: { label: row.opportunity_type },
+      opportunity_statuses: { code: row.status_code, label: row.status_label },
+    }),
+    recommendationScore: Number(row.recommendation_score ?? 0),
+    recommendationReasons: Array.isArray(row.recommendation_reasons) ? row.recommendation_reasons : [],
+  }));
 }

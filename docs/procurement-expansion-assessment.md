@@ -1898,3 +1898,19 @@ bundle to protect the normal low-bandwidth experience.
 
 **Verification**: `npm run lint`, all 357 unit/component tests, `npm run build`, the low-bandwidth gate
 (191.7 KiB initial gzip against a 230 KiB limit), migration validation, and `git diff --check` pass.
+
+## 60. Advanced tender recommendations (2026-08-16)
+
+The subscriber recommendation feed now uses an explainable server-side ranking model instead of the earlier
+single-sector query. It combines supplier-profile sectors, active saved searches, followed buyers, positive
+bid-pipeline history, publication freshness and deadline urgency. Each result carries a bounded match score and
+plain-language reasons so subscribers can understand why it appeared; it is not presented as an opaque AI
+prediction.
+
+The recommendation RPC requires authentication, membership in the requested organisation and an active Viewer
+or Publisher tender entitlement. It considers only open public tenders, excludes opportunities already saved or
+already in that organisation's private pipeline, caps result counts, and exposes no private bid notes or buyer
+data. Both the subscriber overview and bid-pipeline workspace display the score and strongest match reasons.
+
+**Verification**: `npm run lint`, all 361 unit/component tests, `npm run build`, the 191.7 KiB initial-download
+budget gate, migration validation and `git diff --check` pass.

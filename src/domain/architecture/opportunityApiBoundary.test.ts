@@ -40,7 +40,7 @@ describe('opportunity lifecycle API boundary', () => {
     expect(opportunityApi).toContain('export const OPPORTUNITY_LIST_SELECT');
     expect(opportunityApi).toContain('export function mapOpportunityListItem');
     expect(opportunityApi).toContain('export async function getOpportunityStatusId');
-    expect(bidPipelineApi).toContain('OPPORTUNITY_LIST_SELECT');
+    expect(bidPipelineApi).toContain(".rpc('get_advanced_tender_recommendations'");
     expect(bidPipelineApi).toContain('mapOpportunityListItem');
     expect(facade).toContain("export * from './procurement/opportunityApi'");
   });

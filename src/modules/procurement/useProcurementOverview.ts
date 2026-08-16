@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   fetchMyOpportunities,
 } from '../../lib/procurement/opportunityApi';
-import type { OpportunityListItem } from '../../lib/procurement/opportunityApi';
 import { hasFeature } from '../../lib/procurement/entitlementAssistApi';
 import {
   fetchPipeline,
   fetchRecommendedOpportunities,
 } from '../../lib/procurement/bidPipelineApi';
+import type { TenderRecommendation } from '../../lib/procurement/bidPipelineApi';
 import { fetchSavedSearches } from '../../lib/procurement/savedSearchApi';
 import type { SavedSearch } from '../../lib/procurement/savedSearchApi';
 import { resolveProcurementTier } from './model';
@@ -18,7 +18,7 @@ export interface ProcurementOverviewData {
   pipelineCount: number;
   savedSearchCount: number;
   savedSearches: SavedSearch[];
-  recommended: OpportunityListItem[];
+  recommended: TenderRecommendation[];
   publishedTenderCount: number;
   loading: boolean;
   degraded: boolean;

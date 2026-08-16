@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import type { Organization } from '../types';
-import type { OpportunityListItem } from '../lib/procurement/opportunityApi';
+import type { TenderRecommendation } from '../lib/procurement/bidPipelineApi';
 import type { SavedSearch } from '../lib/procurement/savedSearchApi';
 import { NotificationCentre } from '../modules/notifications/NotificationCentre';
 import { AdminTenderReviewWorkspace } from '../modules/procurement/AdminTenderReviewWorkspace';
@@ -52,7 +52,7 @@ const AccountSecurityPage = lazy(() =>
 
 interface OverviewModel {
   tier: ProcurementTier; pipelineCount: number; savedSearchCount: number; savedSearches: SavedSearch[];
-  recommended: OpportunityListItem[]; publishedTenderCount: number; loading: boolean; degraded: boolean;
+  recommended: TenderRecommendation[]; publishedTenderCount: number; loading: boolean; degraded: boolean;
 }
 
 interface WorkspaceRouteResolverProps {

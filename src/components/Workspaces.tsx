@@ -146,6 +146,7 @@ import {
   fetchRecommendedOpportunities,
   type PipelineRecord,
   type PipelineStage,
+  type TenderRecommendation,
 } from '../lib/procurement/bidPipelineApi';
 import {
   fetchSavedSearches,
@@ -2037,7 +2038,7 @@ export function Workspaces({
   const [pipeline, setPipeline] = useState<PipelineRecord[]>([]);
   const [pipelineLoading, setPipelineLoading] = useState(false);
   const [pipelineFeedback, setPipelineFeedback] = useState('');
-  const [recommended, setRecommended] = useState<OpportunityListItem[]>([]);
+  const [recommended, setRecommended] = useState<TenderRecommendation[]>([]);
   const [canExport, setCanExport] = useState(false);
 
   const PIPELINE_STAGES: PipelineStage[] = ['saved', 'reviewing', 'interested', 'go', 'no_go', 'preparing', 'submitted', 'won', 'lost', 'withdrawn', 'archived'];
@@ -2745,11 +2746,14 @@ export function Workspaces({
         {recommended.length > 0 && (
           <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-6">
             <h4 className="font-display font-bold text-emerald-900 text-sm mb-3 flex items-center gap-2"><Sparkle className="h-4 w-4" /> Recommended For You</h4>
-            <p className="text-xs text-emerald-700 mb-3">Matched to the sectors in your Supplier Profile.</p>
+            <p className="text-xs text-emerald-700 mb-3">Ranked from your supplier sectors, saved searches, followed buyers and prior bid activity.</p>
             <div className="space-y-2">
               {recommended.map((op) => (
                 <div key={op.id} className="bg-white border border-emerald-100 rounded-xl p-3 flex items-center justify-between gap-3">
-                  <Link to={`/tenders/${op.slug}`} target="_blank" className="text-sm font-semibold text-slate-800 hover:underline">{op.title}</Link>
+                  <div className="min-w-0 flex-1">
+                    <Link to={`/tenders/${op.slug}`} target="_blank" className="text-sm font-semibold text-slate-800 hover:underline">{op.title}</Link>
+                    <p className="mt-1 truncate text-[11px] text-emerald-700">{op.recommendationScore}% match · {op.recommendationReasons.slice(0, 2).join(' · ')}</p>
+                  </div>
                   <button onClick={() => handleAddToPipeline(op.id)} className="text-xs font-semibold text-emerald-600 hover:underline cursor-pointer shrink-0">Add to Pipeline</button>
                 </div>
               ))}
