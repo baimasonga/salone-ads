@@ -18,5 +18,6 @@ describe('customer support production deployment', () => {
     expect(workflow).toContain('r.commit===process.env.GITHUB_SHA');
     expect(workflow).toContain('for attempt in {1..120}');
     expect(workflow.indexOf('Deploy production container')).toBeLessThan(workflow.indexOf('Set optional Gemini secret'));
+    expect(workflow).toContain('${GITHUB_SHA}-build');
   });
 });

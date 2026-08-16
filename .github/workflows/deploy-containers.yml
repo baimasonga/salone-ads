@@ -190,7 +190,7 @@ jobs:
           VITE_SUPABASE_URL=https://rffjehmbrycztiekcyho.supabase.co
           VITE_SUPABASE_ANON_KEY=sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk
           EOF
-          sed -i "s|RELEASE_VERSION = .*|RELEASE_VERSION = \"${GITHUB_SHA}\"|" wrangler.containers.toml
+          sed -i "s|RELEASE_VERSION = .*|RELEASE_VERSION = \"${GITHUB_SHA}-build\"|" wrangler.containers.toml
           printf '{"commit":"%s"}\n' "$GITHUB_SHA" > public/release.json
       - name: Deploy production container
         run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate | tee wrangler-production-deploy.log
@@ -202,8 +202,11 @@ jobs:
       # the preceding image during the deployment gap.
       - name: Set optional Gemini secret
         run: |
+          sed -i "s|RELEASE_VERSION = .*|RELEASE_VERSION = \"${GITHUB_SHA}\"|" wrangler.containers.toml
           if [ -n "$GEMINI_API_KEY" ]; then
             printf '%s' "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY --config wrangler.containers.toml
+          else
+            npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
