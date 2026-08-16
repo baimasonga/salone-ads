@@ -37,6 +37,7 @@ import {
 import { supabase } from '../lib/supabaseClient';
 import { useLanguage } from '../lib/i18n';
 import { BidSubmissionPanel } from '../modules/procurement/BidSubmissionPanel';
+import { TenderDocumentIntelligencePanel } from '../modules/procurement/TenderDocumentIntelligencePanel';
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -523,6 +524,10 @@ export function TenderDetailPage() {
                   ))}
                 </ul>
               </div>
+            )}
+
+            {opportunity.hasFullAccess && documents.length > 0 && (
+              <TenderDocumentIntelligencePanel opportunityId={opportunity.id} documents={documents} />
             )}
 
             {award && (

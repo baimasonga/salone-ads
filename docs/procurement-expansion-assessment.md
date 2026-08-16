@@ -1876,3 +1876,25 @@ slower connections. Download filenames are normalized and length-bounded, with t
 and oversized labels.
 
 **Verification**: `npm run lint`, all 350 unit/component tests, `npm run build`, and `git diff --check` pass.
+
+## 59. Subscriber Tender Document Intelligence (2026-08-16)
+
+Tender Viewer and Publisher subscribers can now analyse the actual tender files attached to an opportunity.
+Hyderra extracts readable text locally from PDF, DOCX and text-based formats, fingerprints the source with
+SHA-256, and sends only bounded extracted text through the existing authenticated, rate-limited procurement
+AI route. The structured result includes an executive summary, key deadlines, eligibility criteria, a bid
+submission checklist, financial requirements, contacts, evidence excerpts, risks, recommended actions,
+confidence and explicit limitations. Image-only PDFs fail honestly with an OCR-required message rather than
+returning invented content.
+
+Analyses are persisted per subscriber and per source document in `tender_document_analyses`. RLS requires the
+row owner plus continuing access to the underlying document through an active Viewer/Publisher entitlement,
+buyer-organisation membership or platform-admin status. Identity fields are immutable and anonymous access is
+explicitly revoked. Refreshing an analysis replaces only that subscriber's prior result for the same document.
+
+The production container and Pages-function AI paths share the same normalized response model, prompt-injection
+boundary and deterministic no-key fallback. Heavy PDF/DOCX parsers are isolated in a lazy document-intelligence
+bundle to protect the normal low-bandwidth experience.
+
+**Verification**: `npm run lint`, all 357 unit/component tests, `npm run build`, the low-bandwidth gate
+(191.7 KiB initial gzip against a 230 KiB limit), migration validation, and `git diff --check` pass.

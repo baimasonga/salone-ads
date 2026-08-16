@@ -21,6 +21,12 @@ export default defineConfig(() => {
             if (id.includes('lucide-react')) return 'icons';
             if (id.includes('motion')) return 'motion';
             if (id.includes('html-to-image') || id.includes('jszip')) return 'export-tools';
+            // These parsers are fetched only after a subscriber explicitly asks to
+            // analyse a matching document. Keep the much larger PDF runtime out of
+            // both the initial application and the DOCX analysis path.
+            if (id.includes('pdfjs-dist')) return 'pdf-intelligence';
+            if (id.includes('mammoth')) return 'docx-intelligence';
+            if (id.includes('qrcode')) return 'qr-tools';
             if (id.includes('react') || id.includes('scheduler')) return 'react';
             return 'vendor';
           },
