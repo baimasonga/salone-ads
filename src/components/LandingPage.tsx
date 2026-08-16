@@ -310,7 +310,7 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
       <header className="mh-shell mh-topbar">
         <div className="mh-brand">
           <span className="mh-brand-mark"><Square aria-hidden="true" size={17} /></span>
-          <span>MANO<span className="mh-brand-accent">HUB</span></span>
+          <span>HYD<span className="mh-brand-accent">ERRA</span></span>
         </div>
         <nav className="mh-nav" aria-label="Main navigation">
           <a href="#mh-opportunities">Find Opportunities</a>

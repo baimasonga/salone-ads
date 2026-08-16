@@ -8,6 +8,9 @@ describe('Hyderra brand transition', () => {
     expect(read('index.html')).toContain('<title>Hyderra</title>');
     expect(read('src/App.tsx')).toContain('>Hyderra</span>');
     expect(read('server/email/templates.ts')).toContain('HYD<span style="color:#10b981">ERRA</span>');
+    expect(read('src/components/LandingPage.tsx')).not.toContain('MANO<span');
+    expect(read('src/components/InsightsPage.tsx')).not.toContain('MANO<span');
+    expect(read('src/components/CmsArticlePage.tsx')).not.toContain('MANO<span');
   });
 
   it('preserves infrastructure identifiers needed by the live deployment', () => {
