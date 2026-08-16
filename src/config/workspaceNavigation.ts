@@ -67,6 +67,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
           { id: 'opportunity-ingestion', label: 'Opportunity Ingestion', icon: ScanSearch },
           { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
           { id: 'operations-hub', label: 'Customer Requests', icon: UserCheck },
+          { id: 'admin-services', label: 'Customer Support Centre', icon: LifeBuoy },
         ],
       },
       {
@@ -99,7 +100,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
   ] }];
   if (context.platformStaffRole === 'support') return [{ group: 'Support', items: [
     { id: 'overview', label: 'Support Control Centre', icon: BarChart2 },
-    { id: 'admin-services', label: 'Service Requests', icon: LifeBuoy },
+    { id: 'admin-services', label: 'Customer Support Centre', icon: LifeBuoy },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'account-security', label: 'Account Security', icon: ShieldCheck },
   ] }];
@@ -134,6 +135,11 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
   ];
   const isAgency = hasWorkspaceCapability(context, 'agency:manage');
 
+  groups.push({
+    group: 'Support',
+    items: [{ id: 'services', label: 'Customer Support Centre', icon: LifeBuoy }],
+  });
+
   if (hasWorkspaceCapability(context, 'content:manage')) {
     groups.push({
       group: 'Editorial',
@@ -148,7 +154,6 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         { id: 'tenders', label: 'Tenders', icon: FileSearch },
         { id: 'pipeline', label: 'My Pipeline', icon: BarChart2 },
         ...(context.subscriberType === 'viewer' ? [{ id: 'supplier-profile', label: 'Supplier Profile', icon: Award }] : []),
-        { id: 'services', label: 'Support Services', icon: UserCheck },
       ],
     });
   }

@@ -10,6 +10,7 @@ import { FinanceLedgerWorkspace } from '../modules/finance/FinanceLedgerWorkspac
 import { AdminSubscriptionLifecycleWorkspace } from '../modules/subscriptions/AdminSubscriptionLifecycleWorkspace';
 import { AdminAuditLogWorkspace } from '../modules/platform-admin/AdminAuditLogWorkspace';
 import { AdminServiceRequestsWorkspace } from '../modules/service-requests/AdminServiceRequestsWorkspace';
+import { SubscriberServiceRequestsWorkspace } from '../modules/service-requests/SubscriberServiceRequestsWorkspace';
 import type { PlatformStaffRole } from '../lib/platformStaffApi';
 import { isPlatformAdminWorkspaceTab, PlatformAdminWorkspace } from '../modules/platform-admin/PlatformAdminWorkspace';
 import { AdvertBillingPage } from './AdvertBillingPage';
@@ -106,6 +107,7 @@ export function resolveDelegatedWorkspaceRoute({
   if (activeTab === 'admin-tender-review') return isPlatformAdmin ? <AdminTenderReviewWorkspace /> : adminDenied();
   if (activeTab === 'admin-audit-log') return isPlatformAdmin || platformStaffRole === 'auditor' ? <AdminAuditLogWorkspace /> : adminDenied();
   if (activeTab === 'admin-services') return isPlatformAdmin || platformStaffRole === 'support' ? <AdminServiceRequestsWorkspace isPlatformAdmin /> : adminDenied();
+  if (activeTab === 'services') return !isPlatformAdmin && !platformStaffRole ? <SubscriberServiceRequestsWorkspace orgId={activeOrg.id} isPlatformAdmin={false} /> : adminDenied();
   if (activeTab === 'admin-subscriptions') return isPlatformAdmin ? <AdminSubscriptionLifecycleWorkspace /> : adminDenied();
   if (activeTab === 'billing') return <SubscriptionBillingPage activeOrg={activeOrg} />;
   if (activeTab === 'org-profile') return <OrganizationProfilePage activeOrg={activeOrg} onUpdated={onOrganizationUpdated} />;
