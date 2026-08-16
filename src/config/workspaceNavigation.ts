@@ -58,7 +58,16 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         items: [
           { id: 'campaign-builder', label: 'Campaigns', icon: Compass },
           { id: 'admin-advertising', label: 'Advert Requests', icon: Sparkles },
-          { id: 'campaign-performance', label: 'Performance', icon: BarChart2 },
+          { id: 'campaign-performance', label: 'Performance & Attribution', icon: BarChart2 },
+        ],
+      },
+      {
+        group: 'Marketplaces & Tourism',
+        items: [
+          { id: 'directory', label: 'Business Directory', icon: Landmark },
+          { id: 'influencers', label: 'Influencer Marketplace', icon: Users },
+          { id: 'events', label: 'Events Management', icon: Sparkles },
+          { id: 'tourism', label: 'Tourism Management', icon: Compass },
         ],
       },
       {
@@ -74,6 +83,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         group: 'Administration',
         items: [
           { id: 'admin-organizations', label: 'Subscriber Management', icon: Users },
+          { id: 'admin-subscriptions', label: 'Automated Subscription Billing', icon: CreditCard },
           { id: 'agency-workspace', label: 'Agency Oversight', icon: UserCheck },
           { id: 'admin-analytics', label: 'Platform Analytics', icon: Landmark },
           { id: 'admin-audit-log', label: 'Audit Log', icon: ClipboardList },
@@ -151,8 +161,8 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
     groups.push({
       group: 'Procurement',
       items: [
-        { id: 'tenders', label: 'Tenders', icon: FileSearch },
-        { id: 'pipeline', label: 'My Pipeline', icon: BarChart2 },
+        { id: 'tenders', label: 'Tenders & Document Intelligence', icon: FileSearch },
+        { id: 'pipeline', label: 'Pipeline & Recommendations', icon: BarChart2 },
         ...(context.subscriberType === 'viewer' ? [{ id: 'supplier-profile', label: 'Supplier Profile', icon: Award }] : []),
       ],
     });
@@ -164,7 +174,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
       items: [
         { id: 'campaign-builder', label: 'Campaigns', icon: Compass },
         { id: 'advert-packages', label: 'Packages & Checkout', icon: CreditCard },
-        { id: 'campaign-performance', label: 'Performance', icon: BarChart2 },
+        { id: 'campaign-performance', label: 'Performance & Attribution', icon: BarChart2 },
         { id: 'advertising', label: 'My Adverts', icon: Sparkles },
       ],
     });
@@ -185,7 +195,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         ...(!isAgency ? [{ id: 'agency-workspace', label: 'Agency Access', icon: UserCheck }] : []),
         { id: 'org-profile', label: subscriber.profileLabel, icon: Settings },
         { id: 'team', label: 'Team', icon: UserPlus },
-        { id: 'billing', label: 'Billing', icon: CreditCard },
+        { id: 'billing', label: 'Billing & Renewals', icon: CreditCard },
         { id: 'account-security', label: 'Account Security', icon: ShieldCheck },
       ],
     });
