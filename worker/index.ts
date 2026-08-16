@@ -59,9 +59,8 @@ export class ManohubContainer extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Keep one stable Durable Object identity so Cloudflare can replace its
-    // image during a rollout instead of accumulating one running instance per
-    // commit. The workflow uses an immediate rollout to restart this instance.
+    // A release-scoped identity guarantees requests cannot reuse a dormant
+    // Durable Object that still owns the previous container image.
     const container = getContainer(env.MANOHUB_CONTAINER, productionContainerId(env));
     return container.fetch(request);
   },

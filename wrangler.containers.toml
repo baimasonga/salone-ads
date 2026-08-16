@@ -22,9 +22,10 @@ crons = ["*/5 * * * *"]
 [[containers]]
 class_name = "ManohubContainer"
 image = "./Dockerfile"
-# Traffic is routed to one stable instance. A second slot is reserved only so
-# Cloudflare can hand over from the legacy commit-named instance during rollout.
-max_instances = 2
+# Commit-specific identities prevent a dormant Durable Object from retaining a
+# stale image. Keep enough rollout capacity for successive releases; instances
+# still sleep after 30 minutes of inactivity.
+max_instances = 10
 instance_type = "basic"
 
 [[durable_objects.bindings]]
