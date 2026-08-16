@@ -1930,3 +1930,24 @@ booking destinations.
 
 **Verification**: `npm run lint`, all 365 unit/component tests, `npm run build`, the 191.9 KiB initial-download
 budget gate, migration validation and `git diff --check` pass.
+
+## 62. Business directory and influencer marketplace expansion (2026-08-16)
+
+The internal Business Directory and Influencer Marketplace now provide searchable, filterable profile
+management instead of fixed, shallow cards. Business profiles include full descriptions, category, location,
+contact person, email, WhatsApp, website, service tags, diaspora support, verified/featured state and
+active/hidden/archive lifecycle. Verification of a new listing requires a real registration or tax document
+upload before the verified flag can be saved.
+
+Creator profiles now include biography, location, categories, platforms, contact channels, public profile URL,
+numeric audience and engagement metrics, bounded rate ranges and currency, availability, verified/featured
+state and active/hidden/archive lifecycle. Admins can create, edit and delete either profile type, and a creator
+can be converted into a real CRM opportunity with the proposed campaign budget and contact data.
+
+The schema expansion is additive, preserving existing directory and creator records and the admin-only RLS
+boundary established by the product pivot. Array sizes, URLs, percentages, rates, currencies and lifecycle
+values are database-constrained; management indexes support the new search and filtering workflows.
+
+**Verification**: `npm run lint`, all 369 unit/component tests, `npm run build`, the 192.1 KiB initial-download
+budget gate, migration validation and `git diff --check` pass. The expanded marketplace is lazy-loaded as a
+4.54 KiB gzip workspace, keeping the primary admin bundle below its route budget.

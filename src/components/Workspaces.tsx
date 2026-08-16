@@ -19,7 +19,6 @@ import { TenderCreationForm } from '../modules/procurement/TenderCreationForm';
 import { TenderManagementPanel } from '../modules/procurement/TenderManagementPanel';
 import { SubscriberServiceRequestsWorkspace } from '../modules/service-requests/SubscriberServiceRequestsWorkspace';
 import { AdminServiceRequestsWorkspace } from '../modules/service-requests/AdminServiceRequestsWorkspace';
-import { EventsTourismWorkspace } from '../modules/marketing/EventsTourismWorkspace';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, BookOpen, Award, Compass, Sparkles,
@@ -160,6 +159,12 @@ import type { PlatformStaffRole } from '../lib/platformStaffApi';
 
 const AdminAdvertPublisherPanel = React.lazy(() =>
   import('./AdminAdvertPublisherPanel').then((module) => ({ default: module.AdminAdvertPublisherPanel })),
+);
+const EventsTourismWorkspace = React.lazy(() =>
+  import('../modules/marketing/EventsTourismWorkspace').then((module) => ({ default: module.EventsTourismWorkspace })),
+);
+const MarketplaceExpansionWorkspace = React.lazy(() =>
+  import('../modules/marketing/MarketplaceExpansionWorkspace').then((module) => ({ default: module.MarketplaceExpansionWorkspace })),
 );
 
 interface WorkspacesProps {
@@ -4597,6 +4602,12 @@ export function Workspaces({
 
   // 10. INFLUENCERS WORKSPACE
   if (activeTab === 'influencers') {
+    return <React.Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading creator marketplace…</div>}><MarketplaceExpansionWorkspace organization={activeOrg} mode="influencers" /></React.Suspense>;
+  }
+
+  // Legacy implementation retained temporarily for migration comparison only.
+  // This branch is unreachable because the expanded workspace returns above.
+  if (activeTab === '__legacy_influencers') {
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
@@ -4663,6 +4674,12 @@ export function Workspaces({
 
   // 11. DIRECTORY WORKSPACE
   if (activeTab === 'directory') {
+    return <React.Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading business directory…</div>}><MarketplaceExpansionWorkspace organization={activeOrg} mode="directory" /></React.Suspense>;
+  }
+
+  // Legacy implementation retained temporarily for migration comparison only.
+  // This branch is unreachable because the expanded workspace returns above.
+  if (activeTab === '__legacy_directory') {
     return (
       <div className="space-y-8 text-left">
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
@@ -4754,12 +4771,12 @@ export function Workspaces({
 
   // 12. EVENTS WORKSPACE
   if (activeTab === 'events') {
-    return <EventsTourismWorkspace organization={activeOrg} mode="events" />;
+    return <React.Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading events management…</div>}><EventsTourismWorkspace organization={activeOrg} mode="events" /></React.Suspense>;
   }
 
   // 13. TOURISM WORKSPACE
   if (activeTab === 'tourism') {
-    return <EventsTourismWorkspace organization={activeOrg} mode="tourism" />;
+    return <React.Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading tourism management…</div>}><EventsTourismWorkspace organization={activeOrg} mode="tourism" /></React.Suspense>;
   }
 
   // 14. BRAND KIT WORKSPACE
