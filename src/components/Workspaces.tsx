@@ -19,6 +19,7 @@ import { TenderCreationForm } from '../modules/procurement/TenderCreationForm';
 import { TenderManagementPanel } from '../modules/procurement/TenderManagementPanel';
 import { SubscriberServiceRequestsWorkspace } from '../modules/service-requests/SubscriberServiceRequestsWorkspace';
 import { AdminServiceRequestsWorkspace } from '../modules/service-requests/AdminServiceRequestsWorkspace';
+import { EventsTourismWorkspace } from '../modules/marketing/EventsTourismWorkspace';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, BookOpen, Award, Compass, Sparkles,
@@ -1024,15 +1025,6 @@ export function Workspaces({
       setTrackingLinkFeedback(`Error: ${err.message || 'Could not generate the QR code.'}`);
       setTimeout(() => setTrackingLinkFeedback(''), 4000);
     }
-  };
-
-  // Generic — any workspace with a real destination URL can create a real
-  // tracking link through this (used by both the Analytics builder and the
-  // Tourism tab's per-destination "Generate Tracking Link" buttons).
-  const generateNamedTrackingLink = async (label: string, defaultUrl: string): Promise<TrackingLink | null> => {
-    const targetUrl = prompt(`Where should "${label}" send visitors? (e.g. a WhatsApp link or booking page)`, defaultUrl);
-    if (!targetUrl) return null;
-    return createTrackingLink(activeOrg.id, label, targetUrl);
   };
 
   // --- Lead Management States ---
@@ -4762,99 +4754,12 @@ export function Workspaces({
 
   // 12. EVENTS WORKSPACE
   if (activeTab === 'events') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-4">Homecoming & Festival Promoters</h3>
-          <p className="text-xs text-slate-500 mb-6">Connect ticket sales with direct tracking campaigns to trace ticket buyers directly in the UK/US diaspora communities.</p>
-
-          <div className="space-y-4">
-            {[
-              { title: 'Freetown December Music Fest 2026', date: 'Dec 24, 2026', location: 'National Stadium Complex', scheduledDate: '2026-12-24', buttonLabel: 'Promote Concert' },
-              { title: 'Sierra Leone Diaspora Investment Summit', date: 'Nov 12, 2026', location: 'Radisson Blu, Freetown', scheduledDate: '2026-11-12', buttonLabel: 'Promote Summit' },
-            ].map((ev) => (
-              <div key={ev.title} className="bg-slate-50 p-4 border border-slate-100 rounded-xl flex justify-between items-center text-sm">
-                <div>
-                  <span className="font-bold text-slate-800 block">{ev.title}</span>
-                  <span className="text-xs text-slate-500">Date: {ev.date} · Location: {ev.location}</span>
-                </div>
-                <button
-                  onClick={async () => {
-                    try {
-                      const newItem = await createContentItem(activeOrg.id, {
-                        title: `Promote: ${ev.title}`,
-                        contentType: 'Social Post',
-                        platform: 'Facebook & WhatsApp',
-                        headline: ev.title,
-                        bodyText: `Join us for ${ev.title} — ${ev.date} at ${ev.location}. Don't miss it!`,
-                        hashtags: ['#Hyderra', '#EatSalone'],
-                        scheduledDate: ev.scheduledDate,
-                      });
-                      setContentItems([newItem, ...contentItems]);
-                      alert(`Real draft created in Content Studio for "${ev.title}".`);
-                    } catch (err: any) {
-                      alert(err.message || 'Could not create draft.');
-                    }
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-xl cursor-pointer"
-                >
-                  {ev.buttonLabel}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <EventsTourismWorkspace organization={activeOrg} mode="events" />;
   }
 
   // 13. TOURISM WORKSPACE
   if (activeTab === 'tourism') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-2">Heritage & Homecoming Tour Excursions</h3>
-          <p className="text-xs text-slate-500 mb-6">Showcase eco-tourism hotspots and ancestral landmarks (e.g., Tiwai Island, Banana Islands) with simple, tracking-redirect call-to-actions.</p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            {[
-              { label: 'Bunce Island Historical Exploration', body: 'Ancestral roots tours mapping Sierra Leonean heritage directly for African-American and Caribbean diaspora visitors.', defaultUrl: 'https://wa.me/23276000000?text=Bunce%20Island%20tour' },
-              { label: 'Banana Island Snorkeling Retreat', body: 'Eco-friendly water sports, local dining, and beach camping escapes tailored for festive groups.', defaultUrl: 'https://wa.me/23276000000?text=Banana%20Island%20retreat' },
-            ].map((dest) => {
-              const existing = trackingLinks.find((l) => l.label === dest.label);
-              return (
-                <div key={dest.label} className="bg-slate-50 border border-slate-100 p-5 rounded-xl space-y-2">
-                  <span className="font-bold text-slate-800 block">{dest.label}</span>
-                  <p className="text-xs text-slate-500 leading-relaxed">{dest.body}</p>
-                  {existing ? (
-                    <div className="pt-2">
-                      <button
-                        onClick={() => navigator.clipboard.writeText(`${window.location.origin}/r/${existing.shortCode}`)}
-                        className="text-emerald-600 font-mono text-xs hover:underline cursor-pointer block truncate"
-                        title="Copy link"
-                      >
-                        {`${window.location.origin}/r/${existing.shortCode}`}
-                      </button>
-                      <span className="text-[10px] text-slate-400 font-mono">{existing.clickCount} clicks</span>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={async () => {
-                        const link = await generateNamedTrackingLink(dest.label, dest.defaultUrl);
-                        if (link) setTrackingLinks((prev) => [link, ...prev]);
-                      }}
-                      className="text-emerald-600 font-semibold hover:underline text-xs block cursor-pointer pt-2"
-                    >
-                      Generate Tracking Link
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
+    return <EventsTourismWorkspace organization={activeOrg} mode="tourism" />;
   }
 
   // 14. BRAND KIT WORKSPACE

@@ -1914,3 +1914,19 @@ data. Both the subscriber overview and bid-pipeline workspace display the score 
 
 **Verification**: `npm run lint`, all 361 unit/component tests, `npm run build`, the 191.7 KiB initial-download
 budget gate, migration validation and `git diff --check` pass.
+
+## 61. Events and tourism management (2026-08-16)
+
+The two remaining hardcoded internal-tool screens now use real organisation-scoped data. Events support event
+type, schedule, venue, city, capacity, ticket URL and draft/published/cancelled/completed/archive lifecycle.
+Tourism experiences support destination, district, category, duration, starting price, currency, booking URL and
+draft/published/paused/archive lifecycle. Both workspaces provide create, edit and delete operations.
+
+This module remains aligned with the product pivot: it is internal Hyderra advertising inventory, not a new
+subscriber entitlement. Database policies require both platform-admin status and membership in the record's
+organisation; anonymous access is revoked and ownership fields are immutable. Event records can generate real
+Content Studio promotion drafts, while tourism records can generate first-party tracking links to their real
+booking destinations.
+
+**Verification**: `npm run lint`, all 365 unit/component tests, `npm run build`, the 191.9 KiB initial-download
+budget gate, migration validation and `git diff --check` pass.
