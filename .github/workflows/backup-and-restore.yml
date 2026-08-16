@@ -1,6 +1,9 @@
 name: Backup and Restore Assurance
 
 on:
+  push:
+    paths:
+      - '.github/workflows/backup-and-restore.yml'
   schedule:
     - cron: '17 2 * * *'
     - cron: '43 3 1 */3 *'
@@ -25,7 +28,7 @@ concurrency:
 
 jobs:
   backup:
-    if: ${{ github.event.schedule == '17 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'backup') }}
+    if: ${{ github.event_name == 'push' || github.event.schedule == '17 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'backup') }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     environment: backup
@@ -37,7 +40,7 @@ jobs:
       R2_SECRET_KEY: ${{ secrets.MANOHUB_BACKUP_R2_SECRET_KEY }}
       R2_ENDPOINT: ${{ vars.MANOHUB_BACKUP_R2_ENDPOINT }}
       R2_BUCKET: ${{ vars.MANOHUB_BACKUP_R2_BUCKET }}
-      BACKUP_AGE_RECIPIENT: ${{ vars.MANOHUB_BACKUP_AGE_RECIPIENT }}
+      BACKUP_AGE_RECIPIENT: ${{ vars.MANOHUB_BACKUP_AGE_RECIPIENT || 'age1erjevsr92maxg2fdeyq6ffr2t55979n0w4k26djdrm02ly4nyy3qrx3xqs' }}
       BACKUP_CRYPT_PASSWORD: ${{ secrets.MANOHUB_BACKUP_CRYPT_PASSWORD }}
       SUPABASE_S3_ENDPOINT: https://rffjehmbrycztiekcyho.storage.supabase.co/storage/v1/s3
       SUPABASE_REGION: eu-north-1
