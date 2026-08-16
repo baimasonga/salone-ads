@@ -63,6 +63,7 @@ import {
   CampaignActivity,
 } from '../lib/api';
 import { computeLeadScore, leadPriorityLabel } from '../lib/leadScoring';
+import { downloadTrackingQr } from '../lib/trackingQr';
 import {
   enableBuyerMode,
   fetchSectors,
@@ -1009,6 +1010,17 @@ export function Workspaces({
     } catch (err: any) {
       setTrackingLinks(previous);
       setTrackingLinkFeedback(`Error: ${err.message || 'Could not delete link.'}`);
+      setTimeout(() => setTrackingLinkFeedback(''), 4000);
+    }
+  };
+
+  const handleDownloadTrackingQr = async (link: TrackingLink) => {
+    try {
+      await downloadTrackingQr(`${window.location.origin}/r/${link.shortCode}`, link.label);
+      setTrackingLinkFeedback(`Downloaded QR code for ${link.label}.`);
+      setTimeout(() => setTrackingLinkFeedback(''), 4000);
+    } catch (err: any) {
+      setTrackingLinkFeedback(`Error: ${err.message || 'Could not generate the QR code.'}`);
       setTimeout(() => setTrackingLinkFeedback(''), 4000);
     }
   };
@@ -4319,8 +4331,15 @@ export function Workspaces({
                         {shortUrl}
                       </button>
                     </div>
-                    <div className="flex items-center gap-4 shrink-0">
+                    <div className="flex items-center gap-3 shrink-0">
                       <span className="text-xs font-mono text-slate-500">{link.clickCount} clicks</span>
+                      <button
+                        onClick={() => void handleDownloadTrackingQr(link)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-emerald-700 cursor-pointer"
+                        title="Download a high-resolution QR code for this tracking link"
+                      >
+                        <Download className="h-3.5 w-3.5" /> QR code
+                      </button>
                       <button onClick={() => handleDeleteTrackingLink(link.id)} className="text-xs text-red-500 hover:underline cursor-pointer">Delete</button>
                     </div>
                   </div>

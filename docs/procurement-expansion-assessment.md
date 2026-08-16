@@ -1863,3 +1863,16 @@ Organisation creation and the corresponding subscription request now run atomica
 Advertiser maps to a new advertising-only plan whose tender viewing/publishing features remain disabled.
 Paid selections create a `pending` monthly/manual-bank-transfer request; they do not grant entitlements until
 an administrator confirms payment. Free Access creates no paid subscription request.
+
+## 58. Downloadable QR codes for tracking links (2026-08-16)
+
+The remaining Tracking & CRM foundation gap is closed. Every real `/r/:code` tracking link in the Analytics
+workspace now has a **QR code** action that generates and downloads a 1024px PNG with high error correction.
+The QR encodes the same first-party Hyderra short URL, so scans pass through the existing server redirect and
+retain the link's campaign attribution and click measurement instead of bypassing analytics.
+
+QR generation is loaded only when requested, keeping the encoder out of the main workspace bundle for users on
+slower connections. Download filenames are normalized and length-bounded, with tests covering unsafe, empty,
+and oversized labels.
+
+**Verification**: `npm run lint`, all 350 unit/component tests, `npm run build`, and `git diff --check` pass.
