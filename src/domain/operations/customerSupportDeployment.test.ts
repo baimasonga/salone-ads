@@ -14,6 +14,7 @@ describe('customer support production deployment', () => {
     const workflow = read('.github/workflows/deploy-containers.yml');
     expect(workflow).toContain('Verify deployed customer support navigation');
     expect(workflow).toContain("grep -Fq 'Customer Support Centre'");
-    expect(workflow).toContain('h.release!==process.env.GITHUB_SHA');
+    expect(workflow).toContain('Verify deployed release identity');
+    expect(workflow).toContain('r.commit!==process.env.GITHUB_SHA');
   });
 });
