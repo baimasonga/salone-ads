@@ -9,6 +9,7 @@ import {
   type FinanceInvoice,
   type FinancePayment,
 } from '../../lib/financeApi';
+import { FinancialDocumentsPanel } from './FinancialDocumentsPanel';
 
 function readAmount(message: string, maximum: number): number | null {
   const raw = window.prompt(message);
@@ -172,6 +173,8 @@ export function FinanceLedgerWorkspace() {
       {feedback && (
         <p className="border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{feedback}</p>
       )}
+
+      <FinancialDocumentsPanel admin />
 
       <section className="border-2 border-slate-950 bg-white">
         {loading ? (

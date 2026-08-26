@@ -9,6 +9,7 @@ import {
   type SubscriptionPaymentMethod,
   type SubscriptionPaymentProof,
 } from '../lib/subscriptionPaymentApi';
+import { FinancialDocumentsPanel } from '../modules/finance/FinancialDocumentsPanel';
 
 const bankInstructions = import.meta.env.VITE_MANOHUB_BANK_INSTRUCTIONS || 'Ask Hyderra Finance to confirm the bank account and exact amount before transferring.';
 const mobileInstructions = import.meta.env.VITE_MANOHUB_MOBILE_MONEY_INSTRUCTIONS || 'Ask Hyderra Finance to confirm the registered mobile-money number and exact amount before sending.';
@@ -132,5 +133,6 @@ export function SubscriptionBillingPage({ activeOrg }: { activeOrg: Organization
     </form>}
 
     {subscriptions.length > 0 && <section className="border-2 border-slate-950 bg-white"><h3 className="border-b-2 border-slate-950 p-4 font-display text-lg font-extrabold">Subscription history</h3><div className="divide-y">{subscriptions.map(item => <div key={item.id} className="flex items-center justify-between p-4 text-sm"><span>{item.planName} · {new Date(item.createdAt).toLocaleDateString('en-GB')}</span><strong className="text-xs uppercase">{item.status.replaceAll('_', ' ')}</strong></div>)}</div></section>}
+    <FinancialDocumentsPanel orgId={activeOrg.id} />
   </div>;
 }

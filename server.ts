@@ -101,6 +101,20 @@ const commandAmount = (payload: CommandPayload, name: string): number => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > 1_000_000_000) throw Object.assign(new Error(`${name} must be a positive amount.`), { status: 400, expose: true });
   return value;
 };
+const commandNonNegativeAmount = (payload: CommandPayload, name: string): number => {
+  const value = payload[name];
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1_000_000_000) throw Object.assign(new Error(`${name} must be a non-negative amount.`), { status: 400, expose: true });
+  return value;
+};
+const commandProformaLines = (payload: CommandPayload): Array<{ description: string; quantity: number; unit_amount: number }> => {
+  const value = payload.lines;
+  if (!Array.isArray(value) || value.length < 1 || value.length > 30) throw Object.assign(new Error('Between 1 and 30 line items are required.'), { status: 400, expose: true });
+  return value.map((line, index) => {
+    if (!line || typeof line !== 'object') throw Object.assign(new Error(`Line ${index + 1} is invalid.`), { status: 400, expose: true });
+    const item = line as CommandPayload;
+    return { description: commandField(item, 'description', 500) as string, quantity: commandAmount(item, 'quantity'), unit_amount: commandNonNegativeAmount(item, 'unitAmount') };
+  });
+};
 const commandBoolean = (payload: CommandPayload, name: string): boolean => {
   if (typeof payload[name] !== 'boolean') throw Object.assign(new Error(`${name} must be true or false.`), { status: 400, expose: true });
   return payload[name] as boolean;
@@ -122,6 +136,8 @@ const COMMANDS: Record<string, { rpc: string; params: (payload: CommandPayload) 
   'billing.payment.record': { rpc: 'record_commercial_payment', params: p => ({ p_invoice_id: commandUuid(p, 'invoiceId'), p_reference: commandField(p, 'reference', 200), p_method: commandField(p, 'method', 80), p_amount: commandAmount(p, 'amount') }) },
   'billing.credit.issue': { rpc: 'issue_commercial_credit', params: p => ({ p_invoice_id: commandUuid(p, 'invoiceId'), p_credit_number: commandField(p, 'creditNumber', 100), p_amount: commandAmount(p, 'amount'), p_reason: commandField(p, 'reason', 1000) }) },
   'billing.refund.record': { rpc: 'record_commercial_refund', params: p => ({ p_payment_id: commandUuid(p, 'paymentId'), p_refund_reference: commandField(p, 'refundReference', 200), p_amount: commandAmount(p, 'amount'), p_reason: commandField(p, 'reason', 1000) }) },
+  'billing.proforma.create': { rpc: 'admin_create_commercial_proforma', params: p => ({ p_org_id: commandUuid(p, 'orgId'), p_currency_code: commandField(p, 'currencyCode', 3), p_valid_until: commandField(p, 'validUntil', 10), p_notes: commandField(p, 'notes', 2000, true), p_tax_amount: commandNonNegativeAmount(p, 'taxAmount'), p_lines: commandProformaLines(p) }) },
+  'billing.proforma.transition': { rpc: 'admin_transition_commercial_proforma', params: p => ({ p_proforma_id: commandUuid(p, 'proformaId'), p_action: oneOf(commandField(p, 'action', 20), ['accept','convert','void'], 'action') }) },
   'platform_staff.update': { rpc: 'admin_update_platform_staff', params: p => ({ p_user_id: commandUuid(p, 'userId'), p_action: oneOf(commandField(p, 'action', 30), ['change_role','suspend','reactivate','revoke'], 'action'), p_role: commandField(p, 'role', 30, true), p_reason: commandField(p, 'reason', 1000, true) }) },
   'platform_intake_control.update': { rpc: 'admin_update_platform_intake_control', params: p => ({ p_control_key: oneOf(commandField(p, 'controlKey', 40), ['subscriber_onboarding','procurement_submissions','advertising_orders','service_requests'], 'controlKey'), p_enabled: commandBoolean(p, 'enabled'), p_reason: commandField(p, 'reason', 1000) }) },
 };
@@ -130,6 +146,7 @@ const STEP_UP_COMMANDS = new Set([
   'organization.transition','organization.recovery.decide','organization.purge',
   'subscription.transition','organization.verification.approve','billing.payment.record',
   'billing.credit.issue','billing.refund.record','platform_staff.update','platform_intake_control.update',
+  'billing.proforma.create','billing.proforma.transition',
 ]);
 
 function tokenAssuranceLevel(req: express.Request): string {
