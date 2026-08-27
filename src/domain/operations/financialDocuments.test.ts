@@ -6,6 +6,8 @@ const server = readFileSync('server.ts', 'utf8');
 const panel = readFileSync('src/modules/finance/FinancialDocumentsPanel.tsx', 'utf8');
 const subscriberBilling = readFileSync('src/components/SubscriptionBillingPage.tsx', 'utf8');
 const print = readFileSync('src/lib/financialDocumentPrint.ts', 'utf8');
+const directInvoice = readFileSync('migrations/manohub-new-project/95_direct_financial_invoices.sql', 'utf8');
+const financeApi = readFileSync('src/lib/financeApi.ts', 'utf8');
 
 describe('financial document lifecycle', () => {
   it('protects proformas with tenant RLS and restricted grants', () => {
@@ -13,6 +15,20 @@ describe('financial document lifecycle', () => {
     expect(migration).toContain('alter table public.commercial_proformas enable row level security');
     expect(migration).toContain('revoke all on public.commercial_proformas, public.commercial_proforma_lines from public, anon, authenticated');
     expect(migration).toContain('public.is_platform_admin() or public.is_org_member(org_id)');
+  });
+
+  it('populates customers from existing subscribed organizations', () => {
+    expect(financeApi).toContain(".from('subscriptions')");
+    expect(financeApi).toContain("['trialing', 'active', 'past_due', 'grace_period', 'suspended']");
+    expect(panel).toContain('Select subscribed customer');
+  });
+
+  it('supports direct invoice and payment receipt generation', () => {
+    expect(directInvoice).toContain('admin_create_commercial_invoice');
+    expect(directInvoice).toContain("s.status in ('trialing','active','past_due','grace_period','suspended')");
+    expect(server).toContain("'billing.invoice.create'");
+    expect(panel).toContain('Record payment & issue receipt');
+    expect(panel).toContain('printReceipt(item,receipt)');
   });
 
   it('supports admin issuance and controlled conversion into ledger invoices', () => {

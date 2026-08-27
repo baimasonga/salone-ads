@@ -15,7 +15,7 @@ export interface FinanceProforma {
   tax: number; total: number; status: string; validUntil: string; issuedAt: string; notes: string;
   convertedInvoiceId: string | null; lines: FinanceLine[];
 }
-export interface FinanceOrganization { id: string; name: string }
+export interface FinanceOrganization { id: string; name: string; planName: string; subscriptionStatus: string }
 export interface ProformaLineInput { description: string; quantity: number; unitAmount: number }
 
 export async function fetchFinanceInvoices(orgId?: string): Promise<FinanceInvoice[]> {
@@ -50,11 +50,27 @@ export async function fetchFinanceProformas(orgId?: string): Promise<FinanceProf
 }
 
 export async function fetchFinanceOrganizations(): Promise<FinanceOrganization[]> {
-  const { data, error } = await supabase.from('organizations').select('id,name').eq('status','active').order('name');
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('org_id,status,created_at,organizations!inner(id,name,status),plans(name)')
+    .in('status', ['trialing', 'active', 'past_due', 'grace_period', 'suspended'])
+    .eq('organizations.status', 'active')
+    .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((row: any) => ({ id: row.id, name: row.name }));
+  const customers = new Map<string, FinanceOrganization>();
+  for (const row of data ?? []) {
+    const organization = (row as any).organizations;
+    if (organization && !customers.has(organization.id)) customers.set(organization.id, {
+      id: organization.id,
+      name: organization.name,
+      planName: (row as any).plans?.name ?? 'Subscription',
+      subscriptionStatus: (row as any).status,
+    });
+  }
+  return [...customers.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 export async function createFinanceProforma(input: { orgId: string; currencyCode: string; validUntil: string; notes: string; taxAmount: number; lines: ProformaLineInput[] }) { return executeBackendCommand<string>('billing.proforma.create', input); }
+export async function createFinanceInvoice(input: { orgId: string; currencyCode: string; dueAt: string; notes: string; taxAmount: number; lines: ProformaLineInput[] }) { return executeBackendCommand<string>('billing.invoice.create', input); }
 export async function transitionFinanceProforma(proformaId: string, action: 'accept'|'convert'|'void') { return executeBackendCommand<string>('billing.proforma.transition', { proformaId, action }); }
 export async function recordFinancePayment(invoiceId: string, reference: string, method: string, amount: number) { await executeBackendCommand('billing.payment.record', { invoiceId, reference, method, amount }); }
 export async function issueFinanceCredit(invoiceId: string, creditNumber: string, amount: number, reason: string) { await executeBackendCommand('billing.credit.issue', { invoiceId, creditNumber, amount, reason }); }

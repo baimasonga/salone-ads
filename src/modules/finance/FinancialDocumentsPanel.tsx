@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { FileCheck2, FilePlus2, Printer, ReceiptText, RefreshCw, Trash2 } from 'lucide-react';
 import {
   createFinanceProforma,
+  createFinanceInvoice,
   fetchFinanceInvoices,
   fetchFinanceOrganizations,
   fetchFinanceProformas,
   transitionFinanceProforma,
+  recordFinancePayment,
   type FinanceInvoice,
   type FinanceOrganization,
   type FinanceProforma,
@@ -28,6 +30,7 @@ export function FinancialDocumentsPanel({ orgId, admin = false }: { orgId?: stri
   const [busy, setBusy] = useState('');
   const [feedback, setFeedback] = useState('');
   const [creating, setCreating] = useState(false);
+  const [documentType, setDocumentType] = useState<'proforma' | 'invoice'>('invoice');
   const [customerId, setCustomerId] = useState(orgId ?? '');
   const [currency, setCurrency] = useState('SLE');
   const [validUntil, setValidUntil] = useState(tomorrow());
@@ -65,11 +68,29 @@ export function FinancialDocumentsPanel({ orgId, admin = false }: { orgId?: stri
     if (!customerId || lines.some(line => line.description.trim().length < 2 || line.quantity <= 0 || line.unitAmount < 0)) return;
     setBusy('create'); setFeedback('');
     try {
-      await createFinanceProforma({ orgId: customerId, currencyCode: currency, validUntil, notes, taxAmount: Number(taxAmount), lines });
+      if (documentType === 'invoice') await createFinanceInvoice({ orgId: customerId, currencyCode: currency, dueAt: validUntil, notes, taxAmount: Number(taxAmount), lines });
+      else await createFinanceProforma({ orgId: customerId, currencyCode: currency, validUntil, notes, taxAmount: Number(taxAmount), lines });
       setCreating(false); setLines([emptyLine()]); setNotes(''); setTaxAmount('0'); setValidUntil(tomorrow());
       await load();
-      setFeedback('Proforma issued and added to the document register.');
+      setFeedback(`${documentType === 'invoice' ? 'Invoice' : 'Proforma'} issued and added to the document register.`);
     } catch (error) { setFeedback(error instanceof Error ? error.message : 'Proforma could not be created.'); }
+    finally { setBusy(''); }
+  };
+
+  const receivePayment = async (invoice: FinanceInvoice) => {
+    const reference = window.prompt('Verified payment reference:')?.trim();
+    if (!reference) return;
+    const rawAmount = window.prompt(`Amount received (${invoice.currency}), maximum ${invoice.outstanding.toLocaleString()}:`, String(invoice.outstanding));
+    if (rawAmount === null) return;
+    const amount = Number(rawAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > invoice.outstanding) {
+      window.alert(`Enter an amount between 0 and ${invoice.outstanding.toLocaleString()}.`); return;
+    }
+    setBusy(`payment:${invoice.id}`); setFeedback('');
+    try {
+      await recordFinancePayment(invoice.id, reference, 'bank_transfer', amount); await load();
+      setFeedback(`Payment recorded. Receipt for ${invoice.number} is ready to print or save as PDF.`);
+    } catch (error) { setFeedback(error instanceof Error ? error.message : 'Payment and receipt could not be recorded.'); }
     finally { setBusy(''); }
   };
 
@@ -87,16 +108,17 @@ export function FinancialDocumentsPanel({ orgId, admin = false }: { orgId?: stri
     <div className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-slate-950 p-5">
       <div><p className="font-mono text-[8px] font-bold uppercase tracking-[.2em] text-emerald-700">Financial documents</p><h3 className="mt-1 font-display text-xl font-extrabold">Proformas, invoices & receipts</h3><p className="mt-1 text-xs text-slate-500">Open a print-ready document and use your browser to print or save it as PDF.</p></div>
       <div className="flex gap-2">
-        {admin && <button onClick={() => setCreating(value => !value)} className="inline-flex items-center gap-2 bg-slate-950 px-3 py-2 text-xs font-bold text-white"><FilePlus2 className="h-4 w-4"/>{creating ? 'Close form' : 'New proforma'}</button>}
+        {admin && <button onClick={() => setCreating(value => !value)} className="inline-flex items-center gap-2 bg-slate-950 px-3 py-2 text-xs font-bold text-white"><FilePlus2 className="h-4 w-4"/>{creating ? 'Close form' : 'New invoice or proforma'}</button>}
         <button aria-label="Refresh documents" onClick={() => void load()} className="border border-slate-300 p-2"><RefreshCw className="h-4 w-4"/></button>
       </div>
     </div>
 
     {admin && creating && <form onSubmit={create} className="space-y-4 border-b-2 border-slate-950 bg-slate-50 p-5">
+      <div className="flex gap-2" role="group" aria-label="Document type"><button type="button" onClick={() => setDocumentType('invoice')} className={`px-3 py-2 text-xs font-bold ${documentType === 'invoice' ? 'bg-slate-950 text-white' : 'border border-slate-400'}`}>Invoice</button><button type="button" onClick={() => setDocumentType('proforma')} className={`px-3 py-2 text-xs font-bold ${documentType === 'proforma' ? 'bg-slate-950 text-white' : 'border border-slate-400'}`}>Proforma</button></div>
       <div className="grid gap-3 md:grid-cols-4">
-        <label className="text-xs font-bold uppercase">Customer<select required value={customerId} onChange={event => setCustomerId(event.target.value)} className="mt-1 w-full border border-slate-300 bg-white p-2 text-sm font-normal normal-case"><option value="">Select customer</option>{organizations.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+        <label className="text-xs font-bold uppercase">Subscribed customer<select required value={customerId} onChange={event => setCustomerId(event.target.value)} className="mt-1 w-full border border-slate-300 bg-white p-2 text-sm font-normal normal-case"><option value="">Select subscribed customer</option>{organizations.map(item => <option key={item.id} value={item.id}>{item.name} · {item.planName} ({item.subscriptionStatus.replaceAll('_',' ')})</option>)}</select></label>
         <label className="text-xs font-bold uppercase">Currency<input required minLength={3} maxLength={3} value={currency} onChange={event => setCurrency(event.target.value.toUpperCase())} className="mt-1 w-full border border-slate-300 p-2 text-sm font-normal"/></label>
-        <label className="text-xs font-bold uppercase">Valid until<input required type="date" min={new Date().toISOString().slice(0,10)} value={validUntil} onChange={event => setValidUntil(event.target.value)} className="mt-1 w-full border border-slate-300 p-2 text-sm font-normal"/></label>
+        <label className="text-xs font-bold uppercase">{documentType === 'invoice' ? 'Due date' : 'Valid until'}<input required type="date" min={new Date().toISOString().slice(0,10)} value={validUntil} onChange={event => setValidUntil(event.target.value)} className="mt-1 w-full border border-slate-300 p-2 text-sm font-normal"/></label>
         <label className="text-xs font-bold uppercase">Tax amount<input required type="number" min="0" step="0.01" value={taxAmount} onChange={event => setTaxAmount(event.target.value)} className="mt-1 w-full border border-slate-300 p-2 text-sm font-normal"/></label>
       </div>
       <div className="space-y-2">{lines.map((line, index) => <div key={index} className="grid gap-2 md:grid-cols-[1fr_110px_160px_auto]">
@@ -107,14 +129,14 @@ export function FinancialDocumentsPanel({ orgId, admin = false }: { orgId?: stri
       </div>)}</div>
       <button type="button" disabled={lines.length >= 30} onClick={() => setLines(current => [...current, emptyLine()])} className="border border-slate-400 px-3 py-2 text-xs font-bold">Add line</button>
       <label className="block text-xs font-bold uppercase">Notes<textarea maxLength={2000} value={notes} onChange={event => setNotes(event.target.value)} className="mt-1 min-h-20 w-full border border-slate-300 p-2 text-sm font-normal normal-case"/></label>
-      <button disabled={busy === 'create'} className="bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{busy === 'create' ? 'Issuing…' : 'Issue proforma'}</button>
+      <button disabled={busy === 'create'} className="bg-emerald-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{busy === 'create' ? 'Issuing…' : `Issue ${documentType}`}</button>
     </form>}
 
     {feedback && <p role="status" className="border-b border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{feedback}</p>}
     <div className="grid grid-cols-3 border-b border-slate-200 text-center"><div className="p-3"><strong>{proformas.length}</strong><span className="ml-1 text-xs text-slate-500">proformas</span></div><div className="border-x border-slate-200 p-3"><strong>{invoices.length}</strong><span className="ml-1 text-xs text-slate-500">invoices</span></div><div className="p-3"><strong>{receiptCount}</strong><span className="ml-1 text-xs text-slate-500">receipts</span></div></div>
     {loading ? <p className="p-6 text-sm text-slate-500">Loading financial documents…</p> : proformas.length + invoices.length === 0 ? <p className="p-6 text-sm text-slate-500">No financial documents have been issued yet.</p> : <div className="divide-y divide-slate-200">
       {proformas.map(item => <article key={item.id} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2"><FileCheck2 className="h-4 w-4"/><strong>{item.number}</strong><span className="border border-slate-300 px-2 py-0.5 font-mono text-[8px] font-bold uppercase">{item.status}</span></div><p className="mt-1 text-xs text-slate-500">{item.orgName} · valid to {new Date(item.validUntil).toLocaleDateString('en-GB')} · {item.currency} {item.total.toLocaleString()}</p></div><div className="flex flex-wrap gap-2"><button onClick={() => printProforma(item)} className="inline-flex items-center gap-1 border border-slate-300 px-3 py-2 text-xs font-bold"><Printer className="h-3.5 w-3.5"/>Proforma</button>{admin && item.status === 'issued' && <button disabled={Boolean(busy)} onClick={() => void transition(item,'accept')} className="border border-emerald-400 px-3 py-2 text-xs font-bold">Accept</button>}{admin && ['issued','accepted'].includes(item.status) && <button disabled={Boolean(busy)} onClick={() => void transition(item,'convert')} className="bg-slate-950 px-3 py-2 text-xs font-bold text-white">Convert to invoice</button>}{admin && !['converted','void'].includes(item.status) && <button disabled={Boolean(busy)} onClick={() => void transition(item,'void')} className="border border-red-300 px-3 py-2 text-xs font-bold text-red-700">Void</button>}</div></article>)}
-      {invoices.map(item => <article key={item.id} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2"><ReceiptText className="h-4 w-4"/><strong>{item.number}</strong><span className="border border-slate-300 px-2 py-0.5 font-mono text-[8px] font-bold uppercase">{item.status}</span></div><p className="mt-1 text-xs text-slate-500">{item.orgName} · {item.currency} {item.total.toLocaleString()} · {item.currency} {item.outstanding.toLocaleString()} outstanding</p></div><div className="flex flex-wrap gap-2"><button onClick={() => printInvoice(item)} className="inline-flex items-center gap-1 border border-slate-300 px-3 py-2 text-xs font-bold"><Printer className="h-3.5 w-3.5"/>Invoice</button>{item.receipts.map(receipt => <button key={receipt.id} onClick={() => printReceipt(item,receipt)} className="inline-flex items-center gap-1 border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-800"><Printer className="h-3.5 w-3.5"/>{receipt.type === 'refund' ? 'Refund' : 'Receipt'} {receipt.number}</button>)}</div></article>)}
+      {invoices.map(item => <article key={item.id} className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between"><div><div className="flex items-center gap-2"><ReceiptText className="h-4 w-4"/><strong>{item.number}</strong><span className="border border-slate-300 px-2 py-0.5 font-mono text-[8px] font-bold uppercase">{item.status}</span></div><p className="mt-1 text-xs text-slate-500">{item.orgName} · {item.currency} {item.total.toLocaleString()} · {item.currency} {item.outstanding.toLocaleString()} outstanding</p></div><div className="flex flex-wrap gap-2"><button onClick={() => printInvoice(item)} className="inline-flex items-center gap-1 border border-slate-300 px-3 py-2 text-xs font-bold"><Printer className="h-3.5 w-3.5"/>Print invoice</button>{admin && item.outstanding > 0 && <button disabled={Boolean(busy)} onClick={() => void receivePayment(item)} className="bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Record payment & issue receipt</button>}{item.receipts.map(receipt => <button key={receipt.id} onClick={() => printReceipt(item,receipt)} className="inline-flex items-center gap-1 border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-800"><Printer className="h-3.5 w-3.5"/>{receipt.type === 'refund' ? 'Refund' : 'Receipt'} {receipt.number}</button>)}</div></article>)}
     </div>}
   </section>;
 }
