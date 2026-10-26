@@ -41,7 +41,9 @@ Existing secrets may already be configured in GitHub or Cloudflare. Inspect
 names and presence through those services before creating duplicate bindings.
 Never copy secret values into files, chat, logs, PR descriptions or `VITE_`
 variables. The current cloud machine does not have deployment credentials;
-GitHub's configured secrets could not be inspected while API access is blocked.
+GitHub API access works, but the current integration receives HTTP 403 when
+reading Actions secrets and variables. Their presence is therefore unverified;
+this does not establish that they are missing from GitHub.
 
 For email validation, configure staging Worker secrets `RESEND_API_KEY`,
 `RESEND_FROM_EMAIL`, `RESEND_WEBHOOK_SECRET` and `EMAIL_DISPATCH_SECRET`. Use a
