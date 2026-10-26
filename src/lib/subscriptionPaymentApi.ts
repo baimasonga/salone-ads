@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { scanFileBeforeUpload } from './fileSecurity';
+import { uploadScannedFile } from './fileSecurity';
 
 export type SubscriptionPaymentMethod = 'bank_transfer' | 'mobile_money';
 export type SubscriptionPaymentStatus = 'pending' | 'verified' | 'rejected';
@@ -57,12 +57,9 @@ export async function fetchPendingSubscriptionPaymentProofs(): Promise<Subscript
 }
 
 export async function uploadSubscriptionReceipt(orgId: string, subscriptionId: string, file: File): Promise<string> {
-  await scanFileBeforeUpload(file, 'receipt');
   const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
   const path = `${orgId}/${subscriptionId}/${crypto.randomUUID()}.${extension}`;
-  const { error } = await supabase.storage.from('subscription-payment-proofs').upload(path, file, { upsert: false });
-  if (error) throw error;
-  return path;
+  return uploadScannedFile(file, 'receipt', 'subscription-payment-proofs', path);
 }
 
 export async function submitSubscriptionPaymentProof(input: {

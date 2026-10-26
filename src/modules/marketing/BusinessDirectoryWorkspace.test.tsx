@@ -1,0 +1,25 @@
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, expect, it, vi } from 'vitest';
+import type { Organization } from '../../types';
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), save: vi.fn(), remove: vi.fn() }));
+vi.mock('../../lib/businessDirectoryApi', () => ({ fetchBusinessDirectoryRecords: mocks.fetch, saveBusinessDirectoryRecord: mocks.save, deleteBusinessDirectoryRecord: mocks.remove }));
+vi.mock('../../lib/api', () => ({ uploadMediaAsset: vi.fn() }));
+import { BusinessDirectoryWorkspace } from './BusinessDirectoryWorkspace';
+const shop = { id: 'shop', businessName: 'Freetown Supplies', category: 'Goods', description: 'Office supplies', city: 'Freetown', district: 'Western Area Urban', services: ['Stationery'], isVerified: false, isFeatured: false, status: 'active' };
+beforeEach(() => { vi.clearAllMocks(); mocks.fetch.mockResolvedValue([shop]); mocks.save.mockResolvedValue(shop); });
+it('retains directory search, editing, and persistence after removing creator mode', async () => {
+  const user = userEvent.setup();
+  render(<BusinessDirectoryWorkspace organization={{ id: 'org' } as Organization} />);
+  await screen.findByText('Freetown Supplies');
+  await user.type(screen.getByLabelText('Search marketplace'), 'missing');
+  expect(screen.queryByText('Freetown Supplies')).not.toBeInTheDocument();
+  await user.clear(screen.getByLabelText('Search marketplace'));
+  await user.click(screen.getByRole('button', { name: 'Edit profile' }));
+  await user.clear(screen.getByLabelText('Business name'));
+  await user.type(screen.getByLabelText('Business name'), 'Updated Shop');
+  await user.click(screen.getByRole('button', { name: 'Save profile' }));
+  await waitFor(() => expect(mocks.save).toHaveBeenCalledWith('org', expect.objectContaining({ businessName: 'Updated Shop' }), 'shop'));
+  await screen.findByText('Profile updated.');
+});

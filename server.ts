@@ -1,3 +1,5 @@
+import { registerProtectedUploads } from "./server/security/uploads.js";
+import { serveFrontend } from "./server/frontend.js";
 import { createAudienceEmailModule } from "./server/email/audienceEmail.js";
 import { registerAiRoutes } from "./server/ai/routes.js";
 import express from "express";
@@ -487,6 +489,11 @@ async function startServer() {
   });
 
 
+  registerProtectedUploads(app, {
+    requireUser, scanRateLimiter, scan: clamAvScan,
+    serviceClient: supabaseServiceClient, userClient: userScopedSupabase,
+  });
+
   app.use(express.json({ limit: "100kb" }));
 
   // Tracking link redirect — resolves a short code via the SECURITY DEFINER
@@ -603,38 +610,21 @@ async function startServer() {
       res.status(403).json({ error: { message: 'Additional verification is required before this sensitive action.', code: 'MFA_STEP_UP_REQUIRED' } }); return;
     }
 
-    let commandId: string | undefined;
     const client = userScopedSupabase(req);
     try {
-      const definition = COMMANDS[command];
-      const params = definition.params(payload as CommandPayload);
-      const payloadHash = createHash('sha256').update(JSON.stringify(params)).digest('hex');
-      const { data: claim, error: claimError } = await client.rpc('claim_backend_command', {
+      const params = COMMANDS[command].params(payload as CommandPayload);
+      const { data, error } = await client.rpc('execute_backend_command', {
         p_command_name: command,
         p_idempotency_key: idempotencyKey,
-        p_payload_hash: payloadHash,
+        p_params: params,
         p_request_id: (req as RequestWithContext).requestId || randomUUID(),
       });
-      if (claimError) {
-        const conflict = /already processing|already used/i.test(claimError.message);
-        throw Object.assign(new Error(claimError.message), { status: conflict ? 409 : 400, expose: true, code: conflict ? 'COMMAND_CONFLICT' : 'COMMAND_REJECTED' });
+      if (error) {
+        const conflict = /already processing|already used/i.test(error.message);
+        throw Object.assign(new Error(error.message), { status: conflict ? 409 : 400, expose: true, code: conflict ? 'COMMAND_CONFLICT' : 'COMMAND_REJECTED' });
       }
-      commandId = claim?.commandId;
-      if (claim?.cached) {
-        res.json({ result: claim.result, cached: true, commandId }); return;
-      }
-
-      const { data, error } = await client.rpc(definition.rpc, params);
-      if (error) throw Object.assign(new Error(error.message), { status: 400, expose: true, code: 'COMMAND_REJECTED' });
-      const result = data ?? null;
-      const { error: completionError } = await client.rpc('complete_backend_command', { p_command_id: commandId, p_result: result });
-      if (completionError) throw completionError;
-      res.json({ result, cached: false, commandId });
+      res.json(data);
     } catch (error) {
-      if (commandId) {
-        const code = typeof (error as any)?.code === 'string' ? (error as any).code : 'COMMAND_FAILED';
-        await client.rpc('fail_backend_command', { p_command_id: commandId, p_error_code: code });
-      }
       next(error);
     }
   });
@@ -666,7 +656,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     const indexHtml = fs.readFileSync(path.join(distPath, "index.html"), "utf-8");
-    app.use(express.static(distPath));
+    app.use(serveFrontend(distPath));
 
     // Rich social unfurl: serve advert detail pages with injected OG/Twitter
     // meta so a shared link renders as a visual ad card in feeds. Falls back to

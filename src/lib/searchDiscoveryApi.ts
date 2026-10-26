@@ -1,6 +1,9 @@
 import { supabase } from './supabaseClient';
 
-export type DiscoveryResultType = 'tender' | 'award' | 'project' | 'advert' | 'service' | 'business' | 'influencer';
+export type DiscoveryResultType = 'tender' | 'award' | 'project' | 'advert' | 'service' | 'business';
+export const DISCOVERY_RESULT_TYPES: DiscoveryResultType[] = ['tender', 'award', 'project', 'advert', 'service', 'business'];
+const supportedType = (value: unknown): value is DiscoveryResultType => DISCOVERY_RESULT_TYPES.includes(value as DiscoveryResultType);
+
 export type DiscoverySort = 'relevance' | 'newest' | 'value_high' | 'value_low';
 
 export interface DiscoveryFilters {
@@ -61,7 +64,7 @@ async function visitorHash(): Promise<string | null> {
 function rpcParams(filters: DiscoveryFilters, hash: string | null) {
   return {
     p_query: filters.query?.trim() || null,
-    p_result_types: filters.resultTypes?.length ? filters.resultTypes : null,
+    p_result_types: filters.resultTypes?.filter(supportedType).length ? filters.resultTypes.filter(supportedType) : DISCOVERY_RESULT_TYPES,
     p_district: filters.district?.trim() || null,
     p_category: filters.category?.trim() || null,
     p_date_from: filters.dateFrom || null,
@@ -79,7 +82,7 @@ export async function searchDiscovery(filters: DiscoveryFilters): Promise<Discov
   const hash = await visitorHash();
   const { data, error } = await supabase.rpc('search_discovery', rpcParams(filters, hash));
   if (error) throw error;
-  const rows = (data ?? []).map((row: any): DiscoveryResult => ({
+  const rows = (data ?? []).filter((row: any) => supportedType(row.result_type)).map((row: any): DiscoveryResult => ({
     resultType: row.result_type,
     id: row.result_id,
     href: row.href,
@@ -124,7 +127,7 @@ export async function fetchDiscoverySuggestions(query: string): Promise<Array<{ 
   if (query.trim().length < 2) return [];
   const { data, error } = await supabase.rpc('search_discovery_suggestions', { p_query: query.trim(), p_limit: 8 });
   if (error) throw error;
-  return (data ?? []).map((row: any) => ({ term: row.term, resultType: row.result_type }));
+  return (data ?? []).filter((row: any) => supportedType(row.result_type)).map((row: any) => ({ term: row.term, resultType: row.result_type }));
 }
 
 export async function fetchDiscoveryTrends(): Promise<Array<{ term: string; searches: number }>> {
@@ -142,7 +145,7 @@ export async function fetchDiscoverySavedSearches(): Promise<DiscoverySavedSearc
     .eq('search_scope', 'discovery')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((row: any) => ({ id: row.id, name: row.name, keyword: row.keyword, filters: row.filters ?? {}, createdAt: row.created_at }));
+  return (data ?? []).map((row: any) => ({ id: row.id, name: row.name, keyword: row.keyword, filters: { ...row.filters, resultTypes: row.filters?.resultTypes?.filter(supportedType) ?? [] }, createdAt: row.created_at }));
 }
 
 export async function saveDiscoverySearch(name: string, filters: DiscoveryFilters): Promise<void> {

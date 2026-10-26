@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient';
-import { scanFileBeforeUpload } from '../fileSecurity';
+import { uploadScannedFile } from '../fileSecurity';
 import {
   getPublicVisitorTokenHash,
   isLikelyAutomatedBrowser,
@@ -225,14 +225,10 @@ export async function uploadOpportunityDocument(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Sign in to upload documents.');
-  await scanFileBeforeUpload(file, 'document');
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `${orgId}/${opportunityId}/${Date.now()}-${safeName}`;
   const bucket = documentBucket(isPublic);
-
-  const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, file);
-  if (uploadError) throw uploadError;
+  const storagePath = await uploadScannedFile(file, 'document', bucket, `${orgId}/${opportunityId}/${Date.now()}-${safeName}`);
 
   const { data, error } = await supabase
     .from('opportunity_documents')

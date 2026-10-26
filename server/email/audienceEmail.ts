@@ -35,10 +35,12 @@ async function dispatchAudienceCampaign(campaignId: string, force = false): Prom
   if (campaign.status === "cancelled" || campaign.status === "sent") return { sent: 0, failed: 0, remaining: 0 };
   if (!force && campaign.scheduled_at && new Date(campaign.scheduled_at) > new Date()) return { sent: 0, failed: 0, remaining: 0 };
 
-  await supabaseServiceClient.from("audience_email_campaigns").update({ status: "processing", updated_at: new Date().toISOString() }).eq("id", campaignId);
+  const { error: processingError } = await supabaseServiceClient.from("audience_email_campaigns")
+    .update({ status: "processing", updated_at: new Date().toISOString() }).eq("id", campaignId);
+  if (processingError) throw processingError;
   const { data: deliveries, error: deliveryError } = await supabaseServiceClient.from("audience_email_deliveries")
-    .select("id, recipient_email, public_audience_subscribers!inner(full_name, unsubscribe_token, status)")
-    .eq("campaign_id", campaignId).eq("status", "queued").order("queued_at").limit(25);
+    .select("id, recipient_email, status, event_at, public_audience_subscribers!inner(full_name, unsubscribe_token, status)")
+    .eq("campaign_id", campaignId).in("status", ["queued", "sending"]).order("queued_at").limit(25);
   if (deliveryError) throw deliveryError;
 
   let sent = 0;
@@ -46,13 +48,25 @@ async function dispatchAudienceCampaign(campaignId: string, force = false): Prom
   for (const delivery of deliveries ?? []) {
     const subscriber = (delivery as any).public_audience_subscribers;
     if (subscriber?.status !== "active") {
-      await supabaseServiceClient.from("audience_email_deliveries").update({ status: "suppressed", event_at: new Date().toISOString() }).eq("id", delivery.id);
+      const { error } = await supabaseServiceClient.from("audience_email_deliveries")
+        .update({ status: "suppressed", event_at: new Date().toISOString() }).eq("id", delivery.id);
+      if (error) throw error;
       continue;
     }
-    await supabaseServiceClient.from("audience_email_deliveries").update({ status: "sending" }).eq("id", delivery.id);
+    // Resend retains idempotency keys for 24 hours. Recover an uncertain send
+    // inside that window; older sends require reconciliation, not blind replay.
+    if (delivery.status === "sending" && (!delivery.event_at || !Number.isFinite(Date.parse(delivery.event_at)) || Date.now() - Date.parse(delivery.event_at) >= 23 * 60 * 60 * 1000)) {
+      throw new Error(`Delivery ${delivery.id} requires reconciliation before retrying.`);
+    }
+    if (delivery.status !== "sending") {
+      const { error } = await supabaseServiceClient.from("audience_email_deliveries")
+        .update({ status: "sending", event_at: new Date().toISOString() }).eq("id", delivery.id);
+      if (error) throw error;
+    }
+    let providerId: string;
     try {
       const unsubscribeHref = `${appOrigin}/unsubscribe?token=${subscriber.unsubscribe_token}`;
-      const providerId = await sendResendEmail({
+      providerId = await sendResendEmail({
         to: delivery.recipient_email,
         subject: campaign.subject,
         html: renderAudienceEmail({
@@ -61,30 +75,36 @@ async function dispatchAudienceCampaign(campaignId: string, force = false): Prom
         }),
         idempotencyKey: `manohub-audience-${delivery.id}`,
       });
-      await supabaseServiceClient.from("audience_email_deliveries").update({
-        status: "sent", provider_message_id: providerId, sent_at: new Date().toISOString(), error_message: null,
-      }).eq("id", delivery.id);
-      sent += 1;
     } catch (error) {
-      await supabaseServiceClient.from("audience_email_deliveries").update({
+      const { error: failureError } = await supabaseServiceClient.from("audience_email_deliveries").update({
         status: "failed", error_message: error instanceof Error ? error.message.slice(0, 500) : "Delivery failed", event_at: new Date().toISOString(),
       }).eq("id", delivery.id);
+      if (failureError) throw failureError;
       failed += 1;
+      continue;
     }
+    // A failed write after a successful send must propagate to the worker.
+    // Leave the row in 'sending' for recovery with the SAME provider key.
+    const { error: sentError } = await supabaseServiceClient.from("audience_email_deliveries").update({
+      status: "sent", provider_message_id: providerId, sent_at: new Date().toISOString(), error_message: null,
+    }).eq("id", delivery.id).eq("status", "sending");
+    if (sentError) throw sentError;
+    sent += 1;
   }
 
-  const { data: statuses } = await supabaseServiceClient.from("audience_email_deliveries").select("status").eq("campaign_id", campaignId);
-  const allStatuses = statuses ?? [];
-  const remaining = allStatuses.filter(row => row.status === "queued" || row.status === "sending").length;
-  const sentCount = allStatuses.filter(row => row.status === "sent" || row.status === "delivered").length;
-  const failedCount = allStatuses.filter(row => row.status === "failed" || row.status === "bounced" || row.status === "complained").length;
-  await supabaseServiceClient.from("audience_email_campaigns").update({
+  const { data: statuses, error: statusError } = await supabaseServiceClient.from("audience_email_deliveries").select("status").eq("campaign_id", campaignId);
+  if (statusError || !statuses) throw statusError || new Error("Delivery status could not be verified.");
+  const remaining = statuses.filter(row => row.status === "queued" || row.status === "sending").length;
+  const sentCount = statuses.filter(row => row.status === "sent" || row.status === "delivered").length;
+  const failedCount = statuses.filter(row => row.status === "failed" || row.status === "bounced" || row.status === "complained").length;
+  const { error: campaignUpdateError } = await supabaseServiceClient.from("audience_email_campaigns").update({
     status: remaining ? "queued" : "sent",
     sent_count: sentCount,
     failed_count: failedCount,
     sent_at: remaining ? null : new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", campaignId);
+  if (campaignUpdateError) throw campaignUpdateError;
   return { sent, failed, remaining };
 }
 
@@ -491,5 +511,5 @@ async function processAudienceEmailJobs(): Promise<{
   });
   }
 
-  return { registerWebhook, registerRoutes };
+  return { registerWebhook, registerRoutes, dispatchAudienceCampaign };
 }

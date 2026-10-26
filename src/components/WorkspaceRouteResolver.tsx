@@ -87,7 +87,7 @@ export function resolveDelegatedWorkspaceRoute({
   }
   if (activeTab === 'admin-finance') return isPlatformAdmin || platformStaffRole === 'finance' ? <FinanceLedgerWorkspace /> : adminDenied();
   if (isPlatformAdmin && isPlatformAdminWorkspaceTab(activeTab)) {
-    return <PlatformAdminWorkspace activeTab={activeTab} onNavigate={onNavigate} metrics={metrics} platformStaffRole={platformStaffRole} />;
+    return <PlatformAdminWorkspace activeTab={activeTab} onNavigate={onNavigate} platformStaffRole={platformStaffRole} />;
   }
   if (activeTab === 'overview' && !isPlatformAdmin) {
     if (platformStaffRole) return <Suspense fallback={<div role="status" className="border-2 border-slate-950 bg-white p-6 text-sm text-slate-600">Loading Control Centre…</div>}><AdministratorControlCentre role={platformStaffRole} onNavigate={onNavigate}/></Suspense>;

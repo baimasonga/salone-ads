@@ -4,6 +4,7 @@
 // keeps server.ts completely unchanged — the container just runs it as a
 // normal Node process, with Cloudflare routing requests to it.
 import { Container, getContainer } from '@cloudflare/containers';
+import { releaseContainerId, validateStagingConfiguration } from './releaseIdentity';
 
 interface Env {
   MANOHUB_CONTAINER: DurableObjectNamespace<ManohubContainer>;
@@ -20,8 +21,6 @@ interface Env {
   EMAIL_DISPATCH_SECRET?: string;
 }
 
-const productionContainerId = (env: Env) => `production-${(env.RELEASE_VERSION || 'development').slice(0, 16)}`;
-
 // A single routed instance is intentional: server.ts's AI rate limiter
 // keeps its counters in in-process memory (express-rate-limit's default
 // store), which only behaves correctly with one instance. Don't switch this
@@ -34,6 +33,7 @@ export class ManohubContainer extends Container<Env> {
 
   constructor(ctx: any, env: any) {
     super(ctx, env);
+    validateStagingConfiguration(env);
     // server.ts reads these from process.env at runtime (auth check +
     // the Gemini proxy) — forwarded here from the Worker's own bindings/
     // secrets, never hardcoded.
@@ -61,12 +61,12 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     // A release-scoped identity guarantees requests cannot reuse a dormant
     // Durable Object that still owns the previous container image.
-    const container = getContainer(env.MANOHUB_CONTAINER, productionContainerId(env));
+    const container = getContainer(env.MANOHUB_CONTAINER, releaseContainerId(env));
     return container.fetch(request);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (!env.EMAIL_DISPATCH_SECRET) return;
-    const container = getContainer(env.MANOHUB_CONTAINER, productionContainerId(env));
+    const container = getContainer(env.MANOHUB_CONTAINER, releaseContainerId(env));
     ctx.waitUntil(container.fetch(new Request('http://container/api/audience-email/dispatch-due', {
       method: 'POST',
       headers: { 'x-manohub-dispatch-secret': env.EMAIL_DISPATCH_SECRET },

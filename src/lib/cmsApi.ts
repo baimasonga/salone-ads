@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { scanFileBeforeUpload } from './fileSecurity';
+import { uploadScannedFile } from './fileSecurity';
 
 export type CmsContentType = 'page' | 'post';
 export type CmsContentStatus = 'draft' | 'review' | 'approved' | 'published' | 'archived';
@@ -413,10 +413,8 @@ export async function uploadCmsContentImage(file: File): Promise<string> {
   if (file.size > 10 * 1024 * 1024) throw new Error('Keep CMS images under 10MB.');
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Please sign in.');
-  await scanFileBeforeUpload(file, 'image');
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `${user.id}/${Date.now()}-${safeName}`;
-  const { error } = await supabase.storage.from('landing-cms-media').upload(path, file, { contentType: file.type, upsert: false });
-  if (error) throw error;
-  return supabase.storage.from('landing-cms-media').getPublicUrl(path).data.publicUrl;
+  const uploadedPath = await uploadScannedFile(file, 'image', 'landing-cms-media', path);
+  return supabase.storage.from('landing-cms-media').getPublicUrl(uploadedPath).data.publicUrl;
 }

@@ -1,5 +1,4 @@
 import { Env, requireUserId, checkRateLimit, jsonResponse, errorResponse, callGemini, MAX_FIELD_LENGTH } from '../_lib/shared';
-import { getMockLeadFollowup } from '../_lib/mocks';
 
 interface EventContext {
   request: Request;
@@ -60,7 +59,7 @@ export const onRequestPost = async ({ request, env }: EventContext): Promise<Res
     return jsonResponse({ text: responseText });
   } catch (err: any) {
     if (err?.message === 'NO_KEY') {
-      return jsonResponse({ text: getMockLeadFollowup(leadName, leadSource, channel, brandName) });
+      return jsonResponse({ error: { code: 'AI_UNAVAILABLE', message: 'AI generation is currently unavailable. You can still write and save drafts manually.' } }, 503);
     }
     console.error('Gemini Lead Follow-up Error:', err);
     return errorResponse('An error occurred calling the AI assist service. Please try again shortly.', 500);

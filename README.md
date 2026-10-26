@@ -13,7 +13,7 @@ This repository holds the fully compiled, linted, and production-ready **Phase 0
 ### Key Capabilities Installed
 1. **Landing Portal**: Custom high-contrast layout incorporating our **Emerald Sky** design ethos, targeting localized conversion.
 2. **Onboarding & Auth Flow**: Captures organization profiles, district parameters, diaspora target locations, and primary objectives.
-3. **17 Interactive Sandbox Workspaces**:
+3. **Core Workspaces**:
    - **Overview**: Real-time Greenwich Mean Time (GMT) sync (Freetown time), growth trackers, and custom action cards.
    - **Campaigns**: Interactive budget planner and district-targeted campaign builder.
    - **Content Studio**: Live text editors paired with our secure server-side Gemini AI completions assistant.
@@ -23,10 +23,7 @@ This repository holds the fully compiled, linted, and production-ready **Phase 0
    - **Social Accounts**: Platform status trackers.
    - **Analytics**: High-contrast performance charts.
    - **CRM Leads**: Lightweight pipeline grid for managing WhatsApp queries.
-   - **Influencers**: Marketplace directory cataloging verified Sierra Leonean creators.
    - **Business Directory**: Verified registries with document-claim sub-panels.
-   - **Event Promotion**: Ticket/concert targeting structures.
-   - **Tourism**: Heritage Bunce Island and Banana Island homecoming planners.
    - **Brand Kit**: Color palette trackers and voice profiles feeding directly into AI prompts.
    - **Team Roles**: Secure colleague invitations.
    - **Billing Invoices**: Bank transfer receipt trackers.
@@ -44,6 +41,13 @@ This repository holds the fully compiled, linted, and production-ready **Phase 0
 ---
 
 ## ⚙️ Local Development Instructions
+
+The Express server/container is the supported workflow for the complete
+application, including protected uploads and transactional commands. The
+frontend-only Pages deployment does not provide all backend capabilities.
+AI-assisted generation requires `GEMINI_API_KEY`; without it, generation reports
+unavailable while manual drafting and deterministic document analysis remain
+usable.
 
 ### 1. Environment Configuration
 Create a `.env` file in the root directory (based on `.env.example`):

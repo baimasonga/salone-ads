@@ -5,16 +5,17 @@ import { describe, expect, it } from 'vitest';
 const readSource = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8');
 
 const workspace = readSource('src/components/Workspaces.tsx');
+const routes = readSource('src/components/WorkspaceRouteResolver.tsx');
 const subscriberWorkspace = readSource('src/modules/service-requests/SubscriberServiceRequestsWorkspace.tsx');
 const adminWorkspace = readSource('src/modules/service-requests/AdminServiceRequestsWorkspace.tsx');
 const labels = readSource('src/modules/service-requests/serviceRequestLabels.ts');
 
 describe('service request workspace boundary', () => {
-  it('keeps route ownership in the main workspace and behavior in focused modules', () => {
-    expect(workspace).toContain("activeTab === 'services'");
-    expect(workspace).toContain("activeTab === 'admin-services'");
-    expect(workspace).toContain('<SubscriberServiceRequestsWorkspace');
-    expect(workspace).toContain('<AdminServiceRequestsWorkspace');
+  it('keeps route ownership in the resolver and behavior in focused modules', () => {
+    expect(routes).toContain("activeTab === 'services'");
+    expect(routes).toContain("activeTab === 'admin-services'");
+    expect(routes).toContain('<SubscriberServiceRequestsWorkspace');
+    expect(routes).toContain('<AdminServiceRequestsWorkspace');
     expect(workspace).not.toContain('fetchServiceRequestActivities');
   });
 
