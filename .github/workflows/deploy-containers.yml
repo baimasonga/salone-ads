@@ -50,3 +50,22 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  image-content:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/reliability-and-feature-cleanup
+      - name: Verify release identity inside built image
+        env:
+          VITE_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
+        run: |
+          release_commit=$(git rev-parse HEAD)
+          printf '{"commit":"%s"}\n' "$release_commit" > public/release.json
+          printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\n' "$VITE_SUPABASE_URL" "$VITE_SUPABASE_ANON_KEY" > .env
+          docker build --target build --tag staging-frontend-probe . > /tmp/build-probe.log 2>&1 || { tail -40 /tmp/build-probe.log; exit 1; }
+          actual=$(docker run --rm --entrypoint cat staging-frontend-probe /app/dist/release.json)
+          node -e 'if(JSON.parse(process.argv[1]).commit!==process.argv[2])process.exit(1);console.log("Built frontend matches checked-out release:",process.argv[2]);' "$actual" "$release_commit"
