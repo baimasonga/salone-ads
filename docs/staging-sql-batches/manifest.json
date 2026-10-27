@@ -1,0 +1,322 @@
+[
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "33_core_rls_policy_consolidation.sql",
+    "sha256": "faf537cd87cf7de6fb973977897057a91500ad79ebece3c69c056f3fa9229fc4"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "34_public_measurement_abuse_protection.sql",
+    "sha256": "3e2af8c31612b216f989780c1a6ce6292f063aea73af356adc265b1abd9bd070"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "35_private_measurement_helper_hardening.sql",
+    "sha256": "01d9e35f3d7168c0bef688b1e51bf69eca230329eb6f3a37450c6e2d425a5548"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "36_harden_privileged_rpc_boundaries.sql",
+    "sha256": "bbc3e68fc737fd327e7b747e11ada0fdd0e1804c886a0058a0897a2e11fa35b4"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "37_durable_background_job_foundation.sql",
+    "sha256": "cae50901ef570d47e752f15f8e8e909bd855b39a04a73785541ff1cc53ffdef6"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "39_background_job_operations_console.sql",
+    "sha256": "a8b7028b2da3e32cebd9f046a09ac2f879eba1bc0ec27a984b1a4f2c6ac7c625"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "40_unified_notification_centre.sql",
+    "sha256": "e6812dd18b6c60e5d154a6ee265d488279d500196aa3ab36a0eaae67d4e37c2f"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "41_notification_rpc_security_invoker.sql",
+    "sha256": "daae44e66f2b4b6b6470c4171e625fe2e4cd63c24228c4ab9ce6278771df42b3"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "42_subscription_lifecycle_foundation.sql",
+    "sha256": "e99668c085916e02ab02c33e65d6c5c1b88952c90e984fb0096bf68bcf44b4a3"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "43_subscription_event_grant_hardening.sql",
+    "sha256": "088c32527e4f8c270b258e29fde0683a17a7850fb7dcb47956208278b3d28fec"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "44_central_usage_quotas.sql",
+    "sha256": "5c60f3329765549204b42f0521af38f26e4a359f12209e7f811de89358ccc38c"
+  },
+  {
+    "batch": "batch-01-33-45.sql",
+    "source": "45_platform_financial_ledger.sql",
+    "sha256": "8175f0c717aa585aff550a54f9c8aa3bea03cbdfd553511a26e207d0125f35ee"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "46_transactional_business_event_outbox.sql",
+    "sha256": "281b32970060f5bfb761c9fd7ed9175c9f133551b47289761720747d04f7a76f"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "47_central_workflow_state_machines.sql",
+    "sha256": "5433003dddfa0bfefe5c6059e5ca20d3e46032f8f6ba45cf7c0a040a6eb2cc00"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "48_automated_lifecycle_workflows.sql",
+    "sha256": "6f65306c8e1654874fb7fcc009e708797870edaf7b2325fbbbbfc611907f0e33"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "49_organization_lifecycle_and_recovery.sql",
+    "sha256": "afb5e9283966eb296391eb3cc31c3b2dc6be36ca670a8b6baaa7794c3d48c20a"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "50_incident_response_and_recovery.sql",
+    "sha256": "414488971c2c93940f9b8cdbe1da18f0db1cd59eb3e6c38872203cbb0beb08b9"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "51_lifecycle_and_quota_correctness.sql",
+    "sha256": "607301a9932b4988a9364754bc3a452f30988422502371cf06cad16b24ddd4ad"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "52_private_schema_privilege_defaults.sql",
+    "sha256": "d2b002989558154b3d9666477f68dd7732deae60fdbba401ae2e7006a38f2335"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "53_advert_order_ledger_integration.sql",
+    "sha256": "d0644b56e4e195323499a03f9d8fb1249bb2e4a6119bfc82d07dff6bafdede09"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "54_opportunity_ingestion_workspace.sql",
+    "sha256": "8bef5ca559791f2db6b2fd044b891c1d860f72cfc877828a5079e6e782a2615c"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "55_opportunity_ingestion_index_hardening.sql",
+    "sha256": "21a2dd9ea09c5f572d83a6287bf23cf2198dcccac0be2b7e3b4661a2660e0904"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "56_opportunity_source_monitoring.sql",
+    "sha256": "8338ffc5dc8d723fd287b8e2678188abe076371abf8282f9465ab741e548a8ff"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "57_procurement_search_alert_matching.sql",
+    "sha256": "fce06a3dff049f0cfb4fe70ab50e4cc3f7f02e0678dc333ad3bd714e5e6ccdaf"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "58_tender_alert_email_delivery.sql",
+    "sha256": "4117fb87ec2946f594c2a64f07c4c820d9cb9e8cf760ffd0e11362357cd38a17"
+  },
+  {
+    "batch": "batch-02-46-59.sql",
+    "source": "59_procurement_ranked_search.sql",
+    "sha256": "eb8492eca701611f00d6f79d9c7a05cc8e9ed588cc8e95dafa0519f8f36ca5c6"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "60_procurement_search_intelligence.sql",
+    "sha256": "8222b33421f36ec6f44fb444a23b8109007f6e810ea04cfd355f812593262618"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "61_search_gap_sourcing_workflow.sql",
+    "sha256": "534d70d20e4d7127526e832e28ecb7b75b36310521076668b99600ca0274ad97"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "62_sourcing_task_operations.sql",
+    "sha256": "c3842acc6f746f7b306699d04e765caedb9858be9012518c25424bf367b0377a"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "63_commercial_billing_operations.sql",
+    "sha256": "27317310fb4bf5b07a2460ec085c992c679c2e88cf20bef3e952dd153aeb5123"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "64_platform_audit_and_usage_coverage.sql",
+    "sha256": "c88dfb2c93d5e4a643b72e06ff45bcd94dca46eada782ffbe29e8074e1394920"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "65_tenant_authorization_assurance.sql",
+    "sha256": "644b93b1ff743e5511c6120b47283986ef3206cfd9b63198d242fcbde2e625d1"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "66_secure_backend_command_layer.sql",
+    "sha256": "8fa6ad85679e37fa10ba19294f0021a6f1b9a3f00fb4e61839f0e724e8c75a10"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "67_secure_bid_document_submissions.sql",
+    "sha256": "3fa21c19ca977c2e5202a2f78ac3130da888aae5c8b5f78197be467c30ab7d21"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "68_registration_subscriber_types.sql",
+    "sha256": "ac0649adec49d3aa351eed426f7b994b74557c9544d3987e1880469dd8c9e27d"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "69_fix_subscriber_organization_composite_assignment.sql",
+    "sha256": "25921a5ba6f9a723c6dd569a56ac92c617f19038b1532aca178c3737a55861cd"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "70_subscription_payment_activation.sql",
+    "sha256": "ab85c5bea2b74561f8198ad2c394f8445667155699ae36ee43a53fa0a8b2803c"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "71_explicit_internal_table_denials.sql",
+    "sha256": "b98f658fddebe946ead3992f9444fcc7c5e2d09faf07194514262851be5b1a1f"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "72_subscriber_workspace_profiles.sql",
+    "sha256": "609d26f0b6669e0b5997c1faf913523ab1617b0701014c330e794e7cf433a9a3"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "73_unified_subscriber_administration.sql",
+    "sha256": "9b1a825ba9225c31d95013bc408f4bb985436f66fce2a812701ef2cfca01bac6"
+  },
+  {
+    "batch": "batch-03-60-74.sql",
+    "source": "74_fix_subscriber_admin_period_type.sql",
+    "sha256": "acc5091675a0170e6f5005b5fd6abc022013a56e358673b47e6b59135cfec332"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "75_platform_staff_access.sql",
+    "sha256": "84918b5b415716ac0009892c952ba3300a0a03e0436d18a9acd9830cea13ffdd"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "76_platform_staff_rls_explicit_deny.sql",
+    "sha256": "581d4be92dc1da3611f811bd5803844ac878e8da8d5ccfd47307874e9c9039e8"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "77_platform_staff_legacy_fallback_hardening.sql",
+    "sha256": "8fec7b4acc2dba55cc633ae91271c21f51e24290067311e26428b93299bed626"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "78_platform_staff_capability_enforcement.sql",
+    "sha256": "dc26ccf96098293cb13b40036a871eefb1c9fc7355992b9e0a8f9db06a76437c"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "79_platform_staff_advisor_hardening.sql",
+    "sha256": "b58dd55317a14d14ce1d0889a1781ac489356b8bb116c229d8935731b1d3811e"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "80_agency_workspace_authorization_hardening.sql",
+    "sha256": "c14cc71d06b9f489600264bcbfc479911fcb1ee156388238c46e9cd4cd492b74"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "81_advanced_search_discovery.sql",
+    "sha256": "af952d91c0e20c85ea103c7dd7b69bde8e7f949bd73b9cb9bd3d4a1b48214807"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "82_administrator_control_centre.sql",
+    "sha256": "bd4557b9f6930c200b1c7dd5a1738894747924f1221d04821b725817285f5186"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "83_account_session_security.sql",
+    "sha256": "ad77dc713f99700bed6c249332f2cd8ea1860cccba744e11a4a21687c9e6dc98"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "84_upload_endpoint_protection.sql",
+    "sha256": "6d859bc7aa769a3e9f3aab1911ed0f7af09252bb29ae3a3a2179e25ccf4c5905"
+  },
+  {
+    "batch": "batch-04-75-85.sql",
+    "source": "85_backup_verification_and_disaster_recovery.sql",
+    "sha256": "7c12bbabeb167dcf6077e295ff666eae6a1046f7120fd0c797028c5b2522f6c6"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "86_hyderra_brand_transition.sql",
+    "sha256": "0c2e0519cddbecc2ed572a65fb0a6727c10238ea28ec2e1e4c7ebc33aac5327c"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "87_tender_document_intelligence.sql",
+    "sha256": "de3430905d1890f4c9bfd7a79d713a0a01491e5f9ca7dce73f0c2c97b578986d"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "88_advanced_tender_recommendations.sql",
+    "sha256": "6ed1840d612aec8718cb45ae9116ea88e9a94b49c2ee6ae4e3de85ada5110b51"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "89_events_tourism_management.sql",
+    "sha256": "3e3462907cf8a65b28e766b532e69e9ffbf43cc6dd72577b8c4eb62b6c00b818"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "90_marketplace_expansion.sql",
+    "sha256": "8d5d60139fab9acf7ec1cf55bf2e46bad90f638182ab2c5c5419360b1160a82a"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "91_customer_support_centre.sql",
+    "sha256": "0cdaa475ee4f51ed2e4467650dc14522b7ce99f770d33d7ebeb83ab4f21640fc"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "92_complete_advert_attribution.sql",
+    "sha256": "99ce53d2efd0f1ff9b6c25b901249cdfa86878f298bb75fad87dbf3ec65033c5"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "93_automated_subscription_billing.sql",
+    "sha256": "96069bb2b2db504a22434b9ee8c497688ffa0f17a460e1fa9cced9e879ca8a8c"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "94_financial_documents.sql",
+    "sha256": "5b08b4f03a9f34dee5ff7be32c1f707706554c87a5c549086750c962f4ee589d"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "95_direct_financial_invoices.sql",
+    "sha256": "5b73b853428f84bd105a3a60e156e6445d1dca9898ad55905a9702276939ad47"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "96_protected_storage_uploads.sql",
+    "sha256": "5fd235e8c3f654f3bd4091225ff15bc6793085598b709334ea85655070962264"
+  },
+  {
+    "batch": "batch-05-86-97.sql",
+    "source": "97_atomic_backend_commands.sql",
+    "sha256": "01823c5ef74cd43635901bf21a263e20d80ae98eb7d486694a7cc85f01e06ebe"
+  }
+]
