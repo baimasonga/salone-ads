@@ -9,8 +9,8 @@ async function get(path){
 }
 const app=await get('');
 if(app.name!=='manohub-staging-container-manohubcontainer')throw new Error('Unexpected container application');
-console.log(JSON.stringify({application:app.name,keys:Object.keys(app),imageDigest:app.configuration?.image?.split('@')[1],logsEnabled:app.observability?.logs_enabled}));
+console.log(JSON.stringify({application:app.name,keys:Object.keys(app),imageDigest:app.configuration?.image?.split('@')[1],logsEnabled:app.observability?.logs_enabled,configurationKeys:Object.keys(app.configuration??{}),configuredLogs:app.configuration?.observability}));
 const list=await get('/deployments');
 console.log('Deployment response fields:',Object.keys(list));
 const rows=Array.isArray(list)?list:list.deployments??list.data??[];
-for(const d of rows)console.log(JSON.stringify({id:d.id,version:d.app_version??d.version,state:d.state??d.status,keys:Object.keys(d),placements:d.placements?.map(p=>({id:p.id,status:p.status,state:p.state,events:p.events}))}));
+for(const d of rows)console.log(JSON.stringify({id:d.id,version:d.app_version??d.version,state:d.state??d.status,keys:Object.keys(d),imageDigest:d.image?.split('@')[1],memoryMiB:d.memory_mib,vcpu:d.vcpu,currentPlacement:d.current_placement,placements:d.placements?.map(p=>({id:p.id,status:p.status,state:p.state,events:p.events}))}));
