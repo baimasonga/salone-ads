@@ -21,6 +21,14 @@ MFA, payment workflows or email-provider readiness. The local Docker validation
 used the Node 22 build stage with the managed proxy CA mounted temporarily;
 that is not validation of the final ClamAV runtime image.
 
+## Staging acceptance finding
+
+Authenticated acceptance found ordinary subscription reads failing with permission
+denied for the private admin helper. Migration 98 fixes the public admin-check
+wrapper to execute with its owner and an empty search path while preserving
+revoked direct access to the private helper. Apply and verify 98 before continuing
+with authenticated acceptance. Do not replay earlier migrations.
+
 ## Configure access securely
 
 GitHub repository Settings → Secrets and variables → Actions:
@@ -65,7 +73,7 @@ well. Staging secrets must never be copied into production bindings.
    not back up object bytes. Verify restoration on the isolated staging project.
 3. Check that the target already has the expected baseline schema through
    migration 95. Validate migrations with `npm run validate:migrations`.
-4. Apply migrations 96 and 97 on staging using the project's normal migration
+4. Apply migrations 96, 97 and 98 on staging using the project's normal migration
    process. Use either the numbered files or their matching timestamped copies,
    not both. No migration in this release deletes the retired feature data.
 5. Check the new authorization table, restrictive storage policies, transactional
