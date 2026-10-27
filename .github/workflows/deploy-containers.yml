@@ -29,9 +29,24 @@ jobs:
           TEST_ORG_ID: 55a3dca8-e67a-4784-99f0-108bda01214a
 
   scanner:
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Measure antivirus under staging resource limits
         run: bash scripts/diagnostics/scanner-resources.sh
+
+  container-state:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/diagnostics/container-state.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
