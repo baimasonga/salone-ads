@@ -27,3 +27,11 @@ jobs:
           STAGING_SERVICE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
           TEST_USER_ID: 5f60752b-dd5e-4563-9592-23d4c2798133
           TEST_ORG_ID: 55a3dca8-e67a-4784-99f0-108bda01214a
+
+  scanner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Measure antivirus under staging resource limits
+        run: bash scripts/diagnostics/scanner-resources.sh
