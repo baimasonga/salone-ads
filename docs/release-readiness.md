@@ -11,7 +11,11 @@ staging project.
 The full application runs through Express/Cloudflare Containers. Build and final
 release identities are distinct, including their suffix and environment, so a
 container started before secret configuration cannot be reused as the final
-release. Staging also refuses the production Supabase project at runtime. The alternate
+release. Before activating that final identity, the workflow waits until every
+reported container placement matches the current image and application version
+and its VM is ready. The final Worker publish uses `--containers-rollout=none`
+so it cannot start another container image rollout. Failure to establish image
+readiness blocks final activation. Staging also refuses the production Supabase project at runtime. The alternate
 Pages AI handlers are retained for compatibility, but Pages does not provide
 the protected upload and transactional command backend.
 
