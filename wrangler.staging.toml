@@ -25,3 +25,9 @@ RELEASE_VERSION = "development"
 APP_URL = "STAGING_APP_URL"
 VITE_SUPABASE_URL = "STAGING_SUPABASE_URL"
 VITE_SUPABASE_ANON_KEY = "STAGING_SUPABASE_ANON_KEY"
+
+"observability": {
+  "enabled": true,
+}
+[observability]
+enabled = true
