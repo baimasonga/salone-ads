@@ -43,7 +43,7 @@ select 'Function definitions'::text as category, 'public.admin_get_usage_meterin
 union all
 select 'Function definitions'::text as category, 'public.admin_list_subscribers'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='admin_list_subscribers' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='350e232a35cb060806312d2b2ba68bc2' and p.prosecdef=true) as passed
 union all
-select 'Function definitions'::text as category, 'public.admin_process_commercial_invoice_overdue'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='admin_process_commercial_invoice_overdue' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='b349e8fae15482d184d7d00356ac2402' and p.prosecdef=true) as passed
+select 'Function definitions'::text as category, 'public.admin_process_commercial_invoice_overdue'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='admin_process_commercial_invoice_overdue' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='1fc0e1bc070fa55a7b80b2e86415fd24' and p.prosecdef=true) as passed
 union all
 select 'Function definitions'::text as category, 'public.admin_purge_subscriber'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='admin_purge_subscriber' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='f9e97c7d2d8aeda7168d93900108b2da' and p.prosecdef=true) as passed
 union all
@@ -67,13 +67,13 @@ select 'Function definitions'::text as category, 'public.get_org_permissions'::t
 union all
 select 'Function definitions'::text as category, 'public.guard_bid_submission_transition'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='guard_bid_submission_transition' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='6ee23d2b60aea930190d1e19732a858f' and p.prosecdef=false) as passed
 union all
-select 'Function definitions'::text as category, 'public.issue_commercial_credit'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='issue_commercial_credit' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='95a9f2683589d06d3d5c94dbd779498e' and p.prosecdef=true) as passed
+select 'Function definitions'::text as category, 'public.issue_commercial_credit'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='issue_commercial_credit' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='d038dc99571c12be7b0eaaeaab77da06' and p.prosecdef=true) as passed
 union all
 select 'Function definitions'::text as category, 'public.list_opportunity_researchers'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='list_opportunity_researchers' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='500d95b3ca473428387a6029395bbe71' and p.prosecdef=true) as passed
 union all
-select 'Function definitions'::text as category, 'public.record_commercial_payment'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='record_commercial_payment' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='26d30d58a8b08f31ecd4ff16fb451409' and p.prosecdef=true) as passed
+select 'Function definitions'::text as category, 'public.record_commercial_payment'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='record_commercial_payment' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='27a0a9315b7f953865db0f091dec5f88' and p.prosecdef=true) as passed
 union all
-select 'Function definitions'::text as category, 'public.record_commercial_refund'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='record_commercial_refund' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='0cff174dac7357e5e2c7fd7386d195b9' and p.prosecdef=true) as passed
+select 'Function definitions'::text as category, 'public.record_commercial_refund'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='record_commercial_refund' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='93865e625951e1dc368f79d801957134' and p.prosecdef=true) as passed
 union all
 select 'Function definitions'::text as category, 'public.record_opportunity_sourcing_task_event'::text as item, exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='record_opportunity_sourcing_task_event' and md5(btrim(replace(p.prosrc,E'\r\n',E'\n'),E' \t\r\n'))='8c70d33bbc6fbf58dba1d9dfb64d1b49' and p.prosecdef=true) as passed
 union all
