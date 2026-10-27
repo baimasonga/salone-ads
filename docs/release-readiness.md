@@ -92,8 +92,10 @@ well. Staging secrets must never be copied into production bindings.
 
 6. After verifying the candidate's migrations, set
    `STAGING_DATABASE_MIGRATIONS_COMMIT` to its full commit SHA. This is an
-   operator attestation, not an automated database inspection. Verify it again
-   for each changed candidate; the workflow refuses a stale acknowledgement.
+   operator attestation, not an automated database inspection. Staging accepts
+   an acknowledged ancestor when both migration directories are unchanged;
+   changes to migration files require applying/verifying them and updating the
+   acknowledgement. Production still requires the exact release SHA.
 
 Existing pre-upgrade idempotency keys use an older payload hash format and may
 be rejected across the upgrade. Existing incomplete command outcomes require

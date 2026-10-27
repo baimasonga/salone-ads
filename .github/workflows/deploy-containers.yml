@@ -146,6 +146,8 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -160,6 +162,7 @@ jobs:
           MIGRATIONS_COMMIT: ${{ vars.STAGING_DATABASE_MIGRATIONS_COMMIT }}
         run: |
           node --input-type=module <<'JS'
+          import { verifyMigrationAcknowledgement, verifyStagingServiceKey } from './scripts/staging-preflight.mjs';
           const required = ['STAGING_URL','STAGING_SUPABASE_URL','STAGING_SUPABASE_ANON_KEY','STAGING_SERVICE_KEY'];
           const missing = required.filter(name => !process.env[name]);
           if (missing.length) throw new Error(`Missing staging settings: ${missing.join(', ')}`);
@@ -168,9 +171,8 @@ jobs:
           if (app.protocol !== 'https:' || db.protocol !== 'https:' || db.hostname === 'rffjehmbrycztiekcyho.supabase.co') {
             throw new Error('Use a dedicated HTTPS staging app and Supabase project, separate from production.');
           }
-          if (process.env.MIGRATIONS_COMMIT !== process.env.GITHUB_SHA) {
-            throw new Error('Apply and verify migrations 96–97 on staging, then set STAGING_DATABASE_MIGRATIONS_COMMIT to this release commit.');
-          }
+          verifyMigrationAcknowledgement(process.env.MIGRATIONS_COMMIT, process.env.GITHUB_SHA);
+          await verifyStagingServiceKey(process.env.STAGING_SUPABASE_URL, process.env.STAGING_SERVICE_KEY);
           JS
       - name: Write staging build environment
         env:
