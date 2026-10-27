@@ -41,7 +41,7 @@ describe('staging release preflight', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
   it('checks valid credentials against staging without reading rows', async () => {
-    const fetchImpl = vi.fn(async (_input: URL, _options: RequestInit) => new Response('[]'));
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, _options?: RequestInit) => new Response('[]'));
     await verifyStagingServiceKey('https://test.supabase.co', key('test'), fetchImpl);
     expect(String(fetchImpl.mock.calls[0][0])).toContain('limit=0');
   });
