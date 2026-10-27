@@ -1,6 +1,7 @@
 interface ReleaseConfiguration {
   MANOHUB_ENVIRONMENT?: string;
   RELEASE_VERSION?: string;
+  CONTAINER_REVISION?: string;
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_ANON_KEY?: string;
 }
@@ -8,7 +9,7 @@ interface ReleaseConfiguration {
 // Preserve the build suffix: the final deployment must start a fresh instance
 // after its secret bindings are configured, even for the same source commit.
 export const releaseContainerId = (env: ReleaseConfiguration) =>
-  `${env.MANOHUB_ENVIRONMENT || 'production'}-${(env.RELEASE_VERSION || 'development').slice(0, 64)}`;
+  `${env.MANOHUB_ENVIRONMENT || 'production'}-${(env.CONTAINER_REVISION || env.RELEASE_VERSION || 'development').slice(0, 64)}`;
 
 export function validateStagingConfiguration(env: ReleaseConfiguration): void {
   if (env.MANOHUB_ENVIRONMENT !== 'staging') return;

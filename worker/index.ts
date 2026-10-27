@@ -10,6 +10,7 @@ interface Env {
   MANOHUB_CONTAINER: DurableObjectNamespace<ManohubContainer>;
   MANOHUB_ENVIRONMENT?: string;
   RELEASE_VERSION?: string;
+  CONTAINER_REVISION?: string;
   GEMINI_API_KEY?: string;
   APP_URL?: string;
   VITE_SUPABASE_URL: string;

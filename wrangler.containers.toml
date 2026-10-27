@@ -48,5 +48,6 @@ new_sqlite_classes = ["ManohubContainer"]
 [vars]
 MANOHUB_ENVIRONMENT = "production"
 RELEASE_VERSION = "development"
+CONTAINER_REVISION = "development"
 VITE_SUPABASE_URL = "https://rffjehmbrycztiekcyho.supabase.co"
 VITE_SUPABASE_ANON_KEY = "sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk"
