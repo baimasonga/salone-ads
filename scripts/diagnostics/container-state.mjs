@@ -21,3 +21,5 @@ const raw=await response.json();const data=raw.result??raw;
 console.log('Instance fields:',Object.keys(data));
 for(const d of data.durable_objects??[])console.log(JSON.stringify({kind:'durable-object',name:d.name,id:d.id,deploymentId:d.deployment_id}));
 for(const i of data.instances??[])console.log(JSON.stringify({kind:'instance',id:i.id,version:i.app_version,imageDigest:i.image?.split('@')[1],status:i.current_placement?.status}));
+const {waitForContainerRollout}=await import('../wait-container-rollout.mjs');
+console.log('Readiness helper:',JSON.stringify(await waitForContainerRollout({accountId:account,token,applicationName:'manohub-staging-container-manohubcontainer',maxAttempts:2})));
