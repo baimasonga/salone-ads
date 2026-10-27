@@ -12,6 +12,38 @@ function fixture(options: { environment?: string; release?: string; artifactStat
   });
 }
 describe('staging release verification', () => {
+  it('waits for cold-start timeouts and temporary gateway failures before checking the release', async () => {
+    const ready = fixture();
+    let attempts = 0;
+    const sleepImpl = vi.fn(async () => {});
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (new URL(String(input)).pathname === '/api/health') {
+        attempts++;
+        if (attempts === 1) throw new DOMException('Timed out', 'TimeoutError');
+        if (attempts === 2) return new Response('', { status: 503 });
+      }
+      return ready(input, init);
+    });
+    const result = await verifyStagingRelease({ baseUrl: 'https://staging.example.com', expectedCommit: commit, fetchImpl, sleepImpl });
+    expect(result.checksPassed).toBe(7);
+    expect(attempts).toBe(3);
+    expect(sleepImpl).toHaveBeenCalledTimes(2);
+  });
+  it('stops after six startup failures and reports the failing endpoint', async () => {
+    const fetchImpl = vi.fn(async () => { throw new Error('Timed out'); });
+    const sleepImpl = vi.fn(async () => {});
+    await expect(verifyStagingRelease({ baseUrl: 'https://staging.example.com', expectedCommit: commit, fetchImpl, sleepImpl }))
+      .rejects.toThrow('/api/health unavailable after 6 startup attempts: Timed out');
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
+    expect(sleepImpl).toHaveBeenCalledTimes(5);
+  });
+  it('does not retry or accept a wrong release after a temporary startup failure', async () => {
+    const fetchImpl = fixture({ release: 'b'.repeat(40) });
+    fetchImpl.mockRejectedValueOnce(new Error('Timed out'));
+    await expect(verifyStagingRelease({ baseUrl: 'https://staging.example.com', expectedCommit: commit, fetchImpl, sleepImpl: async () => {} }))
+      .rejects.toThrow('expected environment and commit');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
   it('verifies exact release identity and public boundaries using unauthenticated probes', async () => {
     const fetchImpl = fixture();
     const result = await verifyStagingRelease({ baseUrl: 'https://staging.example.com', expectedCommit: commit, fetchImpl });
