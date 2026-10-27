@@ -190,7 +190,9 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy staging container
-        run: npx wrangler deploy --config wrangler.staging.toml --containers-rollout=immediate
+        run: |
+          set -o pipefail
+          npx wrangler deploy --config wrangler.staging.toml --containers-rollout=immediate | tee staging-container-deploy.log
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -211,6 +213,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CONTAINER_APPLICATION_NAME: manohub-staging-container-manohubcontainer
+          CONTAINER_DEPLOY_LOG: staging-container-deploy.log
       - name: Verify staging health and release boundaries
         env:
           STAGING_TARGET_URL: ${{ vars.MANOHUB_STAGING_URL }}
@@ -283,6 +286,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CONTAINER_APPLICATION_NAME: manohub-container-manohubcontainer
+          CONTAINER_DEPLOY_LOG: wrangler-production-deploy.log
       - name: Resolve production URL
         id: production-url
         env:
