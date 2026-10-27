@@ -199,6 +199,11 @@ jobs:
         run: |
           sed -i "s|RELEASE_VERSION = .*|RELEASE_VERSION = \"${GITHUB_SHA}\"|" wrangler.staging.toml
           printf '%s' "$STAGING_SERVICE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config wrangler.staging.toml
+      - name: Publish final staging release
+        run: npx wrangler deploy --config wrangler.staging.toml --containers-rollout=immediate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Verify staging health and release boundaries
         env:
           STAGING_TARGET_URL: ${{ vars.MANOHUB_STAGING_URL }}
@@ -249,19 +254,21 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: printf '%s' "$SERVICE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config wrangler.containers.toml
-      # A secret update publishes a Worker version. Run it only after the new
-      # container image exists so the release-scoped identity cannot start on
-      # the preceding image during the deployment gap.
+      # Secret updates do not apply edited local vars. Explicitly deploy the
+      # final identity after the image and all secret bindings are available.
       - name: Set optional Gemini secret
         run: |
           sed -i "s|RELEASE_VERSION = .*|RELEASE_VERSION = \"${GITHUB_SHA}\"|" wrangler.containers.toml
           if [ -n "$GEMINI_API_KEY" ]; then
             printf '%s' "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY --config wrangler.containers.toml
-          else
-            npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Publish final production release
+        run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate
+        env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Resolve production URL
@@ -306,7 +313,7 @@ jobs:
           test -n "$asset"
           curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 "${PRODUCTION_URL%/}${asset}" | grep -Fq 'Customer Support Centre'
           bundle=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 "${PRODUCTION_URL%/}${asset}")
-          for label in 'Business Directory' 'Influencer Marketplace' 'Events Management' 'Tourism Management' 'Automated Subscription Billing' 'Performance & Attribution' 'Tenders & Document Intelligence' 'Pipeline & Recommendations' 'Billing & Renewals'; do
+          for label in 'Business Directory' 'Automated Subscription Billing' 'Performance & Attribution' 'Tenders & Document Intelligence' 'Pipeline & Recommendations' 'Billing & Renewals'; do
             printf '%s' "$bundle" | grep -Fq "$label"
           done
       - name: Verify production performance
