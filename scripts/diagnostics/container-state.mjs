@@ -14,3 +14,10 @@ const list=await get('/deployments');
 console.log('Deployment response fields:',Object.keys(list));
 const rows=Array.isArray(list)?list:list.deployments??list.data??[];
 for(const d of rows)console.log(JSON.stringify({id:d.id,version:d.app_version??d.version,state:d.state??d.status,keys:Object.keys(d),imageDigest:d.image?.split('@')[1],memoryMiB:d.memory_mib,vcpu:d.vcpu,currentPlacement:d.current_placement,placements:d.placements?.map(p=>({id:p.id,status:p.status,state:p.state,events:p.events}))}));
+
+const response=await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/containers/dash/applications/${application}/instances?per_page=20`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(20000)});
+if(!response.ok)throw new Error(`Instance metadata HTTP ${response.status}`);
+const raw=await response.json();const data=raw.result??raw;
+console.log('Instance fields:',Object.keys(data));
+for(const d of data.durable_objects??[])console.log(JSON.stringify({kind:'durable-object',name:d.name,id:d.id,deploymentId:d.deployment_id}));
+for(const i of data.instances??[])console.log(JSON.stringify({kind:'instance',id:i.id,version:i.app_version,imageDigest:i.image?.split('@')[1],status:i.current_placement?.status}));
