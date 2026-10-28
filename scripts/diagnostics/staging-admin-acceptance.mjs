@@ -36,11 +36,12 @@ try{
  const rpc=async(name,body,allowFailure=false)=>(await call(`/rest/v1/rpc/${name}`,{method:'POST',token,body,allowFailure}));
  assert.equal((await rpc('is_platform_admin',{})).data,true);console.log('PASS: dedicated temporary account has administrator access.');
  if(process.env.EMAIL_ACCEPTANCE==='true'){
-  const r=await fetch('https://manohub-staging-container.mohamedbangura.workers.dev/api/audience-email/test',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({to:'delivered@resend.dev',subject:'Staging acceptance sandbox delivery',body:'Synthetic staging acceptance to the Resend test sink. No human recipient.'}),signal:AbortSignal.timeout(90000)});
+  assert.equal(process.env.APPROVED_TEST_RECIPIENT,'baimasonga@gmail.com','Explicit approved test recipient required');
+  const r=await fetch('https://manohub-staging-container.mohamedbangura.workers.dev/api/audience-email/test',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({to:process.env.APPROVED_TEST_RECIPIENT,subject:'Hyderra staging email verification',body:'This is the single staging test email you requested from Hyderra. Sending from noreply@quantixsl.com is configured for the application at iderra.com. No action is required.'}),signal:AbortSignal.timeout(90000)});
   const data=await r.json();
-  if(!r.ok){console.log('Email sandbox test HTTP status:',r.status);if(/Email delivery is not configured/.test(data.error?.message??''))console.log('Email configuration missing: RESEND_API_KEY and/or RESEND_FROM_EMAIL');throw new Error('Staging sandbox email acceptance failed; no success claimed.');}
+  if(!r.ok){console.log('Email sandbox test HTTP status:',r.status);if(/Email delivery is not configured/.test(data.error?.message??''))console.log('Email configuration missing: RESEND_API_KEY and/or RESEND_FROM_EMAIL');throw new Error('Staging approved email acceptance failed; do not automatically resend.');}
   assert.ok(data.id,'Provider acceptance ID required');
-  console.log('PASS: staging email endpoint accepted sandbox delivery and returned a provider message ID. Inbox delivery and signed webhook processing remain separate checks.');
+  console.log('PASS: staging email endpoint reports provider acceptance for the single approved test message. Returned reference is application correlation, not proof of inbox delivery.');
  }else{
  const org=await call('/rest/v1/organizations',{method:'POST',body:{name:'[TEST] Temporary billing acceptance '+process.env.GITHUB_RUN_ID,type:'Small Business',country:'Sierra Leone',created_by:state.userId}});state.orgId=org.data[0].id;save();
  await call('/rest/v1/organization_members',{method:'POST',body:{org_id:state.orgId,user_id:state.userId,role:'owner'}});
