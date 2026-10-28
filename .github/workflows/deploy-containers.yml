@@ -26,6 +26,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/checkout@v4
+        with:
+          ref: 4c3c69e3feeb268e438642c2253133c450b7d768
+          path: release-check
+      - name: Verify live release before sending
+        run: node release-check/scripts/verify-staging-release.mjs
+        env:
+          STAGING_TARGET_URL: https://manohub-staging-container.mohamedbangura.workers.dev
+          EXPECTED_RELEASE_COMMIT: 4c3c69e3feeb268e438642c2253133c450b7d768
       - name: Send one explicitly approved staging test message
         run: node scripts/diagnostics/staging-admin-acceptance.mjs
       - name: Ensure temporary administrator is removed
