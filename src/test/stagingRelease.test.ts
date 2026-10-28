@@ -44,6 +44,25 @@ describe('staging release verification', () => {
       .rejects.toThrow('expected environment and commit');
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
+  it('allows bounded healthy staging release propagation when explicitly enabled', async () => {
+    const ready = fixture(); let calls = 0; const sleepImpl = vi.fn(async () => {});
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (new URL(String(input)).pathname === '/api/health' && calls++ === 0) return Response.json({status:'healthy',environment:'staging',release:'b'.repeat(40)});
+      return ready(input, init);
+    });
+    expect((await verifyStagingRelease({baseUrl:'https://staging.example.com',expectedCommit:commit,fetchImpl,sleepImpl,propagationAttempts:2})).checksPassed).toBe(7);
+    expect(sleepImpl).toHaveBeenCalledTimes(1);
+  });
+  it('never accepts a persistently stale release during propagation', async () => {
+    const fetchImpl=fixture({release:'b'.repeat(40)}); const sleepImpl=vi.fn(async()=>{});
+    await expect(verifyStagingRelease({baseUrl:'https://staging.example.com',expectedCommit:commit,fetchImpl,sleepImpl,propagationAttempts:2})).rejects.toThrow('expected environment and commit');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+  it('never waits on a production environment even when propagation is enabled', async () => {
+    const fetchImpl=fixture({environment:'production'}); const sleepImpl=vi.fn(async()=>{});
+    await expect(verifyStagingRelease({baseUrl:'https://staging.example.com',expectedCommit:commit,fetchImpl,sleepImpl,propagationAttempts:2})).rejects.toThrow('expected environment and commit');
+    expect(sleepImpl).not.toHaveBeenCalled();
+  });
   it('verifies exact release identity and public boundaries using unauthenticated probes', async () => {
     const fetchImpl = fixture();
     const result = await verifyStagingRelease({ baseUrl: 'https://staging.example.com', expectedCommit: commit, fetchImpl });

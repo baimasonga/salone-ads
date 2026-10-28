@@ -1,6 +1,6 @@
 // @vitest-environment node
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest';
-import {assertEmailConfigured,sendEmail,supportsEmailRetryDeduplication} from './emailProvider';
+import {assertEmailConfigured,inspectEmailProvider,sendEmail,supportsEmailRetryDeduplication} from './emailProvider';
 import {sendResendEmail} from './resendProvider';
 vi.mock('./resendProvider',()=>({sendResendEmail:vi.fn(async()=> 'resend-id')}));
 beforeEach(()=>{
@@ -34,6 +34,26 @@ describe('Cloudflare Email Sending adapter',()=>{
  it('requires explicit credentials and refuses unsupported providers',()=>{
   vi.stubEnv('CLOUDFLARE_EMAIL_API_TOKEN','');expect(()=>assertEmailConfigured()).toThrow('Cloudflare email delivery requires');
   vi.stubEnv('EMAIL_PROVIDER','typo');expect(()=>assertEmailConfigured()).toThrow('Unsupported');
+ });
+ it('reads token and domain status without sending or exposing credentials',async()=>{
+  const fetch=vi.fn(async(input: RequestInfo | URL)=>String(input).endsWith('/verify')
+    ? Response.json({success:true,result:{status:'active',id:'internal-id',secret:'never-return'}})
+    : Response.json({success:true,result:[{name:'example.com',enabled:true}]}));vi.stubGlobal('fetch',fetch);
+  const result=await inspectEmailProvider('b'.repeat(32));
+  expect(result.tokenVerification).toMatchObject({httpStatus:200,status:'active'});
+  expect(result.sendingDomain).toMatchObject({enabled:true});
+  expect(JSON.stringify(result)).not.toContain('test-token');expect(JSON.stringify(result)).not.toContain('never-return');
+  expect(fetch).toHaveBeenCalledTimes(2);
+  for(const [,init] of fetch.mock.calls as unknown as Array<[unknown,RequestInit]>)expect(init.method).toBeUndefined();
+ });
+ it('reports token rejection without exposing provider response text',async()=>{
+  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({success:false,errors:[{code:9109,message:'private provider text'}]},{status:403})));
+  const result=await inspectEmailProvider();expect(result.tokenVerification).toMatchObject({httpStatus:403,success:false,codes:[9109]});
+  expect(JSON.stringify(result)).not.toContain('private provider text');
+ });
+ it('returns provider message ID when supplied by Cloudflare',async()=>{
+  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({success:true,result:{message_id:'cloudflare-message',delivered:[input.to]}})));
+  expect(await sendEmail(input)).toBe('cloudflare-message');
  });
  it('preserves existing Resend configuration and adapter',async()=>{
   vi.stubEnv('EMAIL_PROVIDER','resend');vi.stubEnv('RESEND_API_KEY','resend-test');vi.stubEnv('RESEND_FROM_EMAIL','test@example.com');

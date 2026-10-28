@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createEmailRenderers } from "./templates.js";
 import { resendEventMetadata, verifyResendWebhook } from "./resendProvider.js";
 
-import { assertEmailConfigured, sendEmail, supportsEmailRetryDeduplication } from "./emailProvider.js";
+import { assertEmailConfigured, inspectEmailProvider, sendEmail, supportsEmailRetryDeduplication } from "./emailProvider.js";
 
 type AuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => void | Promise<void>;
 type StructuredLog = (level: "info" | "warn" | "error", event: string, fields?: Record<string, unknown>) => void;
@@ -457,6 +457,15 @@ async function processAudienceEmailJobs(): Promise<{
   }
 
   function registerRoutes(app: express.Express, requireUser: AuthMiddleware, requirePlatformAdmin: AuthMiddleware): void {
+  app.get("/api/audience-email/provider-status", requireUser, requirePlatformAdmin, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const zoneId = req.query.zoneId;
+    if (zoneId !== undefined && (typeof zoneId !== 'string' || !/^[a-f0-9]{32}$/i.test(zoneId))) {
+      res.status(400).json({ error: { message: 'Invalid sending zone identifier.' } }); return;
+    }
+    try { res.json(await inspectEmailProvider(typeof zoneId === 'string' ? zoneId : undefined)); }
+    catch { res.status(503).json({ error: { message: 'Read-only email provider inspection failed.' } }); }
+  });
   app.post("/api/audience-email/test", requireUser, requirePlatformAdmin, async (req, res) => {
     const { to, subject, previewText = "", body, ctaLabel = "", ctaHref = "" } = req.body ?? {};
     if (typeof to !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || to.length > 254) {

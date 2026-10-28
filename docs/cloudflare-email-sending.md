@@ -27,8 +27,9 @@ Keep `EMAIL_DISPATCH_SECRET` unset until bulk/scheduled delivery is approved.
 
 The REST response reports delivered, queued, and permanently bounced recipients.
 The adapter accepts only the requested recipient in delivered/queued and rejects
-permanent bounces. Its `cloudflare-request:` reference is an application
-correlation header, **not** a Cloudflare message ID or inbox-delivery receipt.
+permanent bounces. It records Cloudflare's `message_id` when returned. Its fallback
+`cloudflare-request:` reference is application correlation, **not** a Cloudflare
+message ID. Neither identifier is an inbox-delivery receipt.
 The existing `sent` state records provider acceptance, which may mean queued.
 
 Cloudflare's documented REST contract does not promise idempotent sends. There
@@ -46,3 +47,10 @@ single-message send must not be described as full campaign-delivery acceptance.
 References:
 - https://developers.cloudflare.com/email-service/api/send-emails/rest-api/
 - https://developers.cloudflare.com/email-service/reference/event-subscriptions/
+
+Administrators can use `GET /api/audience-email/provider-status` for read-only
+configuration/token checks. An optional 32-character hexadecimal `zoneId` also
+checks permission to read that zone's sending-domain status. The endpoint requires
+both authentication and platform-admin access, disables caching, and never
+returns token values or full provider response bodies. Token validity alone does
+not establish Email Sending permission.
