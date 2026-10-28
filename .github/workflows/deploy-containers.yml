@@ -11,16 +11,34 @@ on:
 permissions:
   contents: read
 jobs:
-  email-account-check:
+  staging-email-acceptance:
     runs-on: ubuntu-latest
     environment: staging
-    timeout-minutes: 3
+    timeout-minutes: 8
+    env:
+      STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+      STAGING_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
+      STAGING_SERVICE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node scripts/diagnostics/email-account-check.mjs
+      - name: Refresh current staging container for the replacement token
+        run: node scripts/diagnostics/stop-superseded-staging.mjs
         env:
+          RESTART_CURRENT_STAGING: true
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Check replacement token and sender without sending
+        run: node scripts/diagnostics/staging-admin-acceptance.mjs
+        env:
+          EMAIL_DIAGNOSTICS: true
+      - name: Send one approved test email using the replacement token
+        run: node scripts/diagnostics/staging-admin-acceptance.mjs
+        env:
+          EMAIL_ACCEPTANCE: true
+          APPROVED_TEST_RECIPIENT: baimasonga@gmail.com
+      - name: Ensure temporary administrator is removed
+        if: always()
+        run: node scripts/diagnostics/staging-admin-acceptance.mjs --cleanup

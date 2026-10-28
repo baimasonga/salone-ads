@@ -28,12 +28,13 @@ for(const row of rows){
  if(typeof name!=='string'||!name.startsWith('staging-')||!/^\w{64}$/.test(row.id))throw new Error('Unknown instance identity; refusing stop');
  targets.push({id:row.id,name});
 }
+if(process.env.RESTART_CURRENT_STAGING==='true'){targets.length=0;targets.push({name:currentName});console.log('Refreshing only the current staging instance for updated secret bindings.');}
 if(!targets.length){console.log('No superseded active staging instances found.');process.exit(0);}
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'staging-maintenance-'));
 const name=`manohub-staging-maint-${process.env.GITHUB_RUN_ID}`;
 const config=path.join(temp,'wrangler.toml');
-const allowed=targets.map(t=>t.id);
-fs.writeFileSync(path.join(temp,'index.js'),`export default {async fetch(request,env){if(!env.MAINTENANCE_AUTH_TOKEN||request.headers.get('authorization')!=='Bearer '+env.MAINTENANCE_AUTH_TOKEN)return new Response('Denied',{status:403});if(request.method!=='POST')return new Response('Method',{status:405});const stopped=[];for(const id of ${JSON.stringify(allowed)}){const stub=env.STAGING_CONTAINER.get(env.STAGING_CONTAINER.idFromString(id));await stub.stop();stopped.push(id);}return Response.json({stopped});}};`);
+const allowed=targets;
+fs.writeFileSync(path.join(temp,'index.js'),`export default {async fetch(request,env){if(!env.MAINTENANCE_AUTH_TOKEN||request.headers.get('authorization')!=='Bearer '+env.MAINTENANCE_AUTH_TOKEN)return new Response('Denied',{status:403});if(request.method!=='POST')return new Response('Method',{status:405});const stopped=[];for(const target of ${JSON.stringify(allowed)}){const id=target.id?env.STAGING_CONTAINER.idFromString(target.id):env.STAGING_CONTAINER.idFromName(target.name);const stub=env.STAGING_CONTAINER.get(id);await stub.stop();stopped.push(target.name);}return Response.json({stopped});}};`);
 fs.writeFileSync(config,`name = "${name}"\nmain = "index.js"\ncompatibility_date = "2026-07-21"\n[[durable_objects.bindings]]\nname = "STAGING_CONTAINER"\nclass_name = "ManohubContainer"\nscript_name = "manohub-staging-container"\n`);
 const secret=randomBytes(40).toString('hex');console.log(`::add-mask::${secret}`);
 function wrangler(args,input){const r=spawnSync('npx',['--yes','wrangler@4.114.0',...args,'--config',config],{input,encoding:'utf8',stdio:['pipe','inherit','inherit']});if(r.status!==0)throw new Error(`Maintenance Worker ${args[0]} failed`);}
