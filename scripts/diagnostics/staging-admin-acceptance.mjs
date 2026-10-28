@@ -35,6 +35,13 @@ try{
  const session=await call('/auth/v1/token?grant_type=password',{method:'POST',token:anon,body:{email,password}});token=session.data.access_token;assert.ok(token);console.log(`::add-mask::${token}`);
  const rpc=async(name,body,allowFailure=false)=>(await call(`/rest/v1/rpc/${name}`,{method:'POST',token,body,allowFailure}));
  assert.equal((await rpc('is_platform_admin',{})).data,true);console.log('PASS: dedicated temporary account has administrator access.');
+ if(process.env.EMAIL_ACCEPTANCE==='true'){
+  const r=await fetch('https://manohub-staging-container.mohamedbangura.workers.dev/api/audience-email/test',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({to:'delivered@resend.dev',subject:'Staging acceptance sandbox delivery',body:'Synthetic staging acceptance to the Resend test sink. No human recipient.'}),signal:AbortSignal.timeout(90000)});
+  const data=await r.json();
+  if(!r.ok){console.log('Email sandbox test HTTP status:',r.status);if(/Email delivery is not configured/.test(data.error?.message??''))console.log('Email configuration missing: RESEND_API_KEY and/or RESEND_FROM_EMAIL');throw new Error('Staging sandbox email acceptance failed; no success claimed.');}
+  assert.ok(data.id,'Provider acceptance ID required');
+  console.log('PASS: staging email endpoint accepted sandbox delivery and returned a provider message ID. Inbox delivery and signed webhook processing remain separate checks.');
+ }else{
  const org=await call('/rest/v1/organizations',{method:'POST',body:{name:'[TEST] Temporary billing acceptance '+process.env.GITHUB_RUN_ID,type:'Small Business',country:'Sierra Leone',created_by:state.userId}});state.orgId=org.data[0].id;save();
  await call('/rest/v1/organization_members',{method:'POST',body:{org_id:state.orgId,user_id:state.userId,role:'owner'}});
  const plans=await call('/rest/v1/plans',{method:'POST',body:{code:'test-acceptance-'+randomUUID(),name:'[TEST] Temporary inactive paid plan',description:'Synthetic acceptance fixture; not offered to customers.',monthly_price:10,annual_price:100,currency_code:'SLE',is_active:false}});state.planId=plans.data[0].id;save();
@@ -54,4 +61,4 @@ try{
   if(decision==='verified'){assert.ok(reviewed.data.current_period_start);assert.ok(reviewed.data.current_period_end);await rpc('transition_subscription',{p_subscription_id:sid,p_action:'cancel',p_reason:'[TEST] End synthetic acceptance fixture',p_effective_date:new Date().toISOString().slice(0,10)});}
  }
  console.log('PASS: staging subscription approval and rejection acceptance completed. No payment provider called.');
-}finally{try{await browser?.close();}finally{await cleanup();}}
+ }}finally{try{await browser?.close();}finally{await cleanup();}}

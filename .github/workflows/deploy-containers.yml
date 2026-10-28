@@ -16,7 +16,7 @@ jobs:
     environment: staging
     timeout-minutes: 10
     env:
-      BROWSER_ACCEPTANCE: true
+      EMAIL_ACCEPTANCE: true
       STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
       STAGING_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
       STAGING_SERVICE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
@@ -25,9 +25,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - name: Test subscription approval using temporary staging administrator
+      - name: Test staging sandbox email using temporary administrator
         run: node scripts/diagnostics/staging-admin-acceptance.mjs
       - name: Ensure temporary access and fixtures are removed
         if: always()
