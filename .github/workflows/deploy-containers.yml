@@ -11,32 +11,16 @@ on:
 permissions:
   contents: read
 jobs:
-  staging-email-acceptance:
+  staging-email-events:
     runs-on: ubuntu-latest
     environment: staging
-    timeout-minutes: 5
-    env:
-      EMAIL_ACCEPTANCE: true
-      APPROVED_TEST_RECIPIENT: baimasonga@gmail.com
-      STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
-      STAGING_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
-      STAGING_SERVICE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: actions/checkout@v4
-        with:
-          ref: 4c3c69e3feeb268e438642c2253133c450b7d768
-          path: release-check
-      - name: Verify live release before sending
-        run: node release-check/scripts/verify-staging-release.mjs
+      - name: Read provider events without sending another email
+        run: node scripts/diagnostics/staging-email-events.mjs
         env:
-          STAGING_TARGET_URL: https://manohub-staging-container.mohamedbangura.workers.dev
-          EXPECTED_RELEASE_COMMIT: 4c3c69e3feeb268e438642c2253133c450b7d768
-      - name: Send one explicitly approved staging test message
-        run: node scripts/diagnostics/staging-admin-acceptance.mjs
-      - name: Ensure temporary administrator is removed
-        if: always()
-        run: node scripts/diagnostics/staging-admin-acceptance.mjs --cleanup
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
