@@ -18,7 +18,8 @@ async function cleanup(){
  async function attempt(name,fn){try{await fn();console.log('Cleanup passed:',name);}catch(e){failures.push(name);console.error('Cleanup failed:',name,e.message);}}
  if(state.userId)await attempt('remove administrator access',async()=>{await call(`/rest/v1/platform_staff_members?user_id=eq.${state.userId}`,{method:'DELETE'});const r=await call(`/rest/v1/platform_staff_members?user_id=eq.${state.userId}&select=user_id`);assert.equal(r.data.length,0);});
  if(state.orgId){for(const table of ['subscription_payment_proofs','subscription_events','notifications','subscriptions'])await attempt(`remove test ${table}`,()=>call(`/rest/v1/${table}?org_id=eq.${state.orgId}`,{method:'DELETE'}));await attempt('remove test memberships',()=>call(`/rest/v1/organization_members?org_id=eq.${state.orgId}`,{method:'DELETE'}));await attempt('remove test organization',()=>call(`/rest/v1/organizations?id=eq.${state.orgId}`,{method:'DELETE'}));}
- if(state.userId)await attempt('delete temporary auth account',async()=>{await call(`/auth/v1/admin/users/${state.userId}`,{method:'DELETE'});const r=await call(`/auth/v1/admin/users/${state.userId}`,{allowFailure:true});assert.equal(r.status,404);});
+ if(state.planId)await attempt('remove temporary inactive paid plan',()=>call(`/rest/v1/plans?id=eq.${state.planId}`,{method:'DELETE'}));
+ if(state.userId)await attempt('delete temporary auth account',async()=>{const deleted=await call(`/auth/v1/admin/users/${state.userId}`,{method:'DELETE',allowFailure:true});assert.ok(deleted.ok||deleted.status===404);const r=await call(`/auth/v1/admin/users/${state.userId}`,{allowFailure:true});assert.equal(r.status,404);});
  if(failures.length)throw new Error(`Cleanup incomplete: ${failures.join(', ')}`);
  console.log('PASS: temporary account and administrator access removed.');
 }
@@ -36,7 +37,7 @@ try{
  assert.equal((await rpc('is_platform_admin',{})).data,true);console.log('PASS: dedicated temporary account has administrator access.');
  const org=await call('/rest/v1/organizations',{method:'POST',body:{name:'[TEST] Temporary billing acceptance '+process.env.GITHUB_RUN_ID,type:'Small Business',country:'Sierra Leone',created_by:state.userId}});state.orgId=org.data[0].id;save();
  await call('/rest/v1/organization_members',{method:'POST',body:{org_id:state.orgId,user_id:state.userId,role:'owner'}});
- const plans=await call('/rest/v1/plans?select=id,monthly_price&monthly_price=gt.0&limit=1');assert.ok(plans.data[0],'Paid staging plan required');
+ const plans=await call('/rest/v1/plans',{method:'POST',body:{code:'test-acceptance-'+randomUUID(),name:'[TEST] Temporary inactive paid plan',description:'Synthetic acceptance fixture; not offered to customers.',monthly_price:10,annual_price:100,currency_code:'SLE',is_active:false}});state.planId=plans.data[0].id;save();
  for(const decision of ['verified','rejected']){
   const sub=await call('/rest/v1/subscriptions',{method:'POST',body:{org_id:state.orgId,plan_id:plans.data[0].id,status:'pending',billing_cycle:'monthly',payment_method:'manual_bank_transfer',notes:'[TEST] Synthetic evidence only; no payment transferred.'}});const sid=sub.data[0].id;
   const proof=await rpc('submit_subscription_payment_proof',{p_subscription_id:sid,p_payment_method:'bank_transfer',p_payment_reference:'TEST-NO-PAYMENT-'+randomUUID(),p_amount:plans.data[0].monthly_price,p_payer_name:'[TEST] Synthetic payer',p_receipt_object_path:null});assert.ok(proof.data.id);
