@@ -1,5 +1,5 @@
+import { parseJsonArrayLoose } from '../../../src/lib/aiResponses';
 import { Env, requireUserId, checkRateLimit, jsonResponse, errorResponse, callGemini, MAX_PROMPT_LENGTH, MAX_FIELD_LENGTH } from '../_lib/shared';
-import { getMockAIResponse, getMockAIVariants, parseJsonArrayLoose } from '../_lib/mocks';
 
 interface EventContext {
   request: Request;
@@ -82,10 +82,7 @@ Respond with ONLY a valid JSON array (no markdown, no commentary, no code fences
     return jsonResponse({ format: 'text', text: text || 'No content returned.' });
   } catch (err: any) {
     if (err?.message === 'NO_KEY') {
-      if (structuredFormat) {
-        return jsonResponse({ format: structuredFormat, items: getMockAIVariants(structuredFormat, prompt, toneOfVoice, brandName) });
-      }
-      return jsonResponse({ format: 'text', text: getMockAIResponse(prompt, option || '', toneOfVoice, brandName) });
+      return jsonResponse({ error: { code: 'AI_UNAVAILABLE', message: 'AI generation is currently unavailable. You can still write and save drafts manually.' } }, 503);
     }
     console.error('Gemini Server Error:', err);
     return errorResponse('An error occurred calling the Gemini AI service. Please try again shortly.', 500);

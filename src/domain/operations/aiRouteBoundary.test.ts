@@ -36,10 +36,11 @@ describe("authenticated AI route boundary", () => {
     expect(aiRoutesSource).toContain("Too many AI requests. Please wait a moment and try again.");
   });
 
-  it("centralizes provider configuration while retaining local fallbacks", () => {
+  it("centralizes provider configuration without fabricated AI output", () => {
     expect(aiRoutesSource.match(/new GoogleGenAI/g)).toHaveLength(1);
     expect(aiRoutesSource.match(/hasGeminiProvider\(\)/g)).toHaveLength(6);
     expect(aiRoutesSource).toContain("async function createGeminiClient()");
-    expect(aiRoutesSource).toContain("LOCAL BACKUP AI");
+    expect(aiRoutesSource).toContain("AI_UNAVAILABLE");
+    expect(aiRoutesSource).not.toContain("getMock");
   });
 });

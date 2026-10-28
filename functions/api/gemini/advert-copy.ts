@@ -1,5 +1,5 @@
 import { Env, requireUserId, checkRateLimit, jsonResponse, errorResponse, callGemini, MAX_FIELD_LENGTH } from '../_lib/shared';
-import { getMockAdvertCopy, parseJsonObjectLoose } from '../_lib/mocks';
+import { buildAdvertCopyDraft, parseJsonObjectLoose } from '../../../src/lib/aiResponses';
 
 interface EventContext {
   request: Request;
@@ -47,10 +47,10 @@ Respond with ONLY a valid JSON object (no markdown, no code fences) shaped exact
 
     const responseText = await callGemini(env, systemInstruction, prompt, 0.7, 'application/json');
     const parsed = parseJsonObjectLoose(responseText);
-    return jsonResponse(parsed && parsed.headline ? { headline: String(parsed.headline), body: String(parsed.body || '') } : getMockAdvertCopy(subject, description));
+    return jsonResponse(parsed && parsed.headline ? { headline: String(parsed.headline), body: String(parsed.body || '') } : buildAdvertCopyDraft(subject, description));
   } catch (err: any) {
     if (err?.message === 'NO_KEY') {
-      return jsonResponse(getMockAdvertCopy(subject, description));
+      return jsonResponse(buildAdvertCopyDraft(subject, description));
     }
     console.error('Gemini Advert Copy Error:', err);
     return errorResponse('An error occurred calling the AI assist service. Please try again shortly.', 500);

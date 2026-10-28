@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { scanFileBeforeUpload } from './fileSecurity';
+import { uploadScannedFile } from './fileSecurity';
 import { campaignStatusFromDb, campaignStatusToDb } from '../domain/workflows/campaignStatus';
 import {
   Organization,
@@ -7,8 +7,6 @@ import {
   Campaign,
   ContentItem,
   Lead,
-  DirectoryProfile,
-  InfluencerProfile,
   SocialConnection,
   MediaAsset,
   TrackingLink,
@@ -131,36 +129,6 @@ function mapLead(row: any): Lead {
     status: row.status,
     estimatedValue: Number(row.estimated_value) || 0,
     createdAt: row.created_at,
-  };
-}
-
-function mapDirectoryProfile(row: any): DirectoryProfile {
-  return {
-    id: row.id,
-    businessName: row.business_name,
-    category: row.category ?? '',
-    description: row.description ?? '',
-    district: row.district ?? '',
-    city: row.city ?? '',
-    whatsapp: row.whatsapp ?? '',
-    email: row.email ?? '',
-    isVerified: row.is_verified,
-    diasporaSupport: row.diaspora_support,
-  };
-}
-
-function mapInfluencerProfile(row: any): InfluencerProfile {
-  return {
-    id: row.id,
-    displayName: row.display_name,
-    location: row.location ?? '',
-    district: row.district ?? undefined,
-    categories: row.categories ?? [],
-    platforms: row.platforms ?? [],
-    audienceSize: row.audience_size ?? '',
-    engagementRate: row.engagement_rate ?? '',
-    rateRange: row.rate_range ?? '',
-    isVerified: row.is_verified,
   };
 }
 
@@ -324,24 +292,6 @@ export async function fetchOrgBundle(orgId: string): Promise<OrgBundle> {
     leads: (leadsRes.data ?? []).map(mapLead),
     socialConnections: (socialRes.data ?? []).map(mapSocialConnection),
   };
-}
-
-export async function fetchDirectoryProfiles(): Promise<DirectoryProfile[]> {
-  const { data, error } = await supabase
-    .from('directory_profiles')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map(mapDirectoryProfile);
-}
-
-export async function fetchInfluencerProfiles(): Promise<InfluencerProfile[]> {
-  const { data, error } = await supabase
-    .from('influencer_profiles')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map(mapInfluencerProfile);
 }
 
 // --- mutations ---
@@ -591,49 +541,6 @@ export async function createLead(
   return mapLead(row);
 }
 
-export async function createDirectoryListing(
-  orgId: string,
-  businessName: string
-): Promise<DirectoryProfile> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
-
-  const row = unwrap(
-    await supabase
-      .from('directory_profiles')
-      .insert({
-        business_name: businessName,
-        category: 'Retail',
-        description: 'Direct corporate listing added by workspace administrator.',
-        district: 'Western Area Urban',
-        city: 'Freetown',
-        whatsapp: '+232 76 000 000',
-        email: 'corporate@salonemail.com',
-        is_verified: false,
-        diaspora_support: true,
-        claimed_by_org_id: orgId,
-        created_by: user.id,
-      })
-      .select('*')
-      .single()
-  );
-  return mapDirectoryProfile(row);
-}
-
-export async function claimDirectoryListing(id: string, orgId: string): Promise<DirectoryProfile> {
-  const row = unwrap(
-    await supabase
-      .from('directory_profiles')
-      .update({ is_verified: true, claimed_by_org_id: orgId })
-      .eq('id', id)
-      .select('*')
-      .single()
-  );
-  return mapDirectoryProfile(row);
-}
-
 // No official Meta/WhatsApp Business API OAuth integration exists (would
 // need the org's own developer app credentials to build for real) -- this is
 // real, manually-entered channel tracking instead of a fake "connect" button
@@ -736,13 +643,9 @@ export async function uploadMediaAsset(orgId: string, file: File, folder: string
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('Sign in to upload media assets.');
-  await scanFileBeforeUpload(file, file.type.startsWith('image/') ? 'image' : 'document');
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `${orgId}/${Date.now()}-${safeName}`;
-
-  const { error: uploadError } = await supabase.storage.from(MEDIA_ASSETS_BUCKET).upload(storagePath, file);
-  if (uploadError) throw uploadError;
+  const storagePath = await uploadScannedFile(file, file.type.startsWith('image/') ? 'image' : 'document', MEDIA_ASSETS_BUCKET, `${orgId}/${Date.now()}-${safeName}`);
 
   const { data, error } = await supabase
     .from('media_assets')

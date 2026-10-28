@@ -90,31 +90,7 @@ export interface Lead {
   createdAt: string;
 }
 
-export interface DirectoryProfile {
-  id: string;
-  businessName: string;
-  category: string;
-  description: string;
-  district: string;
-  city: string;
-  whatsapp: string;
-  email: string;
-  isVerified: boolean;
-  diasporaSupport: boolean;
-}
 
-export interface InfluencerProfile {
-  id: string;
-  displayName: string;
-  location: string;
-  district?: string;
-  categories: string[];
-  platforms: string[];
-  audienceSize: string;
-  engagementRate: string;
-  rateRange: string;
-  isVerified: boolean;
-}
 
 export interface SocialConnection {
   id: string;

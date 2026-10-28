@@ -19,7 +19,7 @@ import { readResilienceCache, withNetworkRetry, writeResilienceCache } from '../
 
 const RESULT_TYPES: Array<[DiscoveryResultType, string]> = [
   ['tender', 'Tenders'], ['award', 'Awards'], ['project', 'Projects'], ['advert', 'Adverts'],
-  ['service', 'Services'], ['business', 'Businesses'], ['influencer', 'Influencers'],
+  ['service', 'Services'], ['business', 'Businesses'],
 ];
 const DISTRICTS = ['Bo', 'Bombali', 'Bonthe', 'Falaba', 'Kailahun', 'Kambia', 'Karene', 'Kenema', 'Koinadugu', 'Kono', 'Moyamba', 'Port Loko', 'Pujehun', 'Tonkolili', 'Western Area Rural', 'Western Area Urban'];
 const RECENT_KEY = 'manohub.discovery.recent.v1';
@@ -68,7 +68,7 @@ export function AdvancedSearchPage() {
     maxValue: maxValue ? Number(maxValue) : undefined,
     sort,
   }), [category, dateFrom, dateTo, district, maxValue, minValue, query, resultTypes, sort]);
-  const cacheScope = useMemo(() => `discovery:${JSON.stringify(filters)}`, [filters]);
+  const cacheScope = useMemo(() => `discovery:v2:${JSON.stringify(filters)}`, [filters]);
 
   const runSearch = async () => {
     setLoading(true);
@@ -141,7 +141,7 @@ export function AdvancedSearchPage() {
           <form onSubmit={event => { event.preventDefault(); commitQuery(query); }} className="relative mt-7 max-w-4xl">
             <div className="flex border-2 border-white bg-white text-slate-950">
               <Search className="ml-4 mt-4 h-5 w-5 text-slate-400" aria-hidden="true" />
-              <input aria-label="Search Hyderra" value={query} onChange={event => setQuery(event.target.value)} placeholder="Tender, supplier, project, service or influencer" className="min-w-0 flex-1 border-0 px-3 py-4 outline-none" />
+              <input aria-label="Search Hyderra" value={query} onChange={event => setQuery(event.target.value)} placeholder="Tender, supplier, project, service or business" className="min-w-0 flex-1 border-0 px-3 py-4 outline-none" />
               <button className="bg-emerald-500 px-5 text-xs font-extrabold uppercase tracking-wide text-slate-950">Search</button>
             </div>
             {suggestions.length > 0 && query.length >= 2 && <div className="absolute z-20 mt-1 w-full border-2 border-slate-950 bg-white text-slate-950 shadow-xl">

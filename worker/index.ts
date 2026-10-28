@@ -4,23 +4,28 @@
 // keeps server.ts completely unchanged — the container just runs it as a
 // normal Node process, with Cloudflare routing requests to it.
 import { Container, getContainer } from '@cloudflare/containers';
+import { handleEmailBridge, type EmailBridgeEnv } from './emailBridge';
+import { releaseContainerId, validateStagingConfiguration } from './releaseIdentity';
 
-interface Env {
+interface Env extends EmailBridgeEnv {
   MANOHUB_CONTAINER: DurableObjectNamespace<ManohubContainer>;
   MANOHUB_ENVIRONMENT?: string;
   RELEASE_VERSION?: string;
+  CONTAINER_REVISION?: string;
   GEMINI_API_KEY?: string;
   APP_URL?: string;
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  EMAIL_PROVIDER?: string;
+  EMAIL_FROM?: string;
+  CLOUDFLARE_EMAIL_API_TOKEN?: string;
+  CLOUDFLARE_EMAIL_ACCOUNT_ID?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM_EMAIL?: string;
   RESEND_WEBHOOK_SECRET?: string;
   EMAIL_DISPATCH_SECRET?: string;
 }
-
-const productionContainerId = (env: Env) => `production-${(env.RELEASE_VERSION || 'development').slice(0, 16)}`;
 
 // A single routed instance is intentional: server.ts's AI rate limiter
 // keeps its counters in in-process memory (express-rate-limit's default
@@ -34,6 +39,7 @@ export class ManohubContainer extends Container<Env> {
 
   constructor(ctx: any, env: any) {
     super(ctx, env);
+    validateStagingConfiguration(env);
     // server.ts reads these from process.env at runtime (auth check +
     // the Gemini proxy) — forwarded here from the Worker's own bindings/
     // secrets, never hardcoded.
@@ -49,6 +55,12 @@ export class ManohubContainer extends Container<Env> {
       VITE_SUPABASE_URL: env.VITE_SUPABASE_URL || 'https://rffjehmbrycztiekcyho.supabase.co',
       VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk',
       SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+      EMAIL_PROVIDER: env.EMAIL_PROVIDER ?? 'resend',
+      EMAIL_FROM: env.EMAIL_FROM ?? '',
+      EMAIL_RELAY_URL: env.APP_URL ?? '',
+      EMAIL_BRIDGE_SECRET: env.EMAIL_BRIDGE_SECRET ?? '',
+      CLOUDFLARE_EMAIL_API_TOKEN: env.EMAIL_PROVIDER === 'cloudflare' ? env.CLOUDFLARE_EMAIL_API_TOKEN ?? '' : '',
+      CLOUDFLARE_EMAIL_ACCOUNT_ID: env.CLOUDFLARE_EMAIL_ACCOUNT_ID ?? '',
       RESEND_API_KEY: env.RESEND_API_KEY ?? '',
       RESEND_FROM_EMAIL: env.RESEND_FROM_EMAIL ?? '',
       RESEND_WEBHOOK_SECRET: env.RESEND_WEBHOOK_SECRET ?? '',
@@ -59,14 +71,15 @@ export class ManohubContainer extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (new URL(request.url).pathname === '/api/internal/email/send') return handleEmailBridge(request, env);
     // A release-scoped identity guarantees requests cannot reuse a dormant
     // Durable Object that still owns the previous container image.
-    const container = getContainer(env.MANOHUB_CONTAINER, productionContainerId(env));
+    const container = getContainer(env.MANOHUB_CONTAINER, releaseContainerId(env));
     return container.fetch(request);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (!env.EMAIL_DISPATCH_SECRET) return;
-    const container = getContainer(env.MANOHUB_CONTAINER, productionContainerId(env));
+    const container = getContainer(env.MANOHUB_CONTAINER, releaseContainerId(env));
     ctx.waitUntil(container.fetch(new Request('http://container/api/audience-email/dispatch-due', {
       method: 'POST',
       headers: { 'x-manohub-dispatch-secret': env.EMAIL_DISPATCH_SECRET },

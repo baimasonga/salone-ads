@@ -2,7 +2,9 @@ import express from "express";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createEmailRenderers } from "./templates.js";
-import { resendEventMetadata, sendResendEmail, verifyResendWebhook } from "./resendProvider.js";
+import { resendEventMetadata, verifyResendWebhook } from "./resendProvider.js";
+
+import { assertEmailConfigured, inspectEmailProvider, sendEmail, supportsEmailRetryDeduplication } from "./emailProvider.js";
 
 type AuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => void | Promise<void>;
 type StructuredLog = (level: "info" | "warn" | "error", event: string, fields?: Record<string, unknown>) => void;
@@ -23,9 +25,7 @@ export function createAudienceEmailModule(dependencies: AudienceEmailDependencie
 
 async function dispatchAudienceCampaign(campaignId: string, force = false): Promise<{ sent: number; failed: number; remaining: number }> {
   if (!supabaseServiceClient) throw new Error("Email delivery requires SUPABASE_SERVICE_ROLE_KEY.");
-  if (!process.env.RESEND_API_KEY?.trim() || !process.env.RESEND_FROM_EMAIL?.trim()) {
-    throw new Error("Email delivery requires RESEND_API_KEY and RESEND_FROM_EMAIL.");
-  }
+  assertEmailConfigured();
   const appOrigin = configuredAppOrigin();
   if (!appOrigin) throw new Error("Email delivery requires a valid APP_URL for secure unsubscribe links.");
   const { data: campaign, error: campaignError } = await supabaseServiceClient.from("audience_email_campaigns")
@@ -35,10 +35,12 @@ async function dispatchAudienceCampaign(campaignId: string, force = false): Prom
   if (campaign.status === "cancelled" || campaign.status === "sent") return { sent: 0, failed: 0, remaining: 0 };
   if (!force && campaign.scheduled_at && new Date(campaign.scheduled_at) > new Date()) return { sent: 0, failed: 0, remaining: 0 };
 
-  await supabaseServiceClient.from("audience_email_campaigns").update({ status: "processing", updated_at: new Date().toISOString() }).eq("id", campaignId);
+  const { error: processingError } = await supabaseServiceClient.from("audience_email_campaigns")
+    .update({ status: "processing", updated_at: new Date().toISOString() }).eq("id", campaignId);
+  if (processingError) throw processingError;
   const { data: deliveries, error: deliveryError } = await supabaseServiceClient.from("audience_email_deliveries")
-    .select("id, recipient_email, public_audience_subscribers!inner(full_name, unsubscribe_token, status)")
-    .eq("campaign_id", campaignId).eq("status", "queued").order("queued_at").limit(25);
+    .select("id, recipient_email, status, event_at, public_audience_subscribers!inner(full_name, unsubscribe_token, status)")
+    .eq("campaign_id", campaignId).in("status", ["queued", "sending"]).order("queued_at").limit(25);
   if (deliveryError) throw deliveryError;
 
   let sent = 0;
@@ -46,13 +48,25 @@ async function dispatchAudienceCampaign(campaignId: string, force = false): Prom
   for (const delivery of deliveries ?? []) {
     const subscriber = (delivery as any).public_audience_subscribers;
     if (subscriber?.status !== "active") {
-      await supabaseServiceClient.from("audience_email_deliveries").update({ status: "suppressed", event_at: new Date().toISOString() }).eq("id", delivery.id);
+      const { error } = await supabaseServiceClient.from("audience_email_deliveries")
+        .update({ status: "suppressed", event_at: new Date().toISOString() }).eq("id", delivery.id);
+      if (error) throw error;
       continue;
     }
-    await supabaseServiceClient.from("audience_email_deliveries").update({ status: "sending" }).eq("id", delivery.id);
+    // Resend permits recovery inside its deduplication window. Cloudflare
+    // does not document deduplication, so every uncertain send needs reconciliation.
+    if (delivery.status === "sending" && (!supportsEmailRetryDeduplication() || !delivery.event_at || !Number.isFinite(Date.parse(delivery.event_at)) || Date.now() - Date.parse(delivery.event_at) >= 23 * 60 * 60 * 1000)) {
+      throw new Error(`Delivery ${delivery.id} requires reconciliation before retrying.`);
+    }
+    if (delivery.status !== "sending") {
+      const { error } = await supabaseServiceClient.from("audience_email_deliveries")
+        .update({ status: "sending", event_at: new Date().toISOString() }).eq("id", delivery.id);
+      if (error) throw error;
+    }
+    let providerId: string;
     try {
       const unsubscribeHref = `${appOrigin}/unsubscribe?token=${subscriber.unsubscribe_token}`;
-      const providerId = await sendResendEmail({
+      providerId = await sendEmail({
         to: delivery.recipient_email,
         subject: campaign.subject,
         html: renderAudienceEmail({
@@ -61,30 +75,40 @@ async function dispatchAudienceCampaign(campaignId: string, force = false): Prom
         }),
         idempotencyKey: `manohub-audience-${delivery.id}`,
       });
-      await supabaseServiceClient.from("audience_email_deliveries").update({
-        status: "sent", provider_message_id: providerId, sent_at: new Date().toISOString(), error_message: null,
-      }).eq("id", delivery.id);
-      sent += 1;
     } catch (error) {
-      await supabaseServiceClient.from("audience_email_deliveries").update({
+      // Without provider deduplication, an error may hide an accepted send.
+      // Keep sending status and require reconciliation rather than replay.
+      if (!supportsEmailRetryDeduplication()) throw error;
+      const { error: failureError } = await supabaseServiceClient.from("audience_email_deliveries").update({
         status: "failed", error_message: error instanceof Error ? error.message.slice(0, 500) : "Delivery failed", event_at: new Date().toISOString(),
       }).eq("id", delivery.id);
+      if (failureError) throw failureError;
       failed += 1;
+      continue;
     }
+    // A failed write after a successful send must propagate to the worker.
+    // Leave the row in 'sending': recover with Resend's same key, or
+    // reconcile Cloudflare acceptance manually before any retry.
+    const { error: sentError } = await supabaseServiceClient.from("audience_email_deliveries").update({
+      status: "sent", provider_message_id: providerId, sent_at: new Date().toISOString(), error_message: null,
+    }).eq("id", delivery.id).eq("status", "sending");
+    if (sentError) throw sentError;
+    sent += 1;
   }
 
-  const { data: statuses } = await supabaseServiceClient.from("audience_email_deliveries").select("status").eq("campaign_id", campaignId);
-  const allStatuses = statuses ?? [];
-  const remaining = allStatuses.filter(row => row.status === "queued" || row.status === "sending").length;
-  const sentCount = allStatuses.filter(row => row.status === "sent" || row.status === "delivered").length;
-  const failedCount = allStatuses.filter(row => row.status === "failed" || row.status === "bounced" || row.status === "complained").length;
-  await supabaseServiceClient.from("audience_email_campaigns").update({
+  const { data: statuses, error: statusError } = await supabaseServiceClient.from("audience_email_deliveries").select("status").eq("campaign_id", campaignId);
+  if (statusError || !statuses) throw statusError || new Error("Delivery status could not be verified.");
+  const remaining = statuses.filter(row => row.status === "queued" || row.status === "sending").length;
+  const sentCount = statuses.filter(row => row.status === "sent" || row.status === "delivered").length;
+  const failedCount = statuses.filter(row => row.status === "failed" || row.status === "bounced" || row.status === "complained").length;
+  const { error: campaignUpdateError } = await supabaseServiceClient.from("audience_email_campaigns").update({
     status: remaining ? "queued" : "sent",
     sent_count: sentCount,
     failed_count: failedCount,
     sent_at: remaining ? null : new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", campaignId);
+  if (campaignUpdateError) throw campaignUpdateError;
   return { sent, failed, remaining };
 }
 
@@ -99,6 +123,8 @@ async function dispatchTenderAlertDelivery(deliveryId: string): Promise<void> {
     .single();
   if (deliveryError || !delivery) throw new Error('Tender alert delivery was not found.');
   if (['sent', 'delivered', 'bounced', 'complained', 'suppressed'].includes(delivery.status)) return;
+  if (!supportsEmailRetryDeduplication() && (delivery.status === 'sending' || Number(delivery.attempts ?? 0) > 0)) throw new Error('Tender alert requires reconciliation before retrying.');
+  assertEmailConfigured();
 
   const { data: suppression } = await supabaseServiceClient
     .from('tender_alert_email_suppressions')
@@ -137,13 +163,14 @@ async function dispatchTenderAlertDelivery(deliveryId: string): Promise<void> {
   const opportunities = [...unique.values()];
   if (opportunities.length === 0) throw new Error('Tender alert delivery contains no readable matches.');
 
-  await supabaseServiceClient.from('tender_alert_deliveries').update({
+  const { error: sendingError } = await supabaseServiceClient.from('tender_alert_deliveries').update({
     status: 'sending', attempts: Number(delivery.attempts ?? 0) + 1, updated_at: new Date().toISOString(),
   }).eq('id', delivery.id);
+  if (sendingError) throw sendingError;
   const subject = delivery.frequency === 'immediate'
     ? `New tender match: ${opportunities[0].title}`
     : `${delivery.frequency === 'daily' ? 'Daily' : 'Weekly'} Hyderra tender digest · ${opportunities.length} match${opportunities.length === 1 ? '' : 'es'}`;
-  const providerId = await sendResendEmail({
+  const providerId = await sendEmail({
     to: delivery.recipient_email,
     subject,
     html: renderTenderAlertEmail({ frequency: delivery.frequency, opportunities, appOrigin }),
@@ -259,7 +286,7 @@ async function processAudienceEmailJobs(): Promise<{
       }
       if (job.job_type === 'tender.alert.dispatch' && typeof deliveryId === 'string') {
         await supabaseServiceClient.from('tender_alert_deliveries').update({
-          status: 'failed', error_message: message.slice(0, 500), updated_at: new Date().toISOString(),
+          ...(supportsEmailRetryDeduplication() ? { status: 'failed' } : {}), error_message: message.slice(0, 500), updated_at: new Date().toISOString(),
         }).eq('id', deliveryId);
         if (nextStatus === 'dead_letter') {
           await supabaseServiceClient.from('saved_search_matches').update({ email_status: 'failed' })
@@ -430,6 +457,15 @@ async function processAudienceEmailJobs(): Promise<{
   }
 
   function registerRoutes(app: express.Express, requireUser: AuthMiddleware, requirePlatformAdmin: AuthMiddleware): void {
+  app.get("/api/audience-email/provider-status", requireUser, requirePlatformAdmin, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const zoneId = req.query.zoneId;
+    if (zoneId !== undefined && (typeof zoneId !== 'string' || !/^[a-f0-9]{32}$/i.test(zoneId))) {
+      res.status(400).json({ error: { message: 'Invalid sending zone identifier.' } }); return;
+    }
+    try { res.json(await inspectEmailProvider(typeof zoneId === 'string' ? zoneId : undefined)); }
+    catch { res.status(503).json({ error: { message: 'Read-only email provider inspection failed.' } }); }
+  });
   app.post("/api/audience-email/test", requireUser, requirePlatformAdmin, async (req, res) => {
     const { to, subject, previewText = "", body, ctaLabel = "", ctaHref = "" } = req.body ?? {};
     if (typeof to !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || to.length > 254) {
@@ -441,7 +477,7 @@ async function processAudienceEmailJobs(): Promise<{
       return;
     }
     try {
-      const providerId = await sendResendEmail({
+      const providerId = await sendEmail({
         to: to.trim().toLowerCase(),
         subject: subject.trim(),
         html: renderAudienceEmail({
@@ -491,5 +527,5 @@ async function processAudienceEmailJobs(): Promise<{
   });
   }
 
-  return { registerWebhook, registerRoutes };
+  return { registerWebhook, registerRoutes, dispatchAudienceCampaign };
 }

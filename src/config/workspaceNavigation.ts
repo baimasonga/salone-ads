@@ -62,12 +62,9 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         ],
       },
       {
-        group: 'Marketplaces & Tourism',
+        group: 'Business Directory',
         items: [
           { id: 'directory', label: 'Business Directory', icon: Landmark },
-          { id: 'influencers', label: 'Influencer Marketplace', icon: Users },
-          { id: 'events', label: 'Events Management', icon: Sparkles },
-          { id: 'tourism', label: 'Tourism Management', icon: Compass },
         ],
       },
       {
@@ -75,8 +72,7 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
         items: [
           { id: 'opportunity-ingestion', label: 'Opportunity Ingestion', icon: ScanSearch },
           { id: 'admin-tender-review', label: 'Tender Review', icon: Shield },
-          { id: 'operations-hub', label: 'Customer Requests', icon: UserCheck },
-          { id: 'admin-services', label: 'Customer Support Centre', icon: LifeBuoy },
+          { id: 'operations-hub', label: 'Customer Support Centre', icon: LifeBuoy },
         ],
       },
       {
@@ -202,4 +198,9 @@ export function buildWorkspaceNavigation(context: AccessContext): WorkspaceNavig
   }
 
   return groups;
+}
+
+export function isWorkspaceNavigationItemActive(itemId: string, activeTab: string): boolean {
+  if (itemId === activeTab) return true;
+  return itemId === 'operations-hub' && ['admin-services', 'admin-verification', 'admin-advert-revenue', 'admin-commands', 'admin-jobs', 'admin-usage', 'admin-authorization'].includes(activeTab);
 }

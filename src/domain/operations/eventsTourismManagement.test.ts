@@ -2,11 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const migration = readFileSync('migrations/manohub-new-project/89_events_tourism_management.sql', 'utf8');
-const api = readFileSync('src/lib/eventsTourismApi.ts', 'utf8');
-const workspace = readFileSync('src/modules/marketing/EventsTourismWorkspace.tsx', 'utf8');
-const shell = readFileSync('src/components/Workspaces.tsx', 'utf8');
 
-describe('events and tourism management', () => {
+describe('preserved events and tourism database schema', () => {
   it('persists real event and tourism inventories with bounded lifecycle values', () => {
     expect(migration).toContain('create table if not exists public.managed_events');
     expect(migration).toContain('create table if not exists public.tourism_experiences');
@@ -20,18 +17,4 @@ describe('events and tourism management', () => {
     expect(migration).toContain('Managed inventory ownership is immutable');
   });
 
-  it('provides create, update and delete operations for both record types', () => {
-    for (const operation of ['fetchManagedEvents', 'saveManagedEvent', 'deleteManagedEvent', 'fetchTourismExperiences', 'saveTourismExperience', 'deleteTourismExperience']) {
-      expect(api).toContain(`function ${operation}`);
-    }
-  });
-
-  it('replaces hardcoded cards and connects records to promotion and tracking tools', () => {
-    expect(shell).toContain('<EventsTourismWorkspace organization={activeOrg} mode="events" />');
-    expect(shell).toContain('<EventsTourismWorkspace organization={activeOrg} mode="tourism" />');
-    expect(workspace).toContain('createContentItem');
-    expect(workspace).toContain('createTrackingLink');
-    expect(shell).not.toContain('Freetown December Music Fest 2026');
-    expect(shell).not.toContain('Bunce Island Historical Exploration');
-  });
 });

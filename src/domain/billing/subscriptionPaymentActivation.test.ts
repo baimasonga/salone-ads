@@ -26,7 +26,7 @@ describe('subscription payment activation', () => {
   });
 
   it('connects subscriber submission, private receipt and admin review UI', () => {
-    expect(api).toContain(".from('subscription-payment-proofs').upload");
+    expect(api).toContain("uploadScannedFile(file, 'receipt', 'subscription-payment-proofs', path)");
     expect(api).toContain(".rpc('submit_subscription_payment_proof'");
     expect(api).toContain(".rpc('review_subscription_payment'");
     expect(subscriber).toContain('Submit payment evidence');

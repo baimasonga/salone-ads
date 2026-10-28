@@ -7,10 +7,13 @@ const staging = readFileSync(resolve(process.cwd(), 'wrangler.staging.toml'), 'u
 const server = readFileSync(resolve(process.cwd(), 'server.ts'), 'utf8');
 
 describe('controlled release workflow', () => {
-  it('gates production behind validation and optional staging', () => {
+  it('gates production behind validation and successful staging', () => {
     expect(workflow).toContain('needs: [validate, staging]');
     expect(workflow).toContain("needs.staging.result == 'success'");
-    expect(workflow).toContain("needs.staging.result == 'skipped'");
+    expect(workflow).not.toContain("needs.staging.result == 'skipped'");
+    expect(workflow).toContain("!inputs.staging_only");
+    expect(workflow).toContain("github.ref == 'refs/heads/main'");
+    expect(workflow).toContain("STAGING_DATABASE_MIGRATIONS_COMMIT");
   });
 
   it('deploys staging with isolated Cloudflare and Supabase configuration', () => {

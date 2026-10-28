@@ -12,17 +12,28 @@ const base: AccessContext = {
 const labels = (context: AccessContext) => buildWorkspaceNavigation(context).flatMap(group => group.items.map(item => `${item.id}:${item.label}`));
 
 describe('today feature navigation', () => {
-  it('exposes internal marketplace, tourism, billing, attribution and support operations to administrators', () => {
+  it('exposes the retained directory, billing, attribution and support operations to administrators', () => {
     const navigation = labels({ ...base, isPlatformAdmin: true, cmsRole: 'administrator' });
     expect(navigation).toEqual(expect.arrayContaining([
       'directory:Business Directory',
-      'influencers:Influencer Marketplace',
-      'events:Events Management',
-      'tourism:Tourism Management',
       'admin-subscriptions:Automated Subscription Billing',
       'campaign-performance:Performance & Attribution',
-      'admin-services:Customer Support Centre',
+      'operations-hub:Customer Support Centre',
     ]));
+  });
+
+  it('has one support entry for administrators and preserves the restricted support-staff entry', () => {
+    expect(labels({ ...base, isPlatformAdmin: true }).filter(label => label.includes('Customer Support Centre'))).toEqual(['operations-hub:Customer Support Centre']);
+    expect(labels({ ...base, platformStaffRole: 'support' })).toContain('admin-services:Customer Support Centre');
+    expect(labels({ ...base, platformStaffRole: 'support' })).not.toContain('operations-hub:Customer Support Centre');
+  });
+
+  it('omits retired features for every role', () => {
+    for (const context of [base, { ...base, isPlatformAdmin: true }, ...(['finance', 'editorial', 'support', 'auditor'] as const).map(platformStaffRole => ({ ...base, platformStaffRole }))]) {
+      expect(buildWorkspaceNavigation(context).flatMap(group => group.items.map(item => item.id))).not.toEqual(expect.arrayContaining(['influencers']));
+      expect(buildWorkspaceNavigation(context).flatMap(group => group.items.map(item => item.id))).not.toEqual(expect.arrayContaining(['events']));
+      expect(buildWorkspaceNavigation(context).flatMap(group => group.items.map(item => item.id))).not.toEqual(expect.arrayContaining(['tourism']));
+    }
   });
 
   it('makes subscriber intelligence, recommendations, attribution, billing and support discoverable', () => {

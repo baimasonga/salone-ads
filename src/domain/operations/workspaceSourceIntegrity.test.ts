@@ -43,9 +43,12 @@ describe('workspace source integrity', () => {
     expect(workspaceSource).toContain('Workspace Pending Initialization');
   });
 
-  it('retains the complete workspace source rather than a partial publish', () => {
-    expect(workspaceSource.split('\n').length).toBeGreaterThan(5_000);
-    expect((workspaceSource + delegatedRoutes + subscriberAdvertising + adminAdvertisingQueue + adminAdvertCreativeEditor + adminAdvertPublisherPanel + subscriberServiceRequests + adminServiceRequests).split('\n').length).toBeGreaterThan(6_000);
+  it('retains active implementations without enforcing obsolete code volume', () => {
+    expect(workspaceSource).toContain('<BusinessDirectoryWorkspace');
+    expect(workspaceSource).not.toContain('__legacy_directory');
+    expect(workspaceSource).not.toContain('__legacy_influencers');
+    expect(workspaceSource).not.toContain("false &&");
+    expect(workspaceSource).not.toContain("if (activeTab === 'billing')");
     expect(workspaceSource.trimEnd().endsWith('}')).toBe(true);
   });
 
@@ -94,8 +97,10 @@ describe('workspace source integrity', () => {
   });
 
   it('isolates subscriber and administrator service requests without duplicating routes', () => {
-    expect(workspaceSource).toContain('<SubscriberServiceRequestsWorkspace');
-    expect(workspaceSource).toContain('<AdminServiceRequestsWorkspace');
+    expect(delegatedRoutes).toContain('<SubscriberServiceRequestsWorkspace');
+    expect(workspaceSource).not.toContain("if (activeTab === 'services')");
+    expect(delegatedRoutes).toContain('<AdminServiceRequestsWorkspace');
+    expect(workspaceSource).not.toContain("if (activeTab === 'admin-services')");
     expect(workspaceSource).not.toContain('createServiceRequest');
     expect(workspaceSource).not.toContain('fetchAllServiceRequests');
     expect(subscriberServiceRequests).toContain('Customer Support Centre');

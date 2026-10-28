@@ -1,6 +1,6 @@
 import { Env, requireUserId, checkRateLimit, jsonResponse, errorResponse, callGemini, MAX_PROMPT_LENGTH } from '../_lib/shared';
-import { getMockProcurementAIResponse } from '../_lib/mocks';
-import { parseJsonObjectLoose } from '../_lib/mocks';
+import { localProcurementAssist } from '../../../src/lib/aiResponses';
+import { parseJsonObjectLoose } from '../../../src/lib/aiResponses';
 import {
   localTenderDocumentIntelligence,
   MAX_DOCUMENT_INTELLIGENCE_TEXT,
@@ -79,7 +79,7 @@ Document text:\n${text}`;
   } catch (err: any) {
     if (err?.message === 'NO_KEY') {
       if (mode === 'analyze_document') return jsonResponse({ analysis: localTenderDocumentIntelligence(text), model: 'local-deterministic-v1' });
-      return jsonResponse({ text: getMockProcurementAIResponse(mode, text, sectorNames) });
+      return jsonResponse({ text: localProcurementAssist(mode, text, sectorNames) });
     }
     console.error('Gemini Procurement Assist Error:', err);
     return errorResponse('An error occurred calling the AI assist service. Please try again shortly.', 500);

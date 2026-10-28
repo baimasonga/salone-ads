@@ -7,18 +7,11 @@ import { resolveDelegatedWorkspaceRoute } from './WorkspaceRouteResolver';
 import { SubscriberAdvertisingWorkspace } from './SubscriberAdvertisingWorkspace';
 import { AdminAdvertisingRequestQueue } from './AdminAdvertisingRequestQueue';
 import { AdminAdvertCreativeEditor } from './AdminAdvertCreativeEditor';
-import {
-  campaignStatusOptions,
-  campaignTransitionRequiresReason,
-  canTransitionCampaign,
-} from '../domain/workflows/campaignStatus';
 import { QuotaUsagePanel } from '../modules/subscriptions/QuotaUsagePanel';
 import { useProcurementOverview } from '../modules/procurement/useProcurementOverview';
 import { useTenderWorkspace } from '../modules/procurement/useTenderWorkspace';
 import { TenderCreationForm } from '../modules/procurement/TenderCreationForm';
 import { TenderManagementPanel } from '../modules/procurement/TenderManagementPanel';
-import { SubscriberServiceRequestsWorkspace } from '../modules/service-requests/SubscriberServiceRequestsWorkspace';
-import { AdminServiceRequestsWorkspace } from '../modules/service-requests/AdminServiceRequestsWorkspace';
 import {
   BarChart2, Calendar, FileText, FolderOpen, Users, Link2,
   MessageSquare, BookOpen, Award, Compass, Sparkles,
@@ -28,17 +21,12 @@ import {
   ChevronLeft, ChevronRight, Mail, MessageCircle, ShieldCheck,
   ArrowRight, Clock, Bookmark, Bell, MapPin
 } from 'lucide-react';
-import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink, AudienceSegment } from '../types';
+import { Campaign, ContentItem, Lead, SocialConnection, BrandKit, Organization, MediaAsset, TrackingLink, AudienceSegment } from '../types';
 import {
-  createCampaign,
-  updateCampaign,
-  deleteCampaign,
   createContentItem,
   updateContentItem,
   deleteContentItem,
   updateLeadStatus as apiUpdateLeadStatus,
-  createDirectoryListing,
-  claimDirectoryListing,
   saveBrandKit,
   createSocialConnection,
   updateSocialConnection,
@@ -58,9 +46,6 @@ import {
   fetchAudienceSegments,
   createAudienceSegment,
   deleteAudienceSegment,
-  runCampaignHealthCheck,
-  fetchCampaignActivity,
-  CampaignActivity,
 } from '../lib/api';
 import { computeLeadScore, leadPriorityLabel } from '../lib/leadScoring';
 import { downloadTrackingQr } from '../lib/trackingQr';
@@ -94,16 +79,10 @@ import {
   fetchTeamMemberLimit,
   inviteTeamMember,
   removeTeamMember,
-  fetchPlans,
-  fetchMySubscriptions,
-  requestSubscription,
-  updateSubscriptionNotes,
   fetchPendingSubscriptions,
   activateSubscription,
   cancelSubscriptionRequest,
   TeamMember,
-  Plan,
-  OrgSubscription,
   PendingSubscription,
   submitAdvertisementRequest,
   fetchMyAdvertisements,
@@ -120,12 +99,7 @@ import {
   fetchAdvertAnalyticsSummary,
   AdvertAnalyticsSummary,
   fetchAllCampaigns as fetchAllAdCampaigns,
-  createCampaign as createAdCampaign,
-  setCampaignStatus,
-  deleteCampaign as deleteAdCampaign,
-  fetchCampaignReach,
   AdCampaign,
-  CampaignReach,
   aiPolishAdvertCopy,
   Advert,
 } from '../lib/procurementApi';
@@ -160,11 +134,8 @@ import type { PlatformStaffRole } from '../lib/platformStaffApi';
 const AdminAdvertPublisherPanel = React.lazy(() =>
   import('./AdminAdvertPublisherPanel').then((module) => ({ default: module.AdminAdvertPublisherPanel })),
 );
-const EventsTourismWorkspace = React.lazy(() =>
-  import('../modules/marketing/EventsTourismWorkspace').then((module) => ({ default: module.EventsTourismWorkspace })),
-);
-const MarketplaceExpansionWorkspace = React.lazy(() =>
-  import('../modules/marketing/MarketplaceExpansionWorkspace').then((module) => ({ default: module.MarketplaceExpansionWorkspace })),
+const BusinessDirectoryWorkspace = React.lazy(() =>
+  import('../modules/marketing/BusinessDirectoryWorkspace').then((module) => ({ default: module.BusinessDirectoryWorkspace })),
 );
 
 interface WorkspacesProps {
@@ -178,14 +149,10 @@ interface WorkspacesProps {
   isPlatformResearcher: boolean;
   platformStaffRole: PlatformStaffRole | null;
   campaigns: Campaign[];
-  setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>;
   contentItems: ContentItem[];
   setContentItems: React.Dispatch<React.SetStateAction<ContentItem[]>>;
   leads: Lead[];
   setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
-  directoryProfiles: DirectoryProfile[];
-  setDirectoryProfiles: React.Dispatch<React.SetStateAction<DirectoryProfile[]>>;
-  influencerProfiles: InfluencerProfile[];
   socialConnections: SocialConnection[];
   setSocialConnections: React.Dispatch<React.SetStateAction<SocialConnection[]>>;
   brandKit: BrandKit;
@@ -203,296 +170,15 @@ export function Workspaces({
   isPlatformResearcher,
   platformStaffRole,
   campaigns,
-  setCampaigns,
   contentItems,
   setContentItems,
   leads,
   setLeads,
-  directoryProfiles,
-  setDirectoryProfiles,
-  influencerProfiles,
   socialConnections,
   setSocialConnections,
   brandKit,
   setBrandKit
 }: WorkspacesProps) {
-
-  // --- Campaign Wizard States ---
-  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
-  const [newCampName, setNewCampName] = useState('');
-  const [newCampDesc, setNewCampDesc] = useState('');
-  const [newCampObjective, setNewCampObjective] = useState('WhatsApp enquiries');
-  const [newCampBudget, setNewCampBudget] = useState('5000000');
-  const [newCampDistrict, setNewCampDistrict] = useState('Western Area Urban');
-  const [newCampDiaspora, setNewCampDiaspora] = useState('United Kingdom');
-  const [newCampStatus, setNewCampStatus] = useState<Campaign['status']>('Planning');
-  const [campFeedback, setCampFeedback] = useState('');
-  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
-  const [campStatusUpdatingId, setCampStatusUpdatingId] = useState<string | null>(null);
-
-  const [campSubmitting, setCampSubmitting] = useState(false);
-
-  const resetCampaignForm = () => {
-    setEditingCampaignId(null);
-    setNewCampName('');
-    setNewCampDesc('');
-    setNewCampObjective('WhatsApp enquiries');
-    setNewCampBudget('5000000');
-    setNewCampDistrict('Western Area Urban');
-    setNewCampDiaspora('United Kingdom');
-    setNewCampStatus('Planning');
-  };
-
-  const handleEditCampaign = (camp: Campaign) => {
-    setEditingCampaignId(camp.id);
-    setNewCampName(camp.name);
-    setNewCampDesc(camp.description);
-    setNewCampObjective(camp.objective);
-    setNewCampBudget(String(camp.totalBudget));
-    setNewCampDistrict(camp.district || 'Western Area Urban');
-    setNewCampDiaspora(camp.diasporaMarket || 'United Kingdom');
-    setNewCampStatus(camp.status);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleDeleteCampaign = async (camp: Campaign) => {
-    if (!confirm(`Delete "${camp.name}"? This cannot be undone.`)) return;
-    setDeletingCampaignId(camp.id);
-    const previous = campaigns;
-    setCampaigns(campaigns.filter((c) => c.id !== camp.id));
-    try {
-      await deleteCampaign(camp.id);
-      if (editingCampaignId === camp.id) resetCampaignForm();
-    } catch (err: any) {
-      setCampaigns(previous);
-      setCampFeedback(`Error: ${err.message || 'Could not delete campaign.'}`);
-      setTimeout(() => setCampFeedback(''), 4000);
-    } finally {
-      setDeletingCampaignId(null);
-    }
-  };
-
-  const handleChangeCampaignStatus = async (camp: Campaign, status: Campaign['status']) => {
-    if (status === camp.status) return;
-    if (!canTransitionCampaign(camp.status, status)) {
-      setCampFeedback(`Error: a campaign cannot move from ${camp.status} to ${status}.`);
-      setTimeout(() => setCampFeedback(''), 4000);
-      return;
-    }
-
-    // The state machine refuses these transitions without a recorded reason.
-    let rejectionReason: string | undefined;
-    if (campaignTransitionRequiresReason(camp.status, status)) {
-      const entered = window.prompt(`Why is "${camp.name}" moving to ${status}?`)?.trim();
-      if (!entered) return;
-      rejectionReason = entered;
-    }
-
-    setCampStatusUpdatingId(camp.id);
-    const previous = campaigns;
-    setCampaigns(campaigns.map((c) => (c.id === camp.id ? { ...c, status } : c)));
-    try {
-      const updated = await updateCampaign(camp.id, { status }, { rejectionReason });
-      setCampaigns((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-      if (editingCampaignId === camp.id) setNewCampStatus(status);
-    } catch (err: any) {
-      setCampaigns(previous);
-      setCampFeedback(`Error: ${err.message || 'Could not update status.'}`);
-      setTimeout(() => setCampFeedback(''), 4000);
-    } finally {
-      setCampStatusUpdatingId(null);
-    }
-  };
-
-  const handleCreateCampaign = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setCampSubmitting(true);
-    try {
-      if (editingCampaignId) {
-        const updated = await updateCampaign(editingCampaignId, {
-          name: newCampName || 'Sponsorship Native Rice',
-          description: newCampDesc || 'Direct delivery promotion targeted for diaspora.',
-          objective: newCampObjective,
-          totalBudget: Number(newCampBudget) || 5000000,
-          district: newCampDistrict,
-          diasporaMarket: newCampDiaspora,
-          status: newCampStatus,
-        });
-        setCampaigns(campaigns.map((c) => (c.id === updated.id ? updated : c)));
-        setCampFeedback('Campaign plan updated.');
-      } else {
-        const newCamp = await createCampaign(activeOrg.id, {
-          name: newCampName || 'Sponsorship Native Rice',
-          description: newCampDesc || 'Direct delivery promotion targeted for diaspora.',
-          objective: newCampObjective,
-          totalBudget: Number(newCampBudget) || 5000000,
-          startDate: new Date().toISOString().split('T')[0],
-          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          channels: ['WhatsApp Broadcaster', 'Facebook organic'],
-          district: newCampDistrict,
-          diasporaMarket: newCampDiaspora
-        });
-        setCampaigns([newCamp, ...campaigns]);
-        setCampFeedback('Campaign plan successfully established and saved!');
-      }
-      resetCampaignForm();
-    } catch (err: any) {
-      setCampFeedback(`Error: ${err.message || 'Could not save campaign.'}`);
-    } finally {
-      setCampSubmitting(false);
-      setTimeout(() => setCampFeedback(''), 4000);
-    }
-  };
-
-  // --- Campaign Health/Activity States ---
-  const [campaignActivity, setCampaignActivity] = useState<Record<string, CampaignActivity>>({});
-  const [runningHealthCheck, setRunningHealthCheck] = useState(false);
-  const [healthCheckFeedback, setHealthCheckFeedback] = useState('');
-
-  useEffect(() => {
-    if (activeTab !== 'campaigns') return;
-    fetchCampaignActivity(activeOrg.id)
-      .then(setCampaignActivity)
-      .catch(() => {});
-  }, [activeTab, activeOrg.id]);
-
-  const handleRunHealthCheck = async () => {
-    setRunningHealthCheck(true);
-    setHealthCheckFeedback('');
-    try {
-      const flagged = await runCampaignHealthCheck();
-      setHealthCheckFeedback(
-        flagged > 0
-          ? `Found ${flagged} new issue${flagged === 1 ? '' : 's'} — check the notification bell for details.`
-          : 'No new issues found. All campaigns look healthy.'
-      );
-    } catch (err: any) {
-      setHealthCheckFeedback(`Error: ${err.message || 'Could not run the health check.'}`);
-    } finally {
-      setRunningHealthCheck(false);
-      setTimeout(() => setHealthCheckFeedback(''), 6000);
-    }
-  };
-
-  // --- Content Planning Assistant States (suggest-only: preview, admin picks which to create) ---
-  interface ContentPlanSuggestion {
-    title: string;
-    contentType: string;
-    platform: string;
-    headline: string;
-    body: string;
-    hashtags: string[];
-    scheduledDate: string;
-  }
-  const VALID_CONTENT_TYPES = ['Social Post', 'WhatsApp Promo', 'Video Script', 'Radio Brief', 'Email News'];
-  const [contentPlanCampaignId, setContentPlanCampaignId] = useState<string | null>(null);
-  const [contentPlanItems, setContentPlanItems] = useState<ContentPlanSuggestion[]>([]);
-  const [contentPlanSelected, setContentPlanSelected] = useState<Set<number>>(new Set());
-  const [contentPlanLoading, setContentPlanLoading] = useState(false);
-  const [contentPlanError, setContentPlanError] = useState('');
-  const [creatingContentPlanDrafts, setCreatingContentPlanDrafts] = useState(false);
-
-  const handleSuggestContentPlan = async (camp: Campaign) => {
-    setContentPlanCampaignId(camp.id);
-    setContentPlanItems([]);
-    setContentPlanSelected(new Set());
-    setContentPlanError('');
-    setContentPlanLoading(true);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const response = await fetch('/api/gemini/content-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          campaignName: camp.name,
-          campaignObjective: camp.objective,
-          campaignDescription: camp.description,
-          startDate: camp.startDate || new Date().toISOString().split('T')[0],
-          endDate: camp.endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          toneOfVoice: brandKit.toneOfVoice,
-          brandName: brandKit.brandName,
-          tagline: brandKit.tagline,
-          mission: brandKit.mission,
-        }),
-      });
-      const data = await response.json();
-      if (data.error) {
-        setContentPlanError(data.error.message || 'Could not generate a content plan.');
-      } else {
-        const items: ContentPlanSuggestion[] = Array.isArray(data.items) ? data.items : [];
-        setContentPlanItems(items);
-        setContentPlanSelected(new Set(items.map((_, i) => i)));
-      }
-    } catch {
-      setContentPlanError('Failed to communicate with the AI assistant.');
-    } finally {
-      setContentPlanLoading(false);
-    }
-  };
-
-  const toggleContentPlanItem = (idx: number) => {
-    setContentPlanSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  };
-
-  const handleCreateSelectedDrafts = async () => {
-    if (!contentPlanCampaignId) return;
-    setCreatingContentPlanDrafts(true);
-    let failures = 0;
-    try {
-      const created: ContentItem[] = [];
-      for (const idx of contentPlanSelected) {
-        const item = contentPlanItems[idx];
-        if (!item) continue;
-        try {
-          created.push(
-            await createContentItem(activeOrg.id, {
-              title: String(item.title || 'AI Content Plan Draft').slice(0, 200),
-              contentType: (VALID_CONTENT_TYPES.includes(item.contentType) ? item.contentType : 'Social Post') as ContentItem['contentType'],
-              platform: item.platform || 'Facebook',
-              headline: item.headline || '',
-              bodyText: item.body || '',
-              hashtags: Array.isArray(item.hashtags) ? item.hashtags : [],
-              scheduledDate: item.scheduledDate || new Date().toISOString().split('T')[0],
-              campaignId: contentPlanCampaignId,
-            })
-          );
-        } catch {
-          failures += 1;
-        }
-      }
-      setContentItems([...created, ...contentItems]);
-      setCampaignActivity((prev) => ({
-        ...prev,
-        [contentPlanCampaignId]: {
-          campaignId: contentPlanCampaignId,
-          contentCount: (prev[contentPlanCampaignId]?.contentCount ?? 0) + created.length,
-          trackingLinkCount: prev[contentPlanCampaignId]?.trackingLinkCount ?? 0,
-          totalClicks: prev[contentPlanCampaignId]?.totalClicks ?? 0,
-        },
-      }));
-      setHealthCheckFeedback(
-        failures > 0
-          ? `Created ${created.length} draft${created.length === 1 ? '' : 's'}, ${failures} failed — review in Content Studio.`
-          : `Created ${created.length} draft${created.length === 1 ? '' : 's'} — review them in Content Studio.`
-      );
-      setContentPlanCampaignId(null);
-    } catch (err: any) {
-      setContentPlanError(`Error: ${err.message || 'Could not create drafts.'}`);
-    } finally {
-      setCreatingContentPlanDrafts(false);
-      setTimeout(() => setHealthCheckFeedback(''), 6000);
-    }
-  };
 
   // --- AI Assistant States ---
   const [aiPrompt, setAiPrompt] = useState('Grow Sierra Leone native red rice among diaspora families in Maryland, USA.');
@@ -979,7 +665,7 @@ export function Workspaces({
   const [weekdayClicks, setWeekdayClicks] = useState<WeekdayClickPoint[]>([]);
 
   useEffect(() => {
-    if (activeTab !== 'analytics' && activeTab !== 'tourism' && activeTab !== 'events' && activeTab !== 'overview') return;
+    if (activeTab !== 'analytics' && activeTab !== 'overview') return;
     if (activeTab === 'overview' && !isPlatformAdmin) return;
     setTrackingLinksLoading(true);
     Promise.all([fetchTrackingLinks(activeOrg.id), fetchClickSeries(activeOrg.id, 12), fetchClicksByWeekday(activeOrg.id)])
@@ -1128,44 +814,6 @@ export function Workspaces({
     }
   };
 
-  // --- Directory Profile States ---
-  const [claimBusinessId, setClaimBusinessId] = useState('');
-  const [claimFile, setClaimFile] = useState<File | null>(null);
-  const [claimFeedback, setClaimFeedback] = useState('');
-  const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
-
-  const handleClaimListing = (id: string) => {
-    setClaimBusinessId(id);
-    setClaimFile(null);
-    setClaimFeedback('');
-  };
-
-  const submitClaim = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!claimFile) {
-      setClaimFeedback('Error: Attach a business license or tax certificate file.');
-      return;
-    }
-    setIsSubmittingClaim(true);
-    try {
-      // Real file, uploaded to the same storage-backed Media Library used
-      // elsewhere — the "document name" text field this replaced never
-      // actually persisted or checked a file at all.
-      await uploadMediaAsset(activeOrg.id, claimFile, 'Verification Documents');
-      const updated = await claimDirectoryListing(claimBusinessId, activeOrg.id);
-      setDirectoryProfiles(directoryProfiles.map(p => p.id === updated.id ? updated : p));
-      setClaimFeedback('Verification document uploaded and listing verified.');
-    } catch (err: any) {
-      setClaimFeedback(`Error: ${err.message || 'Could not submit claim.'}`);
-    } finally {
-      setIsSubmittingClaim(false);
-      setTimeout(() => {
-        setClaimBusinessId('');
-        setClaimFeedback('');
-      }, 3000);
-    }
-  };
-
   // --- Social Publishing Calendar (real month navigation, not a fixed Dec 2026 grid) ---
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date();
@@ -1253,63 +901,6 @@ export function Workspaces({
       setExportFeedback(`Error: ${err.message || 'Could not generate export package.'}`);
     } finally {
       setIsGeneratingExport(false);
-    }
-  };
-
-  // --- Billing & Subscriptions ---
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [mySubscriptions, setMySubscriptions] = useState<OrgSubscription[]>([]);
-  const [billingLoading, setBillingLoading] = useState(false);
-  const [billingFeedback, setBillingFeedback] = useState('');
-  const [selectedPlanId, setSelectedPlanId] = useState('');
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
-  const [paymentRef, setPaymentRef] = useState('');
-  const [requestingPlan, setRequestingPlan] = useState(false);
-
-  useEffect(() => {
-    if (activeTab !== 'billing') return;
-    setBillingLoading(true);
-    Promise.all([fetchPlans(), fetchMySubscriptions(activeOrg.id)])
-      .then(([p, subs]) => {
-        setPlans(p);
-        setMySubscriptions(subs);
-      })
-      .catch((err: any) => setBillingFeedback(`Error: ${err.message || 'Could not load billing info.'}`))
-      .finally(() => setBillingLoading(false));
-  }, [activeTab, activeOrg.id]);
-
-  const activeSubscription = mySubscriptions.find((s) => s.status === 'active');
-  const pendingSubscription = mySubscriptions.find((s) => s.status === 'pending');
-
-  const handleRequestPlan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPlanId) return;
-    setRequestingPlan(true);
-    try {
-      await requestSubscription(activeOrg.id, selectedPlanId, billingCycle, paymentRef);
-      setMySubscriptions(await fetchMySubscriptions(activeOrg.id));
-      setPaymentRef('');
-      setBillingFeedback('Upgrade requested. Our finance team will confirm your payment and activate the plan.');
-    } catch (err: any) {
-      setBillingFeedback(`Error: ${err.message || 'Could not request plan.'}`);
-    } finally {
-      setRequestingPlan(false);
-      setTimeout(() => setBillingFeedback(''), 5000);
-    }
-  };
-
-  const handleSubmitPaymentRef = async () => {
-    if (!pendingSubscription) return;
-    const ref = prompt('Bank / mobile money transaction reference:');
-    if (!ref) return;
-    try {
-      await updateSubscriptionNotes(pendingSubscription.id, ref);
-      setMySubscriptions(await fetchMySubscriptions(activeOrg.id));
-      setBillingFeedback('Payment reference submitted for review.');
-    } catch (err: any) {
-      setBillingFeedback(`Error: ${err.message || 'Could not submit payment reference.'}`);
-    } finally {
-      setTimeout(() => setBillingFeedback(''), 4000);
     }
   };
 
@@ -1607,9 +1198,6 @@ export function Workspaces({
   const [publishedAdverts, setPublishedAdverts] = useState<Advert[]>([]);
   const [advAnalytics, setAdvAnalytics] = useState<AdvertAnalyticsSummary | null>(null);
   const [adCampaigns, setAdCampaigns] = useState<AdCampaign[]>([]);
-  const [campaignReach, setCampaignReach] = useState<Record<string, CampaignReach>>({});
-  const [campForm, setCampForm] = useState({ name: '', businessName: '', startDate: '', endDate: '', reachGoal: '' });
-  const [campSaving, setCampSaving] = useState(false);
   const [advCampaignId, setAdvCampaignId] = useState<string>(''); // publish-form assignment
   const [advEditingId, setAdvEditingId] = useState<string | null>(null); // editing an existing advert
   const [advRequestId, setAdvRequestId] = useState<string | null>(null); // publishing from a request
@@ -1661,53 +1249,10 @@ export function Workspaces({
 
   const reloadAdCampaigns = async () => {
     try {
-      const [cs, reach] = await Promise.all([fetchAllAdCampaigns(), fetchCampaignReach().catch(() => ({}))]);
-      setAdCampaigns(cs);
-      setCampaignReach(reach);
+      setAdCampaigns(await fetchAllAdCampaigns());
     } catch { /* non-fatal */ }
   };
 
-  const handleCreateAdCampaign = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!campForm.name.trim()) { setAdvertisementFeedback('Error: campaign name is required.'); return; }
-    setCampSaving(true);
-    try {
-      await createAdCampaign({
-        name: campForm.name,
-        businessName: campForm.businessName || undefined,
-        startDate: campForm.startDate || null,
-        endDate: campForm.endDate || null,
-        reachGoal: campForm.reachGoal ? Number(campForm.reachGoal) : null,
-        orgId: activeOrg?.id ?? null,
-        status: 'active',
-      });
-      setCampForm({ name: '', businessName: '', startDate: '', endDate: '', reachGoal: '' });
-      await reloadAdCampaigns();
-      setAdvertisementFeedback('Campaign created.');
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'Could not create campaign.'}`);
-    } finally {
-      setCampSaving(false);
-    }
-  };
-
-  const handleToggleAdCampaign = async (c: AdCampaign) => {
-    try {
-      await setCampaignStatus(c.id, c.status === 'active' ? 'paused' : 'active');
-      await Promise.all([reloadAdCampaigns(), fetchAllAdverts().then(setPublishedAdverts).catch(() => {})]);
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'Could not update campaign.'}`);
-    }
-  };
-
-  const handleDeleteAdCampaign = async (id: string) => {
-    try {
-      await deleteAdCampaign(id);
-      await reloadAdCampaigns();
-    } catch (err: any) {
-      setAdvertisementFeedback(`Error: ${err?.message || 'Could not delete campaign.'}`);
-    }
-  };
   const [advForm, setAdvForm] = useState({
     title: '', category: 'business', businessName: '', summary: '', content: '',
     mediaUrl: '', socialPlatform: 'Facebook', socialUrl: '', creativeUrl: '',
@@ -1892,14 +1437,12 @@ export function Workspaces({
       fetchAllAdverts().catch(() => []),
       fetchAdvertAnalyticsSummary().catch(() => null),
       fetchAllAdCampaigns().catch(() => []),
-      fetchCampaignReach().catch(() => ({})),
     ])
-      .then(([reqs, adverts, analytics, camps, reach]) => {
+      .then(([reqs, adverts, analytics, camps]) => {
         setAllAdvertisements(reqs);
         setPublishedAdverts(adverts);
         setAdvAnalytics(analytics);
         setAdCampaigns(camps);
-        setCampaignReach(reach);
       })
       .catch((err: any) => setAdvertisementFeedback(`Error: ${err.message || 'Could not load advertising requests.'}`))
       .finally(() => setAdvertisementsLoading(false));
@@ -2520,9 +2063,6 @@ export function Workspaces({
   }
 
   // BID SUPPORT SERVICES WORKSPACE (buyers & suppliers)
-  if (activeTab === 'services') {
-    return <SubscriberServiceRequestsWorkspace orgId={activeOrg.id} isPlatformAdmin={isPlatformAdmin} />;
-  }
 
   if (activeTab === 'advertising') {
     return <SubscriberAdvertisingWorkspace
@@ -2552,90 +2092,6 @@ export function Workspaces({
           onUpdate={handleUpdateAdvertisement}
           onLoadIntoPublisher={loadRequestIntoPublisher}
         />
-        {/* Retained temporarily in source for release comparison; no longer rendered.
-            Campaign creation and controls live only in Campaign Management. */}
-        {false && <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-emerald-600" /> Campaigns
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Group a business's creatives into a campaign with a run window and a reach goal. Adverts assigned to a
-            campaign only show on the site during its dates, and rotate through the marquee and feed. Pause to pull the
-            whole campaign off the site instantly.
-          </p>
-
-          <form onSubmit={handleCreateAdCampaign} className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-2 items-end">
-            <div className="lg:col-span-2">
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Campaign name</label>
-              <input value={campForm.name} onChange={(e) => setCampForm({ ...campForm, name: e.target.value })} placeholder="e.g. Rokel Q3 push" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Business</label>
-              <input value={campForm.businessName} onChange={(e) => setCampForm({ ...campForm, businessName: e.target.value })} placeholder="Business" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Start</label>
-              <input type="date" value={campForm.startDate} onChange={(e) => setCampForm({ ...campForm, startDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">End</label>
-              <input type="date" value={campForm.endDate} onChange={(e) => setCampForm({ ...campForm, endDate: e.target.value })} className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-slate-400 mb-1">Reach goal</label>
-              <input type="number" min={0} value={campForm.reachGoal} onChange={(e) => setCampForm({ ...campForm, reachGoal: e.target.value })} placeholder="e.g. 5000" className="w-full border border-slate-200 rounded-lg p-2 text-sm" />
-            </div>
-            <button type="submit" disabled={campSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg text-sm cursor-pointer disabled:opacity-50 lg:col-span-1">
-              {campSaving ? 'Creating…' : 'Add campaign'}
-            </button>
-          </form>
-
-          {adCampaigns.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {adCampaigns.map((c) => {
-                const reach = campaignReach[c.id] || { adverts: 0, views: 0, clicks: 0 };
-                const now = Date.now();
-                const started = !c.startDate || new Date(c.startDate).getTime() <= now;
-                const ended = c.endDate && new Date(`${c.endDate}T23:59:59`).getTime() < now;
-                const phase = c.status === 'paused' ? 'Paused' : ended ? 'Ended' : !started ? 'Scheduled' : 'Active';
-                const phaseColor = phase === 'Active' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : phase === 'Paused' ? 'text-amber-700 bg-amber-50 border-amber-200' : phase === 'Scheduled' ? 'text-sky-700 bg-sky-50 border-sky-200' : 'text-slate-500 bg-slate-50 border-slate-200';
-                const pct = c.reachGoal ? Math.min(100, Math.round((reach.views / c.reachGoal) * 100)) : null;
-                return (
-                  <div key={c.id} className="border border-slate-100 rounded-xl p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-slate-800 text-sm truncate">{c.name}</h4>
-                          <span className={`font-mono text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 border ${phaseColor}`}>{phase}</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {c.businessName || '—'} · {c.startDate || 'no start'} → {c.endDate || 'no end'} · {reach.adverts} creative{reach.adverts === 1 ? '' : 's'} · 👁 {reach.views.toLocaleString()} · ↗ {reach.clicks.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <button onClick={() => handleToggleAdCampaign(c)} className="text-xs font-semibold text-slate-600 hover:underline cursor-pointer">
-                          {c.status === 'active' ? 'Pause' : 'Resume'}
-                        </button>
-                        <button onClick={() => handleDeleteAdCampaign(c.id)} className="text-xs font-semibold text-red-600 hover:underline cursor-pointer">Delete</button>
-                      </div>
-                    </div>
-                    {pct !== null && (
-                      <div className="mt-2.5">
-                        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
-                          <span>Reach goal</span><span>{reach.views.toLocaleString()} / {c.reachGoal!.toLocaleString()} views ({pct}%)</span>
-                        </div>
-                        <div className="h-1.5 bg-slate-100 overflow-hidden">
-                          <div className="h-full bg-emerald-600" style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>}
-
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
           <h3 className="font-display font-bold text-slate-900 text-lg flex items-center gap-2">
             <Megaphone className="h-5 w-5 text-emerald-600" /> Campaign Management
@@ -2704,9 +2160,6 @@ export function Workspaces({
   }
 
   // ADMIN SERVICE REQUESTS WORKSPACE
-  if (activeTab === 'admin-services') {
-    return <AdminServiceRequestsWorkspace isPlatformAdmin={isPlatformAdmin} />;
-  }
 
   // SUPPLIER PIPELINE WORKSPACE
   if (activeTab === 'pipeline') {
@@ -2951,289 +2404,6 @@ export function Workspaces({
   }
 
   // 2. CAMPAIGNS WORKSPACE
-  if (false && activeTab === 'campaigns') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-display font-bold text-slate-900 text-lg">Establish Campaign Plan</h3>
-            {editingCampaignId && (
-              <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 shrink-0">
-                Editing
-              </span>
-            )}
-          </div>
-          {campFeedback && (
-            <div className={`text-sm p-4 rounded-xl mb-4 font-semibold ${campFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-              {campFeedback}
-            </div>
-          )}
-          <form onSubmit={handleCreateCampaign} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Campaign Slogan / Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Christmas Parboiled Rice Promo"
-                  value={newCampName}
-                  onChange={(e) => setNewCampName(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Primary Objective</label>
-                <select
-                  value={newCampObjective}
-                  onChange={(e) => setNewCampObjective(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>WhatsApp enquiries</option>
-                  <option>Product sales & bookings</option>
-                  <option>NGO public outreach</option>
-                  <option>Investor Enquiries</option>
-                  <option>Tourism & Bookings</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Operating District (Sierra Leone)</label>
-                <select
-                  value={newCampDistrict}
-                  onChange={(e) => setNewCampDistrict(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>Western Area Urban</option>
-                  <option>Bo</option>
-                  <option>Kenema</option>
-                  <option>Makeni</option>
-                  <option>Port Loko</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Diaspora Hub Focus</label>
-                <select
-                  value={newCampDiaspora}
-                  onChange={(e) => setNewCampDiaspora(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>United Kingdom</option>
-                  <option>United States</option>
-                  <option>Canada</option>
-                  <option>Germany</option>
-                  <option>Sweden</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Brief Description</label>
-              <textarea
-                required
-                rows={2}
-                placeholder="Targeting diaspora investors to support smallholder rice producers in Bo..."
-                value={newCampDesc}
-                onChange={(e) => setNewCampDesc(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Allocated Budget (Leones)</label>
-              <input
-                type="number"
-                required
-                placeholder="15000000"
-                value={newCampBudget}
-                onChange={(e) => setNewCampBudget(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-              />
-            </div>
-            {editingCampaignId && (
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Status</label>
-                <select
-                  value={newCampStatus}
-                  onChange={(e: any) => setNewCampStatus(e.target.value)}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500"
-                >
-                  <option>Draft</option>
-                  <option>Planning</option>
-                  <option>Approved</option>
-                  <option>Scheduled</option>
-                  <option>Active</option>
-                  <option>Completed</option>
-                  <option>Failed</option>
-                </select>
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              <button type="submit" disabled={campSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                {campSubmitting ? 'Saving…' : editingCampaignId ? 'Save Changes' : 'Launch Campaign Plan'}
-              </button>
-              {editingCampaignId && (
-                <button type="button" onClick={resetCampaignForm} className="text-xs font-semibold text-slate-500 hover:underline cursor-pointer">
-                  Cancel edit
-                </button>
-              )}
-            </div>
-          </form>
-        </div>
-
-        {/* Existing Campaigns */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <h3 className="font-display font-bold text-slate-900 text-lg">Active Campaign Scopes</h3>
-            <div className="flex items-center gap-3">
-              {healthCheckFeedback && (
-                <span className="text-xs font-medium text-slate-500">{healthCheckFeedback}</span>
-              )}
-              <button
-                type="button"
-                onClick={handleRunHealthCheck}
-                disabled={runningHealthCheck}
-                className="flex items-center gap-1.5 bg-white border border-slate-200 hover:border-emerald-300 text-slate-700 font-semibold px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer disabled:opacity-50"
-              >
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                {runningHealthCheck ? 'Checking…' : 'Run Health Check Now'}
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {campaigns.map((camp) => {
-              const statusColor: Record<Campaign['status'], string> = {
-                Draft: 'bg-slate-200 text-slate-600',
-                Planning: 'bg-slate-100 text-slate-600',
-                Approved: 'bg-amber-100 text-amber-800',
-                Scheduled: 'bg-blue-100 text-blue-800',
-                Active: 'bg-emerald-100 text-emerald-800',
-                Completed: 'bg-indigo-100 text-indigo-800',
-                Failed: 'bg-red-100 text-red-700',
-              };
-              return (
-                <div key={camp.id} className={`bg-white border rounded-2xl p-5 shadow-xs flex flex-col justify-between ${editingCampaignId === camp.id ? 'border-emerald-300 ring-1 ring-emerald-200' : 'border-slate-100'}`}>
-                  <div>
-                    <div className="flex justify-between items-start gap-2 mb-3">
-                      <h4 className="font-display font-bold text-slate-900 leading-tight">{camp.name}</h4>
-                      {/* Only the transitions the campaign state machine accepts
-                          are offered; anything else is rejected by the database. */}
-                      <select
-                        value={camp.status}
-                        aria-label={`Status for ${camp.name}`}
-                        disabled={campStatusUpdatingId === camp.id || campaignStatusOptions(camp.status).length === 1}
-                        onChange={(e: any) => handleChangeCampaignStatus(camp, e.target.value)}
-                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border-0 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${statusColor[camp.status]}`}
-                      >
-                        {campaignStatusOptions(camp.status).map((option) => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <p className="text-slate-500 text-xs leading-relaxed mb-4">{camp.description}</p>
-                  </div>
-                  <div className="border-t border-slate-50 pt-4 space-y-2 text-xs">
-                    <div className="flex justify-between text-slate-600">
-                      <span className="font-medium">District:</span>
-                      <span className="font-mono text-slate-500">{camp.district || 'All Sierra Leone'}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span className="font-medium">Diaspora:</span>
-                      <span className="font-mono text-slate-500">{camp.diasporaMarket || 'All Diaspora'}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span className="font-medium">Budget:</span>
-                      <span className="font-mono font-bold text-slate-800">Le {camp.totalBudget.toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-mono pt-2">
-                    {campaignActivity[camp.id]?.contentCount ?? 0} content · {campaignActivity[camp.id]?.trackingLinkCount ?? 0} tracking links · {campaignActivity[camp.id]?.totalClicks ?? 0} clicks
-                  </div>
-                  <div className="flex items-center gap-4 mt-3 pt-3 border-t border-slate-50">
-                    <button type="button" onClick={() => handleEditCampaign(camp)} className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer">
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSuggestContentPlan(camp)}
-                      className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer flex items-center gap-1"
-                    >
-                      <Sparkles className="h-3 w-3" /> Suggest Content Plan
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteCampaign(camp)}
-                      disabled={deletingCampaignId === camp.id}
-                      className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer disabled:opacity-50 ml-auto"
-                    >
-                      {deletingCampaignId === camp.id ? 'Deleting…' : 'Delete'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {contentPlanCampaignId && (() => {
-          const camp = campaigns.find((c) => c.id === contentPlanCampaignId);
-          if (!camp) return null;
-          return (
-            <div className="bg-emerald-950 text-white rounded-2xl p-6 shadow-md space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="inline-flex items-center gap-2 bg-emerald-900 border border-emerald-800 text-emerald-300 text-xs px-3 py-1 rounded-full font-mono uppercase tracking-widest">
-                    <Sparkles className="h-3.5 w-3.5" /> AI Content Plan — {camp!.name}
-                  </span>
-                  <p className="text-emerald-300 text-[11px] mt-2">Nothing is saved yet — pick which drafts to actually create below.</p>
-                </div>
-                <button type="button" onClick={() => setContentPlanCampaignId(null)} className="text-emerald-400 hover:text-white cursor-pointer">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              {contentPlanLoading && (
-                <p className="text-xs text-emerald-300 italic">Drafting a content plan…</p>
-              )}
-              {contentPlanError && (
-                <p className="text-xs text-red-300">{contentPlanError}</p>
-              )}
-              {!contentPlanLoading && contentPlanItems.length > 0 && (
-                <div className="space-y-3">
-                  {contentPlanItems.map((item, idx) => (
-                    <label key={idx} className="flex items-start gap-3 bg-emerald-900/40 border border-emerald-800 p-3.5 rounded-xl cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={contentPlanSelected.has(idx)}
-                        onChange={() => toggleContentPlanItem(idx)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white">{item.title}</span>
-                          <span className="text-[9px] font-mono text-emerald-400 shrink-0 ml-2">{item.contentType} · {item.platform} · {item.scheduledDate}</span>
-                        </div>
-                        <p className="text-[11px] text-emerald-100 leading-relaxed">{item.headline}</p>
-                        <p className="text-[10px] text-emerald-300 leading-relaxed line-clamp-2">{item.body}</p>
-                        {item.hashtags?.length > 0 && (
-                          <p className="text-[10px] text-emerald-400 font-mono">{item.hashtags.join(' ')}</p>
-                        )}
-                      </div>
-                    </label>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={handleCreateSelectedDrafts}
-                    disabled={creatingContentPlanDrafts || contentPlanSelected.size === 0}
-                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {creatingContentPlanDrafts ? 'Creating…' : `Create ${contentPlanSelected.size} Selected Draft${contentPlanSelected.size === 1 ? '' : 's'}`}
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })()}
-      </div>
-    );
-  }
-
   // 3. CONTENT STUDIO WORKSPACE
   if (activeTab === 'content') {
     return (
@@ -4600,183 +3770,9 @@ export function Workspaces({
     );
   }
 
-  // 10. INFLUENCERS WORKSPACE
-  if (activeTab === 'influencers') {
-    return <React.Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading creator marketplace…</div>}><MarketplaceExpansionWorkspace organization={activeOrg} mode="influencers" /></React.Suspense>;
-  }
-
-  // Legacy implementation retained temporarily for migration comparison only.
-  // This branch is unreachable because the expanded workspace returns above.
-  if (activeTab === '__legacy_influencers') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <h3 className="font-display font-bold text-slate-900 text-lg mb-2">Verified Creator Marketplace</h3>
-          <p className="text-xs text-slate-500 mb-6">Partner with trusted local or diaspora creators displaying certified engagement parameters.</p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {influencerProfiles.map((inf) => (
-              <div key={inf.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex justify-between items-start">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-display font-bold text-slate-800">{inf.displayName}</h4>
-                    {inf.isVerified && <span className="bg-blue-100 text-blue-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Verified</span>}
-                  </div>
-                  <span className="text-xs text-slate-500 block">Location: {inf.location}</span>
-                  <div className="flex gap-2 pt-1">
-                    {inf.categories.map((cat, i) => (
-                      <span key={i} className="bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-md">{cat}</span>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 pt-3 text-xs border-t border-slate-50 mt-4">
-                    <div>
-                      <span className="text-slate-400 block font-mono">AUDIENCE</span>
-                      <strong className="text-slate-700">{inf.audienceSize}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-mono">ENGAGE</span>
-                      <strong className="text-emerald-600">{inf.engagementRate}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block font-mono">RATE RANGE</span>
-                      <strong className="text-slate-700 block truncate">{inf.rateRange}</strong>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={async () => {
-                    const budgetStr = prompt(`Proposed budget for ${inf.displayName} (Leones):`, '0');
-                    if (budgetStr === null) return;
-                    try {
-                      const lead = await createLead(activeOrg.id, {
-                        name: inf.displayName,
-                        source: 'Influencer Marketplace',
-                        district: inf.district,
-                        estimatedValue: Number(budgetStr) || 0,
-                      });
-                      setLeads([lead, ...leads]);
-                      alert(`Real CRM lead created for ${inf.displayName} — see the CRM Leads tab.`);
-                    } catch (err: any) {
-                      alert(err.message || 'Could not create lead.');
-                    }
-                  }}
-                  className="bg-emerald-50 text-emerald-800 text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-colors cursor-pointer shrink-0"
-                >
-                  Invite Partner
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // 11. DIRECTORY WORKSPACE
   if (activeTab === 'directory') {
-    return <React.Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading business directory…</div>}><MarketplaceExpansionWorkspace organization={activeOrg} mode="directory" /></React.Suspense>;
-  }
-
-  // Legacy implementation retained temporarily for migration comparison only.
-  // This branch is unreachable because the expanded workspace returns above.
-  if (activeTab === '__legacy_directory') {
-    return (
-      <div className="space-y-8 text-left">
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h3 className="font-display font-bold text-slate-900 text-lg">Public Business Discovery Registry</h3>
-              <p className="text-xs text-slate-500">Fostering corporate visibility and local-to-diaspora transactional trust.</p>
-            </div>
-            <button
-              onClick={async () => {
-                const name = prompt('Enter your Business Name:');
-                if (name) {
-                  try {
-                    const newB = await createDirectoryListing(activeOrg.id, name);
-                    setDirectoryProfiles([newB, ...directoryProfiles]);
-                  } catch (err: any) {
-                    alert(err.message || 'Could not add listing.');
-                  }
-                }
-              }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-2 cursor-pointer"
-            >
-              <Plus className="h-4 w-4" /> Add Listing
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {directoryProfiles.map((p) => (
-              <div key={p.id} className="border border-slate-100 rounded-2xl p-5 hover:shadow-xs transition-shadow flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-display font-bold text-slate-800">{p.businessName}</h4>
-                      {p.isVerified ? (
-                        <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Verified</span>
-                      ) : (
-                        <span className="bg-amber-100 text-amber-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Claimable</span>
-                      )}
-                    </div>
-                    <span className="bg-slate-100 text-slate-600 font-mono text-[10px] px-2 py-0.5 rounded-md">{p.category}</span>
-                  </div>
-                  <p className="text-slate-500 text-xs leading-relaxed mb-4">{p.description}</p>
-                </div>
-
-                <div className="border-t border-slate-50 pt-4 flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-mono">{p.city}, {p.district}</span>
-                  {!p.isVerified && (
-                    <button
-                      onClick={() => handleClaimListing(p.id)}
-                      className="text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer"
-                    >
-                      Claim & Verify Listing
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Claim listing panel */}
-        {claimBusinessId && (
-          <div className="bg-slate-50 border-2 border-emerald-500 rounded-2xl p-6 shadow-md text-left space-y-4">
-            <h4 className="font-display font-bold text-slate-900 text-sm">Upload Corporate Registration / Business Claim Form</h4>
-            {claimFeedback ? (
-              <p className="text-emerald-800 text-xs font-semibold bg-emerald-50 p-3 rounded-lg border border-emerald-100">{claimFeedback}</p>
-            ) : (
-              <form onSubmit={submitClaim} className="space-y-4 text-xs">
-                <p className="text-slate-500">Provide an official copy of your SL business license or tax certificate to earn your verification mark.</p>
-                <div>
-                  <label className="block text-slate-400 font-mono uppercase mb-1">Corporate document</label>
-                  <input
-                    type="file"
-                    required
-                    onChange={(e) => setClaimFile(e.target.files?.[0] ?? null)}
-                    className="w-full border border-slate-200 rounded-lg p-2 bg-white text-slate-700"
-                  />
-                </div>
-                <button type="submit" disabled={isSubmittingClaim} className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800 text-white font-semibold py-2 px-4 rounded-xl cursor-pointer">
-                  {isSubmittingClaim ? 'Uploading…' : 'Submit Verification Documents'}
-                </button>
-              </form>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // 12. EVENTS WORKSPACE
-  if (activeTab === 'events') {
-    return <React.Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading events management…</div>}><EventsTourismWorkspace organization={activeOrg} mode="events" /></React.Suspense>;
-  }
-
-  // 13. TOURISM WORKSPACE
-  if (activeTab === 'tourism') {
-    return <React.Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading tourism management…</div>}><EventsTourismWorkspace organization={activeOrg} mode="tourism" /></React.Suspense>;
+    return <React.Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading business directory…</div>}><BusinessDirectoryWorkspace organization={activeOrg} /></React.Suspense>;
   }
 
   // 14. BRAND KIT WORKSPACE
@@ -4920,103 +3916,6 @@ export function Workspaces({
   }
 
   // 16. BILLING WORKSPACE
-  if (activeTab === 'billing') {
-    return (
-      <div className="space-y-8 text-left">
-        <QuotaUsagePanel organizationId={activeOrg.id} />
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-          <h3 className="font-display font-bold text-slate-900 text-lg">Current Plan</h3>
-          {billingLoading ? (
-            <p className="text-xs text-slate-400">Loading…</p>
-          ) : activeSubscription ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-display font-bold text-emerald-700 text-lg">{activeSubscription.planName}</span>
-                {activeSubscription.currentPeriodEnd && (
-                  <p className="text-xs text-slate-500 mt-1">Renews / expires {new Date(activeSubscription.currentPeriodEnd).toLocaleDateString('en-GB')}</p>
-                )}
-              </div>
-              <span className="bg-emerald-100 text-emerald-800 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase">Active</span>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">You're on the Free plan.</p>
-          )}
-        </div>
-
-        {billingFeedback && (
-          <div className={`text-sm p-3.5 rounded-xl font-semibold ${billingFeedback.startsWith('Error') ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-800'}`}>
-            {billingFeedback}
-          </div>
-        )}
-
-        {pendingSubscription && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 space-y-3">
-            <p className="text-sm text-amber-900">
-              <strong>{pendingSubscription.planName}</strong> upgrade requested — awaiting payment confirmation and admin approval.
-            </p>
-            {pendingSubscription.notes ? (
-              <p className="text-xs text-amber-700 font-mono">Reference on file: {pendingSubscription.notes}</p>
-            ) : (
-              <button onClick={handleSubmitPaymentRef} className="text-xs font-semibold text-amber-700 hover:underline cursor-pointer">
-                Submit bank transfer reference
-              </button>
-            )}
-          </div>
-        )}
-
-        {!pendingSubscription && (
-          <form onSubmit={handleRequestPlan} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-            <h4 className="font-display font-bold text-slate-900 text-sm">Request a Plan Change</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Plan</label>
-                <select value={selectedPlanId} onChange={(e) => setSelectedPlanId(e.target.value)} required
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
-                  <option value="">Select a plan</option>
-                  {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase">Billing Cycle</label>
-                <select value={billingCycle} onChange={(e) => setBillingCycle(e.target.value as 'monthly' | 'annual')}
-                  className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500">
-                  <option value="monthly">Monthly</option>
-                  <option value="annual">Annual</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase">Payment Reference (optional, bank transfer)</label>
-              <input type="text" placeholder="e.g. SLCB-9812401" value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)}
-                className="mt-1 w-full border border-slate-200 rounded-xl p-2.5 bg-slate-50 text-sm focus:bg-white focus:outline-emerald-500" />
-            </div>
-            <button type="submit" disabled={requestingPlan} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-6 rounded-xl text-sm cursor-pointer disabled:opacity-50">
-              {requestingPlan ? 'Requesting…' : 'Request Plan Change'}
-            </button>
-            <p className="text-[10px] text-slate-400">Payment is confirmed manually by our finance team — your plan activates once approved, never automatically on submission.</p>
-          </form>
-        )}
-
-        {mySubscriptions.length > 0 && (
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs">
-            <h4 className="font-display font-bold text-slate-900 text-sm mb-4">Subscription History</h4>
-            <div className="space-y-2 text-xs">
-              {mySubscriptions.map((s) => (
-                <div key={s.id} className="flex items-center justify-between border-b border-slate-50 pb-2">
-                  <span className="text-slate-700">{s.planName} · {new Date(s.createdAt).toLocaleDateString('en-GB')}</span>
-                  <span className={`font-bold px-2 py-0.5 rounded-full uppercase text-[9px] ${
-                    s.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
-                    s.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600'
-                  }`}>{s.status}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
   // 17. ADMIN BOARD (SUPER ADMIN MODERATION)
   if (activeTab === 'admin') {
     return (

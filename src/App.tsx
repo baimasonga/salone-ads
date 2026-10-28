@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { lazy, Suspense, useState, useEffect, useCallback } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import {
@@ -15,8 +15,6 @@ import { supabase } from './lib/supabaseClient';
 import {
   fetchMyOrganizations,
   fetchOrgBundle,
-  fetchDirectoryProfiles,
-  fetchInfluencerProfiles,
   fetchMyPlatformRole,
   getStoredActiveOrganizationId,
   storeActiveOrganizationId,
@@ -24,9 +22,9 @@ import {
 import { fetchMyNotifications, markNotificationRead, type AppNotification } from './lib/procurement/notificationApi';
 import { hasFeature } from './lib/procurement/entitlementAssistApi';
 import { CmsTeamRole, fetchCmsCurrentRole } from './lib/cmsApi';
-import { Campaign, ContentItem, Lead, DirectoryProfile, InfluencerProfile, SocialConnection, BrandKit, Organization } from './types';
+import { Campaign, ContentItem, Lead, SocialConnection, BrandKit, Organization } from './types';
 import { clearAllResilienceCaches } from './lib/networkResilience';
-import { buildWorkspaceNavigation } from './config/workspaceNavigation';
+import { buildWorkspaceNavigation, isWorkspaceNavigationItemActive } from './config/workspaceNavigation';
 import type { WorkspaceNavigationGroup } from './config/workspaceNavigation';
 import { getAuthScreenMode, getInitialView } from './lib/authRouting';
 import type { AppView } from './lib/authRouting';
@@ -109,8 +107,6 @@ function MainApp() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [directoryProfiles, setDirectoryProfiles] = useState<DirectoryProfile[]>([]);
-  const [influencerProfiles, setInfluencerProfiles] = useState<InfluencerProfile[]>([]);
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
@@ -124,7 +120,10 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const workspaceGeneration = useRef(0);
+
   const loadWorkspace = useCallback(async (activeSession: Session | null, preferredOrgId?: string) => {
+    const generation = ++workspaceGeneration.current;
     if (!activeSession) {
       setActiveOrg(null);
       setOrganizations([]);
@@ -133,8 +132,6 @@ function MainApp() {
       setContentItems([]);
       setLeads([]);
       setSocialConnections([]);
-      setDirectoryProfiles([]);
-      setInfluencerProfiles([]);
       setIsPlatformAdmin(false);
       setIsPlatformResearcher(false);
       setPlatformStaffRole(null);
@@ -150,17 +147,19 @@ function MainApp() {
     setWorkspaceError('');
     try {
       const staffAccess = await fetchMyPlatformStaffAccess().catch(() => null);
+      if (generation !== workspaceGeneration.current) return;
       if (staffAccess && !['active','invited'].includes(staffAccess.status)) {
         throw new Error(`Your platform staff access is ${staffAccess.status}. Contact the Hyderra owner.`);
       }
       const activeStaffRole = staffAccess?.role ?? null;
       setPlatformStaffRole(activeStaffRole);
       const availableOrganizations = await fetchMyOrganizations();
+      if (generation !== workspaceGeneration.current) return;
       if (availableOrganizations.length === 0) {
         if (activeStaffRole) {
           setOrganizations([]); setActiveOrg(PLATFORM_CONTEXT_ORG); setBrandKit(PLATFORM_BRAND_KIT);
           setCampaigns([]); setContentItems([]); setLeads([]); setSocialConnections([]);
-          setDirectoryProfiles([]); setInfluencerProfiles([]); setSubscriberAccess(null); setCanAdvertise(false);
+          setSubscriberAccess(null); setCanAdvertise(false);
           setIsPlatformAdmin(activeStaffRole === 'owner' || activeStaffRole === 'administrator');
           setIsPlatformResearcher(false);
           setCmsRole(activeStaffRole === 'editorial' ? 'administrator' : null);
@@ -175,23 +174,20 @@ function MainApp() {
       const org = availableOrganizations.find((item) => item.id === savedOrgId) ?? availableOrganizations[0];
       storeActiveOrganizationId(activeSession.user.id, org.id);
       setOrganizations(availableOrganizations);
-      const [bundle, directory, influencers, platformRole, advertisingEntitled, editorialRole, subscriptions] = await Promise.all([
+      const [bundle, platformRole, advertisingEntitled, editorialRole, subscriptions] = await Promise.all([
         fetchOrgBundle(org.id),
-        fetchDirectoryProfiles(),
-        fetchInfluencerProfiles(),
         fetchMyPlatformRole(),
         hasFeature(org.id, 'business_advertising').catch(() => false),
         fetchCmsCurrentRole().catch(() => null),
         fetchMySubscriptions(org.id).catch(() => []),
       ]);
+      if (generation !== workspaceGeneration.current) return;
       setActiveOrg(bundle.organization);
       setBrandKit(bundle.brandKit);
       setCampaigns(bundle.campaigns);
       setContentItems(bundle.contentItems);
       setLeads(bundle.leads);
       setSocialConnections(bundle.socialConnections);
-      setDirectoryProfiles(directory);
-      setInfluencerProfiles(influencers);
       setIsPlatformAdmin(activeStaffRole === 'owner' || activeStaffRole === 'administrator' || platformRole === 'admin');
       setIsPlatformResearcher(platformRole === 'researcher');
       setCanAdvertise(advertisingEntitled);
@@ -201,9 +197,10 @@ function MainApp() {
       setSubscriberAccess(currentSubscription ? { planName: currentSubscription.planName, status: currentSubscription.status, currentPeriodEnd: currentSubscription.currentPeriodEnd } : null);
       setView('dashboard');
     } catch (err: any) {
+      if (generation !== workspaceGeneration.current) return;
       setWorkspaceError(err.message || 'Failed to load your workspace from the server.');
     } finally {
-      setWorkspaceLoading(false);
+      if (generation === workspaceGeneration.current) setWorkspaceLoading(false);
     }
   }, []);
 
@@ -211,7 +208,9 @@ function MainApp() {
   useEffect(() => {
     let workspaceLoadTimer: number | undefined;
     const { data: subscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      ++workspaceGeneration.current;
       setSession(nextSession);
+      if (nextSession) setWorkspaceLoading(true);
       if (event === 'PASSWORD_RECOVERY') {
         if (workspaceLoadTimer !== undefined) window.clearTimeout(workspaceLoadTimer);
         setWorkspaceLoading(false);
@@ -225,22 +224,30 @@ function MainApp() {
       // another Supabase request here can deadlock the client after a successful
       // password login, so defer workspace hydration until the callback exits.
       if (workspaceLoadTimer !== undefined) window.clearTimeout(workspaceLoadTimer);
+      const authGeneration = workspaceGeneration.current;
       workspaceLoadTimer = window.setTimeout(() => {
         void (async () => {
           if (nextSession) {
             const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+            if (authGeneration !== workspaceGeneration.current) return;
             if (!assurance.error && assurance.data.nextLevel === 'aal2' && assurance.data.currentLevel !== 'aal2') {
               setMfaRequired(true); setWorkspaceLoading(false); return;
             }
             setMfaRequired(false);
             await observeAccountSession().catch(() => undefined);
           }
+          if (authGeneration !== workspaceGeneration.current) return;
           await loadWorkspace(nextSession);
-        })();
+        })().catch((error: unknown) => {
+          if (authGeneration !== workspaceGeneration.current) return;
+          setWorkspaceError(error instanceof Error ? error.message : 'Could not verify your session.');
+          setWorkspaceLoading(false);
+        });
       }, 0);
     });
     return () => {
       if (workspaceLoadTimer !== undefined) window.clearTimeout(workspaceLoadTimer);
+      ++workspaceGeneration.current;
       subscription.subscription.unsubscribe();
     };
   }, [loadWorkspace]);
@@ -359,14 +366,10 @@ function MainApp() {
         isPlatformResearcher={isPlatformResearcher}
         platformStaffRole={platformStaffRole}
         campaigns={campaigns}
-        setCampaigns={setCampaigns}
         contentItems={contentItems}
         setContentItems={setContentItems}
         leads={leads}
         setLeads={setLeads}
-        directoryProfiles={directoryProfiles}
-        setDirectoryProfiles={setDirectoryProfiles}
-        influencerProfiles={influencerProfiles}
         socialConnections={socialConnections}
         setSocialConnections={setSocialConnections}
         brandKit={brandKit}
@@ -431,7 +434,7 @@ function NavGroupBlock({
       <div className="space-y-1">
         {group.items.map((item, itemIdx) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive = isWorkspaceNavigationItemActive(item.id, activeTab);
           const itemNum = String(itemNumOffset + itemIdx + 1).padStart(2, '0');
           return (
             <button

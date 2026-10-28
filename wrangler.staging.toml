@@ -21,5 +21,16 @@ new_sqlite_classes = ["ManohubContainer"]
 
 [vars]
 MANOHUB_ENVIRONMENT = "staging"
+RELEASE_VERSION = "development"
+CONTAINER_REVISION = "development"
+APP_URL = "STAGING_APP_URL"
 VITE_SUPABASE_URL = "STAGING_SUPABASE_URL"
 VITE_SUPABASE_ANON_KEY = "STAGING_SUPABASE_ANON_KEY"
+
+[observability]
+enabled = true
+
+[[send_email]]
+name = "EMAIL"
+allowed_sender_addresses = ["noreply@quantixsl.com"]
+remote = true

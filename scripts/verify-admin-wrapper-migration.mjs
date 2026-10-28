@@ -1,0 +1,43 @@
+// Isolated PostgreSQL regression; never executes against the live database.
+import { pathToFileURL } from 'node:url';
+const modulePath = process.env.PGLITE_MODULE_PATH;
+if (!modulePath) throw new Error('Set PGLITE_MODULE_PATH to an installed @electric-sql/pglite/dist/index.js');
+const { PGlite } = await import(pathToFileURL(modulePath).href);
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+try {
+ await db.exec(`create role anon; create role authenticated; create role service_role;
+ create schema auth; create schema private;
+ create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('test.user',true),'')::uuid$$;
+ grant usage on schema auth,private,public to anon,authenticated,service_role;
+ create table public.profiles(id uuid primary key,platform_role text);
+ create table public.platform_staff_members(user_id uuid,role text,status text);
+ `);
+ const source=fs.readFileSync('migrations/manohub-new-project/77_platform_staff_legacy_fallback_hardening.sql','utf8');
+ await db.exec(source);
+ await db.exec(`create function public.is_platform_admin() returns boolean language sql stable security invoker set search_path='' as $$select private.is_platform_admin()$$;
+ grant execute on function public.is_platform_admin() to anon,authenticated;
+ insert into public.profiles values('00000000-0000-0000-0000-000000000001','user'),('00000000-0000-0000-0000-000000000002','admin');
+ create table public.test_subscriptions(owner_id uuid);
+ insert into public.test_subscriptions values('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
+ alter table public.test_subscriptions enable row level security;
+ create policy read_own on public.test_subscriptions for select to authenticated using(public.is_platform_admin() or owner_id=auth.uid());
+ grant select on public.test_subscriptions to authenticated;
+ select set_config('test.user','00000000-0000-0000-0000-000000000001',false);
+ set role authenticated;`);
+ await assert.rejects(db.query('select * from public.test_subscriptions'),/permission denied for function is_platform_admin/);
+ await db.exec('reset role');
+ await db.exec(fs.readFileSync('migrations/manohub-new-project/98_platform_admin_wrapper_permissions.sql','utf8'));
+ await db.exec('set role authenticated');
+ assert.equal((await db.query('select * from public.test_subscriptions')).rows.length,1);
+ assert.equal((await db.query('select public.is_platform_admin() as allowed')).rows[0].allowed,false);
+ await assert.rejects(db.query('select private.is_platform_admin()'),/permission denied/);
+ await db.exec("reset role; select set_config('test.user','00000000-0000-0000-0000-000000000002',false); set role authenticated;");
+ assert.equal((await db.query('select public.is_platform_admin() as allowed')).rows[0].allowed,true);
+ await db.exec("reset role; insert into public.platform_staff_members values ('00000000-0000-0000-0000-000000000002','administrator','revoked'); set role authenticated;");
+ assert.equal((await db.query('select public.is_platform_admin() as allowed')).rows[0].allowed,false);
+ await db.exec("reset role; select set_config('test.user','',false); set role anon;");
+ assert.equal((await db.query('select public.is_platform_admin() as allowed')).rows[0].allowed,false);
+ console.log('PASS: reproduced original RLS failure; migration restores own-row reads, hides foreign rows, preserves revoked-admin and anonymous denial, and blocks direct private calls.');
+} finally {await db.close();}

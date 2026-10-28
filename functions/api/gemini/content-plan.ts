@@ -1,5 +1,5 @@
+import { parseJsonArrayLoose, validCampaignDateRange } from '../../../src/lib/aiResponses';
 import { Env, requireUserId, checkRateLimit, jsonResponse, errorResponse, callGemini, MAX_FIELD_LENGTH } from '../_lib/shared';
-import { getMockContentPlan, parseJsonArrayLoose } from '../_lib/mocks';
 
 interface EventContext {
   request: Request;
@@ -38,6 +38,9 @@ export const onRequestPost = async ({ request, env }: EventContext): Promise<Res
   if (typeof startDate !== 'string' || typeof endDate !== 'string') {
     return errorResponse('startDate and endDate are required', 400);
   }
+  if (!validCampaignDateRange(startDate, endDate)) {
+    return errorResponse('Use valid campaign dates with the end date on or after the start date.', 400);
+  }
   for (const [key, value] of Object.entries({ campaignObjective, campaignDescription, toneOfVoice, brandName, tagline, mission })) {
     if (value !== undefined && value !== null && (typeof value !== 'string' || value.length > MAX_FIELD_LENGTH)) {
       return errorResponse(`${key} must be a string under ${MAX_FIELD_LENGTH} characters.`, 400);
@@ -63,7 +66,7 @@ Respond with ONLY a valid JSON array (no markdown, no commentary, no code fences
     return jsonResponse({ items: items || [] });
   } catch (err: any) {
     if (err?.message === 'NO_KEY') {
-      return jsonResponse({ items: getMockContentPlan(campaignName, startDate, endDate, brandName) });
+      return jsonResponse({ error: { code: 'AI_UNAVAILABLE', message: 'AI generation is currently unavailable. You can still write and save drafts manually.' } }, 503);
     }
     console.error('Gemini Content Plan Error:', err);
     return errorResponse('An error occurred calling the AI assist service. Please try again shortly.', 500);

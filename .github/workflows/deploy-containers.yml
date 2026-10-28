@@ -13,6 +13,10 @@ on:
         description: 'Validate the release without deploying'
         type: boolean
         default: true
+      staging_only:
+        description: 'Deploy and verify staging without promoting production'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -118,7 +122,10 @@ jobs:
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Staging is not configured; production will use the validated legacy promotion path."
+            if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.dry_run }}" = "false" ]; then
+              echo "::error::A dedicated staging environment must be configured before deployment."
+              exit 1
+            fi
           fi
       - name: Resolve release version
         id: release
@@ -139,39 +146,123 @@ jobs:
     environment: staging
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify staging prerequisites
+        env:
+          STAGING_URL: ${{ vars.MANOHUB_STAGING_URL }}
+          STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
+          STAGING_SERVICE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          MIGRATIONS_COMMIT: ${{ vars.STAGING_DATABASE_MIGRATIONS_COMMIT }}
+        run: |
+          node --input-type=module <<'JS'
+          import { verifyMigrationAcknowledgement, verifyStagingServiceKey } from './scripts/staging-preflight.mjs';
+          const required = ['STAGING_URL','STAGING_SUPABASE_URL','STAGING_SUPABASE_ANON_KEY','STAGING_SERVICE_KEY'];
+          const missing = required.filter(name => !process.env[name]);
+          if (missing.length) throw new Error(`Missing staging settings: ${missing.join(', ')}`);
+          const app = new URL(process.env.STAGING_URL);
+          const db = new URL(process.env.STAGING_SUPABASE_URL);
+          if (app.protocol !== 'https:' || db.protocol !== 'https:' || db.hostname === 'rffjehmbrycztiekcyho.supabase.co') {
+            throw new Error('Use a dedicated HTTPS staging app and Supabase project, separate from production.');
+          }
+          verifyMigrationAcknowledgement(process.env.MIGRATIONS_COMMIT, process.env.GITHUB_SHA);
+          await verifyStagingServiceKey(process.env.STAGING_SUPABASE_URL, process.env.STAGING_SERVICE_KEY);
+          JS
+      - name: Capture superseded staging routing identities
+        id: routing
+        run: node scripts/stop-staging-revisions.mjs --capture
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Write staging build environment
         env:
           STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
           STAGING_SUPABASE_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
+          STAGING_URL: ${{ vars.MANOHUB_STAGING_URL }}
         run: |
           printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\n' "$STAGING_SUPABASE_URL" "$STAGING_SUPABASE_ANON_KEY" > .env
-          sed -i "s|STAGING_SUPABASE_URL|$STAGING_SUPABASE_URL|g; s|STAGING_SUPABASE_ANON_KEY|$STAGING_SUPABASE_ANON_KEY|g" wrangler.staging.toml
+          sed -i "s|STAGING_SUPABASE_URL|$STAGING_SUPABASE_URL|g; s|STAGING_SUPABASE_ANON_KEY|$STAGING_SUPABASE_ANON_KEY|g; s|RELEASE_VERSION = .*|RELEASE_VERSION = \"${GITHUB_SHA}-build\"|; s|STAGING_APP_URL|$STAGING_URL|g" wrangler.staging.toml
+          printf '{"commit":"%s"}\n' "$GITHUB_SHA" > public/release.json
+          sed -i "s|CONTAINER_REVISION = .*|CONTAINER_REVISION = \"${GITHUB_SHA}-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\"|" wrangler.staging.toml
       - name: Validate staging release
         run: npx wrangler deploy --config wrangler.staging.toml --dry-run
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy staging container
-        run: npx wrangler deploy --config wrangler.staging.toml --containers-rollout=immediate
+        run: |
+          set -o pipefail
+          npx wrangler deploy --config wrangler.staging.toml --containers-rollout=immediate | tee staging-container-deploy.log
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Verify staging health
+      - name: Configure protected staging uploads
         env:
-          STAGING_URL: ${{ vars.MANOHUB_STAGING_URL }}
+          STAGING_SERVICE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          response=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 "${STAGING_URL%/}/api/health")
-          node -e 'const h=JSON.parse(process.argv[1]);if(h.status!=="healthy"||h.environment!=="staging")process.exit(1)' "$response"
+          sed -i "s|RELEASE_VERSION = .*|RELEASE_VERSION = \"${GITHUB_SHA}\"|" wrangler.staging.toml
+          printf '%s' "$STAGING_SERVICE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config wrangler.staging.toml
+      - name: Configure staging Cloudflare email sender
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'JS'
+          import { spawnSync } from 'node:child_process';
+          import { randomBytes } from 'node:crypto';
+          const args = ['wrangler', 'secret', 'list', '--config', 'wrangler.staging.toml'];
+          const listed = spawnSync('npx', args, { encoding: 'utf8' });
+          if (listed.status !== 0) throw new Error('Could not inspect staging secret names.');
+          const secrets = JSON.parse(listed.stdout);
+          if (!/^[a-f0-9]{32}$/i.test(process.env.CLOUDFLARE_ACCOUNT_ID || '')) throw new Error('Invalid Cloudflare account identifier.');
+          const settings = {
+            EMAIL_PROVIDER: 'cloudflare-worker',
+            EMAIL_FROM: 'noreply@quantixsl.com',
+            CLOUDFLARE_EMAIL_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
+          };
+          if (!secrets.some(secret => secret.name === 'EMAIL_BRIDGE_SECRET')) {
+            settings.EMAIL_BRIDGE_SECRET = randomBytes(40).toString('hex');
+            console.log(`::add-mask::${settings.EMAIL_BRIDGE_SECRET}`);
+          }
+          const result = spawnSync('npx', ['wrangler', 'secret', 'bulk', '--config', 'wrangler.staging.toml'], {
+            input: JSON.stringify(settings), encoding: 'utf8', stdio: ['pipe', 'inherit', 'inherit'],
+          });
+          if (result.status !== 0) throw new Error('Staging email configuration failed.');
+          JS
+      - name: Publish final staging release
+        run: |
+          node scripts/wait-container-rollout.mjs
+          sed -i "s|CONTAINER_REVISION = .*|CONTAINER_REVISION = \"${GITHUB_SHA}-ready-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\"|" wrangler.staging.toml
+          npx wrangler deploy --config wrangler.staging.toml --containers-rollout=none
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONTAINER_APPLICATION_NAME: manohub-staging-container-manohubcontainer
+          CONTAINER_DEPLOY_LOG: staging-container-deploy.log
+      - name: Stop superseded staging routing instances
+        run: node scripts/stop-staging-revisions.mjs
+        env:
+          SUPERSEDED_STAGING_NAMES: ${{ steps.routing.outputs.superseded }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Verify staging health and release boundaries
+        env:
+          STAGING_TARGET_URL: ${{ vars.MANOHUB_STAGING_URL }}
+          EXPECTED_RELEASE_COMMIT: ${{ github.sha }}
+        run: node scripts/verify-staging-release.mjs
 
   production:
     name: Promote and verify production
     needs: [validate, staging]
-    if: ${{ always() && needs.validate.result == 'success' && (needs.staging.result == 'success' || needs.staging.result == 'skipped') && (github.event_name == 'push' || !inputs.dry_run) }}
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.validate.result == 'success' && needs.staging.result == 'success' && (github.event_name == 'push' || (!inputs.dry_run && !inputs.staging_only)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
@@ -184,6 +275,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify production migration and upload prerequisites
+        env:
+          MIGRATIONS_COMMIT: ${{ vars.PRODUCTION_DATABASE_MIGRATIONS_COMMIT }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ "$MIGRATIONS_COMMIT" != "$GITHUB_SHA" ] || [ -z "$SERVICE_KEY" ]; then
+            echo "::error::Verify migrations 96–97, set PRODUCTION_DATABASE_MIGRATIONS_COMMIT to this release commit, and configure SUPABASE_SERVICE_ROLE_KEY before promotion."
+            exit 1
+          fi
       - name: Write production build environment
         run: |
           cat > .env <<'EOF'
@@ -192,26 +292,40 @@ jobs:
           EOF
           sed -i "s|RELEASE_VERSION = .*|RELEASE_VERSION = \"${GITHUB_SHA}-build\"|" wrangler.containers.toml
           printf '{"commit":"%s"}\n' "$GITHUB_SHA" > public/release.json
+          sed -i "s|CONTAINER_REVISION = .*|CONTAINER_REVISION = \"${GITHUB_SHA}-build-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\"|" wrangler.containers.toml
       - name: Deploy production container
         run: npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate | tee wrangler-production-deploy.log
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      # A secret update publishes a Worker version. Run it only after the new
-      # container image exists so the release-scoped identity cannot start on
-      # the preceding image during the deployment gap.
+      - name: Configure protected production uploads
+        env:
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: printf '%s' "$SERVICE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config wrangler.containers.toml
+      # Secret updates do not apply edited local vars. Explicitly deploy the
+      # final identity after the image and all secret bindings are available.
       - name: Set optional Gemini secret
         run: |
           sed -i "s|RELEASE_VERSION = .*|RELEASE_VERSION = \"${GITHUB_SHA}\"|" wrangler.containers.toml
           if [ -n "$GEMINI_API_KEY" ]; then
             printf '%s' "$GEMINI_API_KEY" | npx wrangler secret put GEMINI_API_KEY --config wrangler.containers.toml
-          else
-            npx wrangler deploy --config wrangler.containers.toml --containers-rollout=immediate
           fi
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Publish final production release
+        run: |
+          node scripts/wait-container-rollout.mjs
+          sed -i "s|CONTAINER_REVISION = .*|CONTAINER_REVISION = \"${GITHUB_SHA}-ready-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\"|" wrangler.containers.toml
+          npx wrangler deploy --config wrangler.containers.toml --containers-rollout=none
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CONTAINER_APPLICATION_NAME: manohub-container-manohubcontainer
+          CONTAINER_DEPLOY_LOG: wrangler-production-deploy.log
       - name: Resolve production URL
         id: production-url
         env:
@@ -254,7 +368,7 @@ jobs:
           test -n "$asset"
           curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 "${PRODUCTION_URL%/}${asset}" | grep -Fq 'Customer Support Centre'
           bundle=$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 "${PRODUCTION_URL%/}${asset}")
-          for label in 'Business Directory' 'Influencer Marketplace' 'Events Management' 'Tourism Management' 'Automated Subscription Billing' 'Performance & Attribution' 'Tenders & Document Intelligence' 'Pipeline & Recommendations' 'Billing & Renewals'; do
+          for label in 'Business Directory' 'Automated Subscription Billing' 'Performance & Attribution' 'Tenders & Document Intelligence' 'Pipeline & Recommendations' 'Billing & Renewals'; do
             printf '%s' "$bundle" | grep -Fq "$label"
           done
       - name: Verify production performance

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import {
   ArrowRight,
   BookOpen,
@@ -9,7 +9,6 @@ import {
   History,
   Landmark,
   Mail,
-  Megaphone,
   ShieldCheck,
   ServerCog,
   LifeBuoy,
@@ -35,18 +34,15 @@ const AdministratorControlCentre = lazy(() =>
   import('./AdministratorControlCentre').then((module) => ({ default: module.AdministratorControlCentre })),
 );
 
+const SupportCasesWorkspace = lazy(() =>
+  import('../service-requests/AdminServiceRequestsWorkspace').then(module => ({ default: module.AdminServiceRequestsWorkspace })),
+);
+
 const PLATFORM_ADMIN_TABS = ['overview', 'audience-hub', 'operations-hub', 'admin-jobs', 'admin-organizations', 'admin-resilience', 'admin-usage', 'admin-authorization', 'admin-commands', 'admin-access'] as const;
 export type PlatformAdminTab = (typeof PLATFORM_ADMIN_TABS)[number];
 
 export function isPlatformAdminWorkspaceTab(tab: string): tab is PlatformAdminTab {
   return PLATFORM_ADMIN_TABS.includes(tab as PlatformAdminTab);
-}
-
-interface PlatformAdminMetrics {
-  activeCampaigns: number;
-  publishedContent: number;
-  activeLeads: number;
-  trackedClicks: number;
 }
 
 interface HubItem {
@@ -58,7 +54,6 @@ interface HubItem {
 
 interface PlatformAdminWorkspaceProps {
   activeTab: PlatformAdminTab;
-  metrics: PlatformAdminMetrics;
   onNavigate: (tab: string) => void;
   platformStaffRole: PlatformStaffRole | null;
 }
@@ -106,108 +101,8 @@ function WorkspaceHub({
   );
 }
 
-function PlatformOverview({
-  metrics,
-  onNavigate,
-}: {
-  metrics: PlatformAdminMetrics;
-  onNavigate: (tab: string) => void;
-}) {
-  const stats = [
-    { label: 'Active campaigns', value: metrics.activeCampaigns, accent: 'bg-emerald-400' },
-    { label: 'Published content', value: metrics.publishedContent, accent: 'bg-violet-400' },
-    { label: 'Active leads', value: metrics.activeLeads, accent: 'bg-amber-300' },
-    { label: 'Tracked clicks', value: metrics.trackedClicks, accent: 'bg-sky-400' },
-  ];
-  const actions: HubItem[] = [
-    {
-      id: 'content-cms',
-      title: 'Publish content',
-      description: 'Create and manage pages, articles, announcements, and editorial workflows.',
-      icon: BookOpen,
-    },
-    {
-      id: 'campaign-builder',
-      title: 'Manage campaigns',
-      description: 'Plan advertising campaigns, schedule delivery, and coordinate creative assets.',
-      icon: Megaphone,
-    },
-    {
-      id: 'admin-tender-review',
-      title: 'Review tenders',
-      description: 'Approve, return, or reject tender submissions awaiting platform moderation.',
-      icon: ShieldCheck,
-    },
-    {
-      id: 'operations-hub',
-      title: 'Handle requests',
-      description: 'Process verification, subscription, service, and revenue operations in one place.',
-      icon: UserCheck,
-    },
-  ];
-
-  return (
-    <div className="space-y-6 text-left">
-      <section className="relative overflow-hidden border-2 border-slate-950 bg-slate-950 p-6 text-white md:p-8">
-        <div className="absolute -right-10 -top-16 h-48 w-48 rounded-full bg-violet-500/30 blur-3xl" />
-        <div className="absolute -bottom-20 right-32 h-44 w-44 rounded-full bg-emerald-400/20 blur-3xl" />
-        <div className="relative">
-          <p className="font-mono text-[9px] font-bold uppercase tracking-[.24em] text-emerald-300">Platform administration</p>
-          <h2 className="mt-3 max-w-2xl font-display text-3xl font-extrabold !text-white md:text-4xl">
-            One clear view of Hyderra operations.
-          </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-            Publish content, run advertising, review tenders, and support customers from focused workspaces.
-          </p>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="relative overflow-hidden border-2 border-slate-950 bg-white p-5">
-            <span className={`absolute inset-x-0 top-0 h-1.5 ${stat.accent}`} />
-            <span className="font-mono text-[9px] font-bold uppercase tracking-[.14em] text-slate-500">{stat.label}</span>
-            <span className="mt-3 block font-display text-3xl font-extrabold text-slate-950">{stat.value}</span>
-          </div>
-        ))}
-      </section>
-
-      <section>
-        <div className="mb-4">
-          <p className="font-mono text-[9px] font-bold uppercase tracking-[.2em] text-violet-700">Quick actions</p>
-          <h3 className="mt-1 font-display text-xl font-extrabold text-slate-950">Continue your work</h3>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {actions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <button
-                key={action.id}
-                onClick={() => onNavigate(action.id)}
-                className="group flex items-start gap-4 border-2 border-slate-950 bg-white p-5 text-left transition-transform hover:-translate-y-0.5 hover:shadow-[6px_6px_0_0_#0F172A]"
-              >
-                <span className="grid h-10 w-10 shrink-0 place-items-center bg-emerald-100 text-emerald-700">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span>
-                  <span className="flex items-center gap-2 font-display text-base font-extrabold text-slate-950">
-                    {action.title}
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-500">{action.description}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-    </div>
-  );
-}
-
 export function PlatformAdminWorkspace({
   activeTab,
-  metrics,
   onNavigate,
   platformStaffRole,
 }: PlatformAdminWorkspaceProps) {
@@ -266,11 +161,15 @@ export function PlatformAdminWorkspace({
     );
   }
 
+  return <CustomerSupportWorkspace onNavigate={onNavigate} />;
+}
+
+function OperationalRequests({ onNavigate }: { onNavigate: (tab: string) => void }) {
   return (
     <WorkspaceHub
       eyebrow="Operations"
-      title="Customer Requests"
-      description="Process verification, subscriptions and support work without crowding the main navigation."
+      title="Operational requests"
+      description="Review verification, subscription, billing and platform operations."
       onNavigate={onNavigate}
       items={[
         {
@@ -284,12 +183,6 @@ export function PlatformAdminWorkspace({
           title: 'Subscriptions',
           description: 'Approve plans and manage pending subscription requests.',
           icon: CreditCard,
-        },
-        {
-          id: 'admin-services',
-          title: 'Service requests',
-          description: 'Respond to support and managed-service requests.',
-          icon: UserCheck,
         },
         {
           id: 'admin-advert-revenue',
@@ -342,4 +235,18 @@ export function PlatformAdminWorkspace({
       ]}
     />
   );
+}
+
+export function CustomerSupportWorkspace({ onNavigate }: { onNavigate: (tab: string) => void }) {
+  const [view, setView] = useState<'cases' | 'operations'>('cases');
+  return <div className="space-y-6">
+    <h2 className="font-display text-2xl font-bold text-slate-950">Customer Support Centre</h2>
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Support views">
+      <button type="button" aria-pressed={view === 'cases'} onClick={() => setView('cases')} className="btn-geometric-secondary">Cases & service requests</button>
+      <button type="button" aria-pressed={view === 'operations'} onClick={() => setView('operations')} className="btn-geometric-secondary">Operational requests</button>
+    </div>
+    {view === 'cases'
+      ? <Suspense fallback={<div role="status">Loading support cases…</div>}><SupportCasesWorkspace isPlatformAdmin /></Suspense>
+      : <OperationalRequests onNavigate={onNavigate} />}
+  </div>;
 }
