@@ -8,12 +8,12 @@ export async function openAdminBrowser(email,password){
   await page.getByPlaceholder('name@salonemail.com').fill(email);
   await page.locator('input[type=password]').fill(password);
   await page.getByRole('button',{name:'Sign In',exact:true}).click();
-  await page.getByRole('button',{name:'Automated Subscription Billing',exact:true}).click();
+  await page.getByRole('button',{name:/Automated Subscription Billing/}).click();
   await expect(page.getByRole('heading',{name:'Subscription Lifecycle',exact:true})).toBeVisible();
   console.log('PASS: real browser admin password sign-in and subscription navigation.');
   return {async review(reference,decision){
    await page.reload();
-   await page.getByRole('button',{name:'Automated Subscription Billing',exact:true}).click();
+   await page.getByRole('button',{name:/Automated Subscription Billing/}).click();
    const card=page.locator('article').filter({hasText:reference});
    await expect(card).toBeVisible();
    if(decision==='rejected')page.once('dialog',dialog=>dialog.accept('[TEST] Synthetic staging browser rejection; no funds transferred.'));
