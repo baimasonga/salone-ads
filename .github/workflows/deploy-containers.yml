@@ -25,6 +25,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Stop superseded staging instances to free existing capacity
+        run: node scripts/diagnostics/stop-superseded-staging.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Inspect provider without sending a message
         run: node scripts/diagnostics/staging-admin-acceptance.mjs
       - name: Ensure temporary administrator is removed
