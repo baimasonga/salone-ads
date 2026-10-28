@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createAudienceEmailModule } from './audienceEmail';
 import { sendEmail } from './emailProvider';
-vi.mock('./emailProvider', () => ({ sendEmail: vi.fn(async () => 'message-id'), assertEmailConfigured: vi.fn(), supportsEmailRetryDeduplication: () => process.env.EMAIL_PROVIDER !== 'cloudflare' }));
+vi.mock('./emailProvider', () => ({ sendEmail: vi.fn(async () => 'message-id'), assertEmailConfigured: vi.fn(), supportsEmailRetryDeduplication: () => !['cloudflare','cloudflare-worker'].includes(process.env.EMAIL_PROVIDER ?? '') }));
 
 function fixture(results: Array<{ data?: unknown; error?: unknown }>) {
   const writes: unknown[] = [];

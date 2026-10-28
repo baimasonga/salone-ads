@@ -57,17 +57,15 @@ GitHub API access works, but the current integration receives HTTP 403 when
 reading Actions secrets and variables. Their presence is therefore unverified;
 this does not establish that they are missing from GitHub.
 
-For Cloudflare Email Sending (Beta), see `docs/cloudflare-email-sending.md`.
-Select the provider explicitly with the staging Worker's `EMAIL_PROVIDER` secret
-set to `cloudflare`; configure `EMAIL_FROM`, `CLOUDFLARE_EMAIL_ACCOUNT_ID` and
-`CLOUDFLARE_EMAIL_API_TOKEN` as Worker secrets. The token must have Email Sending
-permission for the sending account. Do not substitute a deployment token or
-copy production credentials. Resend remains the default for existing deployments.
+Staging Cloudflare Email Sending uses the native Worker binding and an automatic
+server-only bridge credential; see `docs/cloudflare-email-sending.md`. The sender
+is `noreply@quantixsl.com`. No sending API token is required in native mode.
 
 `EMAIL_DISPATCH_SECRET` separately enables scheduled campaign work; leave it
 unset while validating a single approved staging email. Resend deployments use
-`RESEND_API_KEY`, `RESEND_FROM_EMAIL` and `RESEND_WEBHOOK_SECRET`. The workflow
-sets staging `APP_URL` from `MANOHUB_STAGING_URL`; provider keys remain server-only.
+`RESEND_API_KEY`, `RESEND_FROM_EMAIL` and `RESEND_WEBHOOK_SECRET`. Provider keys
+and bridge credentials remain server-only. Production provider configuration is
+separate and is not changed by a staging release.
 
 ## Back up and verify the schema
 

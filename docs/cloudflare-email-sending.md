@@ -1,56 +1,66 @@
 # Cloudflare Email Sending (Beta)
 
-The Express container can send using Cloudflare's documented REST endpoint:
-`POST /accounts/{account_id}/email/sending/send`. This uses the enabled sending
-domain; it does not require a Resend account or the Email Routing send binding.
+Staging uses Cloudflare's native Workers Email Sending binding. The Express
+container calls a private authenticated route in its own front Worker; the Worker
+calls `EMAIL.send()` and returns the native provider message ID. This avoids an
+external sending API token. Existing Resend and Cloudflare REST adapters remain
+available for other explicitly configured deployments.
 
-Configure these secrets on **manohub-staging-container**, independently of
-production:
+## Staging configuration
 
-| Secret | Value |
+`wrangler.staging.toml` binds `EMAIL` and restricts the sender to
+`noreply@quantixsl.com`. That domain must be enabled in Cloudflare Email Sending
+in the same account as the staging Worker. The deployment workflow sets:
+
+| Server-only setting | Purpose |
 | --- | --- |
-| `EMAIL_PROVIDER` | `cloudflare` |
-| `EMAIL_FROM` | An operator-approved sender address on the enabled domain |
-| `CLOUDFLARE_EMAIL_ACCOUNT_ID` | The Cloudflare account containing that sending domain |
-| `CLOUDFLARE_EMAIL_API_TOKEN` | A dedicated API token permitted to send email for that account |
+| `EMAIL_PROVIDER=cloudflare-worker` | Select the native binding adapter |
+| `EMAIL_FROM=noreply@quantixsl.com` | Fixed operator-approved sender |
+| `EMAIL_BRIDGE_SECRET` | Random server credential generated once by CI |
+| `APP_URL` / forwarded `EMAIL_RELAY_URL` | Staging HTTPS origin |
 
-These settings are forwarded to the container at startup. Use the existing
-release workflow to create a fresh container revision after changing secrets.
-Never use `VITE_` variables for provider credentials. No sending address is
-chosen automatically, and a verified sending domain does not establish API-token
-permission. Do not copy a deployment token into the email-token binding.
+The bridge secret is forwarded only to the server container, never a `VITE_`
+variable or a browser. The Worker checks it before inspecting the body, caps the
+request size, fixes the sender, and accepts only one recipient per request.
+Authenticated GET readiness checks send nothing. Unauthenticated bridge requests
+are denied; release verification includes that boundary.
 
-For a first acceptance test, use only a recipient expressly approved by its
-owner. Resend's test-recipient service is not a Cloudflare sandbox. The admin
-email test endpoint submits one message; it does not trigger campaign dispatch.
-Keep `EMAIL_DISPATCH_SECRET` unset until bulk/scheduled delivery is approved.
+A single test email uses an expressly approved recipient. Do not use Resend's
+sandbox addresses as a Cloudflare sandbox. Keep `EMAIL_DISPATCH_SECRET` unset
+until scheduled/bulk campaign delivery is approved. Native message acceptance
+is not proof of inbox delivery. Cloudflare delivery, bounce and complaint event
+ingestion remains unimplemented; provider logs and operational reconciliation
+are still needed before full campaign production acceptance.
 
-The REST response reports delivered, queued, and permanently bounced recipients.
-The adapter accepts only the requested recipient in delivered/queued and rejects
-permanent bounces. It records Cloudflare's `message_id` when returned. Its fallback
-`cloudflare-request:` reference is application correlation, **not** a Cloudflare
-message ID. Neither identifier is an inbox-delivery receipt.
-The existing `sent` state records provider acceptance, which may mean queued.
+Cloudflare does not document send deduplication. Neither the server nor bridge
+automatically retries HTTP sends. Uncertain audience sends stay `sending`;
+tender alerts with prior attempts also require reconciliation. Inspect provider
+logs before a manual retry. Existing Resend webhook and deduplication behavior
+remain available when Resend is selected.
 
-Cloudflare's documented REST contract does not promise idempotent sends. There
-are no automatic HTTP retries. An uncertain audience send stays `sending` and
-requires reconciliation; tender alerts with any prior attempt are similarly
-blocked from automatic replay. This trades automatic recovery for avoiding
-possible duplicate email. Inspect provider logs before retrying manually.
+`GET /api/audience-email/provider-status` requires authentication and platform
+administrator access, disables caching, and exposes no secret values. In native
+mode it checks bridge readiness without sending; in legacy REST mode it can
+verify a token and optionally read a hexadecimal `zoneId`'s sending configuration.
+Token validity alone does not prove permission to use the sending REST endpoint.
 
-Existing Resend webhook verification remains available for Resend deployments.
-Cloudflare bounce, complaint and delivery event ingestion is not implemented in
-this change: provider logs remain necessary, and Cloudflare campaign dispatch
-should remain disabled until event/suppression handling is completed. A successful
-single-message send must not be described as full campaign-delivery acceptance.
+The legacy REST adapter selects `EMAIL_PROVIDER=cloudflare` and uses
+`CLOUDFLARE_EMAIL_API_TOKEN`, `CLOUDFLARE_EMAIL_ACCOUNT_ID` and `EMAIL_FROM`.
+Its `cloudflare-request:` fallback is application correlation, not an inbox
+receipt. No existing stored API token is deleted by selecting the native adapter.
+
+## Staging instance capacity
+
+Each release has a distinct container routing identity. Before deployment CI
+records the previous identity and this run's temporary build identity. After the
+new image is ready and the final Worker is published, a short-lived authenticated
+maintenance Worker stops only those captured superseded staging identities.
+The current identity is explicitly refused, names are bounded/validated, and
+the maintenance Worker is deleted in `finally`. Durable Object data is retained.
+This prevents dormant old/build containers from exhausting the unchanged
+staging two-instance limit. This cleanup is not enabled for production.
 
 References:
+- https://developers.cloudflare.com/email-service/api/send-emails/workers-api/
 - https://developers.cloudflare.com/email-service/api/send-emails/rest-api/
 - https://developers.cloudflare.com/email-service/reference/event-subscriptions/
-
-Administrators can use `GET /api/audience-email/provider-status` for read-only
-configuration/token checks. An optional 32-character hexadecimal `zoneId` also
-checks permission to read that zone's sending-domain status. The endpoint requires
-both authentication and platform-admin access, disables caching, and never
-returns token values or full provider response bodies. Token validity alone does
-not establish Email Sending permission.

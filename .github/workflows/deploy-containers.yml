@@ -174,6 +174,12 @@ jobs:
           verifyMigrationAcknowledgement(process.env.MIGRATIONS_COMMIT, process.env.GITHUB_SHA);
           await verifyStagingServiceKey(process.env.STAGING_SUPABASE_URL, process.env.STAGING_SERVICE_KEY);
           JS
+      - name: Capture superseded staging routing identities
+        id: routing
+        run: node scripts/stop-staging-revisions.mjs --capture
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Write staging build environment
         env:
           STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
@@ -211,19 +217,21 @@ jobs:
         run: |
           node --input-type=module <<'JS'
           import { spawnSync } from 'node:child_process';
+          import { randomBytes } from 'node:crypto';
           const args = ['wrangler', 'secret', 'list', '--config', 'wrangler.staging.toml'];
           const listed = spawnSync('npx', args, { encoding: 'utf8' });
           if (listed.status !== 0) throw new Error('Could not inspect staging secret names.');
           const secrets = JSON.parse(listed.stdout);
-          if (!secrets.some(secret => secret.name === 'CLOUDFLARE_EMAIL_API_TOKEN')) {
-            throw new Error('Configure the staging CLOUDFLARE_EMAIL_API_TOKEN Worker secret before deploying.');
-          }
           if (!/^[a-f0-9]{32}$/i.test(process.env.CLOUDFLARE_ACCOUNT_ID || '')) throw new Error('Invalid Cloudflare account identifier.');
           const settings = {
-            EMAIL_PROVIDER: 'cloudflare',
+            EMAIL_PROVIDER: 'cloudflare-worker',
             EMAIL_FROM: 'noreply@quantixsl.com',
             CLOUDFLARE_EMAIL_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
           };
+          if (!secrets.some(secret => secret.name === 'EMAIL_BRIDGE_SECRET')) {
+            settings.EMAIL_BRIDGE_SECRET = randomBytes(40).toString('hex');
+            console.log(`::add-mask::${settings.EMAIL_BRIDGE_SECRET}`);
+          }
           const result = spawnSync('npx', ['wrangler', 'secret', 'bulk', '--config', 'wrangler.staging.toml'], {
             input: JSON.stringify(settings), encoding: 'utf8', stdio: ['pipe', 'inherit', 'inherit'],
           });
@@ -239,6 +247,12 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CONTAINER_APPLICATION_NAME: manohub-staging-container-manohubcontainer
           CONTAINER_DEPLOY_LOG: staging-container-deploy.log
+      - name: Stop superseded staging routing instances
+        run: node scripts/stop-staging-revisions.mjs
+        env:
+          SUPERSEDED_STAGING_NAMES: ${{ steps.routing.outputs.superseded }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Verify staging health and release boundaries
         env:
           STAGING_TARGET_URL: ${{ vars.MANOHUB_STAGING_URL }}

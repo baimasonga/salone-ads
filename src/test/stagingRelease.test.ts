@@ -25,7 +25,7 @@ describe('staging release verification', () => {
       return ready(input, init);
     });
     const result = await verifyStagingRelease({ baseUrl: 'https://staging.example.com', expectedCommit: commit, fetchImpl, sleepImpl });
-    expect(result.checksPassed).toBe(7);
+    expect(result.checksPassed).toBe(8);
     expect(attempts).toBe(3);
     expect(sleepImpl).toHaveBeenCalledTimes(2);
   });
@@ -50,7 +50,7 @@ describe('staging release verification', () => {
       if (new URL(String(input)).pathname === '/api/health' && calls++ === 0) return Response.json({status:'healthy',environment:'staging',release:'b'.repeat(40)});
       return ready(input, init);
     });
-    expect((await verifyStagingRelease({baseUrl:'https://staging.example.com',expectedCommit:commit,fetchImpl,sleepImpl,propagationAttempts:2})).checksPassed).toBe(7);
+    expect((await verifyStagingRelease({baseUrl:'https://staging.example.com',expectedCommit:commit,fetchImpl,sleepImpl,propagationAttempts:2})).checksPassed).toBe(8);
     expect(sleepImpl).toHaveBeenCalledTimes(1);
   });
   it('never accepts a persistently stale release during propagation', async () => {
@@ -66,8 +66,8 @@ describe('staging release verification', () => {
   it('verifies exact release identity and public boundaries using unauthenticated probes', async () => {
     const fetchImpl = fixture();
     const result = await verifyStagingRelease({ baseUrl: 'https://staging.example.com', expectedCommit: commit, fetchImpl });
-    expect(result.checksPassed).toBe(7);
-    expect(fetchImpl).toHaveBeenCalledTimes(7);
+    expect(result.checksPassed).toBe(8);
+    expect(fetchImpl).toHaveBeenCalledTimes(8);
     for (const [, init] of fetchImpl.mock.calls) {
       expect(init?.redirect).toBe('manual');
       expect(new Headers(init?.headers).has('Authorization')).toBe(false);

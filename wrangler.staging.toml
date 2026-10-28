@@ -29,3 +29,8 @@ VITE_SUPABASE_ANON_KEY = "STAGING_SUPABASE_ANON_KEY"
 
 [observability]
 enabled = true
+
+[[send_email]]
+name = "EMAIL"
+allowed_sender_addresses = ["noreply@quantixsl.com"]
+remote = true

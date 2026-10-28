@@ -4,9 +4,10 @@
 // keeps server.ts completely unchanged — the container just runs it as a
 // normal Node process, with Cloudflare routing requests to it.
 import { Container, getContainer } from '@cloudflare/containers';
+import { handleEmailBridge, type EmailBridgeEnv } from './emailBridge';
 import { releaseContainerId, validateStagingConfiguration } from './releaseIdentity';
 
-interface Env {
+interface Env extends EmailBridgeEnv {
   MANOHUB_CONTAINER: DurableObjectNamespace<ManohubContainer>;
   MANOHUB_ENVIRONMENT?: string;
   RELEASE_VERSION?: string;
@@ -56,7 +57,9 @@ export class ManohubContainer extends Container<Env> {
       SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY ?? '',
       EMAIL_PROVIDER: env.EMAIL_PROVIDER ?? 'resend',
       EMAIL_FROM: env.EMAIL_FROM ?? '',
-      CLOUDFLARE_EMAIL_API_TOKEN: env.CLOUDFLARE_EMAIL_API_TOKEN ?? '',
+      EMAIL_RELAY_URL: env.APP_URL ?? '',
+      EMAIL_BRIDGE_SECRET: env.EMAIL_BRIDGE_SECRET ?? '',
+      CLOUDFLARE_EMAIL_API_TOKEN: env.EMAIL_PROVIDER === 'cloudflare' ? env.CLOUDFLARE_EMAIL_API_TOKEN ?? '' : '',
       CLOUDFLARE_EMAIL_ACCOUNT_ID: env.CLOUDFLARE_EMAIL_ACCOUNT_ID ?? '',
       RESEND_API_KEY: env.RESEND_API_KEY ?? '',
       RESEND_FROM_EMAIL: env.RESEND_FROM_EMAIL ?? '',
@@ -68,6 +71,7 @@ export class ManohubContainer extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (new URL(request.url).pathname === '/api/internal/email/send') return handleEmailBridge(request, env);
     // A release-scoped identity guarantees requests cannot reuse a dormant
     // Durable Object that still owns the previous container image.
     const container = getContainer(env.MANOHUB_CONTAINER, releaseContainerId(env));

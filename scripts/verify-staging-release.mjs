@@ -52,7 +52,7 @@ export async function verifyStagingRelease({ baseUrl, expectedCommit, fetchImpl 
     if ((await request(path)).status !== 404) throw new Error(`Backend artifact is exposed: ${path}`);
     checked.push(path);
   }
-  for (const path of ['/api/commands', '/api/security/upload', '/api/gemini/generate']) {
+  for (const path of ['/api/commands', '/api/security/upload', '/api/gemini/generate', '/api/internal/email/send']) {
     if ((await request(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status !== 401) {
       throw new Error(`Unauthenticated request was not denied: ${path}`);
     }

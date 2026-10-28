@@ -55,6 +55,15 @@ describe('Cloudflare Email Sending adapter',()=>{
   vi.stubGlobal('fetch',vi.fn(async()=>Response.json({success:true,result:{message_id:'cloudflare-message',delivered:[input.to]}})));
   expect(await sendEmail(input)).toBe('cloudflare-message');
  });
+ it('uses the authenticated native Worker bridge without an API token',async()=>{
+  vi.stubEnv('EMAIL_PROVIDER','cloudflare-worker');vi.stubEnv('EMAIL_RELAY_URL','https://staging.example.com');vi.stubEnv('EMAIL_BRIDGE_SECRET','b'.repeat(64));vi.stubEnv('CLOUDFLARE_EMAIL_API_TOKEN','');
+  const fetch=vi.fn(async()=>Response.json({id:'native-id'}));vi.stubGlobal('fetch',fetch);
+  expect(await sendEmail(input)).toBe('native-id');expect(supportsEmailRetryDeduplication()).toBe(false);
+  const [url,options]=fetch.mock.calls[0] as unknown as [string,RequestInit];expect(url).toBe('https://staging.example.com/api/internal/email/send');expect(options.headers).toMatchObject({'x-email-bridge-key':'b'.repeat(64)});expect(new Headers(options.headers).has('Authorization')).toBe(false);
+ });
+ it('refuses relay redirects or non-origin credential destinations',()=>{
+  vi.stubEnv('EMAIL_PROVIDER','cloudflare-worker');vi.stubEnv('EMAIL_BRIDGE_SECRET','b'.repeat(64));vi.stubEnv('EMAIL_RELAY_URL','https://user:password@other.example/path');expect(()=>assertEmailConfigured()).toThrow('HTTPS origin');
+ });
  it('preserves existing Resend configuration and adapter',async()=>{
   vi.stubEnv('EMAIL_PROVIDER','resend');vi.stubEnv('RESEND_API_KEY','resend-test');vi.stubEnv('RESEND_FROM_EMAIL','test@example.com');
   expect(await sendEmail(input)).toBe('resend-id');expect(sendResendEmail).toHaveBeenCalledWith(input);expect(supportsEmailRetryDeduplication()).toBe(true);
