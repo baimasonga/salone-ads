@@ -35,7 +35,13 @@ try{
  const session=await call('/auth/v1/token?grant_type=password',{method:'POST',token:anon,body:{email,password}});token=session.data.access_token;assert.ok(token);console.log(`::add-mask::${token}`);
  const rpc=async(name,body,allowFailure=false)=>(await call(`/rest/v1/rpc/${name}`,{method:'POST',token,body,allowFailure}));
  assert.equal((await rpc('is_platform_admin',{})).data,true);console.log('PASS: dedicated temporary account has administrator access.');
- if(process.env.EMAIL_ACCEPTANCE==='true'){
+ if(process.env.EMAIL_DIAGNOSTICS==='true'){
+  const r=await fetch('https://manohub-staging-container.mohamedbangura.workers.dev/api/audience-email/provider-status?zoneId=e220ac0975d99dceffc9a1f3a5013cb5',{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(45000)});
+  const result=await r.json();assert.equal(r.status,200,'Read-only diagnostic endpoint');
+  console.log('Email provider diagnostic:',JSON.stringify(result));
+  console.log('PASS: read-only provider diagnostic completed; no send endpoint called.');
+ }else if(process.env.EMAIL_ACCEPTANCE==='true'){
+
   assert.equal(process.env.APPROVED_TEST_RECIPIENT,'baimasonga@gmail.com','Explicit approved test recipient required');
   const r=await fetch('https://manohub-staging-container.mohamedbangura.workers.dev/api/audience-email/test',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({to:process.env.APPROVED_TEST_RECIPIENT,subject:'Hyderra staging email verification',body:'This is the single staging test email you requested from Hyderra. Sending from noreply@quantixsl.com is configured for the application at iderra.com. No action is required.'}),signal:AbortSignal.timeout(90000)});
   const data=await r.json();
