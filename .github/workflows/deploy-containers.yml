@@ -12,6 +12,7 @@ permissions:
   contents: read
 jobs:
   audit:
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -30,3 +31,32 @@ jobs:
           name: production-readiness-audit
           path: production-readiness-audit.json
           retention-days: 7
+
+  database-audit:
+    runs-on: ubuntu-latest
+    environment: backup
+    timeout-minutes: 5
+    steps:
+      - name: Inspect production metadata in a read-only transaction
+        env:
+          AUDIT_DB_URL: ${{ secrets.SUPABASE_BACKUP_DB_URL }}
+        run: |
+          if [ -z "$AUDIT_DB_URL" ]; then echo 'PRODUCTION_DATABASE_AUDIT_CREDENTIAL_UNAVAILABLE'; exit 0; fi
+          psql "$AUDIT_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          begin read only;
+          set local statement_timeout = '20s';
+          select 'production_migration_metadata' as audit;
+          select to_regclass('public.protected_upload_authorizations') is not null as upload_table_present,
+            to_regprocedure('public.execute_backend_command(text,text,jsonb,text)') is not null as atomic_command_present;
+          select p.proname, p.prosecdef as security_definer, p.proconfig as function_settings,
+            md5(pg_get_functiondef(p.oid)) as definition_md5
+          from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+          where n.nspname='public' and p.proname in ('execute_backend_command','has_protected_upload_authorization','is_platform_admin');
+          select policyname, permissive, cmd from pg_policies where schemaname='storage' and tablename='objects'
+            and policyname in ('protected_storage_insert','protected_storage_update');
+          select backup_kind,status,backup_point_at,completed_at,object_count,byte_count
+            from public.backup_runs order by completed_at desc limit 5;
+          select exercise_type,environment,status,completed_at,achieved_rpo_minutes,achieved_rto_minutes
+            from public.restore_exercises order by completed_at desc limit 5;
+          rollback;
+          SQL
