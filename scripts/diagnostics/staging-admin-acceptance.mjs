@@ -39,6 +39,9 @@ try{
   const r=await fetch('https://manohub-staging-container.mohamedbangura.workers.dev/api/audience-email/provider-status?zoneId=e220ac0975d99dceffc9a1f3a5013cb5',{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(45000)});
   const result=await r.json();assert.equal(r.status,200,'Read-only diagnostic endpoint');
   console.log('Email provider diagnostic:',JSON.stringify(result));
+  if(process.env.EXPECTED_EMAIL_PROVIDER)assert.equal(result.provider,process.env.EXPECTED_EMAIL_PROVIDER);
+  assert.equal(result.configured,true,'Email provider is configured');
+  if(result.provider==='cloudflare-worker')assert.equal(result.nativeBinding?.available,true,'Native bridge readiness required before sending');
   console.log('PASS: read-only provider diagnostic completed; no send endpoint called.');
  }else if(process.env.EMAIL_ACCEPTANCE==='true'){
 

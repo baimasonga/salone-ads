@@ -16,6 +16,7 @@ jobs:
     environment: staging
     timeout-minutes: 8
     env:
+      EXPECTED_EMAIL_PROVIDER: cloudflare-worker
       STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
       STAGING_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
       STAGING_SERVICE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
