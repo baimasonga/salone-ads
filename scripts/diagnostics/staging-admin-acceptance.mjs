@@ -27,7 +27,7 @@ if(process.argv.includes('--cleanup')){await cleanup();process.exit(0);}
 const password=randomBytes(36).toString('base64url')+'aA1!';
 const email=`staging-admin-${process.env.GITHUB_RUN_ID??randomUUID()}-${process.env.GITHUB_RUN_ATTEMPT??1}@example.invalid`;
 console.log(`::add-mask::${password}`);
-let token;
+let token,browser;
 try{
  const created=await call('/auth/v1/admin/users',{method:'POST',body:{email,password,email_confirm:true,user_metadata:{full_name:'[TEST] Temporary staging acceptance administrator'}}});
  state.userId=created.data.id;assert.ok(state.userId);save();
@@ -38,15 +38,20 @@ try{
  const org=await call('/rest/v1/organizations',{method:'POST',body:{name:'[TEST] Temporary billing acceptance '+process.env.GITHUB_RUN_ID,type:'Small Business',country:'Sierra Leone',created_by:state.userId}});state.orgId=org.data[0].id;save();
  await call('/rest/v1/organization_members',{method:'POST',body:{org_id:state.orgId,user_id:state.userId,role:'owner'}});
  const plans=await call('/rest/v1/plans',{method:'POST',body:{code:'test-acceptance-'+randomUUID(),name:'[TEST] Temporary inactive paid plan',description:'Synthetic acceptance fixture; not offered to customers.',monthly_price:10,annual_price:100,currency_code:'SLE',is_active:false}});state.planId=plans.data[0].id;save();
+ if(process.env.BROWSER_ACCEPTANCE==='true'){const {openAdminBrowser}=await import('./staging-admin-browser.mjs');browser=await openAdminBrowser(email,password);}
  for(const decision of ['verified','rejected']){
   const sub=await call('/rest/v1/subscriptions',{method:'POST',body:{org_id:state.orgId,plan_id:plans.data[0].id,status:'pending',billing_cycle:'monthly',payment_method:'manual_bank_transfer',notes:'[TEST] Synthetic evidence only; no payment transferred.'}});const sid=sub.data[0].id;
-  const proof=await rpc('submit_subscription_payment_proof',{p_subscription_id:sid,p_payment_method:'bank_transfer',p_payment_reference:'TEST-NO-PAYMENT-'+randomUUID(),p_amount:plans.data[0].monthly_price,p_payer_name:'[TEST] Synthetic payer',p_receipt_object_path:null});assert.ok(proof.data.id);
+  const reference='TEST-NO-PAYMENT-'+randomUUID();
+  const proof=await rpc('submit_subscription_payment_proof',{p_subscription_id:sid,p_payment_method:'bank_transfer',p_payment_reference:reference,p_amount:plans.data[0].monthly_price,p_payer_name:'[TEST] Synthetic payer',p_receipt_object_path:null});assert.ok(proof.data.id);
   if(decision==='rejected'){const invalid=await rpc('review_subscription_payment',{p_proof_id:proof.data.id,p_decision:decision,p_review_note:null},true);assert.equal(invalid.ok,false);assert.match(invalid.data.message,/rejection reason/i);const untouched=await call(`/rest/v1/subscription_payment_proofs?id=eq.${proof.data.id}&select=status`);assert.equal(untouched.data[0].status,'pending');console.log('PASS: missing rejection reason leaves evidence pending.');}
-  const reviewed=await rpc('review_subscription_payment',{p_proof_id:proof.data.id,p_decision:decision,p_review_note:'[TEST] Synthetic staging acceptance; no funds transferred.'});assert.equal(reviewed.data.status,decision==='verified'?'active':'cancelled');
+  let reviewed;
+  if(browser){await browser.review(reference,decision);reviewed={data:(await call(`/rest/v1/subscriptions?id=eq.${sid}&select=*`)).data[0]};}
+  else reviewed=await rpc('review_subscription_payment',{p_proof_id:proof.data.id,p_decision:decision,p_review_note:'[TEST] Synthetic staging acceptance; no funds transferred.'});
+  assert.equal(reviewed.data.status,decision==='verified'?'active':'cancelled');
   const stored=await call(`/rest/v1/subscription_payment_proofs?id=eq.${proof.data.id}&select=status,reviewed_by`);assert.equal(stored.data[0].status,decision);assert.equal(stored.data[0].reviewed_by,state.userId);
   const duplicate=await rpc('review_subscription_payment',{p_proof_id:proof.data.id,p_decision:decision,p_review_note:'[TEST] Duplicate review'},true);assert.equal(duplicate.ok,false);assert.match(duplicate.data.message,/already been reviewed/);
   console.log(`PASS: ${decision} evidence transitions subscription and rejects duplicate review.`);
   if(decision==='verified'){assert.ok(reviewed.data.current_period_start);assert.ok(reviewed.data.current_period_end);await rpc('transition_subscription',{p_subscription_id:sid,p_action:'cancel',p_reason:'[TEST] End synthetic acceptance fixture',p_effective_date:new Date().toISOString().slice(0,10)});}
  }
  console.log('PASS: staging subscription approval and rejection acceptance completed. No payment provider called.');
-}finally{await cleanup();}
+}finally{try{await browser?.close();}finally{await cleanup();}}
