@@ -16,6 +16,10 @@ interface Env {
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  EMAIL_PROVIDER?: string;
+  EMAIL_FROM?: string;
+  CLOUDFLARE_EMAIL_API_TOKEN?: string;
+  CLOUDFLARE_EMAIL_ACCOUNT_ID?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM_EMAIL?: string;
   RESEND_WEBHOOK_SECRET?: string;
@@ -50,6 +54,10 @@ export class ManohubContainer extends Container<Env> {
       VITE_SUPABASE_URL: env.VITE_SUPABASE_URL || 'https://rffjehmbrycztiekcyho.supabase.co',
       VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_HiizVcWA4JQxSoCxO3N6kQ_Ov4hGGmk',
       SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+      EMAIL_PROVIDER: env.EMAIL_PROVIDER ?? 'resend',
+      EMAIL_FROM: env.EMAIL_FROM ?? '',
+      CLOUDFLARE_EMAIL_API_TOKEN: env.CLOUDFLARE_EMAIL_API_TOKEN ?? '',
+      CLOUDFLARE_EMAIL_ACCOUNT_ID: env.CLOUDFLARE_EMAIL_ACCOUNT_ID ?? '',
       RESEND_API_KEY: env.RESEND_API_KEY ?? '',
       RESEND_FROM_EMAIL: env.RESEND_FROM_EMAIL ?? '',
       RESEND_WEBHOOK_SECRET: env.RESEND_WEBHOOK_SECRET ?? '',

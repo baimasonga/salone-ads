@@ -57,14 +57,17 @@ GitHub API access works, but the current integration receives HTTP 403 when
 reading Actions secrets and variables. Their presence is therefore unverified;
 this does not establish that they are missing from GitHub.
 
-For email validation, configure staging Worker secrets `RESEND_API_KEY`,
-`RESEND_FROM_EMAIL`, `RESEND_WEBHOOK_SECRET` and `EMAIL_DISPATCH_SECRET`. Use a
-sandbox provider or an explicitly approved test recipient. Set an optional
-staging `GEMINI_API_KEY` only if testing provider-backed generation. The workflow
-sets staging `APP_URL` from `MANOHUB_STAGING_URL`; keys remain server-only.
+For Cloudflare Email Sending (Beta), see `docs/cloudflare-email-sending.md`.
+Select the provider explicitly with the staging Worker's `EMAIL_PROVIDER` secret
+set to `cloudflare`; configure `EMAIL_FROM`, `CLOUDFLARE_EMAIL_ACCOUNT_ID` and
+`CLOUDFLARE_EMAIL_API_TOKEN` as Worker secrets. The token must have Email Sending
+permission for the sending account. Do not substitute a deployment token or
+copy production credentials. Resend remains the default for existing deployments.
 
-Before production promotion, inspect existing production email/AI bindings as
-well. Staging secrets must never be copied into production bindings.
+`EMAIL_DISPATCH_SECRET` separately enables scheduled campaign work; leave it
+unset while validating a single approved staging email. Resend deployments use
+`RESEND_API_KEY`, `RESEND_FROM_EMAIL` and `RESEND_WEBHOOK_SECRET`. The workflow
+sets staging `APP_URL` from `MANOHUB_STAGING_URL`; provider keys remain server-only.
 
 ## Back up and verify the schema
 
