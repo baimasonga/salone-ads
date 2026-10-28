@@ -24,7 +24,7 @@ const targets=[];
 for(const row of rows){
  const name=row.name??names.get(row.id);
  console.log(JSON.stringify({name,state:row.status?.state,current:name===currentName}));
- if(name===currentName)continue;
+ if(name===currentName||!['running','provisioning','starting','stopping'].includes(row.status?.state))continue;
  if(typeof name!=='string'||!name.startsWith('staging-')||!/^\w{64}$/.test(row.id))throw new Error('Unknown instance identity; refusing stop');
  targets.push({id:row.id,name});
 }
@@ -41,7 +41,22 @@ let published=false;
 try{
  wrangler(['deploy']);published=true;
  wrangler(['secret','put','MAINTENANCE_AUTH_TOKEN'],secret);
- const r=await fetch(`https://${name}.mohamedbangura.workers.dev`,{method:'POST',headers:{Authorization:`Bearer ${secret}`},signal:AbortSignal.timeout(60000)});
- if(!r.ok)throw new Error(`Stopping superseded staging instances returned HTTP ${r.status}`);
- const result=await r.json();console.log('Superseded staging instances stopped:',result.stopped?.length);
+ let stopped=false;
+ for(let attempt=0;attempt<10;attempt++){
+  const r=await fetch(`https://${name}.mohamedbangura.workers.dev`,{method:'POST',headers:{Authorization:`Bearer ${secret}`},signal:AbortSignal.timeout(45000)});
+  if(r.ok){const result=await r.json();console.log('Superseded staging instances stopped:',result.stopped?.length);stopped=true;break;}
+  const text=(await r.text()).replaceAll(secret,'[redacted]').slice(0,180);
+  console.log('Maintenance propagation status:',r.status,text);
+  if(![403,404,502,503].includes(r.status))throw new Error('Staging maintenance RPC failed');
+  await new Promise(resolve=>setTimeout(resolve,3000));
+ }
+ if(!stopped)throw new Error('Maintenance Worker did not become available');
 }finally{if(published)wrangler(['delete','--force']);fs.rmSync(temp,{recursive:true,force:true});}
+
+let healthy=false;
+for(let attempt=0;attempt<6;attempt++){
+ try{const r=await fetch('https://manohub-staging-container.mohamedbangura.workers.dev/api/health',{signal:AbortSignal.timeout(20000)});if(r.ok){const body=await r.json();if(body.environment==='staging'&&body.release===value('RELEASE_VERSION')){healthy=true;break;}}}catch{}
+ await new Promise(resolve=>setTimeout(resolve,5000));
+}
+if(!healthy)throw new Error('Current staging release not healthy after freeing capacity');
+console.log('PASS: current staging release is healthy within the unchanged instance limit.');
