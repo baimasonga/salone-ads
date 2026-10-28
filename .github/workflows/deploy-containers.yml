@@ -1,4 +1,4 @@
-name: Temporary staging administrator acceptance
+name: Read-only production readiness audit
 on:
   workflow_dispatch:
     inputs:
@@ -11,38 +11,22 @@ on:
 permissions:
   contents: read
 jobs:
-  staging-email-acceptance:
+  audit:
     runs-on: ubuntu-latest
-    environment: staging
-    timeout-minutes: 8
-    env:
-      EXPECTED_EMAIL_PROVIDER: cloudflare-worker
-      STAGING_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
-      STAGING_ANON_KEY: ${{ vars.STAGING_SUPABASE_ANON_KEY }}
-      STAGING_SERVICE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: actions/checkout@v4
+      - name: Read production release and readiness indicators
+        run: node scripts/production-readiness-audit.mjs
+        env:
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PRODUCTION_URL: ${{ vars.MANOHUB_PRODUCTION_URL }}
+          MIGRATIONS_COMMIT: ${{ vars.PRODUCTION_DATABASE_MIGRATIONS_COMMIT }}
+      - uses: actions/upload-artifact@v4
         with:
-          ref: accaa3ccfc969997db801adf38650bd0334f1cb2
-          path: release-check
-      - name: Verify native email release and public boundaries
-        run: node release-check/scripts/verify-staging-release.mjs
-        env:
-          STAGING_TARGET_URL: https://manohub-staging-container.mohamedbangura.workers.dev
-          EXPECTED_RELEASE_COMMIT: accaa3ccfc969997db801adf38650bd0334f1cb2
-      - name: Check native email bridge without sending
-        run: node scripts/diagnostics/staging-admin-acceptance.mjs
-        env:
-          EMAIL_DIAGNOSTICS: true
-      - name: Send the approved test email through the native binding
-        run: node scripts/diagnostics/staging-admin-acceptance.mjs
-        env:
-          EMAIL_ACCEPTANCE: true
-          APPROVED_TEST_RECIPIENT: baimasonga@gmail.com
-      - name: Ensure temporary administrator is removed
-        if: always()
-        run: node scripts/diagnostics/staging-admin-acceptance.mjs --cleanup
+          name: production-readiness-audit
+          path: production-readiness-audit.json
+          retention-days: 7
